@@ -653,25 +653,44 @@ Devices should remember the latest security sequence/head they have observed so 
 
 Signed security data must have one deterministic byte representation.
 
-The current choice is:
+Protocol version 1 uses RFC 8949 deterministic CBOR. The implementation uses
+`cborg` with `rfc8949EncodeOptions`.
+
+For `CreateProject`, the signing and head-hash rules are:
 
 ```text
-logical security object
-        |
-      normalize
+CreateProject without signature
         |
 deterministic CBOR
         |
-       bytes
+Ed25519 sign with initial device
         |
-      hash/sign
+Signed CreateProject
+        |
+deterministic CBOR
+        |
+SHA-256
+        |
+SecurityState.headHash
 ```
 
-Normalization includes rules such as sorting logically unordered device collections by DeviceId.
+The initial device is implicitly the signer of `CreateProject`; the transition
+does not carry a separate `signerDeviceId`. The signature covers every other
+field in the transition, including the initial device public identity.
 
-This avoids signature failures caused by semantically equivalent but byte-wise different serializations.
+Normalization includes rules such as sorting logically unordered device
+collections by DeviceId before encoding when such collections are introduced.
+`CreateProject` contains only one device and therefore needs no collection
+sorting.
 
-The exact CBOR library remains to be selected.
+A locally generated and verified `CreateProject` is only a bootstrap
+candidate. It is not persisted as the authoritative `SecurityState` until the
+Project coordinator accepts and commits it. This keeps locally constructed but
+uncommitted security state distinct from committed authorization state.
+
+These rules avoid signature failures caused by semantically equivalent but
+byte-wise different serializations and define one stable value for the security
+head hash.
 
 ## 19. Invitation and pairing
 
