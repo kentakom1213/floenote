@@ -11,6 +11,7 @@ export type {
   AddDeviceTransition,
   CreateProjectTransition,
   UnsignedAddDeviceTransition,
+  UnsignedRevokeDeviceTransition,
   RevokeDeviceTransition,
   SecurityTransition,
 } from "./transition.js";
@@ -52,6 +53,14 @@ export {
   encodeAddDeviceTransition,
   encodeUnsignedAddDeviceTransition,
 } from "./add-device.js";
+
+export {
+  attachRevokeDeviceSignature,
+  createUnsignedRevokeDeviceTransition,
+  deriveRevokeDeviceSecurityState,
+  encodeRevokeDeviceTransition,
+  encodeUnsignedRevokeDeviceTransition,
+} from "./revoke-device.js";
 
 export {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
