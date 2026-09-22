@@ -8,12 +8,10 @@ const enum MessageType {
   Hello = 1,
   ManifestUpdate = 2,
   DocumentUpdate = 3,
-  FullStateEnd = 4,
 }
 
 export type SyncMessage =
   | { type: "hello" }
-  | { type: "full-state-end" }
   | { type: "manifest-update"; update: Uint8Array }
   | {
       type: "document-update";
@@ -51,9 +49,6 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
     case "hello":
       return Uint8Array.of(PROTOCOL_VERSION, MessageType.Hello);
 
-    case "full-state-end":
-      return Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd);
-
     case "manifest-update": {
       const encoded = new Uint8Array(HEADER_LENGTH + message.update.length);
       encoded[0] = PROTOCOL_VERSION;
@@ -88,9 +83,6 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
   switch (data[1]) {
     case MessageType.Hello:
       return { type: "hello" };
-
-    case MessageType.FullStateEnd:
-      return { type: "full-state-end" };
 
     case MessageType.ManifestUpdate:
       return {
