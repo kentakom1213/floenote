@@ -498,7 +498,42 @@ The current browser bootstrap creates a WebAuthn credential when no local vault
 exists. A later UX may offer "use existing Floe Note passkey" so a discoverable
 synchronized credential can be reused instead of creating another credential.
 
-### 14.2 Unlock lifetime
+### 14.2 Passkey availability and device authorization
+
+Passkey availability and Floe Note device authorization are independent concerns.
+
+A WebAuthn credential proves that the user can unlock or create a local vault boundary. It does not prove that the current local device identity is authorized for a Project. Conversely, a device may remain present in SecurityState while the WebAuthn credential needed to unlock its local vault is temporarily unavailable.
+
+Conceptually, the browser onboarding flow must account for the cross product of these two axes:
+
+| Passkey available | Local device / Project authorization | Meaning |
+| --- | --- | --- |
+| no | absent / unauthorized | New or unsupported environment. A persistent vault cannot be opened until a usable WebAuthn credential is available. |
+| yes | absent / unauthorized | Normal new-device onboarding state. A synchronized Floe Note passkey may be reused to create or unlock an independent local vault, but the new DeviceId is still unauthorized until the signed AddDevice flow succeeds. |
+| no | present / authorized | The Project may still list the device as authorized, but the local vault cannot be unlocked in this environment. Authorization alone does not recover local secrets. |
+| yes | present / authorized | Normal returning-device state. The passkey unlocks the local vault, after which the device identity is checked against SecurityState. |
+
+The table is a UX model, not a replacement for the underlying security checks. In particular:
+
+- synchronized passkey availability must not be treated as device registration;
+- creating or unlocking a Device Vault must not implicitly authorize the device for a Project;
+- a successful vault unlock must still be followed by the normal SecurityState authorization check;
+- a revoked device may still be able to unlock its local vault, but must be rejected as unauthorized for the Project;
+- one synchronized passkey may unlock multiple independent local vaults, each with a distinct DeviceId and device key pairs.
+
+When no local vault exists, the browser onboarding UX should prefer reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or ProjectKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
+
+### 14.3 Ephemeral sessions
+
+A future temporary-session mode may allow a Project to be opened without creating a persistent Device Vault on that browser profile.
+
+The intended property is that sensitive session material, including any temporary device key material and ProjectKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or project storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
+
+This mode is intentionally separate from private-browsing detection. The application should not infer security semantics from whether the browser reports a private window; a user may choose an ephemeral session in a normal window, and private-browsing storage behavior differs across browsers.
+
+Ephemeral sessions are not part of the initial MVP protocol. Their exact authorization and ProjectKey-delivery rules must be specified before implementation so they do not weaken the normal SecurityState device-authorization boundary.
+
+### 14.4 Unlock lifetime
 
 Vault unlock is valid for the current application session.
 
