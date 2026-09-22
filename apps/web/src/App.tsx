@@ -991,22 +991,26 @@ function NoteApp() {
 
   async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
     if (securityMutationInFlightRef.current) {
-      setCoordinationError("A security update is already in progress");
-      return;
+      const error = new Error("A security update is already in progress");
+      setCoordinationError(error.message);
+      throw error;
     }
     if (!localSecurityState || !localDeviceId) {
-      setCoordinationError("Committed SecurityState is not available");
-      return;
+      const error = new Error("Committed SecurityState is not available");
+      setCoordinationError(error.message);
+      throw error;
     }
     if (revokedDeviceId === localDeviceId) {
-      setCoordinationError("This device cannot revoke itself");
-      return;
+      const error = new Error("This device cannot revoke itself");
+      setCoordinationError(error.message);
+      throw error;
     }
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      setCoordinationError("Device Vault must be unlocked before revocation");
-      return;
+      const error = new Error("Device Vault must be unlocked before revocation");
+      setCoordinationError(error.message);
+      throw error;
     }
 
     securityMutationInFlightRef.current = true;
@@ -1332,7 +1336,7 @@ function NoteApp() {
   const sidebarFooter = (
     <>
       {debugSidebarControls}
-      {coordinationError ? (
+      {coordinationError && !useInvitationWebRtc ? (
         <p className="webrtc-error">{coordinationError}</p>
       ) : null}
       <div className="sidebar-footer-row">
