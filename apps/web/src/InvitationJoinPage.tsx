@@ -10,7 +10,9 @@ import type { DeviceId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
+  receiveProjectKeyDelivery,
 } from "@floe-note/pairing";
+import type { ProjectStorage } from "@floe-note/storage";
 import {
   WebRtcTransport,
   type WebRtcStatus,
@@ -39,6 +41,7 @@ type InvitationJoinPageProps = {
   coordinatorBaseUrl: string;
   inviteId: string;
   pairingSecret: string | null;
+  storage: ProjectStorage;
 };
 
 type JoinVaultState =
@@ -53,12 +56,14 @@ type PairingState =
   | "waiting-for-vault"
   | "connecting"
   | "identity-sent"
+  | "key-stored"
   | "error";
 
 export function InvitationJoinPage({
   coordinatorBaseUrl,
   inviteId,
   pairingSecret,
+  storage,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
@@ -175,6 +180,23 @@ export function InvitationJoinPage({
         });
         if (disposed) return;
 
+        const deliveryPromise = receiveProjectKeyDelivery({
+          transport,
+          projectId: claimed.projectId,
+          recipientIdentity: session.publicIdentity,
+          signal: abortPairing.signal,
+          onDelivery: async ({ securityState, sealedEnvelope }) => {
+            await session.storeSealedProjectKey(
+              sealedEnvelope,
+              securityState.projectId,
+              securityState.keyEpoch,
+              securityState.headHash,
+            );
+            await storage.saveCommittedSecurityState(securityState);
+            await storage.initializeJoinedProject(securityState.projectId);
+          },
+        });
+
         const identity = await exchangeJoiningDeviceIdentity({
           role: "join",
           transport,
@@ -188,6 +210,10 @@ export function InvitationJoinPage({
         }
 
         setPairingState("identity-sent");
+
+        await deliveryPromise;
+        if (disposed) return;
+        setPairingState("key-stored");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -210,6 +236,7 @@ export function InvitationJoinPage({
     deviceId,
     inviteId,
     pairingSecret,
+    storage,
     vaultState,
   ]);
 
@@ -306,8 +333,12 @@ export function InvitationJoinPage({
         {pairingState === "identity-sent" ? (
           <p className="join-live-hint">
             Public device identity sent. Confirm this Device ID on an existing
-            authorized device. This page will remain here until ProjectKey
-            delivery is implemented in the next step.
+            authorized device and wait for ProjectKey delivery.
+          </p>
+        ) : pairingState === "key-stored" ? (
+          <p className="join-live-hint">
+            ProjectKey and committed SecurityState stored. This Project is now
+            adopted locally. Encrypted note synchronization is the next step.
           </p>
         ) : vaultState !== "unlocked" ? (
           <p className="join-live-hint">
