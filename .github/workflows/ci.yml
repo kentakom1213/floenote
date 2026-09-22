@@ -27,7 +27,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Test
         run: pnpm test
@@ -37,10 +37,3 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-      - name: Emit generated lockfile
-        if: always()
-        run: |
-          echo "FLOE_LOCKFILE_BEGIN"
-          cat pnpm-lock.yaml
-          echo "FLOE_LOCKFILE_END"
