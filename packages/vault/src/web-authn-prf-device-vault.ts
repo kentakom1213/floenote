@@ -418,20 +418,9 @@ export class DeviceVaultSession {
       (entry) => entry.projectId !== projectId,
     );
 
-    try {
-      await this.#persist(
-        this.#requireOpen(),
-        remaining,
-      );
-      this.#projectKeys = remaining;
-      for (const entry of removed) entry.projectKey.fill(0);
-    } catch (error) {
-      for (const entry of remaining) {
-        // Keep the in-memory state unchanged when persistence fails.
-        void entry;
-      }
-      throw error;
-    }
+    await this.#persist(this.#requireOpen(), remaining);
+    this.#projectKeys = remaining;
+    for (const entry of removed) entry.projectKey.fill(0);
   }
 
   async sign(message: Uint8Array): Promise<Uint8Array> {
