@@ -146,6 +146,8 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async removeProject(projectId: ProjectId): Promise<ProjectId | null> {
+    await this.#writeQueue;
+
     const record = await this.#db.projects.get(projectId);
     if (!record) return null;
 
