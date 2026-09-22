@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { DeviceVaultUiState } from "./DeviceVaultPanel.js";
 
@@ -14,10 +14,15 @@ export function UnlockScreen({
   onUnlockOrCreate,
 }: UnlockScreenProps) {
   const [displayName, setDisplayName] = useState("");
-  const missing = state === "missing";
+  const [setupMode, setSetupMode] = useState(state === "missing");
+
+  useEffect(() => {
+    if (state === "missing") setSetupMode(true);
+  }, [state]);
+
   const checking = state === "checking";
   const unlocking = state === "unlocking";
-  const canSubmit = !missing || displayName.trim().length > 0;
+  const canSubmit = !setupMode || displayName.trim().length > 0;
 
   return (
     <main className="unlock-screen">
@@ -26,14 +31,14 @@ export function UnlockScreen({
           ◆
         </div>
         <p className="settings-eyebrow">Floe Note</p>
-        <h1>{missing ? "Set up this device" : "Unlock Floe Note"}</h1>
+        <h1>{setupMode ? "Set up this device" : "Unlock Floe Note"}</h1>
         <p className="unlock-copy">
           {missing
             ? "Create a local device identity and give this device a name you will recognize on your other devices."
             : "Unlock this device to open your encrypted local Projects."}
         </p>
 
-        {missing ? (
+        {setupMode ? (
           <label className="unlock-field">
             <span>Device name</span>
             <input
@@ -56,13 +61,13 @@ export function UnlockScreen({
             disabled={unlocking || !canSubmit}
             onClick={() =>
               void onUnlockOrCreate(
-                missing ? displayName.trim() : undefined,
+                setupMode ? displayName.trim() : undefined,
               )
             }
           >
             {unlocking
               ? "Unlocking…"
-              : missing
+              : setupMode
                 ? "Set up this device"
                 : state === "error"
                   ? "Try again"
