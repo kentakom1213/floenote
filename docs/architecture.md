@@ -367,9 +367,22 @@ SecurityState head, and the challenge. The coordinator verifies the signature
 against the authorized device public key in its current SecurityState before the
 device is included in the online-device set.
 
-Presence discovery only answers which authorized DeviceIds are currently
-connected. It does not create a WebRTC connection by itself. WebRTC offer,
-answer, and ICE messages are relayed through Cloudflare separately.
+Presence discovery supplies the online authorized DeviceIds used by the browser
+reconnect layer. For each online device pair, the lexicographically smaller
+DeviceId acts as the initiator. It generates a random 128-bit signaling SessionId
+and sends that rendezvous capability to the peer over the already authenticated
+presence WebSocket. The peer then joins the same signaling session.
+
+The current browser implementation opportunistically establishes a direct
+WebRTC connection for each simultaneously online device pair so CRDT updates do
+not depend on peer-to-peer relaying. This is an implementation choice rather
+than a protocol requirement: Floe Note does not add leader election, graph
+repair, peer introduction, or a durable full-mesh membership protocol.
+
+WebRTC offer, answer, and ICE messages are relayed through Cloudflare
+separately. Once the DataChannel is available, the existing
+`EncryptedSyncTransport` and `ProjectSyncEngine` perform ProjectKey-protected
+synchronization.
 
 ```text
 Device A ---- WebSocket ----┐
@@ -434,6 +447,14 @@ deduplicated by DeviceId and broadcast to authenticated presence sockets.
 
 Presence is ephemeral Durable Object/WebSocket state. It is not persisted as an
 authorization record and does not change SecurityState.
+
+After authentication, a presence socket may also request a reconnect rendezvous
+for another currently authorized device. The coordinator validates that both
+DeviceIds are still authorized under the same current SecurityState head and
+forwards only the random signaling SessionId and sender DeviceId to one matching
+authenticated presence socket. The signaling SessionId therefore remains an
+unguessable short-lived capability rather than a deterministic value derived
+from public Project/device metadata.
 
 Project-scoped signaling remains in `ProjectCoordinatorDO(ProjectId)`. Because a
 join URL intentionally does not expose `ProjectId`, short-lived invitation
@@ -1249,6 +1270,12 @@ visible rather than being implied away by the use of modern primitives.
   does not reveal ProjectKey, note contents, or device private keys. Hiding the
   online-device graph from the coordination service is not a goal of the
   current reconnect design.
+- **Automatic reconnect is currently best-effort while presence is stable.**
+  Presence changes cause stale peer connections to be closed and new online
+  device pairs to rendezvous automatically. A WebRTC connection that enters a
+  terminal failed/closed state is cleaned up, but repeated ICE retry/backoff
+  while both presence sockets remain continuously online is not yet a separate
+  recovery protocol.
 - **Encrypted local persistence still exposes storage metadata.** ProjectId,
   DocumentId, local-slot metadata, record counts, ciphertext sizes, and the
   storage envelope keyEpoch remain observable in IndexedDB. Note titles,

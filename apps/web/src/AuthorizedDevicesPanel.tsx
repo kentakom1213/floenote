@@ -7,6 +7,7 @@ type AuthorizedDevicesPanelProps = {
   localDeviceId: DeviceId;
   authorizedDevices: readonly AuthorizedDevice[];
   onlineDeviceIds: readonly DeviceId[];
+  connectedDeviceIds: readonly DeviceId[];
   error: string | null;
 };
 
@@ -15,9 +16,11 @@ export function AuthorizedDevicesPanel({
   localDeviceId,
   authorizedDevices,
   onlineDeviceIds,
+  connectedDeviceIds,
   error,
 }: AuthorizedDevicesPanelProps) {
   const online = new Set<DeviceId>(onlineDeviceIds);
+  const connected = new Set<DeviceId>(connectedDeviceIds);
 
   return (
     <section className="webrtc-debug-panel">
@@ -33,7 +36,15 @@ export function AuthorizedDevicesPanel({
             {device.deviceId === localDeviceId ? " (this device)" : ""}
           </strong>
           {" — "}
-          {online.has(device.deviceId) ? "online" : "offline"}
+          {device.deviceId === localDeviceId
+            ? online.has(device.deviceId)
+              ? "online"
+              : "offline"
+            : online.has(device.deviceId)
+              ? connected.has(device.deviceId)
+                ? "online · sync connected"
+                : "online · sync pending"
+              : "offline"}
         </p>
       ))}
 

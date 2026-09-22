@@ -48,6 +48,10 @@ import {
 } from "@floe-note/vault";
 
 import { AuthorizedDevicesPanel } from "./AuthorizedDevicesPanel.js";
+import {
+  AutomaticPeerSyncManager,
+  type AutomaticPeerSyncStatus,
+} from "./AutomaticPeerSyncManager.js";
 import { createConsoleDebugLogger } from "./debug.js";
 import {
   DeviceVaultPanel,
@@ -71,6 +75,8 @@ const searchParams = new URLSearchParams(window.location.search);
 const useManualWebRtc = searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc = searchParams.get("transport") === "signal";
 const useInvitationWebRtc = searchParams.get("transport") === "invite";
+const useAutomaticReconnect =
+  !useManualWebRtc && !useSignaledWebRtc && !useInvitationWebRtc;
 const useManualWebRtcJoin = searchParams.get("join") === "webrtc";
 const useSignaledWebRtcJoin = searchParams.get("join") === "signal";
 const invitationPathMatch = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(
@@ -147,6 +153,8 @@ function NoteApp() {
   );
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
+  const presenceClientRef = useRef<AuthorizedPresenceClient | null>(null);
+  const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -163,6 +171,11 @@ function NoteApp() {
     useState<AuthorizedPresenceConnectionState>("idle");
   const [onlineDeviceIds, setOnlineDeviceIds] = useState<readonly DeviceId[]>([]);
   const [presenceError, setPresenceError] = useState<string | null>(null);
+  const [automaticSyncStatus, setAutomaticSyncStatus] =
+    useState<AutomaticPeerSyncStatus>({
+      connectedDeviceIds: [],
+      error: null,
+    });
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
   >("waiting");
@@ -353,6 +366,9 @@ function NoteApp() {
       setPresenceState("idle");
       setOnlineDeviceIds([]);
       setPresenceError(null);
+      automaticPeerSyncRef.current?.stop();
+      automaticPeerSyncRef.current = null;
+      setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
       return;
     }
 
@@ -366,26 +382,60 @@ function NoteApp() {
       securityHead: localSecurityState.headHash,
       sign: (message) => session.sign(message),
     });
+    presenceClientRef.current = presence;
+
+    const automaticPeerSync =
+      useAutomaticReconnect && localProjectKeyReady
+        ? new AutomaticPeerSyncManager({
+            coordinatorBaseUrl,
+            project,
+            localDeviceId,
+            securityState: localSecurityState,
+            vaultSession: session,
+            presence,
+            onStatusChange: setAutomaticSyncStatus,
+          })
+        : null;
+    automaticPeerSyncRef.current = automaticPeerSync;
 
     const stopState = presence.onStateChange(setPresenceState);
-    const stopDevices = presence.onOnlineDevicesChange(setOnlineDeviceIds);
+    const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
+      setOnlineDeviceIds(deviceIds);
+      automaticPeerSync?.updateOnlineDevices(deviceIds);
+    });
+    const stopReconnect = presence.onReconnectSession(
+      (fromDeviceId, sessionId) => {
+        automaticPeerSync?.acceptReconnectSession(fromDeviceId, sessionId);
+      },
+    );
     const stopErrors = presence.onError((error) =>
       setPresenceError(error.message),
     );
 
     setPresenceError(null);
+    setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
     presence.start();
 
     return () => {
       stopState();
       stopDevices();
+      stopReconnect();
       stopErrors();
+      automaticPeerSync?.stop();
+      if (automaticPeerSyncRef.current === automaticPeerSync) {
+        automaticPeerSyncRef.current = null;
+      }
+      if (presenceClientRef.current === presence) {
+        presenceClientRef.current = null;
+      }
       presence.close();
       setOnlineDeviceIds([]);
+      setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
     };
   }, [
     deviceVaultState,
     localDeviceId,
+    localProjectKeyReady,
     localSecurityState,
     project,
   ]);
@@ -982,7 +1032,8 @@ function NoteApp() {
             localDeviceId={localDeviceId}
             authorizedDevices={localSecurityState.devices}
             onlineDeviceIds={onlineDeviceIds}
-            error={presenceError}
+            connectedDeviceIds={automaticSyncStatus.connectedDeviceIds}
+            error={presenceError ?? automaticSyncStatus.error}
           />
         ) : null}
 

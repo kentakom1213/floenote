@@ -543,16 +543,23 @@ export class ProjectCoordinator extends DurableObject<Env> {
     attachment: PresenceSocketAttachment,
     message: string,
   ): Promise<void> {
-    if (attachment.deviceId) {
-      socket.close(1008, "Authorized presence is already authenticated");
-      return;
-    }
-
     let payload: unknown;
     try {
       payload = JSON.parse(message);
     } catch {
       socket.close(1007, "Invalid authorized-presence JSON");
+      return;
+    }
+
+    if (attachment.deviceId) {
+      await this.#handleAuthenticatedPresenceMessage(
+        socket,
+        {
+          ...attachment,
+          deviceId: attachment.deviceId,
+        },
+        payload,
+      );
       return;
     }
 
@@ -635,6 +642,87 @@ export class ProjectCoordinator extends DurableObject<Env> {
     } satisfies PresenceSocketAttachment);
 
     this.#broadcastPresenceState();
+  }
+
+  async #handleAuthenticatedPresenceMessage(
+    socket: WebSocket,
+    attachment: PresenceSocketAttachment & { deviceId: string },
+    payload: unknown,
+  ): Promise<void> {
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("type" in payload) ||
+      payload.type !== "reconnect-session" ||
+      !("peerDeviceId" in payload) ||
+      typeof payload.peerDeviceId !== "string" ||
+      !("sessionId" in payload) ||
+      typeof payload.sessionId !== "string"
+    ) {
+      socket.close(1007, "Invalid authorized-presence control message");
+      return;
+    }
+
+    let projectId: ProjectId;
+    let senderDeviceId: DeviceId;
+    let peerDeviceId: DeviceId;
+    try {
+      projectId = parseProjectId(attachment.projectId);
+      senderDeviceId = parseDeviceId(attachment.deviceId);
+      peerDeviceId = parseDeviceId(payload.peerDeviceId);
+    } catch {
+      socket.close(1008, "Invalid authorized-presence reconnect identity");
+      return;
+    }
+
+    const sessionId = payload.sessionId.toLowerCase();
+    if (!SESSION_ID_PATTERN.test(sessionId)) {
+      socket.close(1008, "Invalid reconnect signaling session");
+      return;
+    }
+
+    if (peerDeviceId === senderDeviceId) {
+      socket.close(1008, "Reconnect peer must be a different device");
+      return;
+    }
+
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) {
+      socket.close(1011, "Project SecurityState is unavailable");
+      return;
+    }
+
+    if (attachment.securityHead !== bytesToHex(state.headHash)) {
+      socket.close(1008, "SecurityState changed during authorized presence");
+      return;
+    }
+
+    const senderAuthorized = state.devices.some(
+      (device) => device.deviceId === senderDeviceId,
+    );
+    const peerAuthorized = state.devices.some(
+      (device) => device.deviceId === peerDeviceId,
+    );
+    if (!senderAuthorized || !peerAuthorized) {
+      socket.close(1008, "Reconnect devices are not authorized");
+      return;
+    }
+
+    for (const peer of this.ctx.getWebSockets(presenceTag())) {
+      const peerAttachment =
+        peer.deserializeAttachment() as SocketAttachment | null;
+      if (
+        peerAttachment?.kind === "presence" &&
+        peerAttachment.deviceId === peerDeviceId
+      ) {
+        sendJson(peer, {
+          type: "reconnect-session",
+          fromDeviceId: senderDeviceId,
+          sessionId,
+        });
+        return;
+      }
+    }
   }
 
   #handleSocketDeparture(socket: WebSocket): void {
