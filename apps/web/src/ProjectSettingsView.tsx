@@ -11,10 +11,11 @@ type ProjectSettingsViewProps = {
   authorizedDevices: readonly AuthorizedDevice[];
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  getDeviceDisplayName: (deviceId: DeviceId) => string | null;
   onRenameProject: (name: string) => void;
   onRemoveProjectFromDevice: () => Promise<void>;
   onAddDevice: () => void;
-  onRemoveDevice: (deviceId: DeviceId) => void;
+  onRemoveDevice: (deviceId: DeviceId) => Promise<void>;
 };
 
 function shortDeviceId(deviceId: DeviceId): string {
@@ -28,6 +29,7 @@ export function ProjectSettingsView({
   authorizedDevices,
   onlineDeviceIds,
   connectedDeviceIds,
+  getDeviceDisplayName,
   onRenameProject,
   onRemoveProjectFromDevice,
   onAddDevice,
@@ -37,6 +39,7 @@ export function ProjectSettingsView({
   const connected = new Set(connectedDeviceIds);
   const [nameDraft, setNameDraft] = useState(projectName);
   const [removeProjectOpen, setRemoveProjectOpen] = useState(false);
+  const [removeDeviceId, setRemoveDeviceId] = useState<DeviceId | null>(null);
   const normalizedName = nameDraft.trim();
   const nameChanged =
     normalizedName.length > 0 && normalizedName !== projectName;
@@ -44,6 +47,10 @@ export function ProjectSettingsView({
   useEffect(() => {
     setNameDraft(projectName);
   }, [projectName]);
+
+  const removeDeviceName = removeDeviceId
+    ? getDeviceDisplayName(removeDeviceId) ?? "this device"
+    : null;
 
   return (
     <section className="settings-view">
@@ -100,12 +107,18 @@ export function ProjectSettingsView({
             const isCurrent = device.deviceId === localDeviceId;
             const isOnline = online.has(device.deviceId);
             const isConnected = connected.has(device.deviceId);
+            const displayName =
+              getDeviceDisplayName(device.deviceId) ??
+              (isCurrent ? "This device" : "Unnamed device");
 
             return (
               <div className="device-row" key={device.deviceId}>
                 <div className="device-copy">
                   <div className="device-title-row">
-                    <strong>{isCurrent ? "This device" : "Device"}</strong>
+                    <strong>{displayName}</strong>
+                    {isCurrent ? (
+                      <span className="settings-badge">This device</span>
+                    ) : null}
                     <span
                       className="device-status"
                       data-state={
@@ -138,7 +151,7 @@ export function ProjectSettingsView({
                   <button
                     className="settings-danger-action"
                     type="button"
-                    onClick={() => onRemoveDevice(device.deviceId)}
+                    onClick={() => setRemoveDeviceId(device.deviceId)}
                   >
                     Remove
                   </button>
@@ -198,6 +211,24 @@ export function ProjectSettingsView({
           </button>
         </div>
       </div>
+
+      {removeDeviceId ? (
+        <ConfirmDialog
+          title={`Remove ${removeDeviceName} from this Project?`}
+          description={
+            <p>
+              This device will stop receiving future changes. Data already
+              stored on it cannot be removed remotely.
+            </p>
+          }
+          confirmLabel="Remove device"
+          onConfirm={async () => {
+            await onRemoveDevice(removeDeviceId);
+            setRemoveDeviceId(null);
+          }}
+          onClose={() => setRemoveDeviceId(null)}
+        />
+      ) : null}
 
       {removeProjectOpen ? (
         <ConfirmDialog
