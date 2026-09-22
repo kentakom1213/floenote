@@ -13,18 +13,24 @@ export type EncryptedDeviceVaultPayload = {
 export async function deriveDeviceVaultKey(
   prfOutput: Uint8Array,
 ): Promise<Uint8Array> {
-  await sodium.ready;
-
-  const prk = sodium.crypto_kdf_hkdf_sha256_extract(null, prfOutput);
-  try {
-    return sodium.crypto_kdf_hkdf_sha256_expand(
-      DEVICE_VAULT_KEY_BYTES,
-      DEVICE_VAULT_KDF_CONTEXT,
-      prk,
-    );
-  } finally {
-    sodium.memzero(prk);
-  }
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    toArrayBuffer(prfOutput),
+    "HKDF",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new ArrayBuffer(32),
+      info: toArrayBuffer(new TextEncoder().encode(DEVICE_VAULT_KDF_CONTEXT)),
+    },
+    keyMaterial,
+    DEVICE_VAULT_KEY_BYTES * 8,
+  );
+  return new Uint8Array(bits);
 }
 
 export async function encryptDeviceVaultPayload(
@@ -62,6 +68,12 @@ export async function decryptDeviceVaultPayload(
     encrypted.nonce,
     vaultKey,
   );
+}
+
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
 }
 
 function assertVaultKey(vaultKey: Uint8Array): void {
