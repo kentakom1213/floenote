@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
+  AuthorizedPresenceClient,
   createPairingSecret,
   createSessionId,
   InvitationClient,
   SecurityCoordinatorClient,
   WebRtcSignalingSession,
+  type AuthorizedPresenceConnectionState,
   type InviteId,
   type PairingSecret,
   type SessionId,
@@ -45,6 +47,7 @@ import {
   type DeviceVaultSession,
 } from "@floe-note/vault";
 
+import { AuthorizedDevicesPanel } from "./AuthorizedDevicesPanel.js";
 import { createConsoleDebugLogger } from "./debug.js";
 import {
   DeviceVaultPanel,
@@ -156,6 +159,10 @@ function NoteApp() {
     useState<string | null>(null);
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
+  const [presenceState, setPresenceState] =
+    useState<AuthorizedPresenceConnectionState>("idle");
+  const [onlineDeviceIds, setOnlineDeviceIds] = useState<readonly DeviceId[]>([]);
+  const [presenceError, setPresenceError] = useState<string | null>(null);
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
   >("waiting");
@@ -335,6 +342,53 @@ function NoteApp() {
       cancelled = true;
     };
   }, [deviceVaultState, localDeviceId, project]);
+
+  useEffect(() => {
+    if (
+      !project ||
+      !localDeviceId ||
+      !localSecurityState ||
+      deviceVaultState !== "unlocked"
+    ) {
+      setPresenceState("idle");
+      setOnlineDeviceIds([]);
+      setPresenceError(null);
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) return;
+
+    const presence = new AuthorizedPresenceClient({
+      coordinatorBaseUrl,
+      projectId: project.id,
+      deviceId: localDeviceId,
+      securityHead: localSecurityState.headHash,
+      sign: (message) => session.sign(message),
+    });
+
+    const stopState = presence.onStateChange(setPresenceState);
+    const stopDevices = presence.onOnlineDevicesChange(setOnlineDeviceIds);
+    const stopErrors = presence.onError((error) =>
+      setPresenceError(error.message),
+    );
+
+    setPresenceError(null);
+    presence.start();
+
+    return () => {
+      stopState();
+      stopDevices();
+      stopErrors();
+      presence.close();
+      setOnlineDeviceIds([]);
+    };
+  }, [
+    deviceVaultState,
+    localDeviceId,
+    localSecurityState,
+    project,
+  ]);
 
   useEffect(() => {
     if (!project) return;
@@ -921,6 +975,16 @@ function NoteApp() {
           securityError={localSecurityError}
           onUnlockOrCreate={unlockOrCreateDevice}
         />
+
+        {localDeviceId && localSecurityState ? (
+          <AuthorizedDevicesPanel
+            state={presenceState}
+            localDeviceId={localDeviceId}
+            authorizedDevices={localSecurityState.devices}
+            onlineDeviceIds={onlineDeviceIds}
+            error={presenceError}
+          />
+        ) : null}
 
         <nav className="note-list" aria-label="Notes">
           {summaries.map((summary) => (
