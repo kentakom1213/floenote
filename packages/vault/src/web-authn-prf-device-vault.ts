@@ -8,17 +8,27 @@ import {
   destroyDeviceKeyMaterial,
   encryptDeviceVaultPayload,
   generateDeviceKeyMaterial,
+  generateProjectKey,
+  openSealedProjectKeyForDevice,
+  PROJECT_KEY_BYTES,
+  sealProjectKeyForDevice,
   signEd25519,
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
-import { parseDeviceId } from "@floe-note/domain";
+import {
+  parseDeviceId,
+  parseProjectId,
+  type DeviceId,
+  type ProjectId,
+} from "@floe-note/domain";
 import type { DevicePublicIdentity } from "@floe-note/security";
 import Dexie, { type Table } from "dexie";
 
 const DATABASE_NAME = "floe-note-device-vault";
 const VAULT_RECORD_ID = "device-v1";
 const VAULT_RECORD_VERSION = 1 as const;
-const VAULT_PAYLOAD_VERSION = 1 as const;
+const VAULT_PAYLOAD_VERSION_V1 = 1 as const;
+const VAULT_PAYLOAD_VERSION = 2 as const;
 const PRF_INPUT_BYTES = 32;
 const WEBAUTHN_TIMEOUT_MS = 60_000;
 
@@ -31,14 +41,46 @@ type VaultRecord = {
   ciphertext: Uint8Array;
 };
 
-type SerializedDeviceKeyMaterial = {
-  version: typeof VAULT_PAYLOAD_VERSION;
+type SerializedDeviceKeyMaterialV1 = {
+  version: typeof VAULT_PAYLOAD_VERSION_V1;
   deviceId: string;
   encryptionPublicKey: string;
   encryptionPrivateKey: string;
   signingPublicKey: string;
   signingPrivateKey: string;
 };
+
+type SerializedProjectKey = {
+  projectId: string;
+  keyEpoch: number;
+  projectKey: string;
+};
+
+type SerializedDeviceVaultPayload = {
+  version: typeof VAULT_PAYLOAD_VERSION;
+  deviceId: string;
+  encryptionPublicKey: string;
+  encryptionPrivateKey: string;
+  signingPublicKey: string;
+  signingPrivateKey: string;
+  projectKeys: SerializedProjectKey[];
+};
+
+type ProjectKeyEntry = {
+  projectId: ProjectId;
+  keyEpoch: number;
+  projectKey: Uint8Array;
+};
+
+type DeviceVaultContents = {
+  keyMaterial: DeviceKeyMaterial;
+  projectKeys: ProjectKeyEntry[];
+};
+
+type PersistDeviceVault = (
+  keyMaterial: DeviceKeyMaterial,
+  projectKeys: readonly ProjectKeyEntry[],
+) => Promise<void>;
 
 type PrfOutput = {
   prf?: {
