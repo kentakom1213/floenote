@@ -195,27 +195,6 @@ function NoteApp() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    void projectStorage
-      .openOrCreateProject()
-      .then((result) => {
-        if (!cancelled) setOpenedProject(result);
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error ? error.message : "Failed to load project",
-          );
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (
       !project ||
       !localDeviceId ||
@@ -339,16 +318,35 @@ function NoteApp() {
   useEffect(() => {
     if (!project) return;
 
-    const unsubscribeUi = project.subscribe(() =>
+    return project.subscribe(() =>
       setRevision((value) => value + 1),
     );
-    const stopPersistence = projectStorage.watchProject(project);
-
-    return () => {
-      unsubscribeUi();
-      stopPersistence();
-    };
   }, [project]);
+
+  useEffect(() => {
+    if (
+      !project ||
+      !localSecurityState ||
+      !localProjectKeyReady ||
+      deviceVaultState !== "unlocked"
+    ) {
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) return;
+
+    return projectStorage.watchProject(
+      project,
+      session,
+      localSecurityState.keyEpoch,
+    );
+  }, [
+    deviceVaultState,
+    localProjectKeyReady,
+    localSecurityState,
+    project,
+  ]);
 
   useEffect(() => {
     if (!project) return;
@@ -527,10 +525,31 @@ function NoteApp() {
     );
   }
 
+  if (deviceVaultState !== "unlocked") {
+    return (
+      <main className="empty-state">
+        <DeviceVaultPanel
+          state={deviceVaultState}
+          deviceId={localDeviceId}
+          error={deviceVaultError}
+          securityState="waiting"
+          securityHeadHash={null}
+          securitySequence={null}
+          securityKeyEpoch={null}
+          securityDeviceCount={null}
+          projectKeyReady={null}
+          securityError={null}
+          onUnlockOrCreate={unlockOrCreateDevice}
+        />
+        <p>Unlock the Device Vault to open local Project data.</p>
+      </main>
+    );
+  }
+
   if (!project) {
     return (
       <main className="empty-state">
-        <p>Loading local notes…</p>
+        <p>Loading encrypted local notes…</p>
       </main>
     );
   }
@@ -555,6 +574,8 @@ function NoteApp() {
       deviceVaultSessionRef.current = session;
       if (previous) await previous.close();
 
+      const result = await projectStorage.openOrCreateProject(session);
+      setOpenedProject(result);
       setLocalDeviceId(session.publicIdentity.deviceId);
       setDeviceVaultState("unlocked");
     } catch (error: unknown) {
