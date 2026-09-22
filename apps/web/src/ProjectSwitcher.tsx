@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 
 import type { ProjectId } from "@floe-note/domain";
 
+import { Modal } from "./Modal.js";
+
 export type ProjectSwitcherItem = {
   id: ProjectId;
   name: string;
@@ -154,21 +156,14 @@ export function ProjectSwitcher({
       </details>
 
       {newProjectOpen ? (
-        <div
-          className="dialog-backdrop"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !creating) {
-              setNewProjectOpen(false);
-            }
+        <Modal
+          labelledBy="new-project-title"
+          disabled={creating}
+          onClose={() => {
+            setError(null);
+            setNewProjectOpen(false);
           }}
         >
-          <section
-            className="dialog-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-project-title"
-          >
             <h2 id="new-project-title">New project</h2>
             <p className="dialog-description">
               Create a separate space for a set of notes and devices.
@@ -215,8 +210,7 @@ export function ProjectSwitcher({
                 </button>
               </div>
             </form>
-          </section>
-        </div>
+        </Modal>
       ) : null}
     </>
   );
