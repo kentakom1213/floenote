@@ -727,10 +727,19 @@ function NoteApp() {
         sealedEnvelope,
       });
 
-      await new InvitationClient(coordinatorBaseUrl).consumeInvite(
-        invitationHost.inviteId,
-      );
       setProjectKeyDeliveryState("delivered");
+
+      try {
+        await new InvitationClient(coordinatorBaseUrl).consumeInvite(
+          invitationHost.inviteId,
+        );
+      } catch (error: unknown) {
+        setCoordinationError(
+          error instanceof Error
+            ? `ProjectKey stored, but invite consume failed: ${error.message}`
+            : "ProjectKey stored, but invite consume failed",
+        );
+      }
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
