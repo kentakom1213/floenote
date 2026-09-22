@@ -220,16 +220,33 @@ function parseAuthorizedDevice(value: unknown): AuthorizedDevice {
   };
 }
 
+const BASE64URL_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
 function bytesToBase64Url(value: Uint8Array): string {
-  let binary = "";
-  for (const byte of value) {
-    binary += String.fromCharCode(byte);
+  let output = "";
+
+  for (let index = 0; index < value.length; index += 3) {
+    const first = value[index] ?? 0;
+    const second = value[index + 1];
+    const third = value[index + 2];
+
+    const chunk =
+      (first << 16) |
+      ((second ?? 0) << 8) |
+      (third ?? 0);
+
+    output += BASE64URL_ALPHABET[(chunk >>> 18) & 63];
+    output += BASE64URL_ALPHABET[(chunk >>> 12) & 63];
+    if (second !== undefined) {
+      output += BASE64URL_ALPHABET[(chunk >>> 6) & 63];
+    }
+    if (third !== undefined) {
+      output += BASE64URL_ALPHABET[chunk & 63];
+    }
   }
 
-  return btoa(binary)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+  return output;
 }
 
 function base64UrlToBytes(
@@ -237,30 +254,42 @@ function base64UrlToBytes(
   expectedBytes: number,
   label: string,
 ): Uint8Array {
-  if (!/^[A-Za-z0-9_-]+$/u.test(value)) {
+  if (
+    value.length === 0 ||
+    value.length % 4 === 1 ||
+    !/^[A-Za-z0-9_-]+$/u.test(value)
+  ) {
     throw new TypeError(`Invalid ${label}`);
   }
 
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = normalized.padEnd(
-    normalized.length + ((4 - (normalized.length % 4)) % 4),
-    "=",
-  );
+  const output = new Uint8Array(Math.floor((value.length * 6) / 8));
+  let accumulator = 0;
+  let bits = 0;
+  let outputIndex = 0;
 
-  let binary: string;
-  try {
-    binary = atob(padded);
-  } catch {
-    throw new TypeError(`Invalid ${label}`);
+  for (const character of value) {
+    const digit = BASE64URL_ALPHABET.indexOf(character);
+    if (digit < 0) {
+      throw new TypeError(`Invalid ${label}`);
+    }
+
+    accumulator = (accumulator << 6) | digit;
+    bits += 6;
+
+    if (bits >= 8) {
+      bits -= 8;
+      output[outputIndex] = (accumulator >>> bits) & 0xff;
+      outputIndex += 1;
+    }
   }
 
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  if (bytes.byteLength !== expectedBytes) {
+  if (outputIndex !== output.length || output.byteLength !== expectedBytes) {
     throw new TypeError(
       `${label} must be ${expectedBytes} bytes`,
     );
   }
-  return bytes;
+
+  return output;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
