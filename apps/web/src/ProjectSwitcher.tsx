@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import type { ProjectId } from "@floe-note/domain";
 
 import { Modal } from "./Modal.js";
+import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 export type ProjectSwitcherItem = {
   id: ProjectId;
@@ -27,6 +28,7 @@ export function ProjectSwitcher({
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
   const switcherRef = useRef<HTMLDetailsElement>(null);
+  useDismissibleDetails(switcherRef);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [pendingProjectId, setPendingProjectId] =
