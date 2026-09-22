@@ -810,7 +810,9 @@ function NoteApp() {
             signalingState={signalingState}
             joiningDeviceId={joiningDevice?.deviceId ?? null}
             authorizationState={deviceAuthorizationState}
+            projectKeyDeliveryState={projectKeyDeliveryState}
             onConfirm={authorizeJoiningDevice}
+            onRetryProjectKeyDelivery={retryProjectKeyDelivery}
             onCancel={() =>
               new InvitationClient(coordinatorBaseUrl).cancelInvite(
                 invitationHost.inviteId,
