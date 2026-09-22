@@ -57,26 +57,27 @@ import {
 } from "@floe-note/vault";
 
 import { createConsoleDebugLogger } from "./debug.js";
-import {
-  DeviceVaultPanel,
-  type DeviceVaultUiState,
-  type LocalSecurityBootstrapUiState,
+import type {
+  DeviceVaultUiState,
+  LocalSecurityBootstrapUiState,
 } from "./DeviceVaultPanel.js";
 import {
   InvitationHostPanel,
   type DeviceAuthorizationUiState,
 } from "./InvitationHostPanel.js";
+import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
-import { ThemePicker } from "./ThemePicker.js";
-import { useThemePreference } from "./theme.js";
+import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
+import { UnlockScreen } from "./UnlockScreen.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
 import {
   useAuthorizedProjectSync,
@@ -157,8 +158,11 @@ function NoteApp() {
   const [projectSummaries, setProjectSummaries] = useState<
     readonly StoredProjectSummary[]
   >([]);
+  const [projectCatalogReady, setProjectCatalogReady] = useState(false);
   const [projectSwitching, setProjectSwitching] = useState(false);
-  const [mainView, setMainView] = useState<"note" | "project-settings">("note");
+  const [mainView, setMainView] = useState<
+    "note" | "app-settings" | "project-settings"
+  >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
@@ -625,31 +629,24 @@ function NoteApp() {
 
   if (deviceVaultState !== "unlocked") {
     return (
-      <main className="empty-state">
-        <DeviceVaultPanel
-          state={deviceVaultState}
-          deviceId={localDeviceId}
-          error={deviceVaultError}
-          securityState="waiting"
-          securityHeadHash={null}
-          securitySequence={null}
-          securityKeyEpoch={null}
-          securityDeviceCount={null}
-          projectKeyReady={null}
-          securityError={null}
-          onUnlockOrCreate={unlockOrCreateDevice}
-        />
-        <p>Unlock the Device Vault to open local Project data.</p>
-      </main>
+      <UnlockScreen
+        state={deviceVaultState}
+        error={deviceVaultError}
+        onUnlockOrCreate={unlockOrCreateDevice}
+      />
     );
   }
 
   if (!project) {
-    return (
-      <main className="empty-state">
-        <p>Loading encrypted local notes…</p>
-      </main>
-    );
+    if (!projectCatalogReady) {
+      return (
+        <main className="empty-state">
+          <p>Loading local Projects…</p>
+        </main>
+      );
+    }
+
+    return <ProjectEmptyState onCreateProject={createProject} />;
   }
 
   const activeProject = project;
@@ -671,12 +668,15 @@ function NoteApp() {
       deviceVaultSessionRef.current = session;
       if (previous) await previous.close();
 
-      const result = await projectStorage.openOrCreateProject(session);
+      const result = await projectStorage.openLastProject(session);
       const summaries = await projectStorage.listProjects(session);
       setOpenedProject(result);
       setProjectSummaries(
-        withActiveProjectSummary(summaries, result.project),
+        result
+          ? withActiveProjectSummary(summaries, result.project)
+          : summaries,
       );
+      setProjectCatalogReady(true);
       setLocalDeviceId(session.publicIdentity.deviceId);
       setDeviceVaultState("unlocked");
     } catch (error: unknown) {
@@ -706,6 +706,7 @@ function NoteApp() {
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
       );
+      setProjectCatalogReady(true);
     } finally {
       setProjectSwitching(false);
     }
@@ -730,8 +731,86 @@ function NoteApp() {
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
       );
+      setProjectCatalogReady(true);
     } finally {
       setProjectSwitching(false);
+    }
+  }
+
+  async function removeActiveProjectFromDevice(): Promise<void> {
+    const session = deviceVaultSessionRef.current;
+    if (!session || !project) {
+      throw new Error("Project and Device Vault must be available");
+    }
+
+    const projectId = project.id;
+    setProjectSwitching(true);
+    setProjectCatalogReady(false);
+    setSelectedId(null);
+    setOpenedProject(null);
+    resetProjectSecurityUiState();
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+    try {
+      const nextProjectId = await projectStorage.removeProject(projectId);
+      await session.removeProjectKeys(projectId);
+
+      const summaries = await projectStorage.listProjects(session);
+      if (nextProjectId) {
+        const next = await projectStorage.openProject(nextProjectId, session);
+        setOpenedProject(next);
+        setProjectSummaries(
+          withActiveProjectSummary(summaries, next.project),
+        );
+      } else {
+        setProjectSummaries(summaries);
+      }
+      setMainView("note");
+      setProjectCatalogReady(true);
+    } catch (error) {
+      const recovered = await projectStorage.openLastProject(session).catch(
+        () => null,
+      );
+      const summaries = await projectStorage.listProjects(session).catch(
+        () => [],
+      );
+      setOpenedProject(recovered);
+      setProjectSummaries(
+        recovered
+          ? withActiveProjectSummary(summaries, recovered.project)
+          : summaries,
+      );
+      setProjectCatalogReady(true);
+      throw error;
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  async function eraseFloeFromThisDevice(): Promise<void> {
+    const session = deviceVaultSessionRef.current;
+
+    setProjectCatalogReady(false);
+    setSelectedId(null);
+    setOpenedProject(null);
+    resetProjectSecurityUiState();
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+    try {
+      deviceVaultSessionRef.current = null;
+      if (session) await session.close();
+
+      await projectStorage.eraseAllLocalData();
+      await deviceVault.eraseVault();
+      clearThemePreference();
+
+      window.location.replace("/");
+    } catch (error) {
+      setDeviceVaultState("locked");
+      setProjectCatalogReady(true);
+      throw error;
     }
   }
 
@@ -1134,8 +1213,15 @@ function NoteApp() {
     />
   );
 
-  const projectSettingsContent =
-    mainView === "project-settings" ? (
+  const mainContent =
+    mainView === "app-settings" ? (
+      <AppSettingsView
+        theme={themePreference}
+        localDeviceId={localDeviceId}
+        onThemeChange={setThemePreference}
+        onEraseDevice={eraseFloeFromThisDevice}
+      />
+    ) : mainView === "project-settings" ? (
       localDeviceId && localSecurityState ? (
         <ProjectSettingsView
           projectId={activeProject.id}
@@ -1144,6 +1230,8 @@ function NoteApp() {
           authorizedDevices={localSecurityState.devices}
           onlineDeviceIds={authorizedSync.onlineDeviceIds}
           connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          onRenameProject={(name) => activeProject.renameProject(name)}
+          onRemoveProjectFromDevice={removeActiveProjectFromDevice}
           onAddDevice={() => {
             window.location.assign("/?transport=invite");
           }}
@@ -1205,10 +1293,13 @@ function NoteApp() {
       ) : null}
       <div className="sidebar-footer-row">
         <SyncStatus state={syncUiState} />
-        <ThemePicker
-          value={themePreference}
-          onChange={setThemePreference}
-        />
+        <button
+          className="footer-action"
+          type="button"
+          onClick={() => setMainView("app-settings")}
+        >
+          Settings
+        </button>
       </div>
     </>
   );
@@ -1220,7 +1311,7 @@ function NoteApp() {
       selectedDocument={selectedDocument}
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
-      mainContent={projectSettingsContent}
+      mainContent={mainContent}
       onCreateDocument={createDocument}
       onSelectDocument={(documentId) => {
         setSelectedId(documentId);

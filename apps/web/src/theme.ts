@@ -42,6 +42,10 @@ function applyTheme(preference: ThemePreference): void {
       : "light";
 }
 
+export function clearThemePreference(): void {
+  window.localStorage.removeItem(STORAGE_KEY);
+}
+
 export function useThemePreference(): [
   ThemePreference,
   (preference: ThemePreference) => void,

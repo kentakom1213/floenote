@@ -112,6 +112,7 @@ class DeviceVaultDatabase extends Dexie {
 export interface DeviceVault {
   hasVault(): Promise<boolean>;
   unlockOrCreate(): Promise<DeviceVaultSession>;
+  eraseVault(): Promise<void>;
 }
 
 export class DeviceVaultSession {
@@ -405,6 +406,23 @@ export class DeviceVaultSession {
     }
   }
 
+  async removeProjectKeys(projectId: ProjectId): Promise<void> {
+    this.#requireOpen();
+
+    const removed = this.#projectKeys.filter(
+      (entry) => entry.projectId === projectId,
+    );
+    if (removed.length === 0) return;
+
+    const remaining = this.#projectKeys.filter(
+      (entry) => entry.projectId !== projectId,
+    );
+
+    await this.#persist(this.#requireOpen(), remaining);
+    this.#projectKeys = remaining;
+    for (const entry of removed) entry.projectKey.fill(0);
+  }
+
   async sign(message: Uint8Array): Promise<Uint8Array> {
     return signEd25519(message, this.#requireOpen().signingPrivateKey);
   }
@@ -467,6 +485,11 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
 
     const record = await this.#db.vault.get(VAULT_RECORD_ID);
     return record ? this.#unlock(record) : this.#create();
+  }
+
+  async eraseVault(): Promise<void> {
+    this.#db.close();
+    await Dexie.delete(DATABASE_NAME);
   }
 
   async #create(): Promise<DeviceVaultSession> {
