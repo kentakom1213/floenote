@@ -273,10 +273,6 @@ export class DexieProjectStorage implements ProjectStorage {
     };
   }
 
-  flushPendingWrites(): Promise<void> {
-    return this.#writeQueue;
-  }
-
   async #loadOrCreateProject(
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult> {
