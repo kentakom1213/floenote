@@ -16,6 +16,7 @@ import {
 import type {
   AddDeviceTransition,
   CreateProjectTransition,
+  SecurityTransition,
 } from "./transition.js";
 
 const DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES = 32;
@@ -50,6 +51,10 @@ export type AddDeviceWirePayload = {
   signerDeviceId: string;
   signature: string;
 };
+
+export type SecurityTransitionWirePayload =
+  | CreateProjectWirePayload
+  | AddDeviceWirePayload;
 
 export type SecurityStateWirePayload = {
   protocolVersion: 1;
@@ -226,6 +231,37 @@ export function parseAddDeviceWirePayload(
       "AddDevice signature",
     ),
   };
+}
+
+export function securityTransitionToWire(
+  transition: SecurityTransition,
+): SecurityTransitionWirePayload {
+  switch (transition.type) {
+    case "create-project":
+      return createProjectTransitionToWire(transition);
+    case "add-device":
+      return addDeviceTransitionToWire(transition);
+    case "revoke-device":
+      throw new TypeError("RevokeDevice wire encoding is not implemented yet");
+  }
+}
+
+export function parseSecurityTransitionWirePayload(
+  value: unknown,
+  expectedProjectId?: ProjectId,
+): SecurityTransition {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new TypeError("Invalid SecurityTransition payload");
+  }
+
+  switch (value.type) {
+    case "create-project":
+      return parseCreateProjectWirePayload(value, expectedProjectId);
+    case "add-device":
+      return parseAddDeviceWirePayload(value, expectedProjectId);
+    default:
+      throw new TypeError("Unsupported SecurityTransition payload");
+  }
 }
 
 export function securityStateToWire(
