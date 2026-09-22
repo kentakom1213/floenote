@@ -6,26 +6,24 @@ import {
   WebRtcSignalingSession,
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
-import {
-  destroyDeviceKeyMaterial,
-  generateDeviceKeyMaterial,
-  type DeviceKeyMaterial,
-} from "@floe-note/crypto";
-import { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
 } from "@floe-note/pairing";
-import { ProjectSyncEngine } from "@floe-note/sync";
 import {
   WebRtcTransport,
   type WebRtcStatus,
 } from "@floe-note/transport/webrtc";
-import { useEffect, useState } from "react";
+import {
+  WebAuthnPrfDeviceVault,
+  type DeviceVaultSession,
+} from "@floe-note/vault";
+import { useEffect, useRef, useState } from "react";
 
 import { createConsoleDebugLogger } from "./debug.js";
-import { JoinedProjectEditor } from "./JoinedProjectEditor.js";
+
+const joinDeviceVault = new WebAuthnPrfDeviceVault();
 
 const INITIAL_WEBRTC_STATUS: WebRtcStatus = {
   connectionState: "new",
