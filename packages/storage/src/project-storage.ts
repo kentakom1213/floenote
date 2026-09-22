@@ -68,6 +68,4 @@ export interface ProjectStorage {
     crypto?: ProjectStorageCrypto,
     keyEpoch?: number,
   ): () => void;
-
-  flushPendingWrites(): Promise<void>;
 }
