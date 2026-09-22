@@ -17,13 +17,39 @@ type Listener = () => void;
 
 export class NoteProject {
   readonly id: ProjectId;
-  readonly #manifest = new LoroDoc();
-  readonly #documents = new Map<DocumentId, NoteDocument>();
+  readonly #manifest: LoroDoc;
+  readonly #documents: Map<DocumentId, NoteDocument>;
   readonly #listeners = new Set<Listener>();
 
-  constructor(id: ProjectId = createProjectId()) {
+  private constructor(
+    id: ProjectId,
+    manifest: LoroDoc,
+    documents: readonly NoteDocument[],
+  ) {
     this.id = id;
-    this.#manifest.getMap("documents");
+    this.#manifest = manifest;
+    this.#documents = new Map(
+      documents.map((document) => [document.id, document]),
+    );
+  }
+
+  static create(id: ProjectId = createProjectId()): NoteProject {
+    const manifest = new LoroDoc();
+    manifest.getMap("documents");
+
+    return new NoteProject(id, manifest, []);
+  }
+
+  static fromSnapshot(
+    id: ProjectId,
+    manifestSnapshot: Uint8Array,
+    documents: readonly NoteDocument[],
+  ): NoteProject {
+    return new NoteProject(
+      id,
+      LoroDoc.fromSnapshot(manifestSnapshot),
+      documents,
+    );
   }
 
   subscribe(listener: Listener): () => void {
@@ -43,9 +69,18 @@ export class NoteProject {
       });
   }
 
+  getAllDocuments(): readonly NoteDocument[] {
+    return [...this.#documents.values()];
+  }
+
+  exportManifestSnapshot(): Uint8Array {
+    this.#manifest.commit();
+    return this.#manifest.export({ mode: "snapshot" });
+  }
+
   createDocument(title = "Untitled"): NoteDocument {
     const id = createDocumentId();
-    const document = new NoteDocument(id, title);
+    const document = NoteDocument.create(id, title);
 
     this.#documents.set(id, document);
     this.#manifest.getMap("documents").set(id, "active");
