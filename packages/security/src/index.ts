@@ -33,13 +33,16 @@ export {
   parseAddDeviceWirePayload,
   parseCreateProjectWirePayload,
   parseSecurityStateWirePayload,
+  parseSecurityTransitionWirePayload,
   securityStateToWire,
+  securityTransitionToWire,
 } from "./wire.js";
 
 export type {
   AddDeviceWirePayload,
   CreateProjectWirePayload,
   SecurityStateWirePayload,
+  SecurityTransitionWirePayload,
 } from "./wire.js";
 
 export {
