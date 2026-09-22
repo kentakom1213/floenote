@@ -4,6 +4,9 @@ import type { Transport } from "./transport.js";
 
 const DATA_CHANNEL_PREFIX = "floe-note:v1:";
 const ICE_GATHERING_TIMEOUT_MS = 15_000;
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
 
 export type WebRtcConnectionState = RTCPeerConnectionState;
 export type WebRtcDataChannelState = RTCDataChannelState | "none";
@@ -24,9 +27,12 @@ export class WebRtcTransport implements Transport {
   #dataChannel: RTCDataChannel | null = null;
   #error: string | null = null;
 
-  constructor(projectId: ProjectId) {
+  constructor(
+    projectId: ProjectId,
+    configuration: RTCConfiguration = { iceServers: DEFAULT_ICE_SERVERS },
+  ) {
     this.#projectId = projectId;
-    this.#peerConnection = new RTCPeerConnection();
+    this.#peerConnection = new RTCPeerConnection(configuration);
 
     this.#peerConnection.addEventListener("datachannel", (event) => {
       if (event.channel.label !== this.#dataChannelLabel) {
