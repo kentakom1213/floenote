@@ -13,7 +13,11 @@ import {
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
-import type { DeviceId, DocumentId } from "@floe-note/domain";
+import type {
+  DeviceId,
+  DocumentId,
+  ProjectId,
+} from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
@@ -41,7 +45,10 @@ import {
   type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
-import { DexieProjectStorage } from "@floe-note/storage";
+import {
+  DexieProjectStorage,
+  type StoredProjectSummary,
+} from "@floe-note/storage";
 import {
   EncryptedSyncTransport,
   ProjectSyncEngine,
@@ -64,6 +71,7 @@ import {
 } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
 import { ThemePicker } from "./ThemePicker.js";
 import { useThemePreference } from "./theme.js";
@@ -148,6 +156,10 @@ export function App() {
 function NoteApp() {
   const [themePreference, setThemePreference] = useThemePreference();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
+  const [projectSummaries, setProjectSummaries] = useState<
+    readonly StoredProjectSummary[]
+  >([]);
+  const [projectSwitching, setProjectSwitching] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
@@ -670,7 +682,11 @@ function NoteApp() {
       if (previous) await previous.close();
 
       const result = await projectStorage.openOrCreateProject(session);
+      const summaries = await projectStorage.listProjects(session);
       setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
       setLocalDeviceId(session.publicIdentity.deviceId);
       setDeviceVaultState("unlocked");
     } catch (error: unknown) {
@@ -679,6 +695,60 @@ function NoteApp() {
         error instanceof Error ? error.message : "Failed to unlock Device Vault",
       );
     }
+  }
+
+  async function selectProject(projectId: ProjectId): Promise<void> {
+    if (projectId === activeProject.id || projectSwitching) return;
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before switching Project");
+    }
+
+    setProjectSwitching(true);
+    resetProjectSecurityUiState();
+
+    try {
+      const result = await projectStorage.openProject(projectId, session);
+      const summaries = await projectStorage.listProjects(session);
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  async function createProject(name: string): Promise<void> {
+    if (projectSwitching) return;
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before creating a Project");
+    }
+
+    setProjectSwitching(true);
+    resetProjectSecurityUiState();
+
+    try {
+      const result = await projectStorage.createProject(name);
+      const summaries = await projectStorage.listProjects(session);
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  function resetProjectSecurityUiState(): void {
+    setLocalSecurityBootstrapState("waiting");
+    setLocalSecurityState(null);
+    setLocalSecurityError(null);
+    setLocalProjectKeyReady(null);
+    setCoordinationError(null);
   }
 
   async function authorizeJoiningDevice(): Promise<void> {
@@ -1093,11 +1163,22 @@ function NoteApp() {
     error: authorizedSync.error,
   });
 
+  const projectItems = withActiveProjectSummary(
+    projectSummaries,
+    activeProject,
+  ).map((summary) => ({
+    id: summary.id,
+    name: summary.name,
+    isCurrent: summary.id === activeProject.id,
+  }));
+
   const projectControl = (
-    <div className="project-control" title="Project switching is coming next">
-      <span className="project-control-label">Project</span>
-      <span className="project-control-name">Untitled project</span>
-    </div>
+    <ProjectSwitcher
+      projects={projectItems}
+      disabled={projectSwitching}
+      onSelectProject={selectProject}
+      onCreateProject={createProject}
+    />
   );
 
   const debugSidebarControls =
@@ -1171,6 +1252,36 @@ function NoteApp() {
   );
 }
 
+
+function withActiveProjectSummary(
+  summaries: readonly StoredProjectSummary[],
+  activeProject: NoteProject,
+): readonly StoredProjectSummary[] {
+  const existing = summaries.find(
+    (summary) => summary.id === activeProject.id,
+  );
+
+  const normalized = summaries.map((summary) => ({
+    ...summary,
+    name:
+      summary.id === activeProject.id
+        ? activeProject.name
+        : summary.name,
+    isActive: summary.id === activeProject.id,
+  }));
+
+  if (existing) return normalized;
+
+  return [
+    ...normalized,
+    {
+      id: activeProject.id,
+      name: activeProject.name,
+      createdAt: Date.now(),
+      isActive: true,
+    },
+  ];
+}
 
 type SyncUiInput = {
   presenceState:
