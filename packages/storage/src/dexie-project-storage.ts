@@ -2,6 +2,7 @@ import { NoteDocument, NoteProject } from "@floe-note/document";
 import {
   parseDocumentId,
   parseProjectId,
+  type DocumentId,
   type ProjectId,
 } from "@floe-note/domain";
 import {
@@ -12,7 +13,12 @@ import {
 } from "@floe-note/security";
 import Dexie, { type Table } from "dexie";
 
-import type { OpenProjectResult, ProjectStorage } from "./project-storage.js";
+import type {
+  OpenProjectResult,
+  ProjectStorage,
+  ProjectStorageCrypto,
+  ProjectStorageRecordContext,
+} from "./project-storage.js";
 
 const DATABASE_NAME = "floe-note";
 const LOCAL_PROJECT_SLOT = "default";
@@ -26,13 +32,15 @@ type ProjectRecord = {
 
 type ManifestRecord = {
   projectId: string;
-  snapshot: Uint8Array;
+  snapshot?: Uint8Array;
+  encryptedSnapshot?: Uint8Array;
 };
 
 type DocumentRecord = {
   projectId: string;
   documentId: string;
-  snapshot: Uint8Array;
+  snapshot?: Uint8Array;
+  encryptedSnapshot?: Uint8Array;
 };
 
 class FloeNoteDatabase extends Dexie {
@@ -56,6 +64,15 @@ class FloeNoteDatabase extends Dexie {
       documents: "[projectId+documentId],projectId,documentId",
       security: "&projectId",
     });
+
+    // v3 changes the manifest/document value format without changing indexes.
+    // Existing v1/v2 plaintext rows are migrated lazily after Device Vault unlock.
+    this.version(3).stores({
+      projects: "&id,&localSlot,createdAt",
+      manifests: "&projectId",
+      documents: "[projectId+documentId],projectId,documentId",
+      security: "&projectId",
+    });
   }
 }
 
@@ -64,12 +81,24 @@ export class DexieProjectStorage implements ProjectStorage {
   #openPromise: Promise<OpenProjectResult> | null = null;
   #writeQueue: Promise<void> = Promise.resolve();
 
-  openOrCreateProject(): Promise<OpenProjectResult> {
-    this.#openPromise ??= this.#loadOrCreateProject();
+  openOrCreateProject(
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult> {
+    this.#openPromise ??= this.#loadOrCreateProject(crypto);
     return this.#openPromise;
   }
 
-  async initializeJoinedProject(projectId: ProjectId): Promise<NoteProject> {
+  async initializeJoinedProject(
+    projectId: ProjectId,
+    crypto?: ProjectStorageCrypto,
+    keyEpoch?: number,
+  ): Promise<NoteProject> {
+    if (!crypto || keyEpoch === undefined) {
+      throw new Error(
+        "Device Vault and current ProjectKey are required to persist a joined Project",
+      );
+    }
+
     let targetExists = false;
 
     await this.#db.transaction(
@@ -98,6 +127,13 @@ export class DexieProjectStorage implements ProjectStorage {
         }
 
         const project = NoteProject.create(projectId);
+        const encryptedSnapshot = await crypto.encryptProjectStoragePayload(
+          projectId,
+          keyEpoch,
+          manifestContext(),
+          project.exportManifestSnapshot(),
+        );
+
         await this.#db.projects.add({
           id: projectId,
           localSlot: LOCAL_PROJECT_SLOT,
@@ -105,13 +141,13 @@ export class DexieProjectStorage implements ProjectStorage {
         });
         await this.#db.manifests.add({
           projectId,
-          snapshot: project.exportManifestSnapshot(),
+          encryptedSnapshot,
         });
       },
     );
 
     const project = targetExists
-      ? await this.#loadProject(projectId)
+      ? await this.#loadProject(projectId, crypto)
       : NoteProject.create(projectId);
 
     this.#openPromise = Promise.resolve({ project, isNew: false });
@@ -129,14 +165,26 @@ export class DexieProjectStorage implements ProjectStorage {
     await this.#db.security.put(securityStateToWire(state));
   }
 
-  watchProject(project: NoteProject): () => void {
+  watchProject(
+    project: NoteProject,
+    crypto?: ProjectStorageCrypto,
+    keyEpoch?: number,
+  ): () => void {
+    if (!crypto || keyEpoch === undefined) {
+      throw new Error(
+        "Device Vault and current ProjectKey are required to persist Project data",
+      );
+    }
+
     const documentSubscriptions = new Map<string, () => void>();
 
     const attachDocument = (document: NoteDocument) => {
       if (documentSubscriptions.has(document.id)) return;
 
       const unsubscribe = document.subscribe(() => {
-        this.#enqueue(() => this.#saveDocument(project.id, document));
+        this.#enqueue(() =>
+          this.#saveDocument(project.id, document, crypto, keyEpoch),
+        );
       });
       documentSubscriptions.set(document.id, unsubscribe);
     };
@@ -150,8 +198,16 @@ export class DexieProjectStorage implements ProjectStorage {
         attachDocument(document);
       }
 
-      this.#enqueue(() => this.#saveProjectState(project));
+      this.#enqueue(() =>
+        this.#saveProjectState(project, crypto, keyEpoch),
+      );
     });
+
+    // Persist immediately so legacy plaintext rows and older key epochs are
+    // rewritten using the active epoch even if the user makes no edit.
+    this.#enqueue(() =>
+      this.#saveProjectState(project, crypto, keyEpoch),
+    );
 
     return () => {
       unsubscribeProject();
@@ -161,7 +217,9 @@ export class DexieProjectStorage implements ProjectStorage {
     };
   }
 
-  async #loadOrCreateProject(): Promise<OpenProjectResult> {
+  async #loadOrCreateProject(
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult> {
     const existing = await this.#db.projects
       .where("localSlot")
       .equals(LOCAL_PROJECT_SLOT)
@@ -169,52 +227,92 @@ export class DexieProjectStorage implements ProjectStorage {
 
     if (existing) {
       return {
-        project: await this.#loadProject(parseProjectId(existing.id)),
+        project: await this.#loadProject(
+          parseProjectId(existing.id),
+          crypto,
+        ),
         isNew: false,
       };
     }
 
     const project = NoteProject.create();
 
-    await this.#db.transaction(
-      "rw",
-      this.#db.projects,
-      this.#db.manifests,
-      async () => {
-        await this.#db.projects.add({
-          id: project.id,
-          localSlot: LOCAL_PROJECT_SLOT,
-          createdAt: Date.now(),
-        });
-        await this.#db.manifests.add({
-          projectId: project.id,
-          snapshot: project.exportManifestSnapshot(),
-        });
-      },
-    );
+    // Project discovery metadata is intentionally cleartext. The first
+    // manifest snapshot is written only after SecurityState + ProjectKey
+    // bootstrap completes and watchProject() is started.
+    await this.#db.projects.add({
+      id: project.id,
+      localSlot: LOCAL_PROJECT_SLOT,
+      createdAt: Date.now(),
+    });
 
     return { project, isNew: true };
   }
 
-  async #loadProject(projectId: ProjectId): Promise<NoteProject> {
+  async #loadProject(
+    projectId: ProjectId,
+    crypto: ProjectStorageCrypto,
+  ): Promise<NoteProject> {
     const manifest = await this.#db.manifests.get(projectId);
     if (!manifest) {
-      throw new Error("Local project manifest is missing");
+      return NoteProject.create(projectId);
     }
+
+    const manifestSnapshot = await this.#readSnapshot(
+      projectId,
+      manifestContext(),
+      manifest,
+      crypto,
+    );
 
     const documentRows = await this.#db.documents
       .where("projectId")
       .equals(projectId)
       .toArray();
 
-    const documents = documentRows.map((record) =>
-      NoteDocument.fromSnapshot(
-        parseDocumentId(record.documentId),
-        record.snapshot,
-      ),
+    const documents = await Promise.all(
+      documentRows.map(async (record) => {
+        const documentId = parseDocumentId(record.documentId);
+        const snapshot = await this.#readSnapshot(
+          projectId,
+          documentContext(documentId),
+          record,
+          crypto,
+        );
+        return NoteDocument.fromSnapshot(documentId, snapshot);
+      }),
     );
 
-    return NoteProject.fromSnapshot(projectId, manifest.snapshot, documents);
+    return NoteProject.fromSnapshot(
+      projectId,
+      manifestSnapshot,
+      documents,
+    );
+  }
+
+  async #readSnapshot(
+    projectId: ProjectId,
+    context: ProjectStorageRecordContext,
+    record: {
+      snapshot?: Uint8Array;
+      encryptedSnapshot?: Uint8Array;
+    },
+    crypto: ProjectStorageCrypto,
+  ): Promise<Uint8Array> {
+    if (record.encryptedSnapshot) {
+      const decrypted = await crypto.decryptProjectStoragePayload(
+        projectId,
+        context,
+        record.encryptedSnapshot,
+      );
+      return decrypted.plaintext;
+    }
+
+    if (record.snapshot) {
+      return record.snapshot.slice();
+    }
+
+    throw new Error("Local Project snapshot is missing");
   }
 
   #enqueue(write: () => Promise<void>): void {
@@ -225,23 +323,44 @@ export class DexieProjectStorage implements ProjectStorage {
       });
   }
 
-  async #saveProjectState(project: NoteProject): Promise<void> {
+  async #saveProjectState(
+    project: NoteProject,
+    crypto: ProjectStorageCrypto,
+    keyEpoch: number,
+  ): Promise<void> {
+    const documentRows = await Promise.all(
+      project.getAllDocuments().map(async (document) => ({
+        projectId: project.id,
+        documentId: document.id,
+        encryptedSnapshot: await crypto.encryptProjectStoragePayload(
+          project.id,
+          keyEpoch,
+          documentContext(document.id),
+          document.exportSnapshot(),
+        ),
+      })),
+    );
+
+    const encryptedManifest =
+      await crypto.encryptProjectStoragePayload(
+        project.id,
+        keyEpoch,
+        manifestContext(),
+        project.exportManifestSnapshot(),
+      );
+
     await this.#db.transaction(
       "rw",
       this.#db.manifests,
       this.#db.documents,
       async () => {
-        for (const document of project.getAllDocuments()) {
-          await this.#db.documents.put({
-            projectId: project.id,
-            documentId: document.id,
-            snapshot: document.exportSnapshot(),
-          });
+        for (const row of documentRows) {
+          await this.#db.documents.put(row);
         }
 
         await this.#db.manifests.put({
           projectId: project.id,
-          snapshot: project.exportManifestSnapshot(),
+          encryptedSnapshot: encryptedManifest,
         });
       },
     );
@@ -250,11 +369,31 @@ export class DexieProjectStorage implements ProjectStorage {
   async #saveDocument(
     projectId: ProjectId,
     document: NoteDocument,
+    crypto: ProjectStorageCrypto,
+    keyEpoch: number,
   ): Promise<void> {
+    const encryptedSnapshot =
+      await crypto.encryptProjectStoragePayload(
+        projectId,
+        keyEpoch,
+        documentContext(document.id),
+        document.exportSnapshot(),
+      );
+
     await this.#db.documents.put({
       projectId,
       documentId: document.id,
-      snapshot: document.exportSnapshot(),
+      encryptedSnapshot,
     });
   }
+}
+
+function manifestContext(): ProjectStorageRecordContext {
+  return { kind: "manifest" };
+}
+
+function documentContext(
+  documentId: DocumentId,
+): ProjectStorageRecordContext {
+  return { kind: "document", documentId };
 }
