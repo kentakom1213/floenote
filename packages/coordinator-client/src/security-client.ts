@@ -4,8 +4,10 @@ import {
   createProjectTransitionToWire,
   parseSecurityStateWirePayload,
   parseSecurityTransitionWirePayload,
+  revokeDeviceTransitionToWire,
   type AddDeviceTransition,
   type CreateProjectTransition,
+  type RevokeDeviceTransition,
   type SecurityState,
   type SecurityTransition,
 } from "@floe-note/security";
@@ -92,6 +94,57 @@ export class SecurityCoordinatorClient {
     );
   }
 
+  async commitRevokeDevice(
+    projectId: ProjectId,
+    transition: RevokeDeviceTransition,
+    keyEnvelopes: readonly {
+      recipientDeviceId: string;
+      sealedEnvelope: Uint8Array;
+    }[],
+  ): Promise<SecurityState> {
+    return this.#commitTransition(projectId, {
+      ...revokeDeviceTransitionToWire(transition),
+      keyEnvelopes: keyEnvelopes.map((envelope) => ({
+        recipientDeviceId: envelope.recipientDeviceId,
+        sealedEnvelope: bytesToHex(envelope.sealedEnvelope),
+      })),
+    });
+  }
+
+  async getProjectKeyEnvelope(
+    projectId: ProjectId,
+    keyEpoch: number,
+    recipientDeviceId: string,
+  ): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
+      throw new TypeError("keyEpoch must be a positive safe integer");
+    }
+
+    const response = await fetch(
+      new URL(
+        `/projects/${encodeURIComponent(projectId)}/project-keys/${keyEpoch}/${encodeURIComponent(recipientDeviceId)}`,
+        this.#baseUrl,
+      ),
+    );
+    await ensureOk(response);
+
+    const payload = (await response.json()) as unknown;
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("keyEpoch" in payload) ||
+      payload.keyEpoch !== keyEpoch ||
+      !("recipientDeviceId" in payload) ||
+      payload.recipientDeviceId !== recipientDeviceId ||
+      !("sealedEnvelope" in payload) ||
+      typeof payload.sealedEnvelope !== "string"
+    ) {
+      throw new TypeError("Invalid ProjectKey envelope response");
+    }
+
+    return hexToBytes(payload.sealedEnvelope);
+  }
+
   async commitCreateProject(
     projectId: ProjectId,
     transition: CreateProjectTransition,
@@ -135,4 +188,25 @@ async function ensureOk(response: Response): Promise<void> {
       ? `Coordinator request failed with HTTP ${response.status}`
       : detail,
   );
+}
+
+
+function bytesToHex(value: Uint8Array): string {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(value: string): Uint8Array {
+  if (
+    value.length === 0 ||
+    value.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/u.test(value)
+  ) {
+    throw new TypeError("Invalid ProjectKey envelope encoding");
+  }
+
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
 }
