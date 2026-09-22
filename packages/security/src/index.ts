@@ -72,3 +72,13 @@ export {
 } from "./authorized-presence.js";
 
 export type { AuthorizedPresenceProof } from "./authorized-presence.js";
+
+export {
+  attachProjectKeyRotationEnvelopeSignature,
+  encodeUnsignedProjectKeyRotationEnvelope,
+} from "./key-rotation-envelope.js";
+
+export type {
+  ProjectKeyRotationEnvelope,
+  UnsignedProjectKeyRotationEnvelope,
+} from "./key-rotation-envelope.js";
