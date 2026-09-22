@@ -176,6 +176,7 @@ function NoteApp() {
     useState<string | null>(null);
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
+  const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
   const [presenceState, setPresenceState] =
     useState<AuthorizedPresenceConnectionState>("idle");
   const [onlineDeviceIds, setOnlineDeviceIds] = useState<readonly DeviceId[]>([]);
@@ -389,7 +390,7 @@ function NoteApp() {
     return () => {
       cancelled = true;
     };
-  }, [deviceVaultState, localDeviceId, project]);
+  }, [deviceVaultState, localDeviceId, project, securityRefreshToken]);
 
   useEffect(() => {
     if (
@@ -443,9 +444,12 @@ function NoteApp() {
         automaticPeerSync?.acceptReconnectSession(fromDeviceId, sessionId);
       },
     );
-    const stopErrors = presence.onError((error) =>
-      setPresenceError(error.message),
-    );
+    const stopErrors = presence.onError((error) => {
+      setPresenceError(error.message);
+      if (error.message === "SecurityState changed") {
+        setSecurityRefreshToken((value) => value + 1);
+      }
+    });
 
     setPresenceError(null);
     setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
