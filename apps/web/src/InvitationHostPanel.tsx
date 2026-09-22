@@ -17,6 +17,12 @@ export type DeviceAuthorizationUiState =
   | "authorized"
   | "error";
 
+export type ProjectKeyDeliveryUiState =
+  | "waiting"
+  | "delivering"
+  | "delivered"
+  | "error";
+
 type InvitationHostPanelProps = {
   inviteId: InviteId;
   pairingSecret: PairingSecret;
@@ -25,7 +31,9 @@ type InvitationHostPanelProps = {
   signalingState: SignalingConnectionState;
   joiningDeviceId: DeviceId | null;
   authorizationState: DeviceAuthorizationUiState;
+  projectKeyDeliveryState: ProjectKeyDeliveryUiState;
   onConfirm: () => Promise<void>;
+  onRetryProjectKeyDelivery: () => Promise<void>;
   onCancel: () => Promise<void>;
 };
 
@@ -37,7 +45,9 @@ export function InvitationHostPanel({
   signalingState,
   joiningDeviceId,
   authorizationState,
+  projectKeyDeliveryState,
   onConfirm,
+  onRetryProjectKeyDelivery,
   onCancel,
 }: InvitationHostPanelProps) {
   const [status, setStatus] = useState<WebRtcStatus>(transport.status);
@@ -107,9 +117,24 @@ export function InvitationHostPanel({
       ) : null}
 
       {authorizationState === "authorized" ? (
-        <p className="webrtc-hint">
-          Device authorized. ProjectKey delivery is the next step.
-        </p>
+        <>
+          <p className="webrtc-status">
+            ProjectKey delivery: <strong>{projectKeyDeliveryState}</strong>
+          </p>
+          {projectKeyDeliveryState === "error" ? (
+            <button
+              type="button"
+              onClick={() => void onRetryProjectKeyDelivery()}
+            >
+              Retry ProjectKey delivery
+            </button>
+          ) : null}
+          {projectKeyDeliveryState === "delivered" ? (
+            <p className="webrtc-hint">
+              ProjectKey stored by the joining device. Invite consumed.
+            </p>
+          ) : null}
+        </>
       ) : null}
 
       {authorizationState === "error" ? (
@@ -130,9 +155,15 @@ export function InvitationHostPanel({
         className="invite-cancel-button"
         type="button"
         onClick={() => void cancelInvite()}
-        disabled={cancelState === "cancelling" || cancelState === "cancelled"}
+        disabled={
+          cancelState === "cancelling" ||
+          cancelState === "cancelled" ||
+          projectKeyDeliveryState === "delivered"
+        }
       >
-        {cancelState === "cancelled"
+        {projectKeyDeliveryState === "delivered"
+          ? "Invite consumed"
+          : cancelState === "cancelled"
           ? "Invite cancelled"
           : cancelState === "cancelling"
             ? "Cancelling…"
