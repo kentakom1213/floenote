@@ -11,8 +11,11 @@ import {
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import { type NoteDocument, type NoteProject } from "@floe-note/document";
-import type { DocumentId } from "@floe-note/domain";
-import { authenticatePairingChannel } from "@floe-note/pairing";
+import type { DeviceId, DocumentId } from "@floe-note/domain";
+import {
+  authenticatePairingChannel,
+  exchangeJoiningDeviceIdentity,
+} from "@floe-note/pairing";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
@@ -98,6 +101,7 @@ function NoteApp() {
   const [signalSessionId] = useState(() => createSessionId());
   const [invitationHost, setInvitationHost] =
     useState<InvitationHostState | null>(null);
+  const [joiningDeviceId, setJoiningDeviceId] = useState<DeviceId | null>(null);
   const [coordinationError, setCoordinationError] = useState<string | null>(
     null,
   );
@@ -143,6 +147,7 @@ function NoteApp() {
     if (!project) return;
 
     setCoordinationError(null);
+    setJoiningDeviceId(null);
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -186,8 +191,16 @@ function NoteApp() {
             transport,
             signal: abortPairing.signal,
           })
-            .then(() => {
+            .then(() =>
+              exchangeJoiningDeviceIdentity({
+                role: "host",
+                transport,
+                signal: abortPairing.signal,
+              }),
+            )
+            .then((identity) => {
               if (disposed) return;
+              setJoiningDeviceId(identity.deviceId);
               syncEngine = new ProjectSyncEngine(project, transport, {
                 debugLogger: createConsoleDebugLogger("invite-host-sync"),
               });
@@ -374,6 +387,7 @@ function NoteApp() {
             expiresAt={invitationHost.expiresAt}
             transport={webRtcTransport}
             signalingState={signalingState}
+            joiningDeviceId={joiningDeviceId}
             onCancel={() =>
               new InvitationClient(coordinatorBaseUrl).cancelInvite(
                 invitationHost.inviteId,
