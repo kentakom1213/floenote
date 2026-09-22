@@ -1,9 +1,8 @@
 # Floe Note Architecture
 
-> Status: Draft design baseline  
 > Scope: single-user, multi-device, local-first note synchronization
 
-This document records the current architectural decisions for Floe Note. It is intentionally kept as a single document while the design is still being reviewed. Once the architecture stabilizes, protocol, security, storage, and implementation details can be split into separate documents.
+This document defines the architecture of Floe Note. It focuses on stable system boundaries and protocol semantics rather than implementation history. Detailed protocol or subsystem specifications may be split into separate documents when they require independent treatment.
 
 ## 1. Goals
 
@@ -12,16 +11,17 @@ Floe Note is a privacy-oriented, local-first note application for one person usi
 The core goals are:
 
 - Notes remain available offline.
-- Devices synchronize directly over peer-to-peer connections when possible.
-- The server coordinates peers but does not store note contents or project encryption keys.
+- Project data synchronizes directly between devices over peer-to-peer connections.
+- Central coordination is used where it keeps the protocol and implementation simple.
+- The coordination service does not store note contents or project encryption keys.
 - Concurrent edits are merged by a CRDT rather than by application-specific conflict resolution.
 - Persistent data is encrypted at rest and in transit at the application layer.
 - The architecture should remain usable from the web first, while allowing native wrappers later.
 - Security-critical state is kept separate from collaborative document state.
 
-### Non-goals for the initial design
+### Scope exclusions
 
-The following are explicitly out of scope for the first version:
+The following are outside the core architecture:
 
 - multi-user collaboration;
 - roles and permissions between different users;
@@ -44,8 +44,9 @@ The following decisions are considered architectural invariants unless there is 
 6. Collaborative conflict resolution is delegated to **Loro**.
 7. Security authorization state is **not** a CRDT.
 8. Project data is encrypted with a Project-level symmetric key.
-9. Device authorization is represented by a signed, linearly ordered security history.
-10. Cloudflare coordinates rendezvous and security-state ordering, but never receives plaintext project data or ProjectKeys.
+9. Device authorization changes are represented by signed, linearly ordered security transitions.
+10. Cloudflare coordinates signaling, rendezvous, invitations, and security-state ordering, but never receives plaintext project data or ProjectKeys.
+11. Decentralization is not a goal by itself. Coordination remains centralized when decentralizing it would make the implementation or protocol less natural without improving the privacy boundary.
 
 ## 3. System overview
 
@@ -292,46 +293,36 @@ Possible transports include:
 
 The SyncEngine should depend on the abstraction, not on `RTCPeerConnection` directly.
 
-## 10. Peer-to-peer topology
+## 10. Peer-to-peer connectivity
 
-The initial topology can be a full mesh because the product is designed for one person's relatively small number of devices.
+WebRTC DataChannels carry project synchronization data directly between devices.
 
-```text
-A ----- B
-| \   / |
-|  \ /  |
-|   X   |
-|  / \  |
-| /   \ |
-C ----- D
-```
+Floe Note does not require or maintain a particular peer-to-peer graph topology. In particular, it does not require a full mesh and does not implement peer-relayed signaling as part of the core protocol.
 
-Cloudflare is needed only to bootstrap connectivity.
-
-Once one device has joined the existing peer network, already connected peers can introduce additional peers and relay WebRTC signaling messages over existing DataChannels.
-
-For example:
+Each online device may maintain a signaling connection to the Project coordinator. WebRTC offer, answer, and ICE messages are relayed through Cloudflare.
 
 ```text
-D joins through Cloudflare and reaches A.
+Device A ---- WebSocket ----┐
+                            │
+                     ProjectCoordinatorDO(P)
+                            │
+Device B ---- WebSocket ----┘
 
-D <-> A
+          signaling
 
-A tells D about B and C.
+              ↓
 
-D -> A -> B  (offer)
-B -> A -> D  (answer / ICE)
+Device A ===== WebRTC ===== Device B
 
-D <-> B
-
-The same process can be repeated for C.
+          project data
 ```
 
-The central signaling service remains available as a fallback.
+Additional device pairs can establish direct WebRTC connections as needed. The application should not add mesh-maintenance, leader-election, or peer-introduction protocols unless a concrete requirement later justifies them.
+
 
 ## 11. Cloudflare coordination
 
-The current design uses Cloudflare Workers and Durable Objects.
+Cloudflare Workers and Durable Objects provide the coordination plane.
 
 Each Project maps to one logical coordinator:
 
@@ -348,10 +339,11 @@ The Durable Object has two distinct responsibilities.
 
 Persistent state includes:
 
-- the signed security transition log;
 - the current materialized SecurityState;
-- current sequence/head hash;
-- current key epoch.
+- the current sequence/head hash;
+- the current key epoch.
+
+Security transitions are the update protocol, but the coordinator is not required to retain a permanent audit log of every accepted transition.
 
 ### 11.2 Ephemeral rendezvous and signaling
 
@@ -360,7 +352,7 @@ Ephemeral coordination includes:
 - online device sessions;
 - pending invitations;
 - WebSocket rendezvous;
-- initial WebRTC offer/answer/ICE forwarding.
+- WebRTC offer/answer/ICE forwarding.
 
 WebSocket Hibernation should be used where appropriate so idle connections do not require an actively running object.
 
@@ -438,11 +430,9 @@ OS / WebAuthn authentication
      └── ...
 ```
 
-For the web implementation, WebAuthn PRF is the preferred mechanism for deriving/unlocking the vault key when supported.
+The web application requires WebAuthn support. Environments that cannot provide the required WebAuthn-based vault unlock are unsupported rather than routed through a separate password-based fallback.
 
-A fallback strategy is still to be finalized.
-
-For future native applications, the same abstraction can use platform key stores such as a system keychain/keystore.
+WebAuthn PRF is used to derive or unlock the vault key. The vault boundary remains abstract so a native application can use an equivalent platform-backed mechanism without changing the Project or synchronization model.
 
 ### 14.1 Unlock lifetime
 
@@ -470,7 +460,7 @@ Higher-level application code should preferably request cryptographic operations
 
 Authorization state is not a CRDT.
 
-It is represented as a linearly ordered, signed transition history plus a materialized current state.
+It is represented by signed transitions that are applied in a single linear order to a materialized current state. A permanent server-side transition history is not required.
 
 ```text
 CreateProject(A)
@@ -514,7 +504,7 @@ type AuthorizedDevice = {
 };
 ```
 
-Presence in the current device set means authorized. Revoked devices do not need a `status: "revoked"` entry in the materialized state because revocation history remains available in the transition log.
+Presence in the current device set means authorized. Revoked devices do not need a `status: "revoked"` entry in the materialized state; removal from the authorized set is sufficient for authorization decisions.
 
 ## 16. Security transitions
 
@@ -596,7 +586,7 @@ Durable Object:
   verify signature
   verify signer is authorized in previous state
   validate transition
-  append transition
+  atomically commit the new head
   update materialized state
 ```
 
@@ -744,7 +734,7 @@ projects
 
 security
   ProjectId -> latest verified SecurityState
-  ProjectId -> transition log cache
+  ProjectId -> latest verified head
 
 manifests
   ProjectId -> encrypted serialized Loro state
@@ -783,18 +773,21 @@ Attachment store
 encrypted binary blob
 ```
 
-The exact content-addressing/deduplication strategy is not yet decided.
+Each attachment is addressed by its UUIDv7 `AttachmentId` and maps to an encrypted blob. Content-addressing, deduplication, and attachment garbage collection are outside the core design.
 
 ## 23. Backup and project identity
 
-Backup/restore and duplication have different identity semantics.
+Floe Note does not define a standalone key-recovery mechanism without project data. If every device and every copy of the project data are lost, recovering only encryption keys would not recover the Project.
+
+Backup and export are therefore treated as a separate data-backup concern rather than as part of the device-pairing or authorization protocol.
+
+Identity semantics are:
 
 - **Restore from backup:** preserve ProjectId.
 - **Duplicate/copy project:** generate a new ProjectId.
 
-The long-term export format should be independent from the internal IndexedDB schema.
+A future backup format must contain the data and cryptographic material required for restoration and should remain independent from the internal IndexedDB schema.
 
-Recovery-key UX and the exact project-export format are still open design work.
 
 ## 24. Threat model
 
@@ -811,11 +804,11 @@ The initial security model assumes:
 
 This threat model should be revisited before a security-sensitive public release.
 
-## 25. Initial technology direction
+## 25. Technology stack
 
-These are implementation choices, not all architectural invariants.
+These implementation choices sit behind the architectural boundaries defined above.
 
-| Layer | Current direction |
+| Layer | Choice |
 | --- | --- |
 | Language | TypeScript |
 | Package management | pnpm workspace |
@@ -829,6 +822,7 @@ These are implementation choices, not all architectural invariants.
 | Cryptography | libsodium |
 | Project-data AEAD | XChaCha20-Poly1305 |
 | Security serialization | deterministic CBOR |
+| Vault unlock | WebAuthn PRF |
 | Testing | Vitest + Playwright |
 | Native packaging later | Tauri 2 |
 
@@ -873,17 +867,14 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 
 ## 27. Open decisions
 
-The following items are intentionally not yet fixed:
+The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
-1. Exact recovery-key and disaster-recovery UX.
-2. Browser fallback when WebAuthn PRF is unavailable.
-3. Exact libsodium APIs for device key exchange/wrapping and transition signatures.
-4. Exact deterministic-CBOR library and wire encoding details.
-5. Exact old-ProjectKey retention and lazy re-encryption policy.
-6. Attachment content-addressing and garbage collection.
-7. Document tombstone garbage collection.
-8. Stable export/archive format.
-9. Background synchronization strategy.
-10. Detailed network protocol messages and version-negotiation behavior.
+1. Exact libsodium APIs for device key wrapping/exchange and transition signatures.
+2. Exact deterministic-CBOR library and wire encoding details.
+3. Old-ProjectKey retention and migration of ciphertext after key rotation.
+4. Document tombstone garbage collection.
+5. Stable backup/export archive format.
+6. Background synchronization strategy.
+7. Detailed synchronization message formats and protocol-version negotiation.
 
-These should be resolved independently without changing the core Project/Document/CRDT/security boundaries above.
+These details should be introduced only when required by an implementation or product requirement.
