@@ -354,7 +354,7 @@ export class DexieProjectStorage implements ProjectStorage {
       this.#db.manifests,
       this.#db.documents,
       async () => {
-        const activeDocumentIds = new Set(
+        const activeDocumentIds = new Set<string>(
           documentRows.map((row) => row.documentId),
         );
         const existingRows = await this.#db.documents
