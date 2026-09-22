@@ -13,6 +13,7 @@ type ProjectSwitcherProps = {
   disabled?: boolean;
   onSelectProject: (projectId: ProjectId) => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
+  onOpenProjectSettings: () => void;
 };
 
 export function ProjectSwitcher({
@@ -20,6 +21,7 @@ export function ProjectSwitcher({
   disabled = false,
   onSelectProject,
   onCreateProject,
+  onOpenProjectSettings,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
   const switcherRef = useRef<HTMLDetailsElement>(null);
@@ -130,6 +132,19 @@ export function ProjectSwitcher({
           >
             <span aria-hidden="true">＋</span>
             <span>New project</span>
+          </button>
+
+          <button
+            className="project-switcher-action"
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              switcherRef.current?.removeAttribute("open");
+              onOpenProjectSettings();
+            }}
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>Project settings</span>
           </button>
 
           {error && !newProjectOpen ? (
