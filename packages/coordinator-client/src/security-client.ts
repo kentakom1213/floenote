@@ -150,6 +150,7 @@ export class SecurityCoordinatorClient {
       !("securityHead" in payload) ||
       typeof payload.securityHead !== "string" ||
       !("recipientDeviceId" in payload) ||
+      typeof payload.recipientDeviceId !== "string" ||
       payload.recipientDeviceId !== recipientDeviceId ||
       !("sealedEnvelope" in payload) ||
       typeof payload.sealedEnvelope !== "string" ||
