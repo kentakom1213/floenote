@@ -31,11 +31,20 @@ export async function verifyEd25519Signature(
 }
 
 export async function sha256(message: Uint8Array): Promise<Uint8Array> {
-  await sodium.ready;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    toArrayBuffer(message),
+  );
+  const bytes = new Uint8Array(digest);
 
-  const digest = sodium.crypto_hash_sha256(message);
-  if (digest.byteLength !== SHA256_BYTES) {
+  if (bytes.byteLength !== SHA256_BYTES) {
     throw new Error("Unexpected SHA-256 digest length");
   }
-  return digest;
+  return bytes;
+}
+
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
 }
