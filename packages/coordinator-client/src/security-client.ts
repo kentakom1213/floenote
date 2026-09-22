@@ -1,4 +1,8 @@
-import type { ProjectId } from "@floe-note/domain";
+import {
+  parseDeviceId,
+  parseProjectId,
+  type ProjectId,
+} from "@floe-note/domain";
 import {
   addDeviceTransitionToWire,
   createProjectTransitionToWire,
@@ -7,6 +11,7 @@ import {
   revokeDeviceTransitionToWire,
   type AddDeviceTransition,
   type CreateProjectTransition,
+  type ProjectKeyRotationEnvelope,
   type RevokeDeviceTransition,
   type SecurityState,
   type SecurityTransition,
@@ -97,16 +102,19 @@ export class SecurityCoordinatorClient {
   async commitRevokeDevice(
     projectId: ProjectId,
     transition: RevokeDeviceTransition,
-    keyEnvelopes: readonly {
-      recipientDeviceId: string;
-      sealedEnvelope: Uint8Array;
-    }[],
+    keyEnvelopes: readonly ProjectKeyRotationEnvelope[],
   ): Promise<SecurityState> {
     return this.#commitTransition(projectId, {
       ...revokeDeviceTransitionToWire(transition),
       keyEnvelopes: keyEnvelopes.map((envelope) => ({
+        protocolVersion: envelope.protocolVersion,
+        projectId: envelope.projectId,
+        keyEpoch: envelope.keyEpoch,
+        securityHead: bytesToHex(envelope.securityHead),
         recipientDeviceId: envelope.recipientDeviceId,
         sealedEnvelope: bytesToHex(envelope.sealedEnvelope),
+        signerDeviceId: envelope.signerDeviceId,
+        signature: bytesToHex(envelope.signature),
       })),
     });
   }
@@ -115,7 +123,7 @@ export class SecurityCoordinatorClient {
     projectId: ProjectId,
     keyEpoch: number,
     recipientDeviceId: string,
-  ): Promise<Uint8Array> {
+  ): Promise<ProjectKeyRotationEnvelope> {
     if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
       throw new TypeError("keyEpoch must be a positive safe integer");
     }
@@ -132,17 +140,41 @@ export class SecurityCoordinatorClient {
     if (
       typeof payload !== "object" ||
       payload === null ||
+      !("protocolVersion" in payload) ||
+      payload.protocolVersion !== 1 ||
+      !("projectId" in payload) ||
+      typeof payload.projectId !== "string" ||
       !("keyEpoch" in payload) ||
       payload.keyEpoch !== keyEpoch ||
+      !("securityHead" in payload) ||
+      typeof payload.securityHead !== "string" ||
       !("recipientDeviceId" in payload) ||
       payload.recipientDeviceId !== recipientDeviceId ||
       !("sealedEnvelope" in payload) ||
-      typeof payload.sealedEnvelope !== "string"
+      typeof payload.sealedEnvelope !== "string" ||
+      !("signerDeviceId" in payload) ||
+      typeof payload.signerDeviceId !== "string" ||
+      !("signature" in payload) ||
+      typeof payload.signature !== "string"
     ) {
       throw new TypeError("Invalid ProjectKey envelope response");
     }
 
-    return hexToBytes(payload.sealedEnvelope);
+    const parsedProjectId = parseProjectId(payload.projectId);
+    if (parsedProjectId !== projectId) {
+      throw new TypeError("ProjectKey envelope ProjectId does not match request");
+    }
+
+    return {
+      protocolVersion: 1,
+      projectId: parsedProjectId,
+      keyEpoch,
+      securityHead: hexToBytes(payload.securityHead),
+      recipientDeviceId: parseDeviceId(payload.recipientDeviceId),
+      sealedEnvelope: hexToBytes(payload.sealedEnvelope),
+      signerDeviceId: parseDeviceId(payload.signerDeviceId),
+      signature: hexToBytes(payload.signature),
+    };
   }
 
   async commitCreateProject(
