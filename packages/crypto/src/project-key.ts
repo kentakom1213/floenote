@@ -109,6 +109,7 @@ export async function openSealedProjectKeyForDevice(
       parsed.recipientDeviceId !== expected.recipientDeviceId ||
       !bytesEqual(parsed.securityHead, expected.securityHead)
     ) {
+      parsed.projectKey.fill(0);
       throw new Error("ProjectKey envelope context does not match pairing");
     }
 
