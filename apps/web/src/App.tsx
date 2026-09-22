@@ -66,12 +66,12 @@ import {
   InvitationHostPanel,
   type DeviceAuthorizationUiState,
 } from "./InvitationHostPanel.js";
+import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
-import { ThemePicker } from "./ThemePicker.js";
 import { useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
@@ -158,7 +158,9 @@ function NoteApp() {
     readonly StoredProjectSummary[]
   >([]);
   const [projectSwitching, setProjectSwitching] = useState(false);
-  const [mainView, setMainView] = useState<"note" | "project-settings">("note");
+  const [mainView, setMainView] = useState<
+    "note" | "app-settings" | "project-settings"
+  >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
@@ -1134,8 +1136,14 @@ function NoteApp() {
     />
   );
 
-  const projectSettingsContent =
-    mainView === "project-settings" ? (
+  const mainContent =
+    mainView === "app-settings" ? (
+      <AppSettingsView
+        theme={themePreference}
+        localDeviceId={localDeviceId}
+        onThemeChange={setThemePreference}
+      />
+    ) : mainView === "project-settings" ? (
       localDeviceId && localSecurityState ? (
         <ProjectSettingsView
           projectId={activeProject.id}
@@ -1144,6 +1152,7 @@ function NoteApp() {
           authorizedDevices={localSecurityState.devices}
           onlineDeviceIds={authorizedSync.onlineDeviceIds}
           connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          onRenameProject={(name) => activeProject.renameProject(name)}
           onAddDevice={() => {
             window.location.assign("/?transport=invite");
           }}
@@ -1205,10 +1214,13 @@ function NoteApp() {
       ) : null}
       <div className="sidebar-footer-row">
         <SyncStatus state={syncUiState} />
-        <ThemePicker
-          value={themePreference}
-          onChange={setThemePreference}
-        />
+        <button
+          className="footer-action"
+          type="button"
+          onClick={() => setMainView("app-settings")}
+        >
+          Settings
+        </button>
       </div>
     </>
   );
@@ -1220,7 +1232,7 @@ function NoteApp() {
       selectedDocument={selectedDocument}
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
-      mainContent={projectSettingsContent}
+      mainContent={mainContent}
       onCreateDocument={createDocument}
       onSelectDocument={(documentId) => {
         setSelectedId(documentId);
