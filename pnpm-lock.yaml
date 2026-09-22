@@ -13,6 +13,13 @@ importers:
         version: 5.9.3
 
   apps/coordinator:
+    dependencies:
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../../packages/security
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 5.20260921.1
@@ -90,6 +97,9 @@ importers:
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../security
       '@floe-note/transport':
         specifier: workspace:*
         version: link:../transport
@@ -156,6 +166,9 @@ importers:
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../security
       dexie:
         specifier: ^4.4.6
         version: 4.4.6

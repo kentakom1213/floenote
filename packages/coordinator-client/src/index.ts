@@ -33,3 +33,5 @@ export type {
   WebRtcSignalingRole,
   WebRtcSignalingSessionOptions,
 } from "./webrtc-signaling-session.js";
+
+export { SecurityCoordinatorClient } from "./security-client.js";

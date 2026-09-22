@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@floe-note/domain": "workspace:*",
+    "@floe-note/security": "workspace:*",
     "@floe-note/transport": "workspace:*"
   }
 }

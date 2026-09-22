@@ -4,6 +4,12 @@ import {
   parseProjectId,
   type ProjectId,
 } from "@floe-note/domain";
+import {
+  parseSecurityStateWirePayload,
+  securityStateToWire,
+  type SecurityState,
+  type SecurityStateWirePayload,
+} from "@floe-note/security";
 import Dexie, { type Table } from "dexie";
 
 import type { OpenProjectResult, ProjectStorage } from "./project-storage.js";
@@ -33,6 +39,7 @@ class FloeNoteDatabase extends Dexie {
   projects!: Table<ProjectRecord, string>;
   manifests!: Table<ManifestRecord, string>;
   documents!: Table<DocumentRecord, [string, string]>;
+  security!: Table<SecurityStateWirePayload, string>;
 
   constructor() {
     super(DATABASE_NAME);
@@ -41,6 +48,13 @@ class FloeNoteDatabase extends Dexie {
       projects: "&id,&localSlot,createdAt",
       manifests: "&projectId",
       documents: "[projectId+documentId],projectId,documentId",
+    });
+
+    this.version(2).stores({
+      projects: "&id,&localSlot,createdAt",
+      manifests: "&projectId",
+      documents: "[projectId+documentId],projectId,documentId",
+      security: "&projectId",
     });
   }
 }
@@ -102,6 +116,17 @@ export class DexieProjectStorage implements ProjectStorage {
 
     this.#openPromise = Promise.resolve({ project, isNew: false });
     return project;
+  }
+
+  async loadSecurityState(
+    projectId: ProjectId,
+  ): Promise<SecurityState | null> {
+    const record = await this.#db.security.get(projectId);
+    return record ? parseSecurityStateWirePayload(record, projectId) : null;
+  }
+
+  async saveCommittedSecurityState(state: SecurityState): Promise<void> {
+    await this.#db.security.put(securityStateToWire(state));
   }
 
   watchProject(project: NoteProject): () => void {

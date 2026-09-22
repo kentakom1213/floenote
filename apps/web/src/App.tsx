@@ -5,6 +5,7 @@ import {
   createPairingSecret,
   createSessionId,
   InvitationClient,
+  SecurityCoordinatorClient,
   WebRtcSignalingSession,
   type InviteId,
   type PairingSecret,
@@ -64,6 +65,7 @@ const pairingSecretFromFragment = new URLSearchParams(
 ).get("s");
 const coordinatorBaseUrl =
   import.meta.env.VITE_COORDINATOR_URL ?? "http://localhost:8787";
+const securityCoordinator = new SecurityCoordinatorClient(coordinatorBaseUrl);
 
 type OpenedProject = {
   project: NoteProject;
@@ -203,11 +205,30 @@ function NoteApp() {
     if (!session) return;
 
     let cancelled = false;
-    setLocalSecurityBootstrapState("creating");
+    setLocalSecurityBootstrapState("committing");
     setLocalSecurityState(null);
     setLocalSecurityError(null);
 
     void (async () => {
+      const storedState = await projectStorage.loadSecurityState(project.id);
+      if (storedState) {
+        if (
+          !storedState.devices.some(
+            (device) => device.deviceId === localDeviceId,
+          )
+        ) {
+          throw new Error(
+            "This Device Vault identity is not authorized by the stored SecurityState",
+          );
+        }
+
+        if (!cancelled) {
+          setLocalSecurityState(storedState);
+          setLocalSecurityBootstrapState("committed");
+        }
+        return;
+      }
+
       const identity = session.publicIdentity;
       if (identity.deviceId !== localDeviceId) {
         throw new Error("Unlocked Device Vault identity changed unexpectedly");
@@ -237,14 +258,26 @@ function NoteApp() {
       const headHash = await sha256(
         encodeCreateProjectTransition(transition),
       );
-      const securityState = deriveInitialSecurityState(
+      const candidateState = deriveInitialSecurityState(
         transition,
         headHash,
       );
+      const committedState = await securityCoordinator.commitCreateProject(
+        project.id,
+        transition,
+      );
+
+      if (!securityStatesEqual(candidateState, committedState)) {
+        throw new Error(
+          "Coordinator committed a SecurityState that does not match CreateProject",
+        );
+      }
+
+      await projectStorage.saveCommittedSecurityState(committedState);
 
       if (!cancelled) {
-        setLocalSecurityState(securityState);
-        setLocalSecurityBootstrapState("ready");
+        setLocalSecurityState(committedState);
+        setLocalSecurityBootstrapState("committed");
       }
     })().catch((error: unknown) => {
       if (cancelled) return;
@@ -640,4 +673,40 @@ function DocumentPane({
 
 function bytesToHex(value: Uint8Array): string {
   return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function securityStatesEqual(
+  left: SecurityState,
+  right: SecurityState,
+): boolean {
+  if (
+    left.protocolVersion !== right.protocolVersion ||
+    left.projectId !== right.projectId ||
+    left.sequence !== right.sequence ||
+    left.keyEpoch !== right.keyEpoch ||
+    !bytesEqual(left.headHash, right.headHash) ||
+    left.devices.length !== right.devices.length
+  ) {
+    return false;
+  }
+
+  return left.devices.every((device, index) => {
+    const other = right.devices[index];
+    return (
+      other !== undefined &&
+      device.deviceId === other.deviceId &&
+      device.addedAtSequence === other.addedAtSequence &&
+      bytesEqual(device.encryptionPublicKey, other.encryptionPublicKey) &&
+      bytesEqual(device.signingPublicKey, other.signingPublicKey)
+    );
+  });
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+
+  for (let index = 0; index < left.byteLength; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
 }

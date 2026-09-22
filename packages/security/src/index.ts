@@ -25,3 +25,15 @@ export {
 } from "./create-project.js";
 
 export type { UnsignedCreateProjectTransition } from "./transition.js";
+
+export {
+  createProjectTransitionToWire,
+  parseCreateProjectWirePayload,
+  parseSecurityStateWirePayload,
+  securityStateToWire,
+} from "./wire.js";
+
+export type {
+  CreateProjectWirePayload,
+  SecurityStateWirePayload,
+} from "./wire.js";

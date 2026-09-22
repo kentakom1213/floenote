@@ -1,4 +1,14 @@
 import { DurableObject } from "cloudflare:workers";
+import { parseProjectId, type ProjectId } from "@floe-note/domain";
+import {
+  deriveInitialSecurityState,
+  encodeCreateProjectTransition,
+  encodeUnsignedCreateProjectTransition,
+  parseCreateProjectWirePayload,
+  parseSecurityStateWirePayload,
+  securityStateToWire,
+  type SecurityStateWirePayload,
+} from "@floe-note/security";
 
 interface Env {
   PROJECT_COORDINATOR: DurableObjectNamespace<ProjectCoordinator>;
@@ -7,6 +17,10 @@ interface Env {
 
 type SocketAttachment = {
   sessionId: string;
+};
+
+type SecurityTransitionRoute = {
+  projectId: ProjectId;
 };
 
 type InvitationState =
@@ -81,6 +95,17 @@ export default {
       return withCors(response);
     }
 
+    const securityRoute = parseSecurityTransitionRoute(url.pathname);
+    if (securityRoute) {
+      if (request.method !== "POST") {
+        return withCors(new Response("Method not allowed", { status: 405 }));
+      }
+
+      const id = env.PROJECT_COORDINATOR.idFromName(securityRoute.projectId);
+      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      return withCors(response);
+    }
+
     const signalRoute = parseSignalRoute(url.pathname);
     if (!signalRoute) {
       return withCors(new Response("Not found", { status: 404 }));
@@ -98,10 +123,19 @@ export default {
 export class ProjectCoordinator extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const securityRoute = parseSecurityTransitionRoute(url.pathname);
+
+    if (securityRoute) {
+      if (request.method !== "POST") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      return this.#commitCreateProject(request, securityRoute.projectId);
+    }
+
     const route = parseSignalRoute(url.pathname);
 
     if (!route) {
-      return new Response("Invalid signaling route", { status: 404 });
+      return new Response("Invalid ProjectCoordinator route", { status: 404 });
     }
 
     const tag = sessionTag(route.sessionId);
@@ -129,6 +163,91 @@ export class ProjectCoordinator extends DurableObject<Env> {
     return new Response(null, {
       status: 101,
       webSocket: client,
+    });
+  }
+
+  async #commitCreateProject(
+    request: Request,
+    projectId: ProjectId,
+  ): Promise<Response> {
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return new Response("Invalid JSON security transition", { status: 400 });
+    }
+
+    let transition;
+    try {
+      transition = parseCreateProjectWirePayload(payload, projectId);
+    } catch (error: unknown) {
+      return new Response(
+        error instanceof Error ? error.message : "Invalid CreateProject payload",
+        { status: 400 },
+      );
+    }
+
+    const signingBytes = encodeUnsignedCreateProjectTransition(transition);
+    const verified = await verifyEd25519(
+      signingBytes,
+      transition.signature,
+      transition.initialDevice.signingPublicKey,
+    );
+    if (!verified) {
+      return new Response("CreateProject signature verification failed", {
+        status: 403,
+      });
+    }
+
+    const headHash = await sha256(encodeCreateProjectTransition(transition));
+    const candidateState = deriveInitialSecurityState(transition, headHash);
+    const candidateWire = securityStateToWire(candidateState);
+
+    let response: Response | null = null;
+
+    await this.ctx.storage.transaction(async (transaction) => {
+      const existingWire =
+        await transaction.get<SecurityStateWirePayload>("security-state");
+
+      if (existingWire) {
+        let existing;
+        try {
+          existing = parseSecurityStateWirePayload(existingWire, projectId);
+        } catch {
+          response = new Response("Stored SecurityState is invalid", {
+            status: 500,
+          });
+          return;
+        }
+
+        if (!bytesEqual(existing.headHash, candidateState.headHash)) {
+          response = new Response("Project security is already initialized", {
+            status: 409,
+          });
+          return;
+        }
+
+        if (
+          JSON.stringify(securityStateToWire(existing)) !==
+          JSON.stringify(candidateWire)
+        ) {
+          response = new Response(
+            "Stored SecurityState does not match its committed head",
+            { status: 500 },
+          );
+          return;
+        }
+
+        response = Response.json(securityStateToWire(existing));
+        return;
+      }
+
+      await transaction.put("security-state", candidateWire);
+      response = Response.json(candidateWire, { status: 201 });
+    });
+
+    return response ?? new Response("Failed to commit SecurityState", {
+      status: 500,
     });
   }
 
@@ -451,6 +570,20 @@ function parseInviteActionRoute(
   return { inviteId, action };
 }
 
+function parseSecurityTransitionRoute(
+  pathname: string,
+): SecurityTransitionRoute | null {
+  const match = /^\/projects\/([^/]+)\/security\/transitions$/.exec(pathname);
+  if (!match) return null;
+
+  const rawProjectId = match[1];
+  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+
+  return {
+    projectId: parseProjectId(rawProjectId.toLowerCase()),
+  };
+}
+
 function parseSignalRoute(
   pathname: string,
 ): { projectId: string; sessionId: string } | null {
@@ -517,4 +650,50 @@ function sendJson(socket: WebSocket, value: unknown): void {
   } catch {
     // A peer may disappear between getWebSockets() and send().
   }
+}
+
+async function verifyEd25519(
+  message: Uint8Array,
+  signature: Uint8Array,
+  publicKey: Uint8Array,
+): Promise<boolean> {
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      toArrayBuffer(publicKey),
+      { name: "Ed25519" },
+      false,
+      ["verify"],
+    );
+    return crypto.subtle.verify(
+      { name: "Ed25519" },
+      key,
+      toArrayBuffer(signature),
+      toArrayBuffer(message),
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function sha256(message: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(
+    await crypto.subtle.digest("SHA-256", toArrayBuffer(message)),
+  );
+}
+
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+
+  let difference = 0;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+  return difference === 0;
 }

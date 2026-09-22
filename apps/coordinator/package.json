@@ -8,6 +8,10 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc -p tsconfig.json"
   },
+  "dependencies": {
+    "@floe-note/domain": "workspace:*",
+    "@floe-note/security": "workspace:*"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260921.1",
     "wrangler": "4.135.0"
