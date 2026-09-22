@@ -211,7 +211,7 @@ function NoteApp() {
               setCoordinationError(
                 error instanceof Error
                   ? error.message
-                  : "Pairing authentication failed",
+                  : "Pairing bootstrap failed",
               );
             });
 
