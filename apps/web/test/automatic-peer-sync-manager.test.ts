@@ -14,6 +14,9 @@ const harness = vi.hoisted(() => {
     static instances: FakeWebRtcTransport[] = [];
 
     readonly connectionHandlers = new Set<(state: ConnectionState) => void>();
+    readonly statusHandlers = new Set<
+      (status: { dataChannelState: "none" | "open" | "closed" }) => void
+    >();
     readonly messageHandlers = new Set<(data: Uint8Array) => void>();
 
     constructor() {
@@ -31,15 +34,33 @@ const harness = vi.hoisted(() => {
       handler: (state: ConnectionState) => void,
     ): () => void {
       this.connectionHandlers.add(handler);
+      handler("new");
       return () => this.connectionHandlers.delete(handler);
+    }
+
+    onStatusChange(
+      handler: (
+        status: { dataChannelState: "none" | "open" | "closed" },
+      ) => void,
+    ): () => void {
+      this.statusHandlers.add(handler);
+      handler({ dataChannelState: "none" });
+      return () => this.statusHandlers.delete(handler);
     }
 
     close(): void {
       this.emit("closed");
+      this.emitDataChannel("closed");
     }
 
     emit(state: ConnectionState): void {
       for (const handler of this.connectionHandlers) handler(state);
+    }
+
+    emitDataChannel(dataChannelState: "open" | "closed"): void {
+      for (const handler of this.statusHandlers) {
+        handler({ dataChannelState });
+      }
     }
   }
 
@@ -265,6 +286,28 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
 
     expect(presence.sent).toHaveLength(1);
     expect(harness.FakeWebRtcTransport.instances).toHaveLength(1);
+
+    manager.stop();
+  });
+
+  it("retries when the data channel closes while the peer connection stays connected", async () => {
+    const presence = createPresence();
+    const manager = createManager(presence);
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    const transport = harness.FakeWebRtcTransport.instances[0];
+    transport?.emit("connected");
+    transport?.emitDataChannel("open");
+
+    transport?.emitDataChannel("closed");
+    await flushConnectionCleanup();
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[0],
+    );
+
+    expect(presence.sent).toHaveLength(2);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
 
     manager.stop();
   });
