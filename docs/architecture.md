@@ -1177,6 +1177,12 @@ visible rather than being implied away by the use of modern primitives.
   readable to same-origin code or direct local-storage inspection until the
   encrypted-persistence step replaces that schema. This is an implementation
   staging limitation, not the intended final storage model.
+- **Legacy development transports remain plaintext.** The manual SDP/signaling
+  debug flows and same-browser BroadcastChannel path predate the security
+  bootstrap and are retained only as development tools. They must not be
+  treated as the normal authorized-device synchronization path. The production
+  path introduced here is the ProjectKey-protected transport started after
+  successful pairing.
 
 This threat model should be revisited before a security-sensitive public release.
 
