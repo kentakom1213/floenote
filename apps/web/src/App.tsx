@@ -49,10 +49,6 @@ import {
   DexieProjectStorage,
   type StoredProjectSummary,
 } from "@floe-note/storage";
-import {
-  EncryptedSyncTransport,
-  ProjectSyncEngine,
-} from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
   WebAuthnPrfDeviceVault,
@@ -181,7 +177,6 @@ function NoteApp() {
   );
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const securityMutationInFlightRef = useRef(false);
-  const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -197,9 +192,6 @@ function NoteApp() {
   const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
-  >("waiting");
-  const [invitationSyncState, setInvitationSyncState] = useState<
-    "waiting" | "active" | "error"
   >("waiting");
 
   const project = openedProject?.project ?? null;
@@ -429,30 +421,6 @@ function NoteApp() {
   });
 
   useEffect(() => {
-    if (
-      !useInvitationWebRtc ||
-      projectKeyDeliveryState !== "delivered" ||
-      !webRtcTransport
-    ) {
-      return;
-    }
-
-    let dataChannelWasOpen = webRtcTransport.dataChannelState === "open";
-    const stopStatus = webRtcTransport.onStatusChange((status) => {
-      if (status.dataChannelState === "open") {
-        dataChannelWasOpen = true;
-        return;
-      }
-
-      if (dataChannelWasOpen && status.dataChannelState === "closed") {
-        window.location.replace("/");
-      }
-    });
-
-    return stopStatus;
-  }, [projectKeyDeliveryState, webRtcTransport]);
-
-  useEffect(() => {
     if (!project) return;
 
     return project.subscribe(() =>
@@ -492,7 +460,6 @@ function NoteApp() {
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
     setProjectKeyDeliveryState("waiting");
-    setInvitationSyncState("waiting");
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -567,8 +534,6 @@ function NoteApp() {
             abortPairing.abort();
             stopSignalingState();
             signaling.stop();
-            invitationSyncEngineRef.current?.stop();
-            invitationSyncEngineRef.current = null;
           };
         } catch (caught: unknown) {
           if (!disposed) {
@@ -1104,73 +1069,27 @@ function NoteApp() {
       });
 
       setProjectKeyDeliveryState("delivered");
-      startInvitationEncryptedSync(committedState);
 
       try {
         await new InvitationClient(coordinatorBaseUrl).consumeInvite(
           invitationHost.inviteId,
         );
       } catch (error: unknown) {
-        setCoordinationError(
+        console.warn(
           error instanceof Error
             ? `ProjectKey stored, but invite consume failed: ${error.message}`
             : "ProjectKey stored, but invite consume failed",
         );
       }
+
+      webRtcTransport.close();
+      window.location.replace("/");
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
         error instanceof Error ? error.message : "Failed to deliver ProjectKey",
       );
     }
-  }
-
-  function startInvitationEncryptedSync(
-    committedState: SecurityState,
-  ): void {
-    if (invitationSyncEngineRef.current) return;
-
-    const session = deviceVaultSessionRef.current;
-    if (!session || !webRtcTransport) {
-      setInvitationSyncState("error");
-      setCoordinationError(
-        "Vault session and WebRTC transport are required for encrypted sync",
-      );
-      return;
-    }
-
-    const encryptedTransport = new EncryptedSyncTransport(
-      webRtcTransport,
-      {
-        encrypt: (plaintext) =>
-          session.encryptProjectSyncPayload(
-            committedState.projectId,
-            committedState.keyEpoch,
-            plaintext,
-          ),
-        decrypt: (envelope) =>
-          session.decryptProjectSyncPayload(
-            committedState.projectId,
-            committedState.keyEpoch,
-            envelope,
-          ),
-      },
-      {
-        onError: (error, direction) => {
-          setInvitationSyncState("error");
-          setCoordinationError(
-            `Encrypted sync ${direction} failed: ${error.message}`,
-          );
-        },
-      },
-    );
-
-    const syncEngine = new ProjectSyncEngine(activeProject, encryptedTransport, {
-      debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
-    });
-    invitationSyncEngineRef.current = syncEngine;
-    syncEngine.start();
-    setInvitationSyncState("active");
   }
 
   function createDocument() {
@@ -1253,7 +1172,6 @@ function NoteApp() {
         joiningDeviceId={joiningDevice?.deviceId ?? null}
         authorizationState={deviceAuthorizationState}
         projectKeyDeliveryState={projectKeyDeliveryState}
-        encryptedSyncState={invitationSyncState}
         onConfirm={authorizeJoiningDevice}
         onRetryProjectKeyDelivery={retryProjectKeyDelivery}
         onCancel={() =>
