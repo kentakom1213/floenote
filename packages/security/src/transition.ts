@@ -5,19 +5,25 @@ import type {
   SecurityProtocolVersion,
 } from "./state.js";
 
-type SignedTransitionBase = {
+type TransitionBase = {
   protocolVersion: SecurityProtocolVersion;
   projectId: ProjectId;
+};
+
+type SignedTransitionBase = TransitionBase & {
   signature: Uint8Array;
 };
 
-export type CreateProjectTransition = SignedTransitionBase & {
+export type UnsignedCreateProjectTransition = TransitionBase & {
   type: "create-project";
   sequence: 0;
   previousHash: null;
   keyEpoch: 1;
   initialDevice: DevicePublicIdentity;
 };
+
+export type CreateProjectTransition = UnsignedCreateProjectTransition &
+  SignedTransitionBase;
 
 export type AddDeviceTransition = SignedTransitionBase & {
   type: "add-device";
