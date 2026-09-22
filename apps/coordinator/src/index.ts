@@ -10,13 +10,17 @@ import {
   SECURITY_PROTOCOL_VERSION,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  deriveRevokeDeviceSecurityState,
   encodeAuthorizedPresenceProof,
   encodeAddDeviceTransition,
   encodeCreateProjectTransition,
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  encodeRevokeDeviceTransition,
+  encodeUnsignedRevokeDeviceTransition,
   parseAddDeviceWirePayload,
   parseCreateProjectWirePayload,
+  parseRevokeDeviceWirePayload,
   parseSecurityStateWirePayload,
   securityStateToWire,
   securityTransitionToWire,
@@ -49,6 +53,17 @@ type SocketAttachment =
 
 type SecurityTransitionRoute = {
   projectId: ProjectId;
+};
+
+type ProjectKeyEnvelopeRoute = {
+  projectId: ProjectId;
+  keyEpoch: number;
+  deviceId: DeviceId;
+};
+
+type RevokeKeyEnvelopeWirePayload = {
+  recipientDeviceId: string;
+  sealedEnvelope: string;
 };
 
 type InvitationState =
@@ -145,6 +160,19 @@ export default {
       return withCors(response);
     }
 
+    const projectKeyEnvelopeRoute = parseProjectKeyEnvelopeRoute(url.pathname);
+    if (projectKeyEnvelopeRoute) {
+      if (request.method !== "GET") {
+        return withCors(new Response("Method not allowed", { status: 405 }));
+      }
+
+      const id = env.PROJECT_COORDINATOR.idFromName(
+        projectKeyEnvelopeRoute.projectId,
+      );
+      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      return withCors(response);
+    }
+
     const presenceRoute = parsePresenceRoute(url.pathname);
     const signalRoute = parseSignalRoute(url.pathname);
     if (!presenceRoute && !signalRoute) {
@@ -186,6 +214,14 @@ export class ProjectCoordinator extends DurableObject<Env> {
         return this.#commitSecurityTransition(request, securityRoute.projectId);
       }
       return new Response("Method not allowed", { status: 405 });
+    }
+
+    const projectKeyEnvelopeRoute = parseProjectKeyEnvelopeRoute(url.pathname);
+    if (projectKeyEnvelopeRoute) {
+      if (request.method !== "GET") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      return this.#getProjectKeyEnvelope(projectKeyEnvelopeRoute);
     }
 
     const presenceRoute = parsePresenceRoute(url.pathname);
@@ -346,10 +382,14 @@ export class ProjectCoordinator extends DurableObject<Env> {
     if (
       typeof payload === "object" &&
       payload !== null &&
-      "type" in payload &&
-      payload.type === "add-device"
+      "type" in payload
     ) {
-      return this.#commitAddDevice(payload, projectId);
+      if (payload.type === "add-device") {
+        return this.#commitAddDevice(payload, projectId);
+      }
+      if (payload.type === "revoke-device") {
+        return this.#commitRevokeDevice(payload, projectId);
+      }
     }
 
     return this.#commitCreateProject(payload, projectId);
@@ -552,6 +592,195 @@ export class ProjectCoordinator extends DurableObject<Env> {
     return response ?? new Response("Failed to commit AddDevice", {
       status: 500,
     });
+  }
+
+  async #commitRevokeDevice(
+    payload: unknown,
+    projectId: ProjectId,
+  ): Promise<Response> {
+    let transition;
+    let keyEnvelopes: RevokeKeyEnvelopeWirePayload[];
+    try {
+      transition = parseRevokeDeviceWirePayload(payload, projectId);
+      keyEnvelopes = parseRevokeKeyEnvelopes(payload);
+    } catch (error: unknown) {
+      return new Response(
+        error instanceof Error ? error.message : "Invalid RevokeDevice payload",
+        { status: 400 },
+      );
+    }
+
+    const existingWire =
+      await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
+    if (!existingWire) {
+      return new Response("Project security is not initialized", { status: 409 });
+    }
+
+    let currentState: SecurityState;
+    try {
+      currentState = parseSecurityStateWirePayload(existingWire, projectId);
+    } catch {
+      return new Response("Stored SecurityState is invalid", { status: 500 });
+    }
+
+    const signer = currentState.devices.find(
+      (device) => device.deviceId === transition.signerDeviceId,
+    );
+    if (!signer) {
+      return new Response("RevokeDevice signer is not authorized", {
+        status: 403,
+      });
+    }
+
+    const signingBytes = encodeUnsignedRevokeDeviceTransition(transition);
+    const verified = await verifyEd25519(
+      signingBytes,
+      transition.signature,
+      signer.signingPublicKey,
+    );
+    if (!verified) {
+      return new Response("RevokeDevice signature verification failed", {
+        status: 403,
+      });
+    }
+
+    const headHash = await sha256(encodeRevokeDeviceTransition(transition));
+
+    let candidateState: SecurityState;
+    try {
+      candidateState = deriveRevokeDeviceSecurityState(
+        currentState,
+        transition,
+        headHash,
+      );
+    } catch (error: unknown) {
+      return new Response(
+        error instanceof Error ? error.message : "Invalid RevokeDevice transition",
+        { status: 409 },
+      );
+    }
+
+    const expectedRecipients = candidateState.devices
+      .filter((device) => device.deviceId !== transition.signerDeviceId)
+      .map((device) => device.deviceId)
+      .sort();
+    const actualRecipients = keyEnvelopes
+      .map((envelope) => parseDeviceId(envelope.recipientDeviceId))
+      .sort();
+
+    if (
+      expectedRecipients.length !== actualRecipients.length ||
+      expectedRecipients.some(
+        (deviceId, index) => deviceId !== actualRecipients[index],
+      )
+    ) {
+      return new Response(
+        "RevokeDevice key envelopes must target every remaining peer exactly once",
+        { status: 400 },
+      );
+    }
+
+    const candidateWire = securityStateToWire(candidateState);
+    let response: Response | null = null;
+
+    await this.ctx.storage.transaction(async (transaction) => {
+      const latestWire =
+        await transaction.get<SecurityStateWirePayload>("security-state");
+      if (!latestWire) {
+        response = new Response("Project security is not initialized", {
+          status: 409,
+        });
+        return;
+      }
+
+      let latestState: SecurityState;
+      try {
+        latestState = parseSecurityStateWirePayload(latestWire, projectId);
+      } catch {
+        response = new Response("Stored SecurityState is invalid", {
+          status: 500,
+        });
+        return;
+      }
+
+      if (!bytesEqual(latestState.headHash, currentState.headHash)) {
+        response = new Response("SecurityState head changed", { status: 409 });
+        return;
+      }
+
+      await transaction.put("security-state", candidateWire);
+      await transaction.put(
+        securityTransitionKey(transition.sequence),
+        securityTransitionToWire(transition),
+      );
+      for (const envelope of keyEnvelopes) {
+        const recipientDeviceId = parseDeviceId(envelope.recipientDeviceId);
+        await transaction.put(
+          projectKeyEnvelopeKey(transition.newKeyEpoch, recipientDeviceId),
+          envelope.sealedEnvelope,
+        );
+      }
+      response = Response.json(candidateWire, { status: 201 });
+    });
+
+    if (response?.status === 201) {
+      this.#invalidatePresenceForSecurityState(candidateState);
+    }
+
+    return response ?? new Response("Failed to commit RevokeDevice", {
+      status: 500,
+    });
+  }
+
+  async #getProjectKeyEnvelope(
+    route: ProjectKeyEnvelopeRoute,
+  ): Promise<Response> {
+    const state = await this.#loadSecurityState(route.projectId);
+    if (state instanceof Response) return state;
+
+    if (
+      state.keyEpoch !== route.keyEpoch ||
+      !state.devices.some((device) => device.deviceId === route.deviceId)
+    ) {
+      return new Response("ProjectKey envelope is not available", {
+        status: 404,
+      });
+    }
+
+    const envelope = await this.ctx.storage.get<string>(
+      projectKeyEnvelopeKey(route.keyEpoch, route.deviceId),
+    );
+    if (!envelope) {
+      return new Response("ProjectKey envelope is not available", {
+        status: 404,
+      });
+    }
+
+    return Response.json({
+      keyEpoch: route.keyEpoch,
+      recipientDeviceId: route.deviceId,
+      sealedEnvelope: envelope,
+    });
+  }
+
+  #invalidatePresenceForSecurityState(state: SecurityState): void {
+    const head = bytesToHex(state.headHash);
+    const authorized = new Set(state.devices.map((device) => device.deviceId));
+
+    for (const socket of this.ctx.getWebSockets(presenceTag())) {
+      const attachment = socket.deserializeAttachment() as
+        | SocketAttachment
+        | null;
+      if (attachment?.kind !== "presence") continue;
+
+      if (
+        attachment.securityHead !== head ||
+        (attachment.deviceId && !authorized.has(parseDeviceId(attachment.deviceId)))
+      ) {
+        socket.close(1008, "SecurityState changed");
+      }
+    }
+    this.#broadcastPresenceState();
   }
 
   async webSocketMessage(
@@ -1134,6 +1363,38 @@ function parseSecurityTransitionRoute(
   };
 }
 
+function parseProjectKeyEnvelopeRoute(
+  pathname: string,
+): ProjectKeyEnvelopeRoute | null {
+  const match =
+    /^\/projects\/([^/]+)\/project-keys\/(\d+)\/([^/]+)$/.exec(pathname);
+  if (!match) return null;
+
+  const [, rawProjectId, rawKeyEpoch, rawDeviceId] = match;
+  if (
+    !rawProjectId ||
+    !PROJECT_ID_PATTERN.test(rawProjectId) ||
+    !rawKeyEpoch ||
+    !/^\d+$/.test(rawKeyEpoch) ||
+    !rawDeviceId
+  ) {
+    return null;
+  }
+
+  const keyEpoch = Number(rawKeyEpoch);
+  if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) return null;
+
+  try {
+    return {
+      projectId: parseProjectId(rawProjectId.toLowerCase()),
+      keyEpoch,
+      deviceId: parseDeviceId(rawDeviceId),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function parsePresenceRoute(
   pathname: string,
 ): { projectId: ProjectId } | null {
@@ -1164,6 +1425,55 @@ function parseSignalRoute(
 
 function securityTransitionKey(sequence: number): string {
   return `security-transition:${sequence}`;
+}
+
+function projectKeyEnvelopeKey(
+  keyEpoch: number,
+  deviceId: DeviceId,
+): string {
+  return `project-key-envelope:${keyEpoch}:${deviceId}`;
+}
+
+function parseRevokeKeyEnvelopes(
+  payload: unknown,
+): RevokeKeyEnvelopeWirePayload[] {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("keyEnvelopes" in payload) ||
+    !Array.isArray(payload.keyEnvelopes)
+  ) {
+    throw new TypeError("RevokeDevice keyEnvelopes are required");
+  }
+
+  const seen = new Set<string>();
+  return payload.keyEnvelopes.map((value) => {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      !("recipientDeviceId" in value) ||
+      typeof value.recipientDeviceId !== "string" ||
+      !("sealedEnvelope" in value) ||
+      typeof value.sealedEnvelope !== "string" ||
+      value.sealedEnvelope.length === 0 ||
+      value.sealedEnvelope.length > 16 * 1024 ||
+      !/^[0-9a-f]+$/u.test(value.sealedEnvelope) ||
+      value.sealedEnvelope.length % 2 !== 0
+    ) {
+      throw new TypeError("Invalid RevokeDevice ProjectKey envelope");
+    }
+
+    const recipientDeviceId = parseDeviceId(value.recipientDeviceId);
+    if (seen.has(recipientDeviceId)) {
+      throw new TypeError("Duplicate RevokeDevice ProjectKey recipient");
+    }
+    seen.add(recipientDeviceId);
+
+    return {
+      recipientDeviceId,
+      sealedEnvelope: value.sealedEnvelope,
+    };
+  });
 }
 
 function sessionTag(sessionId: string): string {
