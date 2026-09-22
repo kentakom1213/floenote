@@ -185,6 +185,7 @@ export function InvitationJoinPage({
           projectId: claimed.projectId,
           recipientIdentity: session.publicIdentity,
           signal: abortPairing.signal,
+          timeoutMs: Math.max(1_000, claimed.expiresAt - Date.now()),
           onDelivery: async ({ securityState, sealedEnvelope }) => {
             await session.storeSealedProjectKey(
               sealedEnvelope,
@@ -196,6 +197,7 @@ export function InvitationJoinPage({
             await storage.initializeJoinedProject(securityState.projectId);
           },
         });
+        void deliveryPromise.catch(() => undefined);
 
         const identity = await exchangeJoiningDeviceIdentity({
           role: "join",
