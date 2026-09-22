@@ -10,6 +10,7 @@
   "dependencies": {
     "@floe-note/document": "workspace:*",
     "@floe-note/domain": "workspace:*",
+    "@floe-note/security": "workspace:*",
     "dexie": "^4.4.6"
   }
 }
