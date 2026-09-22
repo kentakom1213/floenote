@@ -71,6 +71,7 @@ import {
 } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
 import { ThemePicker } from "./ThemePicker.js";
@@ -160,6 +161,7 @@ function NoteApp() {
     readonly StoredProjectSummary[]
   >([]);
   const [projectSwitching, setProjectSwitching] = useState(false);
+  const [mainView, setMainView] = useState<"note" | "project-settings">("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
@@ -711,6 +713,7 @@ function NoteApp() {
       const result = await projectStorage.openProject(projectId, session);
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
+      setMainView("note");
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -734,6 +737,7 @@ function NoteApp() {
       const result = await projectStorage.createProject(name);
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
+      setMainView("note");
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1145,6 +1149,7 @@ function NoteApp() {
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
+    setMainView("note");
   }
 
   function deleteSelectedDocument() {
@@ -1178,8 +1183,37 @@ function NoteApp() {
       disabled={projectSwitching}
       onSelectProject={selectProject}
       onCreateProject={createProject}
+      onOpenProjectSettings={() => setMainView("project-settings")}
     />
   );
+
+  const projectSettingsContent =
+    mainView === "project-settings" ? (
+      localDeviceId && localSecurityState ? (
+        <ProjectSettingsView
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+          localDeviceId={localDeviceId}
+          authorizedDevices={localSecurityState.devices}
+          onlineDeviceIds={authorizedSync.onlineDeviceIds}
+          connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          onAddDevice={() => {
+            window.location.assign("/?transport=invite");
+          }}
+          onRemoveDevice={(deviceId) => {
+            const confirmed = window.confirm(
+              "Remove this device? It will no longer receive new changes from this Project. Data already stored on that device cannot be removed remotely.",
+            );
+            if (confirmed) void revokeDevice(deviceId);
+          }}
+        />
+      ) : (
+        <div className="settings-view">
+          <p className="settings-eyebrow">Project settings</p>
+          <p className="settings-loading">Loading Project security…</p>
+        </div>
+      )
+    ) : undefined;
 
   const debugSidebarControls =
     useInvitationWebRtc && invitationHost && webRtcTransport ? (
@@ -1240,8 +1274,12 @@ function NoteApp() {
       selectedDocument={selectedDocument}
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
+      mainContent={projectSettingsContent}
       onCreateDocument={createDocument}
-      onSelectDocument={setSelectedId}
+      onSelectDocument={(documentId) => {
+        setSelectedId(documentId);
+        setMainView("note");
+      }}
       onRenameDocument={(title) => {
         if (selectedDocument) {
           activeProject.renameDocument(selectedDocument.id, title);
