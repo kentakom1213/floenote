@@ -32,6 +32,25 @@ describe("NoteProject metadata", () => {
     expect(target.name).toBe("Floe Note");
   });
 
+  it("synchronizes device display names through manifest updates", () => {
+    const source = NoteProject.create();
+    const target = NoteProject.create(source.id);
+    const deviceId = "01a0c808-2026-7146-96f6-df8cca7b3a2d";
+
+    source.setDeviceDisplayName(deviceId, "Kenta's MacBook");
+    target.importManifestUpdate(source.exportManifestUpdate());
+
+    expect(target.getDeviceDisplayName(deviceId)).toBe("Kenta's MacBook");
+  });
+
+  it("rejects an empty device display name", () => {
+    const project = NoteProject.create();
+
+    expect(() => project.setDeviceDisplayName("device", "   ")).toThrow(
+      "Device name must not be empty",
+    );
+  });
+
   it("rejects an empty project name", () => {
     const project = NoteProject.create();
 
