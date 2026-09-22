@@ -109,9 +109,19 @@ export interface DeviceVault {
 
 export class DeviceVaultSession {
   #keyMaterial: DeviceKeyMaterial | null;
+  #projectKeys: ProjectKeyEntry[];
+  #vaultKey: Uint8Array | null;
+  readonly #persist: PersistDeviceVault;
 
-  constructor(keyMaterial: DeviceKeyMaterial) {
-    this.#keyMaterial = keyMaterial;
+  constructor(
+    contents: DeviceVaultContents,
+    vaultKey: Uint8Array,
+    persist: PersistDeviceVault,
+  ) {
+    this.#keyMaterial = contents.keyMaterial;
+    this.#projectKeys = contents.projectKeys;
+    this.#vaultKey = vaultKey;
+    this.#persist = persist;
   }
 
   get publicIdentity(): DevicePublicIdentity {
@@ -123,6 +133,124 @@ export class DeviceVaultSession {
     };
   }
 
+  hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean {
+    this.#requireOpen();
+    return this.#projectKeys.some(
+      (entry) =>
+        entry.projectId === projectId &&
+        entry.keyEpoch === keyEpoch,
+    );
+  }
+
+  async createProjectKeyIfMissing(
+    projectId: ProjectId,
+    keyEpoch: number,
+  ): Promise<boolean> {
+    this.#requireOpen();
+    assertKeyEpoch(keyEpoch);
+
+    if (this.hasProjectKey(projectId, keyEpoch)) {
+      return false;
+    }
+
+    const projectKey = await generateProjectKey();
+    this.#projectKeys.push({
+      projectId,
+      keyEpoch,
+      projectKey,
+    });
+    sortProjectKeys(this.#projectKeys);
+
+    try {
+      await this.#persistCurrentState();
+      return true;
+    } catch (error) {
+      this.#projectKeys = this.#projectKeys.filter(
+        (entry) => entry.projectKey !== projectKey,
+      );
+      projectKey.fill(0);
+      throw error;
+    }
+  }
+
+  async sealProjectKeyForRecipient(
+    projectId: ProjectId,
+    keyEpoch: number,
+    recipientDeviceId: DeviceId,
+    recipientEncryptionPublicKey: Uint8Array,
+    securityHead: Uint8Array,
+  ): Promise<Uint8Array> {
+    this.#requireOpen();
+    const entry = this.#findProjectKey(projectId, keyEpoch);
+    if (!entry) {
+      throw new Error(
+        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+      );
+    }
+
+    return sealProjectKeyForDevice(
+      {
+        projectId,
+        keyEpoch,
+        recipientDeviceId,
+        securityHead,
+      },
+      entry.projectKey,
+      recipientEncryptionPublicKey,
+    );
+  }
+
+  async storeSealedProjectKey(
+    sealedEnvelope: Uint8Array,
+    projectId: ProjectId,
+    keyEpoch: number,
+    securityHead: Uint8Array,
+  ): Promise<void> {
+    const keyMaterial = this.#requireOpen();
+    const recipientDeviceId = keyMaterial.publicIdentity.deviceId;
+    const projectKey = await openSealedProjectKeyForDevice(
+      sealedEnvelope,
+      {
+        projectId,
+        keyEpoch,
+        recipientDeviceId,
+        securityHead,
+      },
+      keyMaterial.publicIdentity.encryptionPublicKey,
+      keyMaterial.encryptionPrivateKey,
+    );
+
+    const existing = this.#findProjectKey(projectId, keyEpoch);
+    if (existing) {
+      const matches = bytesEqual(existing.projectKey, projectKey);
+      projectKey.fill(0);
+      if (!matches) {
+        throw new Error(
+          "A different ProjectKey already exists for this epoch",
+        );
+      }
+      return;
+    }
+
+    const entry: ProjectKeyEntry = {
+      projectId,
+      keyEpoch,
+      projectKey,
+    };
+    this.#projectKeys.push(entry);
+    sortProjectKeys(this.#projectKeys);
+
+    try {
+      await this.#persistCurrentState();
+    } catch (error) {
+      this.#projectKeys = this.#projectKeys.filter(
+        (candidate) => candidate !== entry,
+      );
+      projectKey.fill(0);
+      throw error;
+    }
+  }
+
   async sign(message: Uint8Array): Promise<Uint8Array> {
     return signEd25519(message, this.#requireOpen().signingPrivateKey);
   }
@@ -132,7 +260,37 @@ export class DeviceVaultSession {
 
     const keyMaterial = this.#keyMaterial;
     this.#keyMaterial = null;
+
+    for (const entry of this.#projectKeys) {
+      entry.projectKey.fill(0);
+    }
+    this.#projectKeys = [];
+
+    if (this.#vaultKey) {
+      this.#vaultKey.fill(0);
+      this.#vaultKey = null;
+    }
+
     await destroyDeviceKeyMaterial(keyMaterial);
+  }
+
+  async #persistCurrentState(): Promise<void> {
+    const keyMaterial = this.#requireOpen();
+    if (!this.#vaultKey) {
+      throw new Error("Device Vault session is closed");
+    }
+    await this.#persist(keyMaterial, this.#projectKeys);
+  }
+
+  #findProjectKey(
+    projectId: ProjectId,
+    keyEpoch: number,
+  ): ProjectKeyEntry | undefined {
+    return this.#projectKeys.find(
+      (entry) =>
+        entry.projectId === projectId &&
+        entry.keyEpoch === keyEpoch,
+    );
   }
 
   #requireOpen(): DeviceKeyMaterial {
@@ -160,6 +318,7 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
   async #create(): Promise<DeviceVaultSession> {
     const keyMaterial = await generateDeviceKeyMaterial();
     const prfInput = randomBytes(PRF_INPUT_BYTES);
+    let vaultKey: Uint8Array | null = null;
 
     try {
       const credential = await createPrfCredential(prfInput);
@@ -171,28 +330,40 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
           prfInput,
         ));
 
-      const vaultKey = await deriveDeviceVaultKey(prfOutput);
-      const plaintext = serializeDeviceKeyMaterial(keyMaterial);
-
       try {
-        const encrypted = await encryptDeviceVaultPayload(vaultKey, plaintext);
-
-        await this.#db.vault.put({
-          id: VAULT_RECORD_ID,
-          version: VAULT_RECORD_VERSION,
-          credentialId: new Uint8Array(credential.rawId),
-          prfInput,
-          nonce: encrypted.nonce,
-          ciphertext: encrypted.ciphertext,
-        });
+        vaultKey = await deriveDeviceVaultKey(prfOutput);
       } finally {
-        vaultKey.fill(0);
-        plaintext.fill(0);
         prfOutput.fill(0);
       }
 
-      return new DeviceVaultSession(keyMaterial);
+      const recordBase = {
+        id: VAULT_RECORD_ID,
+        version: VAULT_RECORD_VERSION,
+        credentialId: new Uint8Array(credential.rawId),
+        prfInput,
+      } as const;
+      const projectKeys: ProjectKeyEntry[] = [];
+
+      await this.#persistVault(
+        recordBase,
+        vaultKey,
+        keyMaterial,
+        projectKeys,
+      );
+
+      return new DeviceVaultSession(
+        { keyMaterial, projectKeys },
+        vaultKey,
+        (nextKeyMaterial, nextProjectKeys) =>
+          this.#persistVault(
+            recordBase,
+            vaultKey as Uint8Array,
+            nextKeyMaterial,
+            nextProjectKeys,
+          ),
+      );
     } catch (error) {
+      if (vaultKey) vaultKey.fill(0);
       await destroyDeviceKeyMaterial(keyMaterial);
       throw error;
     }
@@ -205,6 +376,7 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
 
     const prfOutput = await evaluatePrf(record.credentialId, record.prfInput);
     const vaultKey = await deriveDeviceVaultKey(prfOutput);
+    prfOutput.fill(0);
 
     try {
       const plaintext = await decryptDeviceVaultPayload(vaultKey, {
@@ -212,16 +384,58 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
         ciphertext: record.ciphertext,
       });
 
+      let contents: DeviceVaultContents;
       try {
-        return new DeviceVaultSession(deserializeDeviceKeyMaterial(plaintext));
+        contents = deserializeDeviceVaultPayload(plaintext);
       } finally {
         plaintext.fill(0);
       }
-    } catch {
-      throw new Error("Could not decrypt Device Vault");
-    } finally {
+
+      const recordBase = {
+        id: record.id,
+        version: record.version,
+        credentialId: record.credentialId,
+        prfInput: record.prfInput,
+      } as const;
+
+      return new DeviceVaultSession(
+        contents,
+        vaultKey,
+        (keyMaterial, projectKeys) =>
+          this.#persistVault(
+            recordBase,
+            vaultKey,
+            keyMaterial,
+            projectKeys,
+          ),
+      );
+    } catch (error) {
       vaultKey.fill(0);
-      prfOutput.fill(0);
+      throw error instanceof Error
+        ? error
+        : new Error("Could not decrypt Device Vault");
+    }
+  }
+
+  async #persistVault(
+    recordBase: Pick<
+      VaultRecord,
+      "id" | "version" | "credentialId" | "prfInput"
+    >,
+    vaultKey: Uint8Array,
+    keyMaterial: DeviceKeyMaterial,
+    projectKeys: readonly ProjectKeyEntry[],
+  ): Promise<void> {
+    const plaintext = serializeDeviceVaultPayload(keyMaterial, projectKeys);
+    try {
+      const encrypted = await encryptDeviceVaultPayload(vaultKey, plaintext);
+      await this.#db.vault.put({
+        ...recordBase,
+        nonce: encrypted.nonce,
+        ciphertext: encrypted.ciphertext,
+      });
+    } finally {
+      plaintext.fill(0);
     }
   }
 }
