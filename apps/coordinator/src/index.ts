@@ -16,6 +16,7 @@ import {
   encodeCreateProjectTransition,
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  encodeUnsignedProjectKeyRotationEnvelope,
   encodeRevokeDeviceTransition,
   encodeUnsignedRevokeDeviceTransition,
   parseAddDeviceWirePayload,
@@ -62,8 +63,14 @@ type ProjectKeyEnvelopeRoute = {
 };
 
 type RevokeKeyEnvelopeWirePayload = {
+  protocolVersion: 1;
+  projectId: string;
+  keyEpoch: number;
+  securityHead: string;
   recipientDeviceId: string;
   sealedEnvelope: string;
+  signerDeviceId: string;
+  signature: string;
 };
 
 type InvitationState =
@@ -646,6 +653,16 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
     const headHash = await sha256(encodeRevokeDeviceTransition(transition));
 
+    if (bytesEqual(currentState.headHash, headHash)) {
+      if (!stateMatchesCommittedRevoke(currentState, transition)) {
+        return new Response(
+          "Stored SecurityState does not match its committed RevokeDevice head",
+          { status: 500 },
+        );
+      }
+      return Response.json(securityStateToWire(currentState));
+    }
+
     let candidateState: SecurityState;
     try {
       candidateState = deriveRevokeDeviceSecurityState(
@@ -661,7 +678,6 @@ export class ProjectCoordinator extends DurableObject<Env> {
     }
 
     const expectedRecipients = candidateState.devices
-      .filter((device) => device.deviceId !== transition.signerDeviceId)
       .map((device) => device.deviceId)
       .sort();
     const actualRecipients = keyEnvelopes
@@ -675,9 +691,55 @@ export class ProjectCoordinator extends DurableObject<Env> {
       )
     ) {
       return new Response(
-        "RevokeDevice key envelopes must target every remaining peer exactly once",
+        "RevokeDevice key envelopes must target every remaining device exactly once",
         { status: 400 },
       );
+    }
+
+    for (const envelope of keyEnvelopes) {
+      if (
+        envelope.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
+        envelope.projectId !== candidateState.projectId ||
+        envelope.keyEpoch !== candidateState.keyEpoch ||
+        envelope.securityHead !== bytesToHex(candidateState.headHash) ||
+        envelope.signerDeviceId !== transition.signerDeviceId
+      ) {
+        return new Response(
+          "ProjectKey rotation envelope context does not match RevokeDevice",
+          { status: 400 },
+        );
+      }
+
+      const envelopeSigningBytes = encodeUnsignedProjectKeyRotationEnvelope({
+        protocolVersion: SECURITY_PROTOCOL_VERSION,
+        projectId: candidateState.projectId,
+        keyEpoch: candidateState.keyEpoch,
+        securityHead: candidateState.headHash,
+        recipientDeviceId: parseDeviceId(envelope.recipientDeviceId),
+        sealedEnvelope: hexToBytes(
+          envelope.sealedEnvelope,
+          null,
+          "sealed ProjectKey envelope",
+        ),
+        signerDeviceId: transition.signerDeviceId,
+      });
+      const envelopeSignature = hexToBytes(
+        envelope.signature,
+        64,
+        "ProjectKey rotation envelope signature",
+      );
+      if (
+        !(await verifyEd25519(
+          envelopeSigningBytes,
+          envelopeSignature,
+          signer.signingPublicKey,
+        ))
+      ) {
+        return new Response(
+          "ProjectKey rotation envelope signature verification failed",
+          { status: 403 },
+        );
+      }
     }
 
     const candidateWire = securityStateToWire(candidateState);
@@ -717,7 +779,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
         const recipientDeviceId = parseDeviceId(envelope.recipientDeviceId);
         await transaction.put(
           projectKeyEnvelopeKey(transition.newKeyEpoch, recipientDeviceId),
-          envelope.sealedEnvelope,
+          JSON.stringify(envelope),
         );
       }
       response = Response.json(candidateWire, { status: 201 });
@@ -756,11 +818,16 @@ export class ProjectCoordinator extends DurableObject<Env> {
       });
     }
 
-    return Response.json({
-      keyEpoch: route.keyEpoch,
-      recipientDeviceId: route.deviceId,
-      sealedEnvelope: envelope,
-    });
+    let parsedEnvelope: RevokeKeyEnvelopeWirePayload;
+    try {
+      parsedEnvelope = JSON.parse(envelope) as RevokeKeyEnvelopeWirePayload;
+    } catch {
+      return new Response("Stored ProjectKey envelope is invalid", {
+        status: 500,
+      });
+    }
+
+    return Response.json(parsedEnvelope);
   }
 
   #invalidatePresenceForSecurityState(state: SecurityState): void {
@@ -1451,6 +1518,15 @@ function parseRevokeKeyEnvelopes(
     if (
       typeof value !== "object" ||
       value === null ||
+      !("protocolVersion" in value) ||
+      value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
+      !("projectId" in value) ||
+      typeof value.projectId !== "string" ||
+      !("keyEpoch" in value) ||
+      typeof value.keyEpoch !== "number" ||
+      !Number.isSafeInteger(value.keyEpoch) ||
+      !("securityHead" in value) ||
+      typeof value.securityHead !== "string" ||
       !("recipientDeviceId" in value) ||
       typeof value.recipientDeviceId !== "string" ||
       !("sealedEnvelope" in value) ||
@@ -1458,7 +1534,11 @@ function parseRevokeKeyEnvelopes(
       value.sealedEnvelope.length === 0 ||
       value.sealedEnvelope.length > 16 * 1024 ||
       !/^[0-9a-f]+$/u.test(value.sealedEnvelope) ||
-      value.sealedEnvelope.length % 2 !== 0
+      value.sealedEnvelope.length % 2 !== 0 ||
+      !("signerDeviceId" in value) ||
+      typeof value.signerDeviceId !== "string" ||
+      !("signature" in value) ||
+      typeof value.signature !== "string"
     ) {
       throw new TypeError("Invalid RevokeDevice ProjectKey envelope");
     }
@@ -1469,9 +1549,24 @@ function parseRevokeKeyEnvelopes(
     }
     seen.add(recipientDeviceId);
 
+    parseProjectId(value.projectId);
+    parseDeviceId(value.signerDeviceId);
+    hexToBytes(value.securityHead, 32, "ProjectKey rotation security head");
+    hexToBytes(
+      value.signature,
+      64,
+      "ProjectKey rotation envelope signature",
+    );
+
     return {
+      protocolVersion: SECURITY_PROTOCOL_VERSION,
+      projectId: value.projectId,
+      keyEpoch: value.keyEpoch,
+      securityHead: value.securityHead,
       recipientDeviceId,
       sealedEnvelope: value.sealedEnvelope,
+      signerDeviceId: value.signerDeviceId,
+      signature: value.signature,
     };
   });
 }
@@ -1519,17 +1614,23 @@ function bytesToHex(value: Uint8Array): string {
 
 function hexToBytes(
   value: string,
-  expectedBytes: number,
+  expectedBytes: number | null,
   label: string,
 ): Uint8Array {
   if (
-    value.length !== expectedBytes * 2 ||
-    !/^[0-9a-f]+$/i.test(value)
+    value.length === 0 ||
+    value.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/i.test(value) ||
+    (expectedBytes !== null && value.length !== expectedBytes * 2)
   ) {
-    throw new TypeError(`${label} must be ${expectedBytes} bytes of hex`);
+    throw new TypeError(
+      expectedBytes === null
+        ? `Invalid ${label} hex`
+        : `${label} must be ${expectedBytes} bytes of hex`,
+    );
   }
 
-  const result = new Uint8Array(expectedBytes);
+  const result = new Uint8Array(value.length / 2);
   for (let index = 0; index < expectedBytes; index += 1) {
     result[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
   }
@@ -1601,6 +1702,23 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
     difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
   return difference === 0;
+}
+
+function stateMatchesCommittedRevoke(
+  state: SecurityState,
+  transition: ReturnType<typeof parseRevokeDeviceWirePayload>,
+): boolean {
+  return (
+    state.projectId === transition.projectId &&
+    state.sequence === transition.sequence &&
+    state.keyEpoch === transition.newKeyEpoch &&
+    !state.devices.some(
+      (device) => device.deviceId === transition.revokedDeviceId,
+    ) &&
+    state.devices.some(
+      (device) => device.deviceId === transition.signerDeviceId,
+    )
+  );
 }
 
 function stateMatchesCommittedAdd(
