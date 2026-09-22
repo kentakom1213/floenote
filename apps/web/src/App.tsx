@@ -12,6 +12,7 @@ import {
 } from "@floe-note/coordinator-client";
 import { type NoteDocument, type NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
+import { authenticatePairingChannel } from "@floe-note/pairing";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
@@ -161,10 +162,8 @@ function NoteApp() {
           );
           setWebRtcTransport(transport);
 
-          const syncEngine = new ProjectSyncEngine(project, transport, {
-            debugLogger: createConsoleDebugLogger("invite-host-sync"),
-          });
-          syncEngine.start();
+          const abortPairing = new AbortController();
+          let syncEngine: ProjectSyncEngine | null = null;
 
           const signaling = new WebRtcSignalingSession({
             role: "host",
@@ -178,6 +177,31 @@ function NoteApp() {
             signaling.onConnectionStateChange(setSignalingState);
           signaling.start();
 
+          void authenticatePairingChannel({
+            role: "host",
+            inviteId: invitation.inviteId,
+            projectId: project.id,
+            sessionId: invitation.sessionId,
+            pairingSecret,
+            transport,
+            signal: abortPairing.signal,
+          })
+            .then(() => {
+              if (disposed) return;
+              syncEngine = new ProjectSyncEngine(project, transport, {
+                debugLogger: createConsoleDebugLogger("invite-host-sync"),
+              });
+              syncEngine.start();
+            })
+            .catch((error: unknown) => {
+              if (disposed || abortPairing.signal.aborted) return;
+              setCoordinationError(
+                error instanceof Error
+                  ? error.message
+                  : "Pairing authentication failed",
+              );
+            });
+
           setInvitationHost({
             inviteId: invitation.inviteId,
             pairingSecret,
@@ -186,9 +210,10 @@ function NoteApp() {
           });
 
           cleanup = () => {
+            abortPairing.abort();
             stopSignalingState();
             signaling.stop();
-            syncEngine.stop();
+            syncEngine?.stop();
           };
         } catch (caught: unknown) {
           if (!disposed) {
