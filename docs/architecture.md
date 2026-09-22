@@ -1324,13 +1324,14 @@ visible rather than being implied away by the use of modern primitives.
   document bodies, manifest state, and serialized Loro snapshots are inside the
   encrypted payload. Hiding local index identifiers is not a goal of the
   initial storage format.
-- **Legacy development transports remain plaintext.** The manual SDP/signaling
-  and same-browser BroadcastChannel transports predate the security bootstrap.
-  The old manual join paths no longer have a plaintext persistence fallback:
-  persistent Project adoption requires an unlocked Device Vault and ProjectKey.
-  These transports must not be treated as the normal authorized-device
-  synchronization path. The production pairing path uses ProjectKey-protected
-  synchronization after successful authorization and key delivery.
+- **Legacy manual WebRTC development transports remain plaintext.** The manual
+  SDP/signaling paths predate the security bootstrap and are exposed only in
+  development builds. The old manual join paths no longer have a plaintext
+  persistence fallback: persistent Project adoption requires an unlocked Device
+  Vault and ProjectKey. They must not be treated as the normal authorized-device
+  synchronization path. Normal same-browser BroadcastChannel synchronization
+  and production WebRTC synchronization are both wrapped in ProjectKey-protected
+  application-layer encryption.
 
 This threat model should be revisited before a security-sensitive public release.
 
