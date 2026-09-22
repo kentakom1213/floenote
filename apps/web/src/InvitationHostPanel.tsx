@@ -93,11 +93,16 @@ export function InvitationHostPanel({
         <button
           type="button"
           onClick={() => void onConfirm()}
-          disabled={authorizationState !== "ready"}
+          disabled={
+            authorizationState === "waiting" ||
+            authorizationState === "authorizing"
+          }
         >
           {authorizationState === "authorizing"
             ? "Authorizing…"
-            : "Confirm device"}
+            : authorizationState === "error"
+              ? "Retry authorization"
+              : "Confirm device"}
         </button>
       ) : null}
 
