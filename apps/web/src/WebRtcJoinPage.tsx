@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { NoteProject } from "@floe-note/document";
+
+import { createConsoleDebugLogger } from "./debug.js";
 import { parseProjectId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
@@ -57,7 +59,11 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
 
     try {
       const projectId = parseProjectId(projectIdInput.trim());
-      const transport = new WebRtcTransport(projectId);
+      const transport = new WebRtcTransport(
+        projectId,
+        undefined,
+        createConsoleDebugLogger("join-webrtc"),
+      );
       transportHolder.transport = transport;
 
       const stopStatus = transport.onStatusChange(setStatus);
@@ -68,7 +74,9 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
       const stopProject = joinedProject.subscribe(() => {
         setRevision((value) => value + 1);
       });
-      const syncEngine = new ProjectSyncEngine(joinedProject, transport);
+      const syncEngine = new ProjectSyncEngine(joinedProject, transport, {
+        debugLogger: createConsoleDebugLogger("join-sync"),
+      });
       syncEngine.start();
 
       cleanupRef.current = () => {
