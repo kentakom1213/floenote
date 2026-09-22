@@ -1,8 +1,14 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import topLevelAwait from "vite-plugin-top-level-await";
-import wasm from "vite-plugin-wasm";
 
 export default defineConfig({
-  plugins: [react(), wasm(), topLevelAwait()],
+  plugins: [react()],
+  resolve: {
+    alias: [
+      {
+        find: /^loro-crdt$/,
+        replacement: "loro-crdt/base64",
+      },
+    ],
+  },
 });
