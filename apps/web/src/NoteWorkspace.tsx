@@ -3,13 +3,15 @@ import type { ReactNode } from "react";
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
+import { AppShell } from "./AppShell.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 
 type NoteWorkspaceProps = {
   project: NoteProject;
   selectedId: DocumentId | null;
   selectedDocument: NoteDocument | undefined;
-  sidebarControls: ReactNode;
+  projectControl: ReactNode;
+  sidebarFooter: ReactNode;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
@@ -20,7 +22,8 @@ export function NoteWorkspace({
   project,
   selectedId,
   selectedDocument,
-  sidebarControls,
+  projectControl,
+  sidebarFooter,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
@@ -28,25 +31,28 @@ export function NoteWorkspace({
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
 
-  return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-row">
-          <div>
-            <p className="eyebrow">Local-first notes</p>
-            <h1>Floe Note</h1>
+  const sidebar = (
+    <div className="sidebar-layout">
+      <div>
+        <header className="brand-row">
+          <div className="brand-lockup">
+            <span className="floe-mark" aria-hidden="true">
+              ◆
+            </span>
+            <span className="brand-name">Floe Note</span>
           </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={onCreateDocument}
-            aria-label="Create note"
-          >
-            +
-          </button>
-        </div>
+        </header>
 
-        {sidebarControls}
+        <div className="project-slot">{projectControl}</div>
+
+        <button
+          className="new-note-button"
+          type="button"
+          onClick={onCreateDocument}
+        >
+          <span aria-hidden="true">＋</span>
+          <span>New note</span>
+        </button>
 
         <nav className="note-list" aria-label="Notes">
           {summaries.map((summary) => (
@@ -62,25 +68,32 @@ export function NoteWorkspace({
             </button>
           ))}
         </nav>
-      </aside>
+      </div>
 
-      <section className="workspace">
-        {selectedDocument ? (
-          <DocumentPane
-            document={selectedDocument}
-            onRename={onRenameDocument}
-            onDelete={onDeleteDocument}
-          />
-        ) : (
-          <div className="empty-state">
-            <p>No notes yet.</p>
-            <button type="button" onClick={onCreateDocument}>
-              Create a note
-            </button>
+      <footer className="sidebar-footer">{sidebarFooter}</footer>
+    </div>
+  );
+
+  return (
+    <AppShell sidebar={sidebar}>
+      {selectedDocument ? (
+        <DocumentPane
+          document={selectedDocument}
+          onRename={onRenameDocument}
+          onDelete={onDeleteDocument}
+        />
+      ) : (
+        <div className="workspace-empty-state">
+          <div className="empty-floe" aria-hidden="true">
+            ◆
           </div>
-        )}
-      </section>
-    </main>
+          <p>No notes yet.</p>
+          <button type="button" onClick={onCreateDocument}>
+            Create your first note
+          </button>
+        </div>
+      )}
+    </AppShell>
   );
 }
 
@@ -104,9 +117,16 @@ function DocumentPane({
           onChange={(event) => onRename(event.target.value)}
           aria-label="Note title"
         />
-        <button className="delete-button" type="button" onClick={onDelete}>
-          Delete
-        </button>
+        <details className="note-menu">
+          <summary className="note-menu-trigger" aria-label="Note actions">
+            •••
+          </summary>
+          <div className="note-menu-popover">
+            <button className="danger-menu-item" type="button" onClick={onDelete}>
+              Delete note
+            </button>
+          </div>
+        </details>
       </header>
       <MarkdownEditor document={document} />
     </article>

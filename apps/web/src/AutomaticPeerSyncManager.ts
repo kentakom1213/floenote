@@ -22,6 +22,8 @@ type AutomaticPeerConnection = {
   signaling: WebRtcSignalingSession;
   syncEngine: ProjectSyncEngine;
   stopConnectionState: () => void;
+  connectionTimer: ReturnType<typeof setTimeout> | null;
+  disconnectedTimer: ReturnType<typeof setTimeout> | null;
 };
 
 type PeerRetryState = {
@@ -37,6 +39,9 @@ export const AUTOMATIC_RECONNECT_RETRY_DELAYS_MS = [
   16_000,
   30_000,
 ] as const;
+
+export const AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS = 15_000;
+export const AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS = 5_000;
 
 export type AutomaticPeerSyncStatus = {
   connectedDeviceIds: readonly DeviceId[];
@@ -237,7 +242,13 @@ export class AutomaticPeerSyncManager {
     });
 
     const stopConnectionState = transport.onConnectionStateChange((state) => {
+      const current = this.#connections.get(peerDeviceId);
+
       if (state === "connected") {
+        if (current?.sessionId === sessionId) {
+          this.#clearConnectionTimer(current);
+          this.#clearDisconnectedTimer(current);
+        }
         this.#connectedDeviceIds.add(peerDeviceId);
         this.#clearRetry(peerDeviceId);
         this.#error = null;
@@ -248,23 +259,52 @@ export class AutomaticPeerSyncManager {
       this.#connectedDeviceIds.delete(peerDeviceId);
       this.#emitStatus();
 
+      if (state === "disconnected") {
+        if (
+          current?.sessionId === sessionId &&
+          current.disconnectedTimer === null
+        ) {
+          current.disconnectedTimer = setTimeout(() => {
+            const latest = this.#connections.get(peerDeviceId);
+            if (
+              latest?.sessionId === sessionId &&
+              !this.#connectedDeviceIds.has(peerDeviceId)
+            ) {
+              this.#restartPeer(peerDeviceId, sessionId);
+            }
+          }, AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS);
+        }
+        return;
+      }
+
+      if (current?.sessionId === sessionId) {
+        this.#clearDisconnectedTimer(current);
+      }
+
       if (state === "failed" || state === "closed") {
-        queueMicrotask(() => {
-          const current = this.#connections.get(peerDeviceId);
-          if (current?.sessionId === sessionId) {
-            this.#stopPeer(peerDeviceId);
-            this.#scheduleRetry(peerDeviceId);
-          }
-        });
+        queueMicrotask(() => this.#restartPeer(peerDeviceId, sessionId));
       }
     });
 
-    this.#connections.set(peerDeviceId, {
+    const connection: AutomaticPeerConnection = {
       sessionId,
       signaling,
       syncEngine,
       stopConnectionState,
-    });
+      connectionTimer: null,
+      disconnectedTimer: null,
+    };
+    this.#connections.set(peerDeviceId, connection);
+
+    connection.connectionTimer = setTimeout(() => {
+      const current = this.#connections.get(peerDeviceId);
+      if (
+        current?.sessionId === sessionId &&
+        !this.#connectedDeviceIds.has(peerDeviceId)
+      ) {
+        this.#restartPeer(peerDeviceId, sessionId);
+      }
+    }, AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS);
 
     syncEngine.start();
     signaling.start();
@@ -275,6 +315,8 @@ export class AutomaticPeerSyncManager {
     if (!connection) return;
 
     this.#connections.delete(peerDeviceId);
+    this.#clearConnectionTimer(connection);
+    this.#clearDisconnectedTimer(connection);
     connection.stopConnectionState();
     connection.signaling.stop();
     connection.syncEngine.stop();
@@ -282,6 +324,26 @@ export class AutomaticPeerSyncManager {
     if (this.#connectedDeviceIds.delete(peerDeviceId)) {
       this.#emitStatus();
     }
+  }
+
+  #restartPeer(peerDeviceId: DeviceId, sessionId: SessionId): void {
+    const current = this.#connections.get(peerDeviceId);
+    if (current?.sessionId !== sessionId) return;
+
+    this.#stopPeer(peerDeviceId);
+    this.#scheduleRetry(peerDeviceId);
+  }
+
+  #clearConnectionTimer(connection: AutomaticPeerConnection): void {
+    if (!connection.connectionTimer) return;
+    clearTimeout(connection.connectionTimer);
+    connection.connectionTimer = null;
+  }
+
+  #clearDisconnectedTimer(connection: AutomaticPeerConnection): void {
+    if (!connection.disconnectedTimer) return;
+    clearTimeout(connection.disconnectedTimer);
+    connection.disconnectedTimer = null;
   }
 
   #scheduleRetry(peerDeviceId: DeviceId): void {
