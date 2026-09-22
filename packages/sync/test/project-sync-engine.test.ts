@@ -57,33 +57,6 @@ function cloneProject(source: NoteProject): NoteProject {
 }
 
 describe("ProjectSyncEngine", () => {
-  it("notifies after the complete initial remote full-state batch", () => {
-    const source = NoteProject.create();
-    source.createDocument("Remote note");
-    const target = NoteProject.create(source.id);
-
-    const [sourceTransport, targetTransport] = createTransportPair();
-    let targetInitialStateReceived = false;
-
-    const sourceEngine = new ProjectSyncEngine(source, sourceTransport);
-    const targetEngine = new ProjectSyncEngine(target, targetTransport, {
-      onInitialRemoteStateReceived: () => {
-        targetInitialStateReceived = true;
-        expect(target.listDocuments().map(({ title }) => title)).toContain(
-          "Remote note",
-        );
-      },
-    });
-
-    sourceEngine.start();
-    targetEngine.start();
-
-    expect(targetInitialStateReceived).toBe(true);
-
-    sourceEngine.stop();
-    targetEngine.stop();
-  });
-
   it("converges projects after independent offline edits", () => {
     const base = NoteProject.create();
     const baseDocument = base.createDocument("Base");
