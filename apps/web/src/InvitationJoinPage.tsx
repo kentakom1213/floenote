@@ -264,7 +264,13 @@ export function InvitationJoinPage({
                     .then(() => {
                       if (disposed) return;
                       setEncryptedSyncState("ready");
-                      window.location.replace("/");
+
+                      cleanup?.();
+                      cleanup = null;
+
+                      window.setTimeout(() => {
+                        if (!disposed) window.location.replace("/");
+                      }, 0);
                     })
                     .catch((syncError: unknown) => {
                       redirectStarted = false;
