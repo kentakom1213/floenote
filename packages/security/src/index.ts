@@ -33,8 +33,10 @@ export {
   createProjectTransitionToWire,
   parseAddDeviceWirePayload,
   parseCreateProjectWirePayload,
+  parseRevokeDeviceWirePayload,
   parseSecurityStateWirePayload,
   parseSecurityTransitionWirePayload,
+  revokeDeviceTransitionToWire,
   securityStateToWire,
   securityTransitionToWire,
 } from "./wire.js";
@@ -42,6 +44,7 @@ export {
 export type {
   AddDeviceWirePayload,
   CreateProjectWirePayload,
+  RevokeDeviceWirePayload,
   SecurityStateWirePayload,
   SecurityTransitionWirePayload,
 } from "./wire.js";
