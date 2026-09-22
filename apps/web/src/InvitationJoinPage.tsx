@@ -68,6 +68,7 @@ export function InvitationJoinPage({
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const [vaultState, setVaultState] = useState<JoinVaultState>("checking");
+  const [needsDeviceSetup, setNeedsDeviceSetup] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState("");
   const [webRtcStatus, setWebRtcStatus] =
@@ -90,6 +91,7 @@ export function InvitationJoinPage({
       .hasVault()
       .then((exists) => {
         if (!cancelled) {
+          setNeedsDeviceSetup(!exists);
           setVaultState(exists ? "locked" : "missing");
         }
       })
@@ -262,14 +264,14 @@ export function InvitationJoinPage({
 
   async function unlockOrCreateDevice(): Promise<void> {
     if (vaultState === "unlocking" || vaultState === "unlocked") return;
-    if (vaultState === "missing" && deviceName.trim().length === 0) return;
+    if (needsDeviceSetup && deviceName.trim().length === 0) return;
 
     setVaultState("unlocking");
     setVaultError(null);
 
     try {
       const session = await joinDeviceVault.unlockOrCreate(
-        vaultState === "missing" ? deviceName.trim() : undefined,
+        needsDeviceSetup ? deviceName.trim() : undefined,
       );
       const previous = vaultSessionRef.current;
       vaultSessionRef.current = session;
@@ -325,17 +327,17 @@ export function InvitationJoinPage({
             <span className="invitation-step-number">1</span>
             <div className="invitation-step-copy">
               <strong>
-                {vaultState === "missing"
+                {needsDeviceSetup
                   ? "Set up this device"
                   : "Unlock this device"}
               </strong>
               <p>
-                {vaultState === "missing"
+                {needsDeviceSetup
                   ? "Choose a name that will identify this device on your other devices."
                   : "Unlock the Device Vault before joining the Project."}
               </p>
 
-              {vaultState === "missing" ? (
+              {needsDeviceSetup ? (
                 <label className="settings-field invitation-name-field">
                   <span>Device name</span>
                   <input
@@ -355,13 +357,13 @@ export function InvitationJoinPage({
                   onClick={() => void unlockOrCreateDevice()}
                   disabled={
                     vaultState === "unlocking" ||
-                    (vaultState === "missing" &&
+                    (needsDeviceSetup &&
                       deviceName.trim().length === 0)
                   }
                 >
                   {vaultState === "unlocking"
                     ? "Unlocking…"
-                    : vaultState === "missing"
+                    : needsDeviceSetup
                       ? "Set up and continue"
                       : "Unlock and continue"}
                 </button>
