@@ -960,8 +960,8 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
-1. Exact libsodium APIs and envelope format for ProjectKey wrapping, plus transition-signature encoding and verification.
-2. Exact deterministic-CBOR library and wire encoding details.
+1. Exact libsodium APIs and envelope format for ProjectKey wrapping.
+2. Canonical payload details and validation rules for `AddDevice` and `RevokeDevice`.
 3. Old-ProjectKey retention and migration of ciphertext after key rotation.
 4. Document tombstone garbage collection.
 5. Stable backup/export archive format.
