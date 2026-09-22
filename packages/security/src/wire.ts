@@ -13,7 +13,10 @@ import {
   type AuthorizedDevice,
   type SecurityState,
 } from "./state.js";
-import type { CreateProjectTransition } from "./transition.js";
+import type {
+  AddDeviceTransition,
+  CreateProjectTransition,
+} from "./transition.js";
 
 const DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES = 32;
 const DEVICE_SIGNING_PUBLIC_KEY_BYTES = 32;
@@ -30,6 +33,21 @@ export type CreateProjectWirePayload = {
     encryptionPublicKey: string;
     signingPublicKey: string;
   };
+  signature: string;
+};
+
+export type AddDeviceWirePayload = {
+  type: "add-device";
+  protocolVersion: 1;
+  projectId: string;
+  sequence: number;
+  previousHash: string;
+  newDevice: {
+    deviceId: string;
+    encryptionPublicKey: string;
+    signingPublicKey: string;
+  };
+  signerDeviceId: string;
   signature: string;
 };
 
@@ -123,6 +141,89 @@ export function parseCreateProjectWirePayload(
       value.signature,
       SECURITY_SIGNATURE_BYTES,
       "CreateProject signature",
+    ),
+  };
+}
+
+export function addDeviceTransitionToWire(
+  transition: AddDeviceTransition,
+): AddDeviceWirePayload {
+  return {
+    type: "add-device",
+    protocolVersion: SECURITY_PROTOCOL_VERSION,
+    projectId: transition.projectId,
+    sequence: transition.sequence,
+    previousHash: bytesToBase64Url(transition.previousHash),
+    newDevice: {
+      deviceId: transition.newDevice.deviceId,
+      encryptionPublicKey: bytesToBase64Url(
+        transition.newDevice.encryptionPublicKey,
+      ),
+      signingPublicKey: bytesToBase64Url(
+        transition.newDevice.signingPublicKey,
+      ),
+    },
+    signerDeviceId: transition.signerDeviceId,
+    signature: bytesToBase64Url(transition.signature),
+  };
+}
+
+export function parseAddDeviceWirePayload(
+  value: unknown,
+  expectedProjectId?: ProjectId,
+): AddDeviceTransition {
+  if (
+    !isRecord(value) ||
+    value.type !== "add-device" ||
+    value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
+    typeof value.projectId !== "string" ||
+    typeof value.sequence !== "number" ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1 ||
+    typeof value.previousHash !== "string" ||
+    !isRecord(value.newDevice) ||
+    typeof value.newDevice.deviceId !== "string" ||
+    typeof value.newDevice.encryptionPublicKey !== "string" ||
+    typeof value.newDevice.signingPublicKey !== "string" ||
+    typeof value.signerDeviceId !== "string" ||
+    typeof value.signature !== "string"
+  ) {
+    throw new TypeError("Invalid AddDevice payload");
+  }
+
+  const projectId = parseProjectId(value.projectId);
+  if (expectedProjectId && projectId !== expectedProjectId) {
+    throw new TypeError("AddDevice ProjectId does not match request route");
+  }
+
+  return {
+    type: "add-device",
+    protocolVersion: SECURITY_PROTOCOL_VERSION,
+    projectId,
+    sequence: value.sequence,
+    previousHash: base64UrlToBytes(
+      value.previousHash,
+      SECURITY_HEAD_HASH_BYTES,
+      "previous security head hash",
+    ),
+    newDevice: {
+      deviceId: parseDeviceId(value.newDevice.deviceId),
+      encryptionPublicKey: base64UrlToBytes(
+        value.newDevice.encryptionPublicKey,
+        DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
+        "device encryption public key",
+      ),
+      signingPublicKey: base64UrlToBytes(
+        value.newDevice.signingPublicKey,
+        DEVICE_SIGNING_PUBLIC_KEY_BYTES,
+        "device signing public key",
+      ),
+    },
+    signerDeviceId: parseDeviceId(value.signerDeviceId),
+    signature: base64UrlToBytes(
+      value.signature,
+      SECURITY_SIGNATURE_BYTES,
+      "AddDevice signature",
     ),
   };
 }

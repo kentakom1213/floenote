@@ -19,11 +19,17 @@ import {
   exchangeJoiningDeviceIdentity,
 } from "@floe-note/pairing";
 import {
+  attachAddDeviceSignature,
   attachCreateProjectSignature,
+  createUnsignedAddDeviceTransition,
   createUnsignedCreateProjectTransition,
+  deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  encodeAddDeviceTransition,
   encodeCreateProjectTransition,
+  encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  type DevicePublicIdentity,
   type SecurityState,
 } from "@floe-note/security";
 import { DexieProjectStorage } from "@floe-note/storage";
@@ -41,7 +47,10 @@ import {
   type DeviceVaultUiState,
   type LocalSecurityBootstrapUiState,
 } from "./DeviceVaultPanel.js";
-import { InvitationHostPanel } from "./InvitationHostPanel.js";
+import {
+  InvitationHostPanel,
+  type DeviceAuthorizationUiState,
+} from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
@@ -121,7 +130,10 @@ function NoteApp() {
   const [signalSessionId] = useState(() => createSessionId());
   const [invitationHost, setInvitationHost] =
     useState<InvitationHostState | null>(null);
-  const [joiningDeviceId, setJoiningDeviceId] = useState<DeviceId | null>(null);
+  const [joiningDevice, setJoiningDevice] =
+    useState<DevicePublicIdentity | null>(null);
+  const [deviceAuthorizationState, setDeviceAuthorizationState] =
+    useState<DeviceAuthorizationUiState>("waiting");
   const [coordinationError, setCoordinationError] = useState<string | null>(
     null,
   );
@@ -313,7 +325,8 @@ function NoteApp() {
     if (!project) return;
 
     setCoordinationError(null);
-    setJoiningDeviceId(null);
+    setJoiningDevice(null);
+    setDeviceAuthorizationState("waiting");
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -334,7 +347,6 @@ function NoteApp() {
           setWebRtcTransport(transport);
 
           const abortPairing = new AbortController();
-          let syncEngine: ProjectSyncEngine | null = null;
 
           const signaling = new WebRtcSignalingSession({
             role: "host",
@@ -366,11 +378,8 @@ function NoteApp() {
             )
             .then((identity) => {
               if (disposed) return;
-              setJoiningDeviceId(identity.deviceId);
-              syncEngine = new ProjectSyncEngine(project, transport, {
-                debugLogger: createConsoleDebugLogger("invite-host-sync"),
-              });
-              syncEngine.start();
+              setJoiningDevice(identity);
+              setDeviceAuthorizationState("ready");
             })
             .catch((error: unknown) => {
               if (disposed || abortPairing.signal.aborted) return;
@@ -392,7 +401,6 @@ function NoteApp() {
             abortPairing.abort();
             stopSignalingState();
             signaling.stop();
-            syncEngine?.stop();
           };
         } catch (caught: unknown) {
           if (!disposed) {
@@ -524,6 +532,97 @@ function NoteApp() {
     }
   }
 
+  async function authorizeJoiningDevice(): Promise<void> {
+    if (!joiningDevice) {
+      setCoordinationError("No joining device is ready for authorization");
+      return;
+    }
+
+    if (!localSecurityState) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setCoordinationError("Device Vault must be unlocked before authorization");
+      return;
+    }
+
+    setDeviceAuthorizationState("authorizing");
+    setCoordinationError(null);
+
+    try {
+      const signerIdentity = session.publicIdentity;
+      const authorizedSigner = localSecurityState.devices.find(
+        (device) => device.deviceId === signerIdentity.deviceId,
+      );
+      if (
+        !authorizedSigner ||
+        !bytesEqual(
+          authorizedSigner.encryptionPublicKey,
+          signerIdentity.encryptionPublicKey,
+        ) ||
+        !bytesEqual(
+          authorizedSigner.signingPublicKey,
+          signerIdentity.signingPublicKey,
+        )
+      ) {
+        throw new Error(
+          "Unlocked Device Vault identity does not match authorized SecurityState",
+        );
+      }
+
+      const unsignedTransition = createUnsignedAddDeviceTransition(
+        localSecurityState,
+        joiningDevice,
+        signerIdentity.deviceId,
+      );
+      const signingBytes =
+        encodeUnsignedAddDeviceTransition(unsignedTransition);
+      const signature = await session.sign(signingBytes);
+      const transition = attachAddDeviceSignature(
+        unsignedTransition,
+        signature,
+      );
+
+      const verified = await verifyEd25519Signature(
+        signingBytes,
+        transition.signature,
+        authorizedSigner.signingPublicKey,
+      );
+      if (!verified) {
+        throw new Error("AddDevice signature verification failed");
+      }
+
+      const headHash = await sha256(encodeAddDeviceTransition(transition));
+      const candidateState = deriveAddDeviceSecurityState(
+        localSecurityState,
+        transition,
+        headHash,
+      );
+      const committedState = await securityCoordinator.commitAddDevice(
+        activeProject.id,
+        transition,
+      );
+
+      if (!securityStatesEqual(candidateState, committedState)) {
+        throw new Error(
+          "Coordinator committed a SecurityState that does not match AddDevice",
+        );
+      }
+
+      await projectStorage.saveCommittedSecurityState(committedState);
+      setLocalSecurityState(committedState);
+      setDeviceAuthorizationState("authorized");
+    } catch (error: unknown) {
+      setDeviceAuthorizationState("error");
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to authorize device",
+      );
+    }
+  }
+
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
@@ -592,7 +691,9 @@ function NoteApp() {
             expiresAt={invitationHost.expiresAt}
             transport={webRtcTransport}
             signalingState={signalingState}
-            joiningDeviceId={joiningDeviceId}
+            joiningDeviceId={joiningDevice?.deviceId ?? null}
+            authorizationState={deviceAuthorizationState}
+            onConfirm={authorizeJoiningDevice}
             onCancel={() =>
               new InvitationClient(coordinatorBaseUrl).cancelInvite(
                 invitationHost.inviteId,

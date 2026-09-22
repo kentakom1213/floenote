@@ -1,7 +1,9 @@
 import type { ProjectId } from "@floe-note/domain";
 import {
+  addDeviceTransitionToWire,
   createProjectTransitionToWire,
   parseSecurityStateWirePayload,
+  type AddDeviceTransition,
   type CreateProjectTransition,
   type SecurityState,
 } from "@floe-note/security";
@@ -13,9 +15,29 @@ export class SecurityCoordinatorClient {
     this.#baseUrl = new URL(coordinatorBaseUrl);
   }
 
+  async commitAddDevice(
+    projectId: ProjectId,
+    transition: AddDeviceTransition,
+  ): Promise<SecurityState> {
+    return this.#commitTransition(
+      projectId,
+      addDeviceTransitionToWire(transition),
+    );
+  }
+
   async commitCreateProject(
     projectId: ProjectId,
     transition: CreateProjectTransition,
+  ): Promise<SecurityState> {
+    return this.#commitTransition(
+      projectId,
+      createProjectTransitionToWire(transition),
+    );
+  }
+
+  async #commitTransition(
+    projectId: ProjectId,
+    payload: unknown,
   ): Promise<SecurityState> {
     const response = await fetch(
       new URL(
@@ -27,13 +49,13 @@ export class SecurityCoordinatorClient {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(createProjectTransitionToWire(transition)),
+        body: JSON.stringify(payload),
       },
     );
 
     await ensureOk(response);
-    const payload = (await response.json()) as unknown;
-    return parseSecurityStateWirePayload(payload, projectId);
+    const responsePayload = (await response.json()) as unknown;
+    return parseSecurityStateWirePayload(responsePayload, projectId);
   }
 }
 

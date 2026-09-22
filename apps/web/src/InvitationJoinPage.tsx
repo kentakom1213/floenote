@@ -6,26 +6,24 @@ import {
   WebRtcSignalingSession,
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
-import {
-  destroyDeviceKeyMaterial,
-  generateDeviceKeyMaterial,
-  type DeviceKeyMaterial,
-} from "@floe-note/crypto";
-import { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
 } from "@floe-note/pairing";
-import { ProjectSyncEngine } from "@floe-note/sync";
 import {
   WebRtcTransport,
   type WebRtcStatus,
 } from "@floe-note/transport/webrtc";
-import { useEffect, useState } from "react";
+import {
+  WebAuthnPrfDeviceVault,
+  type DeviceVaultSession,
+} from "@floe-note/vault";
+import { useEffect, useRef, useState } from "react";
 
 import { createConsoleDebugLogger } from "./debug.js";
-import { JoinedProjectEditor } from "./JoinedProjectEditor.js";
+
+const joinDeviceVault = new WebAuthnPrfDeviceVault();
 
 const INITIAL_WEBRTC_STATUS: WebRtcStatus = {
   connectionState: "new",
@@ -43,29 +41,83 @@ type InvitationJoinPageProps = {
   pairingSecret: string | null;
 };
 
+type JoinVaultState =
+  | "checking"
+  | "missing"
+  | "locked"
+  | "unlocking"
+  | "unlocked"
+  | "error";
+
+type PairingState =
+  | "waiting-for-vault"
+  | "connecting"
+  | "identity-sent"
+  | "error";
+
 export function InvitationJoinPage({
   coordinatorBaseUrl,
   inviteId,
   pairingSecret,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
-  const [project, setProject] = useState<NoteProject | null>(null);
+  const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const [vaultState, setVaultState] = useState<JoinVaultState>("checking");
+  const [vaultError, setVaultError] = useState<string | null>(null);
   const [webRtcStatus, setWebRtcStatus] =
     useState<WebRtcStatus>(INITIAL_WEBRTC_STATUS);
   const [signalingState, setSignalingState] =
     useState<SignalingConnectionState>("idle");
   const [claimState, setClaimState] = useState<
-    "claiming" | "claimed" | "error"
-  >("claiming");
+    "waiting" | "claiming" | "claimed" | "error"
+  >("waiting");
+  const [pairingState, setPairingState] =
+    useState<PairingState>("waiting-for-vault");
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [, setRevision] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void joinDeviceVault
+      .hasVault()
+      .then((exists) => {
+        if (!cancelled) {
+          setVaultState(exists ? "locked" : "missing");
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setVaultState("error");
+          setVaultError(
+            caught instanceof Error
+              ? caught.message
+              : "Failed to inspect Device Vault",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      const session = vaultSessionRef.current;
+      vaultSessionRef.current = null;
+      if (session) void session.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (vaultState !== "unlocked" || !deviceId) return;
+
+    const session = vaultSessionRef.current;
+    if (!session) return;
+
     let disposed = false;
     let cleanup: (() => void) | null = null;
-    let deviceKeyMaterial: DeviceKeyMaterial | null = null;
+
+    setClaimState("claiming");
+    setPairingState("connecting");
+    setError(null);
 
     void (async () => {
       try {
@@ -75,7 +127,6 @@ export function InvitationJoinPage({
         }
 
         const parsedPairingSecret = parsePairingSecret(pairingSecret);
-
         const invitationClient = new InvitationClient(coordinatorBaseUrl);
         const claimed = await invitationClient.claimInvite(
           parsedInviteId,
@@ -86,21 +137,13 @@ export function InvitationJoinPage({
         setClaimState("claimed");
         setExpiresAt(claimed.expiresAt);
 
-        const joinedProject = NoteProject.create(claimed.projectId);
-
         const transport = new WebRtcTransport(
           claimed.projectId,
           undefined,
           createConsoleDebugLogger("invite-join-webrtc"),
         );
-        const stopTransportStatus =
-          transport.onStatusChange(setWebRtcStatus);
-        const stopProject = joinedProject.subscribe(() => {
-          setRevision((value) => value + 1);
-        });
-
+        const stopTransportStatus = transport.onStatusChange(setWebRtcStatus);
         const abortPairing = new AbortController();
-        let syncEngine: ProjectSyncEngine | null = null;
 
         const signaling = new WebRtcSignalingSession({
           role: "join",
@@ -118,13 +161,7 @@ export function InvitationJoinPage({
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
-          stopProject();
           stopTransportStatus();
-          syncEngine?.stop();
-          if (deviceKeyMaterial) {
-            void destroyDeviceKeyMaterial(deviceKeyMaterial);
-            deviceKeyMaterial = null;
-          }
         };
 
         await authenticatePairingChannel({
@@ -136,39 +173,27 @@ export function InvitationJoinPage({
           transport,
           signal: abortPairing.signal,
         });
-        if (disposed) {
-          abortPairing.abort();
-          return;
-        }
-
-        const generatedKeyMaterial = await generateDeviceKeyMaterial();
-        if (disposed) {
-          await destroyDeviceKeyMaterial(generatedKeyMaterial);
-          return;
-        }
-        deviceKeyMaterial = generatedKeyMaterial;
+        if (disposed) return;
 
         const identity = await exchangeJoiningDeviceIdentity({
           role: "join",
           transport,
-          identity: generatedKeyMaterial.publicIdentity,
+          identity: session.publicIdentity,
           signal: abortPairing.signal,
         });
         if (disposed) return;
 
-        setDeviceId(identity.deviceId);
+        if (identity.deviceId !== deviceId) {
+          throw new Error("Device Vault identity changed during pairing");
+        }
 
-        syncEngine = new ProjectSyncEngine(joinedProject, transport, {
-          debugLogger: createConsoleDebugLogger("invite-join-sync"),
-        });
-        syncEngine.start();
-
-        setProject(joinedProject);
+        setPairingState("identity-sent");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
         if (disposed) return;
         setClaimState("error");
+        setPairingState("error");
         setError(
           caught instanceof Error ? caught.message : "Failed to join Project",
         );
@@ -179,16 +204,47 @@ export function InvitationJoinPage({
       disposed = true;
       cleanup?.();
     };
-  }, [claimId, coordinatorBaseUrl, inviteId, pairingSecret]);
+  }, [
+    claimId,
+    coordinatorBaseUrl,
+    deviceId,
+    inviteId,
+    pairingSecret,
+    vaultState,
+  ]);
 
-  if (error) {
-    return (
-      <main className="empty-state">
-        <p>Could not join Project.</p>
-        <p>{error}</p>
-      </main>
-    );
+  async function unlockOrCreateDevice(): Promise<void> {
+    if (vaultState === "unlocking" || vaultState === "unlocked") return;
+
+    setVaultState("unlocking");
+    setVaultError(null);
+
+    try {
+      const session = await joinDeviceVault.unlockOrCreate();
+      const previous = vaultSessionRef.current;
+      vaultSessionRef.current = session;
+      if (previous) await previous.close();
+
+      setDeviceId(session.publicIdentity.deviceId);
+      setVaultState("unlocked");
+    } catch (caught: unknown) {
+      setVaultState("error");
+      setVaultError(
+        caught instanceof Error
+          ? caught.message
+          : "Failed to unlock Device Vault",
+      );
+    }
   }
+
+  const vaultButtonLabel =
+    vaultState === "missing"
+      ? "Initialize this device"
+      : vaultState === "unlocking"
+        ? "Unlocking…"
+        : vaultState === "error"
+          ? "Retry device setup"
+          : "Unlock this device";
 
   return (
     <main className="join-page">
@@ -197,7 +253,29 @@ export function InvitationJoinPage({
         <h1>Joining Floe Note Project</h1>
 
         <p className="webrtc-status">
+          Device Vault: <strong>{vaultState}</strong>
+        </p>
+        <p className="webrtc-status">
+          Device ID: <strong>{deviceId ?? "not unlocked"}</strong>
+        </p>
+
+        {vaultState !== "unlocked" && vaultState !== "checking" ? (
+          <button
+            type="button"
+            onClick={() => void unlockOrCreateDevice()}
+            disabled={vaultState === "unlocking"}
+          >
+            {vaultButtonLabel}
+          </button>
+        ) : null}
+
+        {vaultError ? <p className="webrtc-error">{vaultError}</p> : null}
+
+        <p className="webrtc-status">
           Invite: <strong>{claimState}</strong>
+        </p>
+        <p className="webrtc-status">
+          Pairing: <strong>{pairingState}</strong>
         </p>
         <p className="webrtc-status">
           Signaling: <strong>{signalingState}</strong>
@@ -211,40 +289,39 @@ export function InvitationJoinPage({
         <p className="webrtc-status">
           Data channel: <strong>{webRtcStatus.dataChannelState}</strong>
         </p>
+
         {expiresAt ? (
           <p className="webrtc-status">
             Invite expires:{" "}
             <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
           </p>
         ) : null}
-        <p className="webrtc-status">
-          Device ID: <strong>{deviceId ?? "not generated"}</strong>
-        </p>
 
         <p className="join-live-hint">
-          PairingSecret authenticates the temporary WebRTC pairing channel.
-          After authentication, this device creates separate encryption and
-          signing keys and sends only its public identity to the existing
-          device. The claimed Project remains in memory only until device
-          authorization and ProjectKey delivery are implemented.
+          This device sends the public identity stored in its Device Vault.
+          Project data is not synchronized before an existing authorized device
+          explicitly approves this Device ID and ProjectKey delivery completes.
         </p>
 
+        {pairingState === "identity-sent" ? (
+          <p className="join-live-hint">
+            Public device identity sent. Confirm this Device ID on an existing
+            authorized device. This page will remain here until ProjectKey
+            delivery is implemented in the next step.
+          </p>
+        ) : vaultState !== "unlocked" ? (
+          <p className="join-live-hint">
+            Unlock or initialize this device before claiming the invitation.
+          </p>
+        ) : null}
+
+        {error ? <p className="webrtc-error">{error}</p> : null}
         {webRtcStatus.warning ? (
           <p className="webrtc-warning">{webRtcStatus.warning}</p>
         ) : null}
         {webRtcStatus.error ? (
           <p className="webrtc-error">{webRtcStatus.error}</p>
         ) : null}
-
-        {project ? (
-          <section className="join-result">
-            <JoinedProjectEditor project={project} />
-          </section>
-        ) : (
-          <p className="join-live-hint">
-            Authenticating pairing and preparing device identity…
-          </p>
-        )}
       </section>
     </main>
   );

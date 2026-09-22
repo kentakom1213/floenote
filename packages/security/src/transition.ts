@@ -25,13 +25,16 @@ export type UnsignedCreateProjectTransition = TransitionBase & {
 export type CreateProjectTransition = UnsignedCreateProjectTransition &
   SignedTransitionBase;
 
-export type AddDeviceTransition = SignedTransitionBase & {
+export type UnsignedAddDeviceTransition = TransitionBase & {
   type: "add-device";
   sequence: number;
   previousHash: Uint8Array;
   newDevice: DevicePublicIdentity;
   signerDeviceId: DeviceId;
 };
+
+export type AddDeviceTransition = UnsignedAddDeviceTransition &
+  SignedTransitionBase;
 
 export type RevokeDeviceTransition = SignedTransitionBase & {
   type: "revoke-device";

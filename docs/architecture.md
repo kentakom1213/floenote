@@ -609,13 +609,31 @@ CreateProject
 
 ```text
 AddDevice
-├── next sequence
-├── previousHash
-├── new device identity/public keys
+├── sequence = current.sequence + 1
+├── previousHash = current.headHash
+├── newDevice
+│   ├── DeviceId
+│   ├── encryptionPublicKey
+│   └── signingPublicKey
 └── signerDeviceId
 ```
 
-Adding a device does not require rotating the ProjectKey. The current ProjectKey is delivered to the newly authorized device after the transition has been committed.
+The signer must be present in the current authorized-device set. The new
+DeviceId must not already be authorized. AddDevice does not advance keyEpoch.
+
+The unsigned AddDevice logical object is encoded with the same RFC 8949
+deterministic CBOR rules as CreateProject and signed with the authorized
+signer's Ed25519 key. The new head is SHA-256 of the deterministic-CBOR
+encoding of the complete signed AddDevice transition.
+
+The resulting SecurityState advances sequence by one, keeps the current
+keyEpoch, adds the new device with `addedAtSequence = sequence`, and stores
+authorized devices sorted by DeviceId because the device collection is
+logically unordered.
+
+Adding a device does not require rotating the ProjectKey. The current ProjectKey
+is delivered to the newly authorized device only after the transition has been
+committed.
 
 ### 16.3 RevokeDevice
 
@@ -753,21 +771,25 @@ A creates invite
   |
 B scans QR
   |
+B unlocks or creates its local Device Vault
+  |
 B claims InviteId through Cloudflare
   |
 Cloudflare rendezvous connects A and B
   |
 PairingSecret mutually authenticates temporary pairing channel
   |
-B generates DeviceId + device key pairs
+B sends its Device Vault public identity to A
   |
-B sends public keys to A
+A displays candidate DeviceId and requires explicit confirmation
   |
-A submits AddDevice(B)
+A signs and submits AddDevice(B)
+  |
+Durable Object verifies sequence / previousHash / signer / signature
   |
 Durable Object commits transition
   |
-A verifies committed state
+A verifies and stores committed SecurityState
   |
 A wraps/delivers current ProjectKey to B
   |
@@ -795,11 +817,11 @@ the PairingSecret is still not an authorized Project device until `AddDevice`
 has been committed.
 
 Before authorization succeeds, the joining device must not adopt the claimed
-Project as its persistent local Project. It may construct an in-memory
-`NoteProject` keyed by the claimed ProjectId for the temporary pairing flow,
-but the existing local default Project and persistent project storage remain
-unchanged. Persistent adoption happens only after authorization and ProjectKey
-delivery succeed.
+Project as its persistent local Project. The joining side uses its already
+unlocked local Device Vault identity during pairing, but it does not create or
+synchronize Project data during this stage. Persistent Project adoption and
+normal synchronization begin only after authorization and ProjectKey delivery
+succeed.
 
 Invitations should be:
 
@@ -996,7 +1018,7 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
 1. Exact libsodium APIs and envelope format for ProjectKey wrapping.
-2. Canonical payload details and validation rules for `AddDevice` and `RevokeDevice`.
+2. Canonical payload details and validation rules for `RevokeDevice`.
 3. Old-ProjectKey retention and migration of ciphertext after key rotation.
 4. Document tombstone garbage collection.
 5. Stable backup/export archive format.
