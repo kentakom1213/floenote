@@ -52,7 +52,7 @@ type JoinVaultState =
 type PairingState =
   | "waiting-for-vault"
   | "connecting"
-  | "awaiting-authorization"
+  | "identity-sent"
   | "error";
 
 export function InvitationJoinPage({
@@ -187,7 +187,7 @@ export function InvitationJoinPage({
           throw new Error("Device Vault identity changed during pairing");
         }
 
-        setPairingState("awaiting-authorization");
+        setPairingState("identity-sent");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -303,10 +303,11 @@ export function InvitationJoinPage({
           explicitly approves this Device ID and ProjectKey delivery completes.
         </p>
 
-        {pairingState === "awaiting-authorization" ? (
+        {pairingState === "identity-sent" ? (
           <p className="join-live-hint">
             Public device identity sent. Confirm this Device ID on an existing
-            authorized device. ProjectKey delivery is the next step.
+            authorized device. This page will remain here until ProjectKey
+            delivery is implemented in the next step.
           </p>
         ) : vaultState !== "unlocked" ? (
           <p className="join-live-hint">
