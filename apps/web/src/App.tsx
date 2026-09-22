@@ -532,6 +532,78 @@ function NoteApp() {
     }
   }
 
+  async function authorizeJoiningDevice(): Promise<void> {
+    if (!joiningDevice) {
+      setCoordinationError("No joining device is ready for authorization");
+      return;
+    }
+
+    if (!localSecurityState) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setCoordinationError("Device Vault must be unlocked before authorization");
+      return;
+    }
+
+    setDeviceAuthorizationState("authorizing");
+    setCoordinationError(null);
+
+    try {
+      const signerIdentity = session.publicIdentity;
+      const unsignedTransition = createUnsignedAddDeviceTransition(
+        localSecurityState,
+        joiningDevice,
+        signerIdentity.deviceId,
+      );
+      const signingBytes =
+        encodeUnsignedAddDeviceTransition(unsignedTransition);
+      const signature = await session.sign(signingBytes);
+      const transition = attachAddDeviceSignature(
+        unsignedTransition,
+        signature,
+      );
+
+      const verified = await verifyEd25519Signature(
+        signingBytes,
+        transition.signature,
+        signerIdentity.signingPublicKey,
+      );
+      if (!verified) {
+        throw new Error("AddDevice signature verification failed");
+      }
+
+      const headHash = await sha256(encodeAddDeviceTransition(transition));
+      const candidateState = deriveAddDeviceSecurityState(
+        localSecurityState,
+        transition,
+        headHash,
+      );
+      const committedState = await securityCoordinator.commitAddDevice(
+        activeProject.id,
+        transition,
+      );
+
+      if (!securityStatesEqual(candidateState, committedState)) {
+        throw new Error(
+          "Coordinator committed a SecurityState that does not match AddDevice",
+        );
+      }
+
+      await projectStorage.saveCommittedSecurityState(committedState);
+      setLocalSecurityState(committedState);
+      setDeviceAuthorizationState("authorized");
+    } catch (error: unknown) {
+      setDeviceAuthorizationState("error");
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to authorize device",
+      );
+    }
+  }
+
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
