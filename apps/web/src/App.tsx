@@ -165,8 +165,6 @@ function NoteApp() {
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const securityMutationInFlightRef = useRef(false);
   const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
-  const presenceClientRef = useRef<AuthorizedPresenceClient | null>(null);
-  const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -180,15 +178,6 @@ function NoteApp() {
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
   const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
-  const [presenceState, setPresenceState] =
-    useState<AuthorizedPresenceConnectionState>("idle");
-  const [onlineDeviceIds, setOnlineDeviceIds] = useState<readonly DeviceId[]>([]);
-  const [presenceError, setPresenceError] = useState<string | null>(null);
-  const [automaticSyncStatus, setAutomaticSyncStatus] =
-    useState<AutomaticPeerSyncStatus>({
-      connectedDeviceIds: [],
-      error: null,
-    });
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
   >("waiting");
@@ -395,100 +384,34 @@ function NoteApp() {
     };
   }, [deviceVaultState, localDeviceId, project, securityRefreshToken]);
 
-  useEffect(() => {
-    if (
-      !project ||
-      !localDeviceId ||
-      !localSecurityState ||
-      deviceVaultState !== "unlocked"
-    ) {
-      setPresenceState("idle");
-      setOnlineDeviceIds([]);
-      setPresenceError(null);
-      automaticPeerSyncRef.current?.stop();
-      automaticPeerSyncRef.current = null;
-      setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
-      return;
+  const handleSecurityStateChanged = useCallback(() => {
+    if (!securityMutationInFlightRef.current) {
+      setSecurityRefreshToken((value) => value + 1);
     }
+  }, []);
 
-    const session = deviceVaultSessionRef.current;
-    if (!session) return;
+  const automaticReconnectEnabled =
+    useAutomaticReconnect ||
+    (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
 
-    const presence = new AuthorizedPresenceClient({
-      coordinatorBaseUrl,
-      projectId: project.id,
-      deviceId: localDeviceId,
-      securityHead: localSecurityState.headHash,
-      sign: (message) => session.sign(message),
-    });
-    presenceClientRef.current = presence;
-
-    const automaticReconnectEnabled =
-      useAutomaticReconnect ||
-      (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
-
-    const automaticPeerSync =
-      automaticReconnectEnabled && localProjectKeyReady
-        ? new AutomaticPeerSyncManager({
-            coordinatorBaseUrl,
-            project,
-            localDeviceId,
-            securityState: localSecurityState,
-            vaultSession: session,
-            presence,
-            onStatusChange: setAutomaticSyncStatus,
-          })
-        : null;
-    automaticPeerSyncRef.current = automaticPeerSync;
-
-    const stopState = presence.onStateChange(setPresenceState);
-    const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
-      setOnlineDeviceIds(deviceIds);
-      automaticPeerSync?.updateOnlineDevices(deviceIds);
-    });
-    const stopReconnect = presence.onReconnectSession(
-      (fromDeviceId, sessionId) => {
-        automaticPeerSync?.acceptReconnectSession(fromDeviceId, sessionId);
-      },
-    );
-    const stopErrors = presence.onError((error) => {
-      setPresenceError(error.message);
-      if (
-        error.message === "SecurityState changed" &&
-        !securityMutationInFlightRef.current
-      ) {
-        setSecurityRefreshToken((value) => value + 1);
-      }
-    });
-
-    setPresenceError(null);
-    setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
-    presence.start();
-
-    return () => {
-      stopState();
-      stopDevices();
-      stopReconnect();
-      stopErrors();
-      automaticPeerSync?.stop();
-      if (automaticPeerSyncRef.current === automaticPeerSync) {
-        automaticPeerSyncRef.current = null;
-      }
-      if (presenceClientRef.current === presence) {
-        presenceClientRef.current = null;
-      }
-      presence.close();
-      setOnlineDeviceIds([]);
-      setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
-    };
-  }, [
-    deviceVaultState,
-    localDeviceId,
-    localProjectKeyReady,
-    localSecurityState,
+  const authorizedSync = useAuthorizedProjectSync({
+    coordinatorBaseUrl,
     project,
-    projectKeyDeliveryState,
-  ]);
+    localDeviceId,
+    securityState: localSecurityState,
+    projectKeyReady: localProjectKeyReady,
+    vaultSession: deviceVaultSessionRef.current,
+    automaticReconnectEnabled,
+    onSecurityStateChanged: handleSecurityStateChanged,
+  });
+
+  useEncryptedLocalTabSync({
+    enabled: useAutomaticReconnect,
+    project,
+    securityState: localSecurityState,
+    projectKeyReady: localProjectKeyReady,
+    vaultSession: deviceVaultSessionRef.current,
+  });
 
   useEffect(() => {
     if (!project) return;
@@ -1201,12 +1124,12 @@ function NoteApp() {
 
         {localDeviceId && localSecurityState ? (
           <AuthorizedDevicesPanel
-            state={presenceState}
+            state={authorizedSync.presenceState}
             localDeviceId={localDeviceId}
             authorizedDevices={localSecurityState.devices}
-            onlineDeviceIds={onlineDeviceIds}
-            connectedDeviceIds={automaticSyncStatus.connectedDeviceIds}
-            error={presenceError ?? automaticSyncStatus.error}
+            onlineDeviceIds={authorizedSync.onlineDeviceIds}
+            connectedDeviceIds={authorizedSync.connectedDeviceIds}
+            error={authorizedSync.error}
             onRevoke={revokeDevice}
           />
         ) : null}
