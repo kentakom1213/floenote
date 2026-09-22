@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import { parseProjectId, type ProjectId } from "@floe-note/domain";
 
 import { parseSessionId, type SessionId } from "./session-id.js";
 
@@ -77,7 +77,7 @@ export class InvitationClient {
     }
 
     return {
-      projectId: payload.projectId as ProjectId,
+      projectId: parseProjectId(payload.projectId),
       sessionId: parseSessionId(payload.sessionId),
       expiresAt: payload.expiresAt,
     };
