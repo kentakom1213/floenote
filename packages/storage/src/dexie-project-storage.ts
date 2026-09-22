@@ -57,32 +57,25 @@ export class DexieProjectStorage implements ProjectStorage {
   watchProject(project: NoteProject): () => void {
     const documentSubscriptions = new Map<string, () => void>();
 
-    const attachDocument = (
-      document: NoteDocument,
-      persistImmediately: boolean,
-    ) => {
+    const attachDocument = (document: NoteDocument) => {
       if (documentSubscriptions.has(document.id)) return;
 
       const unsubscribe = document.subscribe(() => {
         this.#enqueue(() => this.#saveDocument(project.id, document));
       });
       documentSubscriptions.set(document.id, unsubscribe);
-
-      if (persistImmediately) {
-        this.#enqueue(() => this.#saveDocument(project.id, document));
-      }
     };
 
     for (const document of project.getAllDocuments()) {
-      attachDocument(document, false);
+      attachDocument(document);
     }
 
     const unsubscribeProject = project.subscribe(() => {
-      this.#enqueue(() => this.#saveManifest(project));
-
       for (const document of project.getAllDocuments()) {
-        attachDocument(document, true);
+        attachDocument(document);
       }
+
+      this.#enqueue(() => this.#saveProjectState(project));
     });
 
     return () => {
@@ -171,11 +164,26 @@ export class DexieProjectStorage implements ProjectStorage {
       });
   }
 
-  async #saveManifest(project: NoteProject): Promise<void> {
-    await this.#db.manifests.put({
-      projectId: project.id,
-      snapshot: project.exportManifestSnapshot(),
-    });
+  async #saveProjectState(project: NoteProject): Promise<void> {
+    await this.#db.transaction(
+      "rw",
+      this.#db.manifests,
+      this.#db.documents,
+      async () => {
+        for (const document of project.getAllDocuments()) {
+          await this.#db.documents.put({
+            projectId: project.id,
+            documentId: document.id,
+            snapshot: document.exportSnapshot(),
+          });
+        }
+
+        await this.#db.manifests.put({
+          projectId: project.id,
+          snapshot: project.exportManifestSnapshot(),
+        });
+      },
+    );
   }
 
   async #saveDocument(
