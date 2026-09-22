@@ -889,9 +889,32 @@ input:focus-visible {
 }
 
 .dialog-secondary-button:disabled,
-.dialog-primary-button:disabled {
+.dialog-primary-button:disabled,
+.dialog-danger-button:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+.dialog-danger-button {
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 13px;
+  color: white;
+  background: var(--color-danger);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.dialog-danger-button:not(:disabled):hover {
+  filter: brightness(0.94);
+}
+
+.dialog-description > p {
+  margin: 0;
+}
+
+.dialog-description > p + p {
+  margin-top: 8px;
 }
 
 .settings-view {
@@ -1038,6 +1061,53 @@ input:focus-visible {
   background: var(--color-surface-hover);
 }
 
+.danger-zone {
+  margin-top: 18px;
+}
+
+.danger-zone h2 {
+  color: var(--color-danger);
+}
+
+.danger-zone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0;
+}
+
+.danger-zone-row strong {
+  font-size: 13px;
+}
+
+.danger-zone-row p,
+.danger-zone-note {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.danger-zone-row > div {
+  max-width: 560px;
+}
+
+.settings-danger-outline-action {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+  border-radius: 9px;
+  padding: 8px 11px;
+  color: var(--color-danger);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-danger-outline-action:hover {
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
 .device-list {
   display: grid;
   border-top: 1px solid var(--color-border);
@@ -1122,6 +1192,75 @@ input:focus-visible {
   color: var(--color-text-muted);
   background: var(--color-bg);
   text-align: center;
+}
+
+.unlock-screen,
+.project-empty-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: var(--color-bg);
+}
+
+.unlock-card,
+.project-empty-card {
+  width: min(440px, 100%);
+  text-align: center;
+}
+
+.unlock-mark,
+.project-empty-card .empty-floe {
+  margin-bottom: 18px;
+  color: var(--color-accent);
+  font-size: 30px;
+}
+
+.unlock-card h1,
+.project-empty-card h1 {
+  margin-top: 4px;
+  font-size: 30px;
+  letter-spacing: -0.035em;
+}
+
+.unlock-copy,
+.project-empty-card > p:not(.settings-eyebrow) {
+  margin: 12px auto 0;
+  max-width: 390px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.unlock-primary-action {
+  margin-top: 24px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 15px;
+  color: white;
+  background: var(--color-accent);
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.unlock-primary-action:hover {
+  background: var(--color-accent-hover);
+}
+
+.unlock-primary-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.unlock-card .dialog-error {
+  margin-top: 14px;
+}
+
+.project-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 24px;
 }
 
 .eyebrow {
@@ -1389,6 +1528,21 @@ h1 {
 
   .settings-section-heading {
     align-items: center;
+  }
+
+  .danger-zone-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .project-empty-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .unlock-screen,
+  .project-empty-screen {
+    padding: 24px 20px;
   }
 
   .editor .cm-scroller {
