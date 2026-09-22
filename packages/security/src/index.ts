@@ -28,13 +28,16 @@ export {
 export type { UnsignedCreateProjectTransition } from "./transition.js";
 
 export {
+  addDeviceTransitionToWire,
   createProjectTransitionToWire,
+  parseAddDeviceWirePayload,
   parseCreateProjectWirePayload,
   parseSecurityStateWirePayload,
   securityStateToWire,
 } from "./wire.js";
 
 export type {
+  AddDeviceWirePayload,
   CreateProjectWirePayload,
   SecurityStateWirePayload,
 } from "./wire.js";
