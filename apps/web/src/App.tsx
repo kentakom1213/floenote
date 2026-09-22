@@ -65,6 +65,7 @@ import {
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
+import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
@@ -248,36 +249,47 @@ function NoteApp() {
           );
         }
 
+        let verifiedState = storedState;
+
         if (coordinatorState.sequence > storedState.sequence) {
-          throw new Error(
-            "Coordinator SecurityState is newer than the locally verified state; transition refresh is not implemented yet",
+          const transitions = await securityCoordinator.getSecurityTransitions(
+            project.id,
+            storedState.sequence,
+          );
+          verifiedState = await applyVerifiedSecurityTransitions(
+            storedState,
+            transitions,
           );
         }
 
-        if (!securityStatesEqual(storedState, coordinatorState)) {
+        if (!securityStatesEqual(verifiedState, coordinatorState)) {
           throw new Error(
-            "Coordinator SecurityState does not match the locally verified state",
+            "Verified SecurityState does not match the coordinator current state",
           );
         }
 
         if (
-          !storedState.devices.some(
+          !verifiedState.devices.some(
             (device) => device.deviceId === localDeviceId,
           )
         ) {
           throw new Error(
-            "This Device Vault identity is not authorized by the stored SecurityState",
+            "This Device Vault identity is not authorized by the verified SecurityState",
           );
+        }
+
+        if (!securityStatesEqual(storedState, verifiedState)) {
+          await projectStorage.saveCommittedSecurityState(verifiedState);
         }
 
         const projectKeyReady = await ensureInitialProjectKey(
           session,
-          storedState,
+          verifiedState,
           localDeviceId,
         );
 
         if (!cancelled) {
-          setLocalSecurityState(storedState);
+          setLocalSecurityState(verifiedState);
           setLocalSecurityBootstrapState("committed");
           setLocalProjectKeyReady(projectKeyReady);
         }
