@@ -533,10 +533,11 @@ function readPrfOutput(
   return first ? new Uint8Array(first) : null;
 }
 
-function serializeDeviceKeyMaterial(
+function serializeDeviceVaultPayload(
   keyMaterial: DeviceKeyMaterial,
+  projectKeys: readonly ProjectKeyEntry[],
 ): Uint8Array {
-  const payload: SerializedDeviceKeyMaterial = {
+  const payload: SerializedDeviceVaultPayload = {
     version: VAULT_PAYLOAD_VERSION,
     deviceId: keyMaterial.publicIdentity.deviceId,
     encryptionPublicKey: bytesToHex(
@@ -545,14 +546,19 @@ function serializeDeviceKeyMaterial(
     encryptionPrivateKey: bytesToHex(keyMaterial.encryptionPrivateKey),
     signingPublicKey: bytesToHex(keyMaterial.publicIdentity.signingPublicKey),
     signingPrivateKey: bytesToHex(keyMaterial.signingPrivateKey),
+    projectKeys: projectKeys.map((entry) => ({
+      projectId: entry.projectId,
+      keyEpoch: entry.keyEpoch,
+      projectKey: bytesToHex(entry.projectKey),
+    })),
   };
 
   return new TextEncoder().encode(JSON.stringify(payload));
 }
 
-function deserializeDeviceKeyMaterial(
+function deserializeDeviceVaultPayload(
   plaintext: Uint8Array,
-): DeviceKeyMaterial {
+): DeviceVaultContents {
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(plaintext));
@@ -560,26 +566,11 @@ function deserializeDeviceKeyMaterial(
     throw new Error("Invalid Device Vault payload");
   }
 
-  if (
-    typeof parsed !== "object" ||
-    parsed === null ||
-    !("version" in parsed) ||
-    parsed.version !== VAULT_PAYLOAD_VERSION ||
-    !("deviceId" in parsed) ||
-    typeof parsed.deviceId !== "string" ||
-    !("encryptionPublicKey" in parsed) ||
-    typeof parsed.encryptionPublicKey !== "string" ||
-    !("encryptionPrivateKey" in parsed) ||
-    typeof parsed.encryptionPrivateKey !== "string" ||
-    !("signingPublicKey" in parsed) ||
-    typeof parsed.signingPublicKey !== "string" ||
-    !("signingPrivateKey" in parsed) ||
-    typeof parsed.signingPrivateKey !== "string"
-  ) {
+  if (!isBaseVaultPayload(parsed)) {
     throw new Error("Invalid Device Vault payload");
   }
 
-  return {
+  const keyMaterial: DeviceKeyMaterial = {
     publicIdentity: {
       deviceId: parseDeviceId(parsed.deviceId),
       encryptionPublicKey: hexToBytes(
@@ -600,6 +591,107 @@ function deserializeDeviceKeyMaterial(
       DEVICE_SIGNING_PRIVATE_KEY_BYTES,
     ),
   };
+
+  if (parsed.version === VAULT_PAYLOAD_VERSION_V1) {
+    return {
+      keyMaterial,
+      projectKeys: [],
+    };
+  }
+
+  if (
+    parsed.version !== VAULT_PAYLOAD_VERSION ||
+    !("projectKeys" in parsed) ||
+    !Array.isArray(parsed.projectKeys)
+  ) {
+    throw new Error("Unsupported Device Vault payload version");
+  }
+
+  const projectKeys = parsed.projectKeys.map(parseProjectKeyEntry);
+  const seen = new Set<string>();
+  for (const entry of projectKeys) {
+    const identity = `${entry.projectId}:${entry.keyEpoch}`;
+    if (seen.has(identity)) {
+      throw new Error("Duplicate ProjectKey entry in Device Vault");
+    }
+    seen.add(identity);
+  }
+  sortProjectKeys(projectKeys);
+
+  return {
+    keyMaterial,
+    projectKeys,
+  };
+}
+
+function isBaseVaultPayload(
+  parsed: unknown,
+): parsed is SerializedDeviceKeyMaterialV1 | SerializedDeviceVaultPayload {
+  return (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    "version" in parsed &&
+    (parsed.version === VAULT_PAYLOAD_VERSION_V1 ||
+      parsed.version === VAULT_PAYLOAD_VERSION) &&
+    "deviceId" in parsed &&
+    typeof parsed.deviceId === "string" &&
+    "encryptionPublicKey" in parsed &&
+    typeof parsed.encryptionPublicKey === "string" &&
+    "encryptionPrivateKey" in parsed &&
+    typeof parsed.encryptionPrivateKey === "string" &&
+    "signingPublicKey" in parsed &&
+    typeof parsed.signingPublicKey === "string" &&
+    "signingPrivateKey" in parsed &&
+    typeof parsed.signingPrivateKey === "string"
+  );
+}
+
+function parseProjectKeyEntry(value: unknown): ProjectKeyEntry {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("projectId" in value) ||
+    typeof value.projectId !== "string" ||
+    !("keyEpoch" in value) ||
+    typeof value.keyEpoch !== "number" ||
+    !Number.isSafeInteger(value.keyEpoch) ||
+    value.keyEpoch < 1 ||
+    !("projectKey" in value) ||
+    typeof value.projectKey !== "string"
+  ) {
+    throw new Error("Invalid ProjectKey entry in Device Vault");
+  }
+
+  return {
+    projectId: parseProjectId(value.projectId),
+    keyEpoch: value.keyEpoch,
+    projectKey: hexToBytes(value.projectKey, PROJECT_KEY_BYTES),
+  };
+}
+
+function sortProjectKeys(projectKeys: ProjectKeyEntry[]): void {
+  projectKeys.sort((left, right) => {
+    const projectOrder = left.projectId.localeCompare(right.projectId);
+    return projectOrder !== 0
+      ? projectOrder
+      : left.keyEpoch - right.keyEpoch;
+  });
+}
+
+function assertKeyEpoch(keyEpoch: number): void {
+  if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
+    throw new TypeError("ProjectKey epoch must be a positive safe integer");
+  }
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+
+  let difference = 0;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
+  }
+  return difference === 0;
 }
 
 function assertWebAuthnAvailable(): void {
