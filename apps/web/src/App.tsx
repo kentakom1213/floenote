@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   createPairingSecret,
@@ -20,8 +20,16 @@ import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
+import {
+  WebAuthnPrfDeviceVault,
+  type DeviceVaultSession,
+} from "@floe-note/vault";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import {
+  DeviceVaultPanel,
+  type DeviceVaultUiState,
+} from "./DeviceVaultPanel.js";
 import { InvitationHostPanel } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
@@ -31,6 +39,7 @@ import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
 
 const projectStorage = new DexieProjectStorage();
+const deviceVault = new WebAuthnPrfDeviceVault();
 const searchParams = new URLSearchParams(window.location.search);
 const useManualWebRtc = searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc = searchParams.get("transport") === "signal";
@@ -104,8 +113,42 @@ function NoteApp() {
   const [coordinationError, setCoordinationError] = useState<string | null>(
     null,
   );
+  const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const [deviceVaultState, setDeviceVaultState] =
+    useState<DeviceVaultUiState>("checking");
+  const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
+  const [deviceVaultError, setDeviceVaultError] = useState<string | null>(null);
 
   const project = openedProject?.project ?? null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void deviceVault
+      .hasVault()
+      .then((exists) => {
+        if (!cancelled) {
+          setDeviceVaultState(exists ? "locked" : "missing");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDeviceVaultState("error");
+          setDeviceVaultError(
+            error instanceof Error
+              ? error.message
+              : "Failed to inspect Device Vault",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      const session = deviceVaultSessionRef.current;
+      deviceVaultSessionRef.current = null;
+      if (session) void session.close();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +376,30 @@ function NoteApp() {
     ? activeProject.getDocument(selectedId)
     : undefined;
 
+  async function unlockOrCreateDevice(): Promise<void> {
+    if (deviceVaultState === "unlocking" || deviceVaultState === "unlocked") {
+      return;
+    }
+
+    setDeviceVaultState("unlocking");
+    setDeviceVaultError(null);
+
+    try {
+      const session = await deviceVault.unlockOrCreate();
+      const previous = deviceVaultSessionRef.current;
+      deviceVaultSessionRef.current = session;
+      if (previous) await previous.close();
+
+      setLocalDeviceId(session.publicIdentity.deviceId);
+      setDeviceVaultState("unlocked");
+    } catch (error: unknown) {
+      setDeviceVaultState("error");
+      setDeviceVaultError(
+        error instanceof Error ? error.message : "Failed to unlock Device Vault",
+      );
+    }
+  }
+
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
@@ -363,6 +430,13 @@ function NoteApp() {
             +
           </button>
         </div>
+
+        <DeviceVaultPanel
+          state={deviceVaultState}
+          deviceId={localDeviceId}
+          error={deviceVaultError}
+          onUnlockOrCreate={unlockOrCreateDevice}
+        />
 
         <nav className="note-list" aria-label="Notes">
           {summaries.map((summary) => (
