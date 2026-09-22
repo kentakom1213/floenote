@@ -219,6 +219,27 @@ function NoteApp() {
     void (async () => {
       const storedState = await projectStorage.loadSecurityState(project.id);
       if (storedState) {
+        const coordinatorState =
+          await securityCoordinator.getSecurityState(project.id);
+
+        if (coordinatorState.sequence < storedState.sequence) {
+          throw new Error(
+            "Coordinator SecurityState is older than the locally verified state",
+          );
+        }
+
+        if (coordinatorState.sequence > storedState.sequence) {
+          throw new Error(
+            "Coordinator SecurityState is newer than the locally verified state; transition refresh is not implemented yet",
+          );
+        }
+
+        if (!securityStatesEqual(storedState, coordinatorState)) {
+          throw new Error(
+            "Coordinator SecurityState does not match the locally verified state",
+          );
+        }
+
         if (
           !storedState.devices.some(
             (device) => device.deviceId === localDeviceId,

@@ -15,6 +15,21 @@ export class SecurityCoordinatorClient {
     this.#baseUrl = new URL(coordinatorBaseUrl);
   }
 
+  async getSecurityState(
+    projectId: ProjectId,
+  ): Promise<SecurityState> {
+    const response = await fetch(
+      new URL(
+        `/projects/${encodeURIComponent(projectId)}/security`,
+        this.#baseUrl,
+      ),
+    );
+
+    await ensureOk(response);
+    const responsePayload = (await response.json()) as unknown;
+    return parseSecurityStateWirePayload(responsePayload, projectId);
+  }
+
   async commitAddDevice(
     projectId: ProjectId,
     transition: AddDeviceTransition,
