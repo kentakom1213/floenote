@@ -407,9 +407,7 @@ function NoteApp() {
     }
   }, []);
 
-  const automaticReconnectEnabled =
-    useAutomaticReconnect ||
-    (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
+  const automaticReconnectEnabled = useAutomaticReconnect;
 
   const authorizedSync = useAuthorizedProjectSync({
     coordinatorBaseUrl,
@@ -429,6 +427,30 @@ function NoteApp() {
     projectKeyReady: localProjectKeyReady,
     vaultSession: deviceVaultSessionRef.current,
   });
+
+  useEffect(() => {
+    if (
+      !useInvitationWebRtc ||
+      projectKeyDeliveryState !== "delivered" ||
+      !webRtcTransport
+    ) {
+      return;
+    }
+
+    let dataChannelWasOpen = webRtcTransport.dataChannelState === "open";
+    const stopStatus = webRtcTransport.onStatusChange((status) => {
+      if (status.dataChannelState === "open") {
+        dataChannelWasOpen = true;
+        return;
+      }
+
+      if (dataChannelWasOpen && status.dataChannelState === "closed") {
+        window.location.replace("/");
+      }
+    });
+
+    return stopStatus;
+  }, [projectKeyDeliveryState, webRtcTransport]);
 
   useEffect(() => {
     if (!project) return;
