@@ -68,7 +68,9 @@ export function InvitationJoinPage({
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const [vaultState, setVaultState] = useState<JoinVaultState>("checking");
+  const [needsDeviceSetup, setNeedsDeviceSetup] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
+  const [deviceName, setDeviceName] = useState("");
   const [webRtcStatus, setWebRtcStatus] =
     useState<WebRtcStatus>(INITIAL_WEBRTC_STATUS);
   const [signalingState, setSignalingState] =
@@ -89,6 +91,7 @@ export function InvitationJoinPage({
       .hasVault()
       .then((exists) => {
         if (!cancelled) {
+          setNeedsDeviceSetup(!exists);
           setVaultState(exists ? "locked" : "missing");
         }
       })
@@ -128,7 +131,7 @@ export function InvitationJoinPage({
       try {
         const parsedInviteId = parseInviteId(inviteId);
         if (!pairingSecret) {
-          throw new Error("Invite URL is missing PairingSecret.");
+          throw new Error("This invitation link is incomplete.");
         }
 
         const parsedPairingSecret = parsePairingSecret(pairingSecret);
@@ -207,12 +210,13 @@ export function InvitationJoinPage({
           role: "join",
           transport,
           identity: session.publicIdentity,
+          displayName: session.displayName,
           signal: abortPairing.signal,
         });
         if (disposed) return;
 
         if (identity.deviceId !== deviceId) {
-          throw new Error("Device Vault identity changed during pairing");
+          throw new Error("Device identity changed during pairing");
         }
 
         setPairingState("identity-sent");
@@ -256,16 +260,20 @@ export function InvitationJoinPage({
 
   async function unlockOrCreateDevice(): Promise<void> {
     if (vaultState === "unlocking" || vaultState === "unlocked") return;
+    if (needsDeviceSetup && deviceName.trim().length === 0) return;
 
     setVaultState("unlocking");
     setVaultError(null);
 
     try {
-      const session = await joinDeviceVault.unlockOrCreate();
+      const session = await joinDeviceVault.unlockOrCreate(
+        needsDeviceSetup ? deviceName.trim() : undefined,
+      );
       const previous = vaultSessionRef.current;
       vaultSessionRef.current = session;
       if (previous) await previous.close();
 
+      setDeviceName(session.displayName);
       setDeviceId(session.publicIdentity.deviceId);
       setVaultState("unlocked");
     } catch (caught: unknown) {
@@ -278,88 +286,145 @@ export function InvitationJoinPage({
     }
   }
 
-  const vaultButtonLabel =
-    vaultState === "missing"
-      ? "Initialize this device"
-      : vaultState === "unlocking"
-        ? "Unlocking…"
-        : vaultState === "error"
-          ? "Retry device setup"
-          : "Unlock this device";
+  const progressCopy =
+    pairingState === "key-stored"
+      ? {
+          title: "Device added",
+          detail: "Project access is ready. Opening Floe Note…",
+        }
+      : pairingState === "identity-sent"
+        ? {
+            title: "Waiting for approval",
+            detail: `Approve “${deviceName}” on your existing device.`,
+          }
+        : pairingState === "error"
+          ? {
+              title: "Could not join",
+              detail: error ?? "The invitation could not be completed.",
+            }
+          : {
+              title: "Connecting securely",
+              detail: "Keep this page open while Floe Note connects to your existing device.",
+            };
 
   return (
-    <main className="join-page">
-      <section className="join-card">
-        <p className="eyebrow">Invitation bootstrap</p>
-        <h1>Joining Floe Note Project</h1>
+    <main className="join-page invitation-page">
+      <section className="invitation-join-card">
+        <div className="invitation-brand">
+          <span className="floe-mark" aria-hidden="true">◆</span>
+          <span>Floe Note</span>
+        </div>
 
-        <p className="webrtc-status">
-          Device Vault: <strong>{vaultState}</strong>
-        </p>
-        <p className="webrtc-status">
-          Device ID: <strong>{deviceId ?? "not unlocked"}</strong>
-        </p>
+        <p className="settings-eyebrow">Device invitation</p>
+        <h1>Join a Project</h1>
 
-        {vaultState !== "unlocked" && vaultState !== "checking" ? (
-          <button
-            type="button"
-            onClick={() => void unlockOrCreateDevice()}
-            disabled={vaultState === "unlocking"}
-          >
-            {vaultButtonLabel}
-          </button>
-        ) : null}
+        {vaultState !== "unlocked" ? (
+          <div className="invitation-step-card">
+            <span className="invitation-step-number">1</span>
+            <div className="invitation-step-copy">
+              <strong>
+                {needsDeviceSetup
+                  ? "Set up this device"
+                  : "Unlock this device"}
+              </strong>
+              <p>
+                {needsDeviceSetup
+                  ? "Choose a name that will identify this device on your other devices."
+                  : "Unlock the Device Vault before joining the Project."}
+              </p>
 
-        {vaultError ? <p className="webrtc-error">{vaultError}</p> : null}
+              {needsDeviceSetup ? (
+                <label className="settings-field invitation-name-field">
+                  <span>Device name</span>
+                  <input
+                    autoFocus
+                    maxLength={80}
+                    value={deviceName}
+                    placeholder="Kenta's Pixel"
+                    onChange={(event) => setDeviceName(event.target.value)}
+                  />
+                </label>
+              ) : null}
 
-        <p className="webrtc-status">
-          Invite: <strong>{claimState}</strong>
-        </p>
-        <p className="webrtc-status">
-          Pairing: <strong>{pairingState}</strong>
-        </p>
-        <p className="webrtc-status">
-          Signaling: <strong>{signalingState}</strong>
-        </p>
-        <p className="webrtc-status">
-          Peer connection: <strong>{webRtcStatus.connectionState}</strong>
-        </p>
-        <p className="webrtc-status">
-          ICE connection: <strong>{webRtcStatus.iceConnectionState}</strong>
-        </p>
-        <p className="webrtc-status">
-          Data channel: <strong>{webRtcStatus.dataChannelState}</strong>
-        </p>
+              {vaultState !== "checking" ? (
+                <button
+                  className="dialog-primary-button invitation-primary"
+                  type="button"
+                  onClick={() => void unlockOrCreateDevice()}
+                  disabled={
+                    vaultState === "unlocking" ||
+                    (needsDeviceSetup &&
+                      deviceName.trim().length === 0)
+                  }
+                >
+                  {vaultState === "unlocking"
+                    ? "Unlocking…"
+                    : needsDeviceSetup
+                      ? "Set up and continue"
+                      : "Unlock and continue"}
+                </button>
+              ) : (
+                <p className="settings-loading">Checking this device…</p>
+              )}
+
+              {vaultError ? (
+                <p className="dialog-error">{vaultError}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="invitation-step-card active">
+            <span className="invitation-step-number">2</span>
+            <div className="invitation-step-copy">
+              <strong>{progressCopy.title}</strong>
+              <p>{progressCopy.detail}</p>
+              <div className="joining-device-chip">
+                <span className="device-avatar" aria-hidden="true">◇</span>
+                <span>
+                  <strong>{deviceName}</strong>
+                  <small>This device</small>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {expiresAt ? (
-          <p className="webrtc-status">
-            Invite expires:{" "}
-            <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
+          <p className="invitation-expiry">
+            Invitation expires at {new Date(expiresAt).toLocaleTimeString()}.
           </p>
         ) : null}
 
-        <p className="join-live-hint">
-          This device sends the public identity stored in its Device Vault.
-          Project data is not synchronized before an existing authorized device
-          explicitly approves this Device ID and ProjectKey delivery completes.
-        </p>
-
-        {pairingState === "identity-sent" ? (
-          <p className="join-live-hint">
-            Public device identity sent. Confirm this Device ID on an existing
-            authorized device and wait for ProjectKey delivery.
-          </p>
-        ) : pairingState === "key-stored" ? (
-          <p className="join-live-hint">
-            Project access is ready. Opening Floe Note…
-          </p>
-        ) : vaultState !== "unlocked" ? (
-          <p className="join-live-hint">
-            Unlock or initialize this device before claiming the invitation.
-          </p>
+        {error && pairingState !== "error" ? (
+          <p className="dialog-error">{error}</p>
         ) : null}
 
-        {error ? <p className="webrtc-error">{error}</p> : null}
+        <details className="technical-details invitation-technical-details">
+          <summary>Technical details</summary>
+          <dl>
+            <div>
+              <dt>Device ID</dt>
+              <dd>{deviceId ?? "Not unlocked"}</dd>
+            </div>
+            <div>
+              <dt>Invitation</dt>
+              <dd>{claimState}</dd>
+            </div>
+            <div>
+              <dt>Signaling</dt>
+              <dd>{signalingState}</dd>
+            </div>
+            <div>
+              <dt>Peer connection</dt>
+              <dd>{webRtcStatus.connectionState}</dd>
+            </div>
+            <div>
+              <dt>Data channel</dt>
+              <dd>{webRtcStatus.dataChannelState}</dd>
+            </div>
+          </dl>
+        </details>
+
         {webRtcStatus.warning ? (
           <p className="webrtc-warning">{webRtcStatus.warning}</p>
         ) : null}

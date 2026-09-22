@@ -35,7 +35,8 @@ const DATABASE_NAME = "floe-note-device-vault";
 const VAULT_RECORD_ID = "device-v1";
 const VAULT_RECORD_VERSION = 1 as const;
 const VAULT_PAYLOAD_VERSION_V1 = 1 as const;
-const VAULT_PAYLOAD_VERSION = 2 as const;
+const VAULT_PAYLOAD_VERSION_V2 = 2 as const;
+const VAULT_PAYLOAD_VERSION = 3 as const;
 const PRF_INPUT_BYTES = 32;
 const WEBAUTHN_TIMEOUT_MS = 60_000;
 
@@ -57,6 +58,16 @@ type SerializedDeviceKeyMaterialV1 = {
   signingPrivateKey: string;
 };
 
+type SerializedDeviceVaultPayloadV2 = {
+  version: typeof VAULT_PAYLOAD_VERSION_V2;
+  deviceId: string;
+  encryptionPublicKey: string;
+  encryptionPrivateKey: string;
+  signingPublicKey: string;
+  signingPrivateKey: string;
+  projectKeys: SerializedProjectKey[];
+};
+
 type SerializedProjectKey = {
   projectId: string;
   keyEpoch: number;
@@ -66,6 +77,7 @@ type SerializedProjectKey = {
 type SerializedDeviceVaultPayload = {
   version: typeof VAULT_PAYLOAD_VERSION;
   deviceId: string;
+  displayName: string;
   encryptionPublicKey: string;
   encryptionPrivateKey: string;
   signingPublicKey: string;
@@ -81,11 +93,13 @@ type ProjectKeyEntry = {
 
 type DeviceVaultContents = {
   keyMaterial: DeviceKeyMaterial;
+  displayName: string;
   projectKeys: ProjectKeyEntry[];
 };
 
 type PersistDeviceVault = (
   keyMaterial: DeviceKeyMaterial,
+  displayName: string,
   projectKeys: readonly ProjectKeyEntry[],
 ) => Promise<void>;
 
@@ -111,12 +125,13 @@ class DeviceVaultDatabase extends Dexie {
 
 export interface DeviceVault {
   hasVault(): Promise<boolean>;
-  unlockOrCreate(): Promise<DeviceVaultSession>;
+  unlockOrCreate(displayName?: string): Promise<DeviceVaultSession>;
   eraseVault(): Promise<void>;
 }
 
 export class DeviceVaultSession {
   #keyMaterial: DeviceKeyMaterial | null;
+  #displayName: string;
   #projectKeys: ProjectKeyEntry[];
   #vaultKey: Uint8Array | null;
   readonly #persist: PersistDeviceVault;
@@ -127,6 +142,7 @@ export class DeviceVaultSession {
     persist: PersistDeviceVault,
   ) {
     this.#keyMaterial = contents.keyMaterial;
+    this.#displayName = contents.displayName;
     this.#projectKeys = contents.projectKeys;
     this.#vaultKey = vaultKey;
     this.#persist = persist;
@@ -139,6 +155,20 @@ export class DeviceVaultSession {
       encryptionPublicKey: keyMaterial.publicIdentity.encryptionPublicKey.slice(),
       signingPublicKey: keyMaterial.publicIdentity.signingPublicKey.slice(),
     };
+  }
+
+  get displayName(): string {
+    this.#requireOpen();
+    return this.#displayName;
+  }
+
+  async renameDevice(displayName: string): Promise<void> {
+    this.#requireOpen();
+    const normalized = normalizeDeviceDisplayName(displayName);
+    if (normalized === this.#displayName) return;
+
+    await this.#persist(this.#requireOpen(), normalized, this.#projectKeys);
+    this.#displayName = normalized;
   }
 
   hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean {
@@ -418,7 +448,11 @@ export class DeviceVaultSession {
       (entry) => entry.projectId !== projectId,
     );
 
-    await this.#persist(this.#requireOpen(), remaining);
+    await this.#persist(
+      this.#requireOpen(),
+      this.#displayName,
+      remaining,
+    );
     this.#projectKeys = remaining;
     for (const entry of removed) entry.projectKey.fill(0);
   }
@@ -451,7 +485,11 @@ export class DeviceVaultSession {
     if (!this.#vaultKey) {
       throw new Error("Device Vault session is closed");
     }
-    await this.#persist(keyMaterial, this.#projectKeys);
+    await this.#persist(
+      keyMaterial,
+      this.#displayName,
+      this.#projectKeys,
+    );
   }
 
   #findProjectKey(
@@ -480,11 +518,11 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
     return (await this.#db.vault.get(VAULT_RECORD_ID)) !== undefined;
   }
 
-  async unlockOrCreate(): Promise<DeviceVaultSession> {
+  async unlockOrCreate(displayName?: string): Promise<DeviceVaultSession> {
     assertWebAuthnAvailable();
 
     const record = await this.#db.vault.get(VAULT_RECORD_ID);
-    return record ? this.#unlock(record) : this.#create();
+    return record ? this.#unlock(record) : this.#create(displayName);
   }
 
   async eraseVault(): Promise<void> {
@@ -492,7 +530,10 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
     await Dexie.delete(DATABASE_NAME);
   }
 
-  async #create(): Promise<DeviceVaultSession> {
+  async #create(displayName?: string): Promise<DeviceVaultSession> {
+    const normalizedDisplayName = normalizeDeviceDisplayName(
+      displayName ?? "My device",
+    );
     const keyMaterial = await generateDeviceKeyMaterial();
     const prfInput = randomBytes(PRF_INPUT_BYTES);
     let vaultKey: Uint8Array | null = null;
@@ -525,17 +566,23 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
         recordBase,
         vaultKey,
         keyMaterial,
+        normalizedDisplayName,
         projectKeys,
       );
 
       return new DeviceVaultSession(
-        { keyMaterial, projectKeys },
+        {
+          keyMaterial,
+          displayName: normalizedDisplayName,
+          projectKeys,
+        },
         vaultKey,
-        (nextKeyMaterial, nextProjectKeys) =>
+        (nextKeyMaterial, nextDisplayName, nextProjectKeys) =>
           this.#persistVault(
             recordBase,
             vaultKey as Uint8Array,
             nextKeyMaterial,
+            nextDisplayName,
             nextProjectKeys,
           ),
       );
@@ -578,11 +625,12 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
       return new DeviceVaultSession(
         contents,
         vaultKey,
-        (keyMaterial, projectKeys) =>
+        (keyMaterial, displayName, projectKeys) =>
           this.#persistVault(
             recordBase,
             vaultKey,
             keyMaterial,
+            displayName,
             projectKeys,
           ),
       );
@@ -601,9 +649,14 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
     >,
     vaultKey: Uint8Array,
     keyMaterial: DeviceKeyMaterial,
+    displayName: string,
     projectKeys: readonly ProjectKeyEntry[],
   ): Promise<void> {
-    const plaintext = serializeDeviceVaultPayload(keyMaterial, projectKeys);
+    const plaintext = serializeDeviceVaultPayload(
+      keyMaterial,
+      displayName,
+      projectKeys,
+    );
     try {
       const encrypted = await encryptDeviceVaultPayload(vaultKey, plaintext);
       await this.#db.vault.put({
@@ -712,11 +765,13 @@ function readPrfOutput(
 
 function serializeDeviceVaultPayload(
   keyMaterial: DeviceKeyMaterial,
+  displayName: string,
   projectKeys: readonly ProjectKeyEntry[],
 ): Uint8Array {
   const payload: SerializedDeviceVaultPayload = {
     version: VAULT_PAYLOAD_VERSION,
     deviceId: keyMaterial.publicIdentity.deviceId,
+    displayName: normalizeDeviceDisplayName(displayName),
     encryptionPublicKey: bytesToHex(
       keyMaterial.publicIdentity.encryptionPublicKey,
     ),
@@ -772,17 +827,26 @@ function deserializeDeviceVaultPayload(
   if (parsed.version === VAULT_PAYLOAD_VERSION_V1) {
     return {
       keyMaterial,
+      displayName: "My device",
       projectKeys: [],
     };
   }
 
   if (
-    parsed.version !== VAULT_PAYLOAD_VERSION ||
+    (parsed.version !== VAULT_PAYLOAD_VERSION_V2 &&
+      parsed.version !== VAULT_PAYLOAD_VERSION) ||
     !("projectKeys" in parsed) ||
     !Array.isArray(parsed.projectKeys)
   ) {
     throw new Error("Unsupported Device Vault payload version");
   }
+
+  const displayName =
+    parsed.version === VAULT_PAYLOAD_VERSION &&
+    "displayName" in parsed &&
+    typeof parsed.displayName === "string"
+      ? normalizeDeviceDisplayName(parsed.displayName)
+      : "My device";
 
   const projectKeys = parsed.projectKeys.map(parseProjectKeyEntry);
   const seen = new Set<string>();
@@ -797,18 +861,23 @@ function deserializeDeviceVaultPayload(
 
   return {
     keyMaterial,
+    displayName,
     projectKeys,
   };
 }
 
 function isBaseVaultPayload(
   parsed: unknown,
-): parsed is SerializedDeviceKeyMaterialV1 | SerializedDeviceVaultPayload {
+): parsed is
+  | SerializedDeviceKeyMaterialV1
+  | SerializedDeviceVaultPayloadV2
+  | SerializedDeviceVaultPayload {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
     "version" in parsed &&
     (parsed.version === VAULT_PAYLOAD_VERSION_V1 ||
+      parsed.version === VAULT_PAYLOAD_VERSION_V2 ||
       parsed.version === VAULT_PAYLOAD_VERSION) &&
     "deviceId" in parsed &&
     typeof parsed.deviceId === "string" &&
@@ -922,4 +991,15 @@ function bytesToBase64Url(value: Uint8Array): string {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replace(/=+$/u, "");
+}
+
+function normalizeDeviceDisplayName(displayName: string): string {
+  const normalized = displayName.trim();
+  if (!normalized) {
+    throw new TypeError("Device name must not be empty");
+  }
+  if (normalized.length > 80) {
+    throw new TypeError("Device name must be 80 characters or fewer");
+  }
+  return normalized;
 }

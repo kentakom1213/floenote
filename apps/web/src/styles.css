@@ -1014,6 +1014,13 @@ input:focus-visible {
   border-color: var(--color-focus);
 }
 
+.settings-field-hint {
+  margin: 8px 0 0;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .settings-badge {
   border-radius: 999px;
   padding: 5px 8px;
@@ -1232,6 +1239,25 @@ input:focus-visible {
   line-height: 1.6;
 }
 
+.unlock-field {
+  display: grid;
+  gap: 7px;
+  margin: 22px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.unlock-field input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 11px;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
 .unlock-primary-action {
   margin-top: 24px;
   border: 0;
@@ -1374,6 +1400,287 @@ h1 {
   padding: 56px 24px;
   background: var(--color-bg);
 }
+
+.invitation-page {
+  place-items: center;
+  padding-block: 40px;
+}
+
+.invitation-join-card {
+  width: min(560px, 100%);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 30px;
+  background: var(--color-surface);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 0.08);
+}
+
+.invitation-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 30px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.invitation-brand .floe-mark {
+  color: var(--color-accent);
+}
+
+.invitation-join-card h1 {
+  margin: 4px 0 24px;
+  font-size: 30px;
+  letter-spacing: -0.035em;
+}
+
+.invitation-step-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 17px;
+  background: var(--color-bg);
+}
+
+.invitation-step-card.active {
+  border-color: var(--color-border-strong);
+}
+
+.invitation-step-number {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.invitation-step-copy {
+  min-width: 0;
+}
+
+.invitation-step-copy > strong {
+  font-size: 14px;
+}
+
+.invitation-step-copy > p {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.invitation-name-field {
+  margin-top: 16px;
+}
+
+.invitation-primary {
+  margin-top: 14px;
+}
+
+.joining-device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  padding: 9px 11px;
+  background: var(--color-surface);
+}
+
+.joining-device-chip > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.joining-device-chip strong {
+  font-size: 12px;
+}
+
+.joining-device-chip small {
+  color: var(--color-text-faint);
+  font-size: 10px;
+}
+
+.device-avatar {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  font-size: 16px;
+}
+
+.device-avatar.large {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  font-size: 20px;
+}
+
+.invitation-expiry {
+  margin: 12px 0 0;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+.invitation-technical-details {
+  margin-top: 22px;
+}
+
+.invitation-host-view {
+  width: min(760px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 52px 0 96px;
+}
+
+.invitation-host-header > p:last-child {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.invitation-section {
+  padding: 26px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.invitation-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.invitation-section-heading h2 {
+  margin: 2px 0 4px;
+  font-size: 15px;
+}
+
+.invitation-section-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.invite-link-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.invite-link-box input {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.device-approval-card,
+.invitation-waiting-card,
+.invitation-success {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  padding: 14px;
+  background: var(--color-surface);
+}
+
+.device-approval-identity,
+.invitation-waiting-card,
+.invitation-success {
+  display: flex;
+  align-items: center;
+}
+
+.device-approval-identity {
+  gap: 11px;
+}
+
+.device-approval-identity strong,
+.invitation-waiting-card strong,
+.invitation-success strong {
+  font-size: 13px;
+}
+
+.device-approval-identity p,
+.invitation-waiting-card p,
+.invitation-success p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.invitation-waiting-card,
+.invitation-success {
+  justify-content: flex-start;
+}
+
+.invitation-pulse {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.invitation-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.invitation-progress-row p {
+  margin: 0;
+  flex: 1;
+}
+
+.invitation-success {
+  margin-top: 12px;
+}
+
+.invitation-success > span:first-child {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-active);
+  background: color-mix(in srgb, var(--color-active) 12%, transparent);
+  font-weight: 800;
+}
+
+.invitation-host-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+}
+
 
 .join-card {
   width: min(720px, 100%);
@@ -1543,6 +1850,24 @@ h1 {
   .unlock-screen,
   .project-empty-screen {
     padding: 24px 20px;
+  }
+
+  .invitation-host-view {
+    width: calc(100% - 40px);
+    padding-top: 34px;
+  }
+
+  .invitation-join-card {
+    padding: 22px;
+  }
+
+  .invite-link-box {
+    grid-template-columns: 1fr;
+  }
+
+  .device-approval-card {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .editor .cm-scroller {

@@ -22,6 +22,7 @@ import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
   sendProjectKeyDelivery,
+  type JoiningDeviceInfo,
 } from "@floe-note/pairing";
 import {
   attachAddDeviceSignature,
@@ -41,7 +42,6 @@ import {
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
   encodeUnsignedRevokeDeviceTransition,
-  type DevicePublicIdentity,
   type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
@@ -174,7 +174,7 @@ function NoteApp() {
   const [invitationHost, setInvitationHost] =
     useState<InvitationHostState | null>(null);
   const [joiningDevice, setJoiningDevice] =
-    useState<DevicePublicIdentity | null>(null);
+    useState<JoiningDeviceInfo | null>(null);
   const [deviceAuthorizationState, setDeviceAuthorizationState] =
     useState<DeviceAuthorizationUiState>("waiting");
   const [coordinationError, setCoordinationError] = useState<string | null>(
@@ -185,6 +185,7 @@ function NoteApp() {
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
+  const [localDeviceName, setLocalDeviceName] = useState<string | null>(null);
   const [deviceVaultError, setDeviceVaultError] = useState<string | null>(null);
   const [localSecurityBootstrapState, setLocalSecurityBootstrapState] =
     useState<LocalSecurityBootstrapUiState>("waiting");
@@ -428,9 +429,13 @@ function NoteApp() {
   useEffect(() => {
     if (!project) return;
 
-    return project.subscribe(() =>
-      setRevision((value) => value + 1),
-    );
+    return project.subscribe(() => {
+      const session = deviceVaultSessionRef.current;
+      if (session) {
+        syncLocalDeviceName(project, session);
+      }
+      setRevision((value) => value + 1);
+    });
   }, [project]);
 
   useEffect(() => {
@@ -654,7 +659,9 @@ function NoteApp() {
     ? activeProject.getDocument(selectedId)
     : undefined;
 
-  async function unlockOrCreateDevice(): Promise<void> {
+  async function unlockOrCreateDevice(
+    displayName?: string,
+  ): Promise<void> {
     if (deviceVaultState === "unlocking" || deviceVaultState === "unlocked") {
       return;
     }
@@ -663,13 +670,16 @@ function NoteApp() {
     setDeviceVaultError(null);
 
     try {
-      const session = await deviceVault.unlockOrCreate();
+      const session = await deviceVault.unlockOrCreate(displayName);
       const previous = deviceVaultSessionRef.current;
       deviceVaultSessionRef.current = session;
       if (previous) await previous.close();
 
       const result = await projectStorage.openLastProject(session);
       const summaries = await projectStorage.listProjects(session);
+      if (result) {
+        syncLocalDeviceName(result.project, session);
+      }
       setOpenedProject(result);
       setProjectSummaries(
         result
@@ -678,6 +688,7 @@ function NoteApp() {
       );
       setProjectCatalogReady(true);
       setLocalDeviceId(session.publicIdentity.deviceId);
+      setLocalDeviceName(session.displayName);
       setDeviceVaultState("unlocked");
     } catch (error: unknown) {
       setDeviceVaultState("error");
@@ -699,6 +710,7 @@ function NoteApp() {
 
     try {
       const result = await projectStorage.openProject(projectId, session);
+      syncLocalDeviceName(result.project, session);
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
@@ -724,6 +736,7 @@ function NoteApp() {
 
     try {
       const result = await projectStorage.createProject(name);
+      syncLocalDeviceName(result.project, session);
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
@@ -814,6 +827,17 @@ function NoteApp() {
     }
   }
 
+  async function renameLocalDevice(displayName: string): Promise<void> {
+    const session = deviceVaultSessionRef.current;
+    if (!session || !localDeviceId || !project) {
+      throw new Error("Device Vault and Project must be available");
+    }
+
+    await session.renameDevice(displayName);
+    project.setDeviceDisplayName(localDeviceId, session.displayName);
+    setLocalDeviceName(session.displayName);
+  }
+
   function resetProjectSecurityUiState(): void {
     setLocalSecurityBootstrapState("waiting");
     setLocalSecurityState(null);
@@ -875,6 +899,10 @@ function NoteApp() {
         return;
       }
 
+      activeProject.setDeviceDisplayName(
+        joiningDevice.deviceId,
+        joiningDevice.displayName,
+      );
       setDeviceAuthorizationState("authorized");
       await deliverProjectKey(localSecurityState);
       return;
@@ -945,6 +973,10 @@ function NoteApp() {
         }
 
         await projectStorage.saveCommittedSecurityState(committedState);
+        activeProject.setDeviceDisplayName(
+          joiningDevice.deviceId,
+          joiningDevice.displayName,
+        );
         setLocalSecurityState(committedState);
         setDeviceAuthorizationState("authorized");
       } catch (error: unknown) {
@@ -963,22 +995,26 @@ function NoteApp() {
 
   async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
     if (securityMutationInFlightRef.current) {
-      setCoordinationError("A security update is already in progress");
-      return;
+      const error = new Error("A security update is already in progress");
+      setCoordinationError(error.message);
+      throw error;
     }
     if (!localSecurityState || !localDeviceId) {
-      setCoordinationError("Committed SecurityState is not available");
-      return;
+      const error = new Error("Committed SecurityState is not available");
+      setCoordinationError(error.message);
+      throw error;
     }
     if (revokedDeviceId === localDeviceId) {
-      setCoordinationError("This device cannot revoke itself");
-      return;
+      const error = new Error("This device cannot revoke itself");
+      setCoordinationError(error.message);
+      throw error;
     }
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      setCoordinationError("Device Vault must be unlocked before revocation");
-      return;
+      const error = new Error("Device Vault must be unlocked before revocation");
+      setCoordinationError(error.message);
+      throw error;
     }
 
     securityMutationInFlightRef.current = true;
@@ -1075,10 +1111,11 @@ function NoteApp() {
       setLocalSecurityState(committedState);
       setLocalProjectKeyReady(true);
     } catch (error: unknown) {
-      setCoordinationError(
-        error instanceof Error ? error.message : "Failed to revoke device",
-      );
+      const normalized =
+        error instanceof Error ? error : new Error("Failed to revoke device");
+      setCoordinationError(normalized.message);
       setSecurityRefreshToken((value) => value + 1);
+      throw normalized;
     } finally {
       securityMutationInFlightRef.current = false;
     }
@@ -1213,11 +1250,48 @@ function NoteApp() {
     />
   );
 
+  const invitationContent =
+    useInvitationWebRtc ? (
+      invitationHost && webRtcTransport ? (
+        <InvitationHostPanel
+          inviteId={invitationHost.inviteId}
+          pairingSecret={invitationHost.pairingSecret}
+          expiresAt={invitationHost.expiresAt}
+          transport={webRtcTransport}
+          signalingState={signalingState}
+          joiningDeviceId={joiningDevice?.deviceId ?? null}
+          joiningDeviceName={joiningDevice?.displayName ?? null}
+          authorizationState={deviceAuthorizationState}
+          projectKeyDeliveryState={projectKeyDeliveryState}
+          error={coordinationError}
+          onConfirm={authorizeJoiningDevice}
+          onRetryProjectKeyDelivery={retryProjectKeyDelivery}
+          onCancel={async () => {
+            await new InvitationClient(coordinatorBaseUrl).cancelInvite(
+              invitationHost.inviteId,
+            );
+            webRtcTransport.close();
+            window.location.replace("/");
+          }}
+        />
+      ) : (
+        <section className="invitation-host-view">
+          <header className="settings-header invitation-host-header">
+            <p className="settings-eyebrow">Project devices</p>
+            <h1>Add a device</h1>
+            <p>Creating a secure invitation…</p>
+          </header>
+        </section>
+      )
+    ) : undefined;
+
   const mainContent =
-    mainView === "app-settings" ? (
+    invitationContent ?? (mainView === "app-settings" ? (
       <AppSettingsView
         theme={themePreference}
         localDeviceId={localDeviceId}
+        localDeviceName={localDeviceName}
+        onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
         onEraseDevice={eraseFloeFromThisDevice}
       />
@@ -1230,17 +1304,15 @@ function NoteApp() {
           authorizedDevices={localSecurityState.devices}
           onlineDeviceIds={authorizedSync.onlineDeviceIds}
           connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          getDeviceDisplayName={(deviceId) =>
+            activeProject.getDeviceDisplayName(deviceId)
+          }
           onRenameProject={(name) => activeProject.renameProject(name)}
           onRemoveProjectFromDevice={removeActiveProjectFromDevice}
           onAddDevice={() => {
             window.location.assign("/?transport=invite");
           }}
-          onRemoveDevice={(deviceId) => {
-            const confirmed = window.confirm(
-              "Remove this device? It will no longer receive new changes from this Project. Data already stored on that device cannot be removed remotely.",
-            );
-            if (confirmed) void revokeDevice(deviceId);
-          }}
+          onRemoveDevice={revokeDevice}
         />
       ) : (
         <div className="settings-view">
@@ -1248,30 +1320,10 @@ function NoteApp() {
           <p className="settings-loading">Loading Project security…</p>
         </div>
       )
-    ) : undefined;
+    ) : undefined);
 
   const debugSidebarControls =
-    useInvitationWebRtc && invitationHost && webRtcTransport ? (
-      <InvitationHostPanel
-        inviteId={invitationHost.inviteId}
-        pairingSecret={invitationHost.pairingSecret}
-        expiresAt={invitationHost.expiresAt}
-        transport={webRtcTransport}
-        signalingState={signalingState}
-        joiningDeviceId={joiningDevice?.deviceId ?? null}
-        authorizationState={deviceAuthorizationState}
-        projectKeyDeliveryState={projectKeyDeliveryState}
-        onConfirm={authorizeJoiningDevice}
-        onRetryProjectKeyDelivery={retryProjectKeyDelivery}
-        onCancel={() =>
-          new InvitationClient(coordinatorBaseUrl).cancelInvite(
-            invitationHost.inviteId,
-          )
-        }
-      />
-    ) : useInvitationWebRtc ? (
-      <p className="webrtc-hint">Creating invitation…</p>
-    ) : useSignaledWebRtc && webRtcTransport ? (
+    useSignaledWebRtc && webRtcTransport ? (
       <SignalingHostPanel
         projectId={activeProject.id}
         sessionId={signalSessionId}
@@ -1288,7 +1340,7 @@ function NoteApp() {
   const sidebarFooter = (
     <>
       {debugSidebarControls}
-      {coordinationError ? (
+      {coordinationError && !useInvitationWebRtc ? (
         <p className="webrtc-error">{coordinationError}</p>
       ) : null}
       <div className="sidebar-footer-row">
@@ -1327,6 +1379,16 @@ function NoteApp() {
   );
 }
 
+
+function syncLocalDeviceName(
+  project: NoteProject,
+  session: DeviceVaultSession,
+): void {
+  const deviceId = session.publicIdentity.deviceId;
+  if (project.getDeviceDisplayName(deviceId) !== session.displayName) {
+    project.setDeviceDisplayName(deviceId, session.displayName);
+  }
+}
 
 function withActiveProjectSummary(
   summaries: readonly StoredProjectSummary[],

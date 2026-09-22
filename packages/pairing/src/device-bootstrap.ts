@@ -8,6 +8,10 @@ import type { Transport } from "@floe-note/transport";
 
 export type DeviceBootstrapRole = "host" | "join";
 
+export type JoiningDeviceInfo = DevicePublicIdentity & {
+  displayName: string;
+};
+
 export type DeviceBootstrapOptions =
   | {
       role: "host";
@@ -19,6 +23,7 @@ export type DeviceBootstrapOptions =
       role: "join";
       transport: Transport;
       identity: DevicePublicIdentity;
+      displayName: string;
       signal?: AbortSignal;
       timeoutMs?: number;
     };
@@ -34,6 +39,7 @@ type DeviceBootstrapMessage =
       deviceId: string;
       encryptionPublicKey: string;
       signingPublicKey: string;
+      displayName: string;
     }
   | {
       protocolVersion: 1;
@@ -49,7 +55,7 @@ const textDecoder = new TextDecoder();
 
 export async function exchangeJoiningDeviceIdentity(
   options: DeviceBootstrapOptions,
-): Promise<DevicePublicIdentity> {
+): Promise<JoiningDeviceInfo> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const { transport, signal } = options;
 
@@ -57,7 +63,7 @@ export async function exchangeJoiningDeviceIdentity(
     throw new Error("Device bootstrap aborted");
   }
 
-  return new Promise<DevicePublicIdentity>((resolve, reject) => {
+  return new Promise<JoiningDeviceInfo>((resolve, reject) => {
     let finished = false;
 
     const timeout = setTimeout(() => {
@@ -85,7 +91,7 @@ export async function exchangeJoiningDeviceIdentity(
         }
 
         if (message.type === "device-identity-request") {
-          sendIdentity(options.identity);
+          sendIdentity(options.identity, options.displayName);
           return;
         }
 
@@ -93,7 +99,12 @@ export async function exchangeJoiningDeviceIdentity(
           message.type === "device-identity-ack" &&
           message.deviceId === options.identity.deviceId
         ) {
-          finish(() => resolve(cloneIdentity(options.identity)));
+          finish(() =>
+            resolve({
+              ...cloneIdentity(options.identity),
+              displayName: normalizeDisplayName(options.displayName),
+            }),
+          );
         }
       } catch (error: unknown) {
         fail(
@@ -115,10 +126,13 @@ export async function exchangeJoiningDeviceIdentity(
         }),
       );
     } else {
-      sendIdentity(options.identity);
+      sendIdentity(options.identity, options.displayName);
     }
 
-    function sendIdentity(identity: DevicePublicIdentity): void {
+    function sendIdentity(
+      identity: DevicePublicIdentity,
+      displayName: string,
+    ): void {
       transport.send(
         encodeMessage({
           protocolVersion: 1,
@@ -126,6 +140,7 @@ export async function exchangeJoiningDeviceIdentity(
           deviceId: identity.deviceId,
           encryptionPublicKey: bytesToHex(identity.encryptionPublicKey),
           signingPublicKey: bytesToHex(identity.signingPublicKey),
+          displayName: normalizeDisplayName(displayName),
         }),
       );
     }
@@ -188,7 +203,9 @@ function decodeMessage(data: Uint8Array): DeviceBootstrapMessage | null {
         !("encryptionPublicKey" in parsed) ||
         typeof parsed.encryptionPublicKey !== "string" ||
         !("signingPublicKey" in parsed) ||
-        typeof parsed.signingPublicKey !== "string"
+        typeof parsed.signingPublicKey !== "string" ||
+        !("displayName" in parsed) ||
+        typeof parsed.displayName !== "string"
       ) {
         throw new Error("Invalid device identity");
       }
@@ -199,6 +216,7 @@ function decodeMessage(data: Uint8Array): DeviceBootstrapMessage | null {
         deviceId: parsed.deviceId,
         encryptionPublicKey: parsed.encryptionPublicKey,
         signingPublicKey: parsed.signingPublicKey,
+        displayName: parsed.displayName,
       };
 
     case "device-identity-ack":
@@ -219,7 +237,7 @@ function decodeMessage(data: Uint8Array): DeviceBootstrapMessage | null {
 
 function decodeIdentity(
   message: Extract<DeviceBootstrapMessage, { type: "device-identity" }>,
-): DevicePublicIdentity {
+): JoiningDeviceInfo {
   const encryptionPublicKey = hexToBytes(
     message.encryptionPublicKey,
     DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
@@ -235,6 +253,7 @@ function decodeIdentity(
     deviceId: parseDeviceId(message.deviceId),
     encryptionPublicKey,
     signingPublicKey,
+    displayName: normalizeDisplayName(message.displayName),
   };
 }
 
@@ -266,4 +285,13 @@ function hexToBytes(
 
 function bytesToHex(value: Uint8Array): string {
   return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function normalizeDisplayName(displayName: string): string {
+  const normalized = displayName.trim();
+  if (!normalized) throw new Error("Device name must not be empty");
+  if (normalized.length > 80) {
+    throw new Error("Device name must be 80 characters or fewer");
+  }
+  return normalized;
 }

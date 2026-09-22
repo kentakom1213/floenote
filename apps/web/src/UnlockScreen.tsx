@@ -1,9 +1,11 @@
+import { useEffect, useState } from "react";
+
 import type { DeviceVaultUiState } from "./DeviceVaultPanel.js";
 
 type UnlockScreenProps = {
   state: DeviceVaultUiState;
   error: string | null;
-  onUnlockOrCreate: () => Promise<void>;
+  onUnlockOrCreate: (displayName?: string) => Promise<void>;
 };
 
 export function UnlockScreen({
@@ -11,9 +13,16 @@ export function UnlockScreen({
   error,
   onUnlockOrCreate,
 }: UnlockScreenProps) {
-  const missing = state === "missing";
+  const [displayName, setDisplayName] = useState("");
+  const [setupMode, setSetupMode] = useState(state === "missing");
+
+  useEffect(() => {
+    if (state === "missing") setSetupMode(true);
+  }, [state]);
+
   const checking = state === "checking";
   const unlocking = state === "unlocking";
+  const canSubmit = !setupMode || displayName.trim().length > 0;
 
   return (
     <main className="unlock-screen">
@@ -22,12 +31,26 @@ export function UnlockScreen({
           ◆
         </div>
         <p className="settings-eyebrow">Floe Note</p>
-        <h1>{missing ? "Set up this device" : "Unlock Floe Note"}</h1>
+        <h1>{setupMode ? "Set up this device" : "Unlock Floe Note"}</h1>
         <p className="unlock-copy">
-          {missing
-            ? "Create a local device identity to keep Project keys protected on this device."
+          {setupMode
+            ? "Create a local device identity and give this device a name you will recognize on your other devices."
             : "Unlock this device to open your encrypted local Projects."}
         </p>
+
+        {setupMode ? (
+          <label className="unlock-field">
+            <span>Device name</span>
+            <input
+              autoFocus
+              maxLength={80}
+              value={displayName}
+              placeholder="Kenta's MacBook"
+              disabled={unlocking}
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          </label>
+        ) : null}
 
         {checking ? (
           <p className="settings-loading">Checking this device…</p>
@@ -35,12 +58,16 @@ export function UnlockScreen({
           <button
             className="unlock-primary-action"
             type="button"
-            disabled={unlocking}
-            onClick={() => void onUnlockOrCreate()}
+            disabled={unlocking || !canSubmit}
+            onClick={() =>
+              void onUnlockOrCreate(
+                setupMode ? displayName.trim() : undefined,
+              )
+            }
           >
             {unlocking
               ? "Unlocking…"
-              : missing
+              : setupMode
                 ? "Set up this device"
                 : state === "error"
                   ? "Try again"

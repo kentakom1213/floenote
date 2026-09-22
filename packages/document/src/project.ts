@@ -39,6 +39,7 @@ export class NoteProject {
     const manifest = new LoroDoc();
     manifest.getMap("documents");
     manifest.getMap("metadata");
+    manifest.getMap("deviceDisplayNames");
 
     return new NoteProject(id, manifest, []);
   }
@@ -69,6 +70,22 @@ export class NoteProject {
     }
 
     this.#manifest.getMap("metadata").set("name", normalized);
+    this.#manifest.commit();
+    this.#emit();
+  }
+
+  getDeviceDisplayName(deviceId: string): string | null {
+    const value = this.#manifest.getMap("deviceDisplayNames").get(deviceId);
+    return typeof value === "string" && value.trim().length > 0
+      ? value
+      : null;
+  }
+
+  setDeviceDisplayName(deviceId: string, displayName: string): void {
+    const normalized = normalizeDisplayName(displayName);
+    this.#manifest
+      .getMap("deviceDisplayNames")
+      .set(deviceId, normalized);
     this.#manifest.commit();
     this.#emit();
   }
@@ -165,4 +182,11 @@ export class NoteProject {
   #emit(): void {
     for (const listener of this.#listeners) listener();
   }
+}
+
+function normalizeDisplayName(displayName: string): string {
+  const normalized = displayName.trim();
+  if (!normalized) throw new TypeError("Device name must not be empty");
+  if (normalized.length > 80) throw new TypeError("Device name must be 80 characters or fewer");
+  return normalized;
 }

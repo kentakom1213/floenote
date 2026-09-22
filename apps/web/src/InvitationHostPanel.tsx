@@ -30,12 +30,18 @@ type InvitationHostPanelProps = {
   transport: WebRtcTransport;
   signalingState: SignalingConnectionState;
   joiningDeviceId: DeviceId | null;
+  joiningDeviceName: string | null;
   authorizationState: DeviceAuthorizationUiState;
   projectKeyDeliveryState: ProjectKeyDeliveryUiState;
+  error: string | null;
   onConfirm: () => Promise<void>;
   onRetryProjectKeyDelivery: () => Promise<void>;
   onCancel: () => Promise<void>;
 };
+
+function shortDeviceId(deviceId: DeviceId): string {
+  return `${deviceId.slice(0, 8)}…${deviceId.slice(-4)}`;
+}
 
 export function InvitationHostPanel({
   inviteId,
@@ -44,13 +50,18 @@ export function InvitationHostPanel({
   transport,
   signalingState,
   joiningDeviceId,
+  joiningDeviceName,
   authorizationState,
   projectKeyDeliveryState,
+  error,
   onConfirm,
   onRetryProjectKeyDelivery,
   onCancel,
 }: InvitationHostPanelProps) {
   const [status, setStatus] = useState<WebRtcStatus>(transport.status);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
   const [cancelState, setCancelState] = useState<
     "idle" | "cancelling" | "cancelled" | "error"
   >("idle");
@@ -64,7 +75,17 @@ export function InvitationHostPanel({
     return url.toString();
   }, [inviteId, pairingSecret]);
 
-  async function cancelInvite() {
+  async function copyInvite(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1_500);
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  async function cancelInvite(): Promise<void> {
     setCancelState("cancelling");
     try {
       await onCancel();
@@ -74,105 +95,199 @@ export function InvitationHostPanel({
     }
   }
 
-  return (
-    <section className="webrtc-debug-panel">
-      <p className="eyebrow">Invitation bootstrap</p>
-      <p className="webrtc-status">
-        Signaling: <strong>{signalingState}</strong>
-      </p>
-      <p className="webrtc-status">
-        Peer connection: <strong>{status.connectionState}</strong>
-      </p>
-      <p className="webrtc-status">
-        ICE connection: <strong>{status.iceConnectionState}</strong>
-      </p>
-      <p className="webrtc-status">
-        Data channel: <strong>{status.dataChannelState}</strong>
-      </p>
-      <p className="webrtc-status">
-        Expires: <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
-      </p>
-      <p className="webrtc-status">
-        Joining device: <strong>{joiningDeviceId ?? "waiting"}</strong>
-      </p>
-      <p className="webrtc-status">
-        Authorization: <strong>{authorizationState}</strong>
-      </p>
+  const pairingComplete = projectKeyDeliveryState === "delivered";
 
-      {joiningDeviceId && authorizationState !== "authorized" ? (
+  return (
+    <section className="invitation-host-view">
+      <header className="settings-header invitation-host-header">
+        <p className="settings-eyebrow">Project devices</p>
+        <h1>Add a device</h1>
+        <p>
+          Open this invitation on the device you want to add. You will approve
+          the device here before Project access is granted.
+        </p>
+      </header>
+
+      <div className="invitation-section">
+        <div className="invitation-section-heading">
+          <span className="invitation-step-number">1</span>
+          <div>
+            <h2>Send the invitation</h2>
+            <p>The link expires at {new Date(expiresAt).toLocaleTimeString()}.</p>
+          </div>
+        </div>
+
+        <div className="invite-link-box">
+          <input
+            aria-label="Invitation link"
+            readOnly
+            value={inviteUrl}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          <button
+            className="settings-primary-action"
+            type="button"
+            onClick={() => void copyInvite()}
+          >
+            {copyState === "copied" ? "Copied" : "Copy link"}
+          </button>
+        </div>
+        {copyState === "error" ? (
+          <p className="dialog-error">
+            Could not copy automatically. Select the link and copy it manually.
+          </p>
+        ) : null}
+        <p className="settings-field-hint">
+          The secret needed to authenticate this invitation stays in the URL
+          fragment and is not sent to the coordinator.
+        </p>
+      </div>
+
+      <div className="invitation-section">
+        <div className="invitation-section-heading">
+          <span className="invitation-step-number">2</span>
+          <div>
+            <h2>Approve the device</h2>
+            <p>
+              Check the device name before granting access to this Project.
+            </p>
+          </div>
+        </div>
+
+        {joiningDeviceId ? (
+          <div className="device-approval-card">
+            <div className="device-approval-identity">
+              <span className="device-avatar large" aria-hidden="true">◇</span>
+              <div>
+                <strong>{joiningDeviceName ?? "Unnamed device"}</strong>
+                <p>{shortDeviceId(joiningDeviceId)}</p>
+              </div>
+            </div>
+
+            {authorizationState === "authorized" ? (
+              <span className="settings-badge">
+                {pairingComplete ? "Added" : "Approved"}
+              </span>
+            ) : (
+              <button
+                className="dialog-primary-button"
+                type="button"
+                onClick={() => void onConfirm()}
+                disabled={
+                  authorizationState === "waiting" ||
+                  authorizationState === "authorizing"
+                }
+              >
+                {authorizationState === "authorizing"
+                  ? "Approving…"
+                  : authorizationState === "error"
+                    ? "Try again"
+                    : "Approve device"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="invitation-waiting-card">
+            <span className="invitation-pulse" aria-hidden="true" />
+            <div>
+              <strong>Waiting for the other device</strong>
+              <p>Keep this page open after opening the invitation link.</p>
+            </div>
+          </div>
+        )}
+
+        {authorizationState === "authorized" &&
+        projectKeyDeliveryState !== "delivered" ? (
+          <div className="invitation-progress-row">
+            <span className="invitation-pulse" aria-hidden="true" />
+            <p>
+              {projectKeyDeliveryState === "error"
+                ? "Project access could not be delivered."
+                : "Securely delivering Project access…"}
+            </p>
+            {projectKeyDeliveryState === "error" ? (
+              <button
+                className="settings-primary-action"
+                type="button"
+                onClick={() => void onRetryProjectKeyDelivery()}
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {pairingComplete ? (
+          <div className="invitation-success">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Device added</strong>
+              <p>Opening your Project…</p>
+            </div>
+          </div>
+        ) : null}
+
+        {authorizationState === "error" ? (
+          <p className="dialog-error">
+            {error ?? "Could not approve this device."}
+          </p>
+        ) : null}
+        {authorizationState !== "error" && error ? (
+          <p className="dialog-error">{error}</p>
+        ) : null}
+      </div>
+
+      <div className="invitation-host-footer">
         <button
+          className="dialog-secondary-button"
           type="button"
-          onClick={() => void onConfirm()}
+          onClick={() => void cancelInvite()}
           disabled={
-            authorizationState === "waiting" ||
-            authorizationState === "authorizing"
+            cancelState === "cancelling" ||
+            cancelState === "cancelled" ||
+            pairingComplete
           }
         >
-          {authorizationState === "authorizing"
-            ? "Authorizing…"
-            : authorizationState === "error"
-              ? "Retry authorization"
-              : "Confirm device"}
+          {cancelState === "cancelled"
+            ? "Invitation cancelled"
+            : cancelState === "cancelling"
+              ? "Cancelling…"
+              : "Cancel invitation"}
         </button>
-      ) : null}
 
-      {authorizationState === "authorized" ? (
-        <>
-          <p className="webrtc-status">
-            ProjectKey delivery: <strong>{projectKeyDeliveryState}</strong>
-          </p>
-          {projectKeyDeliveryState === "error" ? (
-            <button
-              type="button"
-              onClick={() => void onRetryProjectKeyDelivery()}
-            >
-              Retry ProjectKey delivery
-            </button>
+        {cancelState === "error" ? (
+          <p className="dialog-error">Could not cancel invitation.</p>
+        ) : null}
+      </div>
+
+      <details className="technical-details invitation-technical-details">
+        <summary>Technical details</summary>
+        <dl>
+          <div>
+            <dt>Signaling</dt>
+            <dd>{signalingState}</dd>
+          </div>
+          <div>
+            <dt>Peer connection</dt>
+            <dd>{status.connectionState}</dd>
+          </div>
+          <div>
+            <dt>ICE</dt>
+            <dd>{status.iceConnectionState}</dd>
+          </div>
+          <div>
+            <dt>Data channel</dt>
+            <dd>{status.dataChannelState}</dd>
+          </div>
+          {joiningDeviceId ? (
+            <div>
+              <dt>Device ID</dt>
+              <dd>{joiningDeviceId}</dd>
+            </div>
           ) : null}
-          {projectKeyDeliveryState === "delivered" ? (
-            <p className="webrtc-hint">
-              ProjectKey stored by the joining device. Pairing is complete.
-            </p>
-          ) : null}
-        </>
-      ) : null}
+        </dl>
+      </details>
 
-      {authorizationState === "error" ? (
-        <p className="webrtc-error">Could not authorize this device.</p>
-      ) : null}
-
-      <label className="webrtc-field">
-        <span>Invite URL</span>
-        <textarea readOnly value={inviteUrl} rows={5} />
-      </label>
-
-      <p className="webrtc-hint">
-        The URL exposes only InviteId to the coordinator request. PairingSecret
-        stays in the URL fragment and is not sent to the coordinator.
-      </p>
-
-      <button
-        className="invite-cancel-button"
-        type="button"
-        onClick={() => void cancelInvite()}
-        disabled={
-          cancelState === "cancelling" ||
-          cancelState === "cancelled" ||
-          projectKeyDeliveryState === "delivered"
-        }
-      >
-        {projectKeyDeliveryState === "delivered"
-          ? "Pairing complete"
-          : cancelState === "cancelled"
-          ? "Invite cancelled"
-          : cancelState === "cancelling"
-            ? "Cancelling…"
-            : "Cancel invite"}
-      </button>
-
-      {cancelState === "error" ? (
-        <p className="webrtc-error">Could not cancel invite.</p>
-      ) : null}
       {status.warning ? (
         <p className="webrtc-warning">{status.warning}</p>
       ) : null}
