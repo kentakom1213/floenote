@@ -706,11 +706,11 @@ function NoteApp() {
     }
 
     setProjectSwitching(true);
-    resetProjectSecurityUiState();
 
     try {
       const result = await projectStorage.openProject(projectId, session);
       const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -729,11 +729,11 @@ function NoteApp() {
     }
 
     setProjectSwitching(true);
-    resetProjectSecurityUiState();
 
     try {
       const result = await projectStorage.createProject(name);
       const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
