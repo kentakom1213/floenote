@@ -19,6 +19,10 @@ type SocketAttachment = {
   sessionId: string;
 };
 
+type SecurityTransitionRoute = {
+  projectId: ProjectId;
+};
+
 type InvitationState =
   | "waiting"
   | "claimed"
@@ -125,7 +129,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       if (request.method !== "POST") {
         return new Response("Method not allowed", { status: 405 });
       }
-      return this.#commitCreateProject(request, parseProjectId(securityRoute.projectId));
+      return this.#commitCreateProject(request, securityRoute.projectId);
     }
 
     const route = parseSignalRoute(url.pathname);
@@ -568,13 +572,16 @@ function parseInviteActionRoute(
 
 function parseSecurityTransitionRoute(
   pathname: string,
-): { projectId: string } | null {
+): SecurityTransitionRoute | null {
   const match = /^\/projects\/([^/]+)\/security\/transitions$/.exec(pathname);
   if (!match) return null;
 
-  const projectId = match[1];
-  if (!projectId || !PROJECT_ID_PATTERN.test(projectId)) return null;
-  return { projectId };
+  const rawProjectId = match[1];
+  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+
+  return {
+    projectId: parseProjectId(rawProjectId.toLowerCase()),
+  };
 }
 
 function parseSignalRoute(
