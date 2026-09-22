@@ -10,6 +10,13 @@ import type {
 } from "@floe-note/transport/webrtc";
 import { useEffect, useMemo, useState } from "react";
 
+export type DeviceAuthorizationUiState =
+  | "waiting"
+  | "ready"
+  | "authorizing"
+  | "authorized"
+  | "error";
+
 type InvitationHostPanelProps = {
   inviteId: InviteId;
   pairingSecret: PairingSecret;
@@ -17,6 +24,8 @@ type InvitationHostPanelProps = {
   transport: WebRtcTransport;
   signalingState: SignalingConnectionState;
   joiningDeviceId: DeviceId | null;
+  authorizationState: DeviceAuthorizationUiState;
+  onConfirm: () => Promise<void>;
   onCancel: () => Promise<void>;
 };
 
@@ -27,6 +36,8 @@ export function InvitationHostPanel({
   transport,
   signalingState,
   joiningDeviceId,
+  authorizationState,
+  onConfirm,
   onCancel,
 }: InvitationHostPanelProps) {
   const [status, setStatus] = useState<WebRtcStatus>(transport.status);
@@ -74,6 +85,31 @@ export function InvitationHostPanel({
       <p className="webrtc-status">
         Joining device: <strong>{joiningDeviceId ?? "waiting"}</strong>
       </p>
+      <p className="webrtc-status">
+        Authorization: <strong>{authorizationState}</strong>
+      </p>
+
+      {joiningDeviceId && authorizationState !== "authorized" ? (
+        <button
+          type="button"
+          onClick={() => void onConfirm()}
+          disabled={authorizationState !== "ready"}
+        >
+          {authorizationState === "authorizing"
+            ? "Authorizing…"
+            : "Confirm device"}
+        </button>
+      ) : null}
+
+      {authorizationState === "authorized" ? (
+        <p className="webrtc-hint">
+          Device authorized. ProjectKey delivery is the next step.
+        </p>
+      ) : null}
+
+      {authorizationState === "error" ? (
+        <p className="webrtc-error">Could not authorize this device.</p>
+      ) : null}
 
       <label className="webrtc-field">
         <span>Invite URL</span>
