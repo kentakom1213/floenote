@@ -59,7 +59,6 @@ export async function exchangeJoiningDeviceIdentity(
 
   return new Promise<DevicePublicIdentity>((resolve, reject) => {
     let finished = false;
-    let receivedIdentity: DevicePublicIdentity | null = null;
 
     const timeout = setTimeout(() => {
       fail(new Error("Device bootstrap timed out"));
@@ -73,7 +72,6 @@ export async function exchangeJoiningDeviceIdentity(
           if (message.type !== "device-identity") return;
 
           const identity = decodeIdentity(message);
-          receivedIdentity = identity;
           transport.send(
             encodeMessage({
               protocolVersion: 1,
