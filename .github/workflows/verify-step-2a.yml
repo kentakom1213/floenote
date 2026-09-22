@@ -1,9 +1,9 @@
 name: verify-step-2a
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/mvp-step-2a-local-notes
+      - main
 
 jobs:
   verify:
