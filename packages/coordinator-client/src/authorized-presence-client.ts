@@ -3,6 +3,8 @@ import {
   type DeviceId,
   type ProjectId,
 } from "@floe-note/domain";
+
+import { parseSessionId, type SessionId } from "./session-id.js";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
   SECURITY_HEAD_HASH_BYTES,
@@ -40,6 +42,9 @@ export class AuthorizedPresenceClient {
     (deviceIds: readonly DeviceId[]) => void
   >();
   readonly #errorHandlers = new Set<(error: Error) => void>();
+  readonly #reconnectHandlers = new Set<
+    (fromDeviceId: DeviceId, sessionId: SessionId) => void
+  >();
   #socket: WebSocket | null = null;
   #state: AuthorizedPresenceConnectionState = "idle";
   #generation = 0;
@@ -111,6 +116,30 @@ export class AuthorizedPresenceClient {
     return () => this.#errorHandlers.delete(handler);
   }
 
+  onReconnectSession(
+    handler: (fromDeviceId: DeviceId, sessionId: SessionId) => void,
+  ): () => void {
+    this.#reconnectHandlers.add(handler);
+    return () => this.#reconnectHandlers.delete(handler);
+  }
+
+  sendReconnectSession(peerDeviceId: DeviceId, sessionId: SessionId): void {
+    if (
+      this.#socket?.readyState !== WebSocket.OPEN ||
+      this.#state !== "open"
+    ) {
+      throw new Error("Authorized presence WebSocket is not open");
+    }
+
+    this.#socket.send(
+      JSON.stringify({
+        type: "reconnect-session",
+        peerDeviceId,
+        sessionId,
+      }),
+    );
+  }
+
   close(): void {
     this.#generation += 1;
     this.#socket?.close(1000, "Authorized presence ended");
@@ -119,6 +148,7 @@ export class AuthorizedPresenceClient {
     this.#deviceHandlers.clear();
     this.#stateHandlers.clear();
     this.#errorHandlers.clear();
+    this.#reconnectHandlers.clear();
   }
 
   async #handleMessage(
@@ -139,6 +169,15 @@ export class AuthorizedPresenceClient {
           handler(deviceIds);
         }
         this.#setState("open");
+        return;
+      }
+
+      if (isReconnectSessionMessage(parsed)) {
+        const fromDeviceId = parseDeviceId(parsed.fromDeviceId);
+        const sessionId = parseSessionId(parsed.sessionId);
+        for (const handler of this.#reconnectHandlers) {
+          handler(fromDeviceId, sessionId);
+        }
         return;
       }
 
@@ -231,6 +270,12 @@ type PresenceStateMessage = {
   deviceIds: string[];
 };
 
+type ReconnectSessionMessage = {
+  type: "reconnect-session";
+  fromDeviceId: string;
+  sessionId: string;
+};
+
 function isChallengeMessage(value: unknown): value is PresenceChallengeMessage {
   return (
     typeof value === "object" &&
@@ -255,6 +300,21 @@ function isPresenceStateMessage(
     "deviceIds" in value &&
     Array.isArray(value.deviceIds) &&
     value.deviceIds.every((deviceId) => typeof deviceId === "string")
+  );
+}
+
+function isReconnectSessionMessage(
+  value: unknown,
+): value is ReconnectSessionMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "reconnect-session" &&
+    "fromDeviceId" in value &&
+    typeof value.fromDeviceId === "string" &&
+    "sessionId" in value &&
+    typeof value.sessionId === "string"
   );
 }
 
