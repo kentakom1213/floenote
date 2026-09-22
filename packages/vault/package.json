@@ -1,0 +1,16 @@
+{
+  "name": "@floe-note/vault",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@floe-note/crypto": "workspace:*",
+    "@floe-note/domain": "workspace:*",
+    "@floe-note/security": "workspace:*",
+    "dexie": "^4.4.6"
+  }
+}

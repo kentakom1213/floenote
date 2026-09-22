@@ -3,7 +3,9 @@ import type { DevicePublicIdentity } from "@floe-note/security";
 import sodium from "libsodium-wrappers";
 
 export const DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES = 32;
+export const DEVICE_ENCRYPTION_PRIVATE_KEY_BYTES = 32;
 export const DEVICE_SIGNING_PUBLIC_KEY_BYTES = 32;
+export const DEVICE_SIGNING_PRIVATE_KEY_BYTES = 64;
 
 export type DeviceKeyMaterial = {
   publicIdentity: DevicePublicIdentity;
@@ -24,9 +26,19 @@ export async function generateDeviceKeyMaterial(): Promise<DeviceKeyMaterial> {
       "device encryption public key",
     );
     assertLength(
+      encryptionKeyPair.privateKey,
+      DEVICE_ENCRYPTION_PRIVATE_KEY_BYTES,
+      "device encryption private key",
+    );
+    assertLength(
       signingKeyPair.publicKey,
       DEVICE_SIGNING_PUBLIC_KEY_BYTES,
       "device signing public key",
+    );
+    assertLength(
+      signingKeyPair.privateKey,
+      DEVICE_SIGNING_PRIVATE_KEY_BYTES,
+      "device signing private key",
     );
 
     return {
