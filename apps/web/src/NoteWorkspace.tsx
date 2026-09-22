@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 type NoteWorkspaceProps = {
   project: NoteProject;
@@ -110,6 +111,9 @@ function DocumentPane({
   onRename,
   onDelete,
 }: DocumentPaneProps) {
+  const noteMenuRef = useRef<HTMLDetailsElement>(null);
+  useDismissibleDetails(noteMenuRef);
+
   return (
     <article className="document-pane">
       <header className="document-header">
@@ -119,7 +123,7 @@ function DocumentPane({
           onChange={(event) => onRename(event.target.value)}
           aria-label="Note title"
         />
-        <details className="note-menu">
+        <details className="note-menu" ref={noteMenuRef}>
           <summary className="note-menu-trigger" aria-label="Note actions">
             •••
           </summary>
