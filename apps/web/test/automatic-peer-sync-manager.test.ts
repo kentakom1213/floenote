@@ -72,6 +72,8 @@ vi.mock("@floe-note/coordinator-client", () => ({
 }));
 
 import {
+  AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS,
+  AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS,
   AUTOMATIC_RECONNECT_RETRY_DELAYS_MS,
   AutomaticPeerSyncManager,
 } from "../src/AutomaticPeerSyncManager.js";
@@ -192,6 +194,77 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(presence.sent).toHaveLength(3);
+
+    manager.stop();
+  });
+
+  it("retries when a connection attempt never reaches a terminal state", async () => {
+    const presence = createPresence();
+    const manager = createManager(presence);
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+
+    expect(presence.sent).toHaveLength(1);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS,
+    );
+    await flushConnectionCleanup();
+
+    expect(presence.sent).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[0],
+    );
+
+    expect(presence.sent).toHaveLength(2);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
+
+    manager.stop();
+  });
+
+  it("retries a connection that stays disconnected past the grace period", async () => {
+    const presence = createPresence();
+    const manager = createManager(presence);
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    harness.FakeWebRtcTransport.instances[0]?.emit("connected");
+    harness.FakeWebRtcTransport.instances[0]?.emit("disconnected");
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS,
+    );
+    await flushConnectionCleanup();
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[0],
+    );
+
+    expect(presence.sent).toHaveLength(2);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
+
+    manager.stop();
+  });
+
+  it("keeps a connection that recovers during the disconnected grace period", async () => {
+    const presence = createPresence();
+    const manager = createManager(presence);
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    const transport = harness.FakeWebRtcTransport.instances[0];
+    transport?.emit("connected");
+    transport?.emit("disconnected");
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS - 1,
+    );
+    transport?.emit("connected");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(presence.sent).toHaveLength(1);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(1);
 
     manager.stop();
   });
