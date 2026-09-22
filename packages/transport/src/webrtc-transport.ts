@@ -21,6 +21,15 @@ export type WebRtcStatus = {
   error: string | null;
 };
 
+export type WebRtcDebugEvent = {
+  at: string;
+  instanceId: string;
+  event: string;
+  details: Record<string, unknown>;
+};
+
+export type WebRtcDebugLogger = (event: WebRtcDebugEvent) => void;
+
 export class WebRtcTransport implements Transport {
   readonly #projectId: ProjectId;
   readonly #peerConnection: RTCPeerConnection;
@@ -28,6 +37,8 @@ export class WebRtcTransport implements Transport {
   readonly #stateHandlers = new Set<(state: WebRtcConnectionState) => void>();
   readonly #statusHandlers = new Set<(status: WebRtcStatus) => void>();
   readonly #pendingMessages: ArrayBuffer[] = [];
+  readonly #debugLogger: WebRtcDebugLogger | null;
+  readonly #instanceId = crypto.randomUUID().slice(0, 8);
   #dataChannel: RTCDataChannel | null = null;
   #gatheredCandidateCount = 0;
   #warning: string | null = null;
@@ -36,12 +47,32 @@ export class WebRtcTransport implements Transport {
   constructor(
     projectId: ProjectId,
     configuration: RTCConfiguration = { iceServers: DEFAULT_ICE_SERVERS },
+    debugLogger: WebRtcDebugLogger | null = null,
   ) {
     this.#projectId = projectId;
+    this.#debugLogger = debugLogger;
     this.#peerConnection = new RTCPeerConnection(configuration);
 
+    this.#debug("transport.created", {
+      iceServerCount: configuration.iceServers?.length ?? 0,
+    });
+
+    this.#peerConnection.addEventListener("signalingstatechange", () => {
+      this.#debug("peer.signaling-state", {
+        state: this.#peerConnection.signalingState,
+      });
+    });
+
     this.#peerConnection.addEventListener("datachannel", (event) => {
-      if (event.channel.label !== this.#dataChannelLabel) {
+      const matchesProject = event.channel.label === this.#dataChannelLabel;
+
+      this.#debug("data-channel.received", {
+        matchesProject,
+        ordered: event.channel.ordered,
+        readyState: event.channel.readyState,
+      });
+
+      if (!matchesProject) {
         this.#error =
           "Project mismatch: the remote WebRTC channel belongs to a different Project.";
         event.channel.close();
@@ -53,28 +84,54 @@ export class WebRtcTransport implements Transport {
     });
 
     this.#peerConnection.addEventListener("connectionstatechange", () => {
+      this.#debug("peer.connection-state", {
+        state: this.#peerConnection.connectionState,
+      });
       this.#emitConnectionState();
       this.#emitStatus();
     });
 
     this.#peerConnection.addEventListener("iceconnectionstatechange", () => {
+      this.#debug("ice.connection-state", {
+        state: this.#peerConnection.iceConnectionState,
+      });
       this.#emitStatus();
     });
 
     this.#peerConnection.addEventListener("icegatheringstatechange", () => {
+      this.#debug("ice.gathering-state", {
+        state: this.#peerConnection.iceGatheringState,
+        candidates: this.#gatheredCandidateCount,
+      });
       this.#emitStatus();
     });
 
     this.#peerConnection.addEventListener("icecandidate", (event) => {
       if (event.candidate) {
         this.#gatheredCandidateCount += 1;
-        this.#emitStatus();
+        this.#debug("ice.candidate", {
+          index: this.#gatheredCandidateCount,
+          candidateType: event.candidate.type,
+          protocol: event.candidate.protocol,
+          tcpType: event.candidate.tcpType,
+        });
+      } else {
+        this.#debug("ice.candidate-end", {
+          candidates: this.#gatheredCandidateCount,
+        });
       }
+
+      this.#emitStatus();
     });
 
     this.#peerConnection.addEventListener("icecandidateerror", (event) => {
       this.#warning =
         event.errorText || "An ICE server could not provide a candidate.";
+      this.#debug("ice.candidate-error", {
+        url: event.url,
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+      });
       this.#emitStatus();
     });
   }
@@ -101,6 +158,7 @@ export class WebRtcTransport implements Transport {
 
   async createOffer(): Promise<string> {
     this.#clearDiagnostics();
+    this.#debug("offer.create-start");
 
     if (!this.#dataChannel) {
       this.#attachDataChannel(
@@ -112,40 +170,67 @@ export class WebRtcTransport implements Transport {
 
     const offer = await this.#peerConnection.createOffer();
     await this.#peerConnection.setLocalDescription(offer);
+    this.#debug("offer.local-description-set");
     await this.#finishIceGatheringForManualSdp();
+    this.#debug("offer.ready", {
+      candidates: this.#gatheredCandidateCount,
+    });
 
     return serializeDescription(this.#peerConnection.localDescription);
   }
 
   async acceptOffer(serializedOffer: string): Promise<string> {
     this.#clearDiagnostics();
+    this.#debug("offer.accept-start", {
+      bytes: serializedOffer.length,
+    });
 
     const offer = parseDescription(serializedOffer, "offer");
     await this.#peerConnection.setRemoteDescription(offer);
+    this.#debug("offer.remote-description-set");
 
     const answer = await this.#peerConnection.createAnswer();
     await this.#peerConnection.setLocalDescription(answer);
+    this.#debug("answer.local-description-set");
     await this.#finishIceGatheringForManualSdp();
+    this.#debug("answer.ready", {
+      candidates: this.#gatheredCandidateCount,
+    });
 
     return serializeDescription(this.#peerConnection.localDescription);
   }
 
   async acceptAnswer(serializedAnswer: string): Promise<void> {
     this.#clearDiagnostics();
+    this.#debug("answer.accept-start", {
+      bytes: serializedAnswer.length,
+    });
 
     const answer = parseDescription(serializedAnswer, "answer");
     await this.#peerConnection.setRemoteDescription(answer);
+    this.#debug("answer.remote-description-set");
   }
 
   send(data: Uint8Array): void {
     const payload = data.slice().buffer;
 
     if (this.#dataChannel?.readyState === "open") {
+      const bufferedAmountBefore = this.#dataChannel.bufferedAmount;
       this.#dataChannel.send(payload);
+      this.#debug("data-channel.send", {
+        bytes: data.byteLength,
+        bufferedAmountBefore,
+        bufferedAmountAfter: this.#dataChannel.bufferedAmount,
+      });
       return;
     }
 
     this.#pendingMessages.push(payload);
+    this.#debug("data-channel.queue", {
+      bytes: data.byteLength,
+      queueLength: this.#pendingMessages.length,
+      readyState: this.dataChannelState,
+    });
   }
 
   onMessage(handler: (data: Uint8Array) => void): () => void {
@@ -168,6 +253,13 @@ export class WebRtcTransport implements Transport {
   }
 
   close(): void {
+    this.#debug("transport.close", {
+      connectionState: this.connectionState,
+      iceConnectionState: this.#peerConnection.iceConnectionState,
+      dataChannelState: this.dataChannelState,
+      queuedMessages: this.#pendingMessages.length,
+    });
+
     this.#dataChannel?.close();
     this.#peerConnection.close();
     this.#pendingMessages.length = 0;
@@ -181,12 +273,25 @@ export class WebRtcTransport implements Transport {
   }
 
   async #finishIceGatheringForManualSdp(): Promise<void> {
+    this.#debug("ice.wait-complete-start", {
+      state: this.#peerConnection.iceGatheringState,
+    });
+
     const completed = await waitForIceGatheringComplete(
       this.#peerConnection,
       ICE_GATHERING_TIMEOUT_MS,
     );
 
-    if (completed) return;
+    if (completed) {
+      this.#debug("ice.wait-complete-done", {
+        candidates: this.#gatheredCandidateCount,
+      });
+      return;
+    }
+
+    this.#debug("ice.wait-complete-timeout", {
+      candidates: this.#gatheredCandidateCount,
+    });
 
     throw new Error(
       this.#gatheredCandidateCount > 0
@@ -198,6 +303,10 @@ export class WebRtcTransport implements Transport {
   #attachDataChannel(channel: RTCDataChannel): void {
     if (this.#dataChannel && this.#dataChannel !== channel) {
       this.#error = "A WebRTC DataChannel is already attached.";
+      this.#debug("data-channel.reject-extra", {
+        currentState: this.#dataChannel.readyState,
+        incomingState: channel.readyState,
+      });
       channel.close();
       this.#emitStatus();
       return;
@@ -205,19 +314,42 @@ export class WebRtcTransport implements Transport {
 
     this.#dataChannel = channel;
     channel.binaryType = "arraybuffer";
+
+    this.#debug("data-channel.attach", {
+      ordered: channel.ordered,
+      readyState: channel.readyState,
+      negotiated: channel.negotiated,
+      id: channel.id,
+    });
+
     this.#emitStatus();
 
     channel.addEventListener("open", () => {
       this.#error = null;
+      const queuedMessages = this.#pendingMessages.length;
+
+      this.#debug("data-channel.open", {
+        queuedMessages,
+        bufferedAmount: channel.bufferedAmount,
+      });
 
       for (const payload of this.#pendingMessages.splice(0)) {
         channel.send(payload);
+        this.#debug("data-channel.flush", {
+          bytes: payload.byteLength,
+          bufferedAmount: channel.bufferedAmount,
+        });
       }
 
       this.#emitStatus();
     });
 
     channel.addEventListener("close", () => {
+      this.#debug("data-channel.close", {
+        connectionState: this.connectionState,
+        iceConnectionState: this.#peerConnection.iceConnectionState,
+        bufferedAmount: channel.bufferedAmount,
+      });
       this.#emitStatus();
     });
 
@@ -226,16 +358,41 @@ export class WebRtcTransport implements Transport {
         this.#peerConnection.iceConnectionState === "failed"
           ? "The WebRTC DataChannel failed because ICE connectivity failed."
           : "The WebRTC DataChannel reported an error.";
+
+      this.#debug("data-channel.error", {
+        readyState: channel.readyState,
+        connectionState: this.connectionState,
+        iceConnectionState: this.#peerConnection.iceConnectionState,
+        signalingState: this.#peerConnection.signalingState,
+        bufferedAmount: channel.bufferedAmount,
+        queuedMessages: this.#pendingMessages.length,
+      });
+
       this.#emitStatus();
     });
 
     channel.addEventListener("message", (event: MessageEvent<unknown>) => {
-      if (!(event.data instanceof ArrayBuffer)) return;
+      if (!(event.data instanceof ArrayBuffer)) {
+        this.#debug("data-channel.message-ignored", {
+          dataType: typeof event.data,
+        });
+        return;
+      }
 
       const data = new Uint8Array(event.data);
+      this.#debug("data-channel.message", {
+        bytes: data.byteLength,
+      });
+
       for (const handler of this.#messageHandlers) {
         handler(data);
       }
+    });
+
+    channel.addEventListener("bufferedamountlow", () => {
+      this.#debug("data-channel.buffered-amount-low", {
+        bufferedAmount: channel.bufferedAmount,
+      });
     });
   }
 
@@ -258,6 +415,15 @@ export class WebRtcTransport implements Transport {
     for (const handler of this.#statusHandlers) {
       handler(status);
     }
+  }
+
+  #debug(event: string, details: Record<string, unknown> = {}): void {
+    this.#debugLogger?.({
+      at: new Date().toISOString(),
+      instanceId: this.#instanceId,
+      event,
+      details,
+    });
   }
 }
 
