@@ -4,9 +4,6 @@ const PROTOCOL_VERSION = 1;
 const HEADER_LENGTH = 2;
 const DOCUMENT_ID_LENGTH = 36;
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
-
 const enum MessageType {
   Hello = 1,
   ManifestUpdate = 2,
@@ -22,6 +19,31 @@ export type SyncMessage =
       update: Uint8Array;
     };
 
+function encodeDocumentId(documentId: DocumentId): Uint8Array {
+  if (documentId.length !== DOCUMENT_ID_LENGTH) {
+    throw new Error("DocumentId must be 36 ASCII characters");
+  }
+
+  const encoded = new Uint8Array(DOCUMENT_ID_LENGTH);
+  for (let index = 0; index < documentId.length; index += 1) {
+    const code = documentId.charCodeAt(index);
+    if (code > 0x7f) {
+      throw new Error("DocumentId must be ASCII");
+    }
+    encoded[index] = code;
+  }
+
+  return encoded;
+}
+
+function decodeDocumentId(data: Uint8Array): DocumentId {
+  let value = "";
+  for (const byte of data) {
+    value += String.fromCharCode(byte);
+  }
+  return parseDocumentId(value);
+}
+
 export function encodeSyncMessage(message: SyncMessage): Uint8Array {
   switch (message.type) {
     case "hello":
@@ -36,11 +58,7 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
     }
 
     case "document-update": {
-      const id = textEncoder.encode(message.documentId);
-      if (id.length !== DOCUMENT_ID_LENGTH) {
-        throw new Error("DocumentId must encode to 36 bytes");
-      }
-
+      const id = encodeDocumentId(message.documentId);
       const encoded = new Uint8Array(
         HEADER_LENGTH + DOCUMENT_ID_LENGTH + message.update.length,
       );
@@ -77,10 +95,8 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
         throw new Error("Document update message is too short");
       }
 
-      const documentId = parseDocumentId(
-        textDecoder.decode(
-          data.slice(HEADER_LENGTH, HEADER_LENGTH + DOCUMENT_ID_LENGTH),
-        ),
+      const documentId = decodeDocumentId(
+        data.slice(HEADER_LENGTH, HEADER_LENGTH + DOCUMENT_ID_LENGTH),
       );
 
       return {
