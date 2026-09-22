@@ -26,7 +26,7 @@ type AutomaticPeerConnection = {
 
 type PeerRetryState = {
   attempt: number;
-  timer: ReturnType<typeof setTimeout>;
+  timer: ReturnType<typeof setTimeout> | null;
 };
 
 export const AUTOMATIC_RECONNECT_RETRY_DELAYS_MS = [
@@ -287,9 +287,10 @@ export class AutomaticPeerSyncManager {
   #scheduleRetry(peerDeviceId: DeviceId): void {
     if (!this.#shouldInitiate(peerDeviceId)) return;
 
-    const previousAttempt = this.#retryStates.get(peerDeviceId)?.attempt ?? 0;
-    if (this.#retryStates.has(peerDeviceId)) return;
+    const retry = this.#retryStates.get(peerDeviceId);
+    if (retry?.timer) return;
 
+    const previousAttempt = retry?.attempt ?? 0;
     const delayIndex = Math.min(
       previousAttempt,
       AUTOMATIC_RECONNECT_RETRY_DELAYS_MS.length - 1,
@@ -297,10 +298,10 @@ export class AutomaticPeerSyncManager {
     const delayMs = AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[delayIndex];
 
     const timer = setTimeout(() => {
-      const retry = this.#retryStates.get(peerDeviceId);
-      if (!retry || retry.timer !== timer) return;
+      const current = this.#retryStates.get(peerDeviceId);
+      if (!current || current.timer !== timer) return;
 
-      this.#retryStates.delete(peerDeviceId);
+      current.timer = null;
       this.#startHostReconnect(peerDeviceId);
     }, delayMs);
 
@@ -314,7 +315,7 @@ export class AutomaticPeerSyncManager {
     const retry = this.#retryStates.get(peerDeviceId);
     if (!retry) return;
 
-    clearTimeout(retry.timer);
+    if (retry.timer) clearTimeout(retry.timer);
     this.#retryStates.delete(peerDeviceId);
   }
 
