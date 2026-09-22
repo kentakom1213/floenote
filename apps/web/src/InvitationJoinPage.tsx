@@ -11,7 +11,7 @@ import {
   generateDeviceKeyMaterial,
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
-import type { NoteProject } from "@floe-note/document";
+import { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
@@ -89,9 +89,7 @@ export function InvitationJoinPage({
         setClaimState("claimed");
         setExpiresAt(claimed.expiresAt);
 
-        const joinedProject =
-          await storage.initializeJoinedProject(claimed.projectId);
-        if (disposed) return;
+        const joinedProject = NoteProject.create(claimed.projectId);
 
         const transport = new WebRtcTransport(
           claimed.projectId,
@@ -100,7 +98,6 @@ export function InvitationJoinPage({
         );
         const stopTransportStatus =
           transport.onStatusChange(setWebRtcStatus);
-        const stopPersistence = storage.watchProject(joinedProject);
         const stopProject = joinedProject.subscribe(() => {
           setRevision((value) => value + 1);
         });
@@ -125,7 +122,6 @@ export function InvitationJoinPage({
           stopSignalingState();
           signaling.stop();
           stopProject();
-          stopPersistence();
           stopTransportStatus();
           syncEngine?.stop();
           if (deviceKeyMaterial) {
@@ -232,7 +228,8 @@ export function InvitationJoinPage({
           PairingSecret authenticates the temporary WebRTC pairing channel.
           After authentication, this device creates separate encryption and
           signing keys and sends only its public identity to the existing
-          device before Project synchronization starts.
+          device. The claimed Project remains in memory only until device
+          authorization and ProjectKey delivery are implemented.
         </p>
 
         {webRtcStatus.warning ? (
