@@ -13,6 +13,7 @@ export { exchangeJoiningDeviceIdentity } from "./device-bootstrap.js";
 export type {
   DeviceBootstrapOptions,
   DeviceBootstrapRole,
+  JoiningDeviceInfo,
 } from "./device-bootstrap.js";
 
 export {
