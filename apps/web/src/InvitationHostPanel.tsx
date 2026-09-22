@@ -32,7 +32,6 @@ type InvitationHostPanelProps = {
   joiningDeviceId: DeviceId | null;
   authorizationState: DeviceAuthorizationUiState;
   projectKeyDeliveryState: ProjectKeyDeliveryUiState;
-  encryptedSyncState: "waiting" | "active" | "error";
   onConfirm: () => Promise<void>;
   onRetryProjectKeyDelivery: () => Promise<void>;
   onCancel: () => Promise<void>;
@@ -47,7 +46,6 @@ export function InvitationHostPanel({
   joiningDeviceId,
   authorizationState,
   projectKeyDeliveryState,
-  encryptedSyncState,
   onConfirm,
   onRetryProjectKeyDelivery,
   onCancel,
@@ -132,14 +130,9 @@ export function InvitationHostPanel({
             </button>
           ) : null}
           {projectKeyDeliveryState === "delivered" ? (
-            <>
-              <p className="webrtc-hint">
-                ProjectKey stored by the joining device. Pairing is complete.
-              </p>
-              <p className="webrtc-status">
-                Encrypted sync: <strong>{encryptedSyncState}</strong>
-              </p>
-            </>
+            <p className="webrtc-hint">
+              ProjectKey stored by the joining device. Pairing is complete.
+            </p>
           ) : null}
         </>
       ) : null}
