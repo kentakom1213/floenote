@@ -421,8 +421,12 @@ function NoteApp() {
     });
     presenceClientRef.current = presence;
 
+    const automaticReconnectEnabled =
+      useAutomaticReconnect ||
+      (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
+
     const automaticPeerSync =
-      useAutomaticReconnect && localProjectKeyReady
+      automaticReconnectEnabled && localProjectKeyReady
         ? new AutomaticPeerSyncManager({
             coordinatorBaseUrl,
             project,
@@ -481,6 +485,7 @@ function NoteApp() {
     localProjectKeyReady,
     localSecurityState,
     project,
+    projectKeyDeliveryState,
   ]);
 
   useEffect(() => {
