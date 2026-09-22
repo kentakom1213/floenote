@@ -280,6 +280,7 @@ function base64UrlToBytes(
       bits -= 8;
       output[outputIndex] = (accumulator >>> bits) & 0xff;
       outputIndex += 1;
+      accumulator &= bits === 0 ? 0 : (1 << bits) - 1;
     }
   }
 
