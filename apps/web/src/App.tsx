@@ -572,8 +572,22 @@ function NoteApp() {
       return;
     }
 
+    if (
+      !session.hasProjectKey(
+        localSecurityState.projectId,
+        localSecurityState.keyEpoch,
+      )
+    ) {
+      setCoordinationError(
+        "Current ProjectKey is not available on this authorized device",
+      );
+      return;
+    }
+
     setDeviceAuthorizationState("authorizing");
     setCoordinationError(null);
+
+    let committedState: SecurityState;
 
     try {
       const signerIdentity = session.publicIdentity;
@@ -624,7 +638,7 @@ function NoteApp() {
         transition,
         headHash,
       );
-      const committedState = await securityCoordinator.commitAddDevice(
+      committedState = await securityCoordinator.commitAddDevice(
         activeProject.id,
         transition,
       );
@@ -642,6 +656,85 @@ function NoteApp() {
       setDeviceAuthorizationState("error");
       setCoordinationError(
         error instanceof Error ? error.message : "Failed to authorize device",
+      );
+      return;
+    }
+
+    await deliverProjectKey(committedState);
+  }
+
+  async function retryProjectKeyDelivery(): Promise<void> {
+    if (!localSecurityState) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+    await deliverProjectKey(localSecurityState);
+  }
+
+  async function deliverProjectKey(
+    committedState: SecurityState,
+  ): Promise<void> {
+    if (!joiningDevice || !webRtcTransport || !invitationHost) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError("Pairing session is not available for ProjectKey delivery");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError("Device Vault must be unlocked for ProjectKey delivery");
+      return;
+    }
+
+    const authorizedRecipient = committedState.devices.find(
+      (device) => device.deviceId === joiningDevice.deviceId,
+    );
+    if (
+      !authorizedRecipient ||
+      !bytesEqual(
+        authorizedRecipient.encryptionPublicKey,
+        joiningDevice.encryptionPublicKey,
+      ) ||
+      !bytesEqual(
+        authorizedRecipient.signingPublicKey,
+        joiningDevice.signingPublicKey,
+      )
+    ) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError(
+        "Committed SecurityState does not match the joining device",
+      );
+      return;
+    }
+
+    setProjectKeyDeliveryState("delivering");
+    setCoordinationError(null);
+
+    try {
+      const sealedEnvelope = await session.sealProjectKeyForRecipient(
+        committedState.projectId,
+        committedState.keyEpoch,
+        joiningDevice.deviceId,
+        joiningDevice.encryptionPublicKey,
+        committedState.headHash,
+      );
+
+      await sendProjectKeyDelivery({
+        transport: webRtcTransport,
+        securityState: committedState,
+        recipientDeviceId: joiningDevice.deviceId,
+        sealedEnvelope,
+      });
+
+      await new InvitationClient(coordinatorBaseUrl).consumeInvite(
+        invitationHost.inviteId,
+      );
+      setProjectKeyDeliveryState("delivered");
+    } catch (error: unknown) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to deliver ProjectKey",
       );
     }
   }
