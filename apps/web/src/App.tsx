@@ -24,6 +24,7 @@ import {
 import {
   attachAddDeviceSignature,
   attachCreateProjectSignature,
+  attachProjectKeyRotationEnvelopeSignature,
   attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
   createUnsignedRevokeDeviceTransition,
@@ -34,10 +35,12 @@ import {
   encodeAddDeviceTransition,
   encodeCreateProjectTransition,
   encodeRevokeDeviceTransition,
+  encodeUnsignedProjectKeyRotationEnvelope,
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
   encodeUnsignedRevokeDeviceTransition,
   type DevicePublicIdentity,
+  type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
 import { DexieProjectStorage } from "@floe-note/storage";
@@ -294,17 +297,16 @@ function NoteApp() {
         );
 
         if (!projectKeyReady && verifiedState.keyEpoch > 1) {
-          const sealedEnvelope =
-            await securityCoordinator.getProjectKeyEnvelope(
-              verifiedState.projectId,
-              verifiedState.keyEpoch,
-              localDeviceId,
-            );
-          await session.storeSealedProjectKey(
-            sealedEnvelope,
+          const envelope = await securityCoordinator.getProjectKeyEnvelope(
             verifiedState.projectId,
             verifiedState.keyEpoch,
-            verifiedState.headHash,
+            localDeviceId,
+          );
+          await storeVerifiedRotatedProjectKey(
+            session,
+            verifiedState,
+            localDeviceId,
+            envelope,
           );
           projectKeyReady = true;
         }
@@ -932,24 +934,32 @@ function NoteApp() {
         headHash,
       );
 
-      await session.createProjectKeyIfMissing(
+      const preparedEnvelopes = await session.prepareProjectKeyRotation(
         candidateState.projectId,
         candidateState.keyEpoch,
+        candidateState.headHash,
+        candidateState.devices,
       );
 
       const keyEnvelopes = await Promise.all(
-        candidateState.devices
-          .filter((device) => device.deviceId !== localDeviceId)
-          .map(async (device) => ({
-            recipientDeviceId: device.deviceId,
-            sealedEnvelope: await session.sealProjectKeyForRecipient(
-              candidateState.projectId,
-              candidateState.keyEpoch,
-              device.deviceId,
-              device.encryptionPublicKey,
-              candidateState.headHash,
-            ),
-          })),
+        preparedEnvelopes.map(async (prepared) => {
+          const unsignedEnvelope = {
+            protocolVersion: 1 as const,
+            projectId: candidateState.projectId,
+            keyEpoch: candidateState.keyEpoch,
+            securityHead: candidateState.headHash,
+            recipientDeviceId: prepared.recipientDeviceId,
+            sealedEnvelope: prepared.sealedEnvelope,
+            signerDeviceId: localDeviceId,
+          };
+          const envelopeSignature = await session.sign(
+            encodeUnsignedProjectKeyRotationEnvelope(unsignedEnvelope),
+          );
+          return attachProjectKeyRotationEnvelopeSignature(
+            unsignedEnvelope,
+            envelopeSignature,
+          );
+        }),
       );
 
       const committedState = await securityCoordinator.commitRevokeDevice(
@@ -962,6 +972,18 @@ function NoteApp() {
           "Coordinator committed a SecurityState that does not match RevokeDevice",
         );
       }
+
+      const localEnvelope = await securityCoordinator.getProjectKeyEnvelope(
+        committedState.projectId,
+        committedState.keyEpoch,
+        localDeviceId,
+      );
+      await storeVerifiedRotatedProjectKey(
+        session,
+        committedState,
+        localDeviceId,
+        localEnvelope,
+      );
 
       await projectStorage.saveCommittedSecurityState(committedState);
       setLocalSecurityState(committedState);
@@ -1269,6 +1291,45 @@ function DocumentPane({
       </header>
       <MarkdownEditor document={document} />
     </article>
+  );
+}
+
+async function storeVerifiedRotatedProjectKey(
+  session: DeviceVaultSession,
+  state: SecurityState,
+  localDeviceId: DeviceId,
+  envelope: ProjectKeyRotationEnvelope,
+): Promise<void> {
+  if (
+    envelope.projectId !== state.projectId ||
+    envelope.keyEpoch !== state.keyEpoch ||
+    envelope.recipientDeviceId !== localDeviceId ||
+    !bytesEqual(envelope.securityHead, state.headHash)
+  ) {
+    throw new Error("ProjectKey rotation envelope does not match SecurityState");
+  }
+
+  const signer = state.devices.find(
+    (device) => device.deviceId === envelope.signerDeviceId,
+  );
+  if (!signer) {
+    throw new Error("ProjectKey rotation envelope signer is not authorized");
+  }
+
+  const verified = await verifyEd25519Signature(
+    encodeUnsignedProjectKeyRotationEnvelope(envelope),
+    envelope.signature,
+    signer.signingPublicKey,
+  );
+  if (!verified) {
+    throw new Error("ProjectKey rotation envelope signature verification failed");
+  }
+
+  await session.storeSealedProjectKey(
+    envelope.sealedEnvelope,
+    state.projectId,
+    state.keyEpoch,
+    state.headHash,
   );
 }
 
