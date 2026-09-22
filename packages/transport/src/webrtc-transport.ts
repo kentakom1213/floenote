@@ -3,7 +3,7 @@ import type { ProjectId } from "@floe-note/domain";
 import type { Transport } from "./transport.js";
 
 const DATA_CHANNEL_PREFIX = "floe-note:v1:";
-const ICE_GATHERING_TIMEOUT_MS = 15_000;
+const ICE_GATHERING_TIMEOUT_MS = 60_000;
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
@@ -188,11 +188,11 @@ export class WebRtcTransport implements Transport {
 
     if (completed) return;
 
-    this.#warning =
+    throw new Error(
       this.#gatheredCandidateCount > 0
-        ? `ICE gathering is still in progress; using ${this.#gatheredCandidateCount} gathered candidate(s) in the manual SDP.`
-        : "ICE gathering did not complete and no candidate was gathered before the timeout.";
-    this.#emitStatus();
+        ? `ICE gathering did not complete within 60 seconds after collecting ${this.#gatheredCandidateCount} candidate(s). Manual SDP exchange requires complete ICE gathering.`
+        : "ICE gathering did not complete within 60 seconds and no candidate was gathered.",
+    );
   }
 
   #attachDataChannel(channel: RTCDataChannel): void {
@@ -222,7 +222,10 @@ export class WebRtcTransport implements Transport {
     });
 
     channel.addEventListener("error", () => {
-      this.#error = "The WebRTC DataChannel reported an error.";
+      this.#error =
+        this.#peerConnection.iceConnectionState === "failed"
+          ? "The WebRTC DataChannel failed because ICE connectivity failed."
+          : "The WebRTC DataChannel reported an error.";
       this.#emitStatus();
     });
 
