@@ -43,6 +43,30 @@ describe("NoteProject metadata", () => {
     expect(target.getDeviceDisplayName(deviceId)).toBe("Kenta's MacBook");
   });
 
+  it("persists device display names in the manifest snapshot", () => {
+    const project = NoteProject.create();
+    const deviceId = "01a0c808-2026-7146-96f6-df8cca7b3a2d";
+
+    project.setDeviceDisplayName(deviceId, "Laptop");
+
+    const restored = NoteProject.fromSnapshot(
+      project.id,
+      project.exportManifestSnapshot(),
+      [],
+    );
+
+    expect(restored.getDeviceDisplayName(deviceId)).toBe("Laptop");
+  });
+
+  it("normalizes device display names before storing them", () => {
+    const project = NoteProject.create();
+    const deviceId = "01a0c808-2026-7146-96f6-df8cca7b3a2d";
+
+    project.setDeviceDisplayName(deviceId, "  Work Laptop  ");
+
+    expect(project.getDeviceDisplayName(deviceId)).toBe("Work Laptop");
+  });
+
   it("rejects an empty device display name", () => {
     const project = NoteProject.create();
 
