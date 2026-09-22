@@ -1,5 +1,5 @@
 import type { DeviceId } from "@floe-note/domain";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { ThemePicker } from "./ThemePicker.js";
@@ -8,6 +8,8 @@ import type { ThemePreference } from "./theme.js";
 type AppSettingsViewProps = {
   theme: ThemePreference;
   localDeviceId: DeviceId | null;
+  localDeviceName: string | null;
+  onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
   onEraseDevice: () => Promise<void>;
 };
@@ -19,10 +21,39 @@ function shortDeviceId(deviceId: DeviceId): string {
 export function AppSettingsView({
   theme,
   localDeviceId,
+  localDeviceName,
+  onRenameDevice,
   onThemeChange,
   onEraseDevice,
 }: AppSettingsViewProps) {
   const [eraseOpen, setEraseOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState(localDeviceName ?? "");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const normalizedName = nameDraft.trim();
+  const nameChanged =
+    normalizedName.length > 0 && normalizedName !== localDeviceName;
+
+  useEffect(() => {
+    setNameDraft(localDeviceName ?? "");
+  }, [localDeviceName]);
+
+  async function saveDeviceName(): Promise<void> {
+    if (!nameChanged || savingName) return;
+
+    setSavingName(true);
+    setNameError(null);
+    try {
+      await onRenameDevice(normalizedName);
+    } catch (caught: unknown) {
+      setNameError(
+        caught instanceof Error ? caught.message : "Could not rename device",
+      );
+    } finally {
+      setSavingName(false);
+    }
+  }
+
   return (
     <section className="settings-view">
       <header className="settings-header">
@@ -42,17 +73,36 @@ export function AppSettingsView({
 
       <div className="settings-section">
         <h2>Current device</h2>
-        <div className="settings-row settings-row-spread">
-          <div>
-            <strong>This device</strong>
-            <p>
-              {localDeviceId
-                ? shortDeviceId(localDeviceId)
-                : "Device identity unavailable"}
-            </p>
-          </div>
-          <span className="settings-badge">Device Vault</span>
-        </div>
+        <form
+          className="settings-form-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void saveDeviceName();
+          }}
+        >
+          <label className="settings-field">
+            <span>Device name</span>
+            <input
+              value={nameDraft}
+              maxLength={80}
+              disabled={savingName}
+              placeholder="Kenta's MacBook"
+              onChange={(event) => setNameDraft(event.target.value)}
+            />
+          </label>
+          <button
+            className="settings-primary-action"
+            type="submit"
+            disabled={!nameChanged || savingName}
+          >
+            {savingName ? "Saving…" : "Save"}
+          </button>
+        </form>
+        <p className="settings-field-hint">
+          This name is stored in the Device Vault and shared only inside
+          Projects you use.
+        </p>
+        {nameError ? <p className="dialog-error">{nameError}</p> : null}
 
         {localDeviceId ? (
           <details className="technical-details">
@@ -61,6 +111,10 @@ export function AppSettingsView({
               <div>
                 <dt>Device ID</dt>
                 <dd>{localDeviceId}</dd>
+              </div>
+              <div>
+                <dt>Short ID</dt>
+                <dd>{shortDeviceId(localDeviceId)}</dd>
               </div>
             </dl>
           </details>
