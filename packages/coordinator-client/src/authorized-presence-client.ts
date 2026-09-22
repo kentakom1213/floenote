@@ -165,10 +165,10 @@ export class AuthorizedPresenceClient {
 
       if (isPresenceStateMessage(parsed)) {
         const deviceIds = parsed.deviceIds.map(parseDeviceId);
+        this.#setState("open");
         for (const handler of this.#deviceHandlers) {
           handler(deviceIds);
         }
-        this.#setState("open");
         return;
       }
 
