@@ -86,7 +86,7 @@ export function InvitationJoinPage({
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [encryptedSyncState, setEncryptedSyncState] = useState<
-    "waiting" | "active" | "error"
+    "waiting" | "active" | "persisting" | "ready" | "error"
   >("waiting");
 
   useEffect(() => {
@@ -128,6 +128,7 @@ export function InvitationJoinPage({
     let cleanup: (() => void) | null = null;
     let joinedSyncEngine: ProjectSyncEngine | null = null;
     let stopJoinedPersistence: (() => void) | null = null;
+    let redirectStarted = false;
 
     setClaimState("claiming");
     setPairingState("connecting");
@@ -253,6 +254,29 @@ export function InvitationJoinPage({
                 debugLogger: createConsoleDebugLogger(
                   "invite-join-encrypted-sync",
                 ),
+                onInitialRemoteStateReceived: () => {
+                  if (disposed || redirectStarted) return;
+                  redirectStarted = true;
+                  setEncryptedSyncState("persisting");
+
+                  void storage
+                    .flushPendingWrites()
+                    .then(() => {
+                      if (disposed) return;
+                      setEncryptedSyncState("ready");
+                      window.location.replace("/");
+                    })
+                    .catch((syncError: unknown) => {
+                      redirectStarted = false;
+                      if (disposed) return;
+                      setEncryptedSyncState("error");
+                      setError(
+                        syncError instanceof Error
+                          ? `Failed to persist initial Project sync: ${syncError.message}`
+                          : "Failed to persist initial Project sync",
+                      );
+                    });
+                },
               },
             );
             joinedSyncEngine.start();
@@ -279,7 +303,6 @@ export function InvitationJoinPage({
         if (disposed) return;
 
         setPairingState("key-stored");
-        window.history.replaceState(null, "", "/");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -404,18 +427,12 @@ export function InvitationJoinPage({
         ) : pairingState === "key-stored" ? (
           <>
             <p className="join-live-hint">
-              ProjectKey and committed SecurityState stored. This Project is now
-              adopted locally.
+              Project access is ready. Floe Note is finishing the initial sync
+              before opening the Project.
             </p>
             <p className="webrtc-status">
               Encrypted sync: <strong>{encryptedSyncState}</strong>
             </p>
-            <button
-              type="button"
-              onClick={() => window.location.replace("/")}
-            >
-              Open Floe Note
-            </button>
           </>
         ) : vaultState !== "unlocked" ? (
           <p className="join-live-hint">
