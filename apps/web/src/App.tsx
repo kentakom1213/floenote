@@ -5,10 +5,14 @@ import type { DocumentId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
+import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 
 const projectStorage = new DexieProjectStorage();
+const useManualWebRtc =
+  new URLSearchParams(window.location.search).get("transport") === "webrtc";
 
 type OpenedProject = {
   project: NoteProject;
@@ -20,6 +24,8 @@ export function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
+  const [webRtcTransport, setWebRtcTransport] =
+    useState<WebRtcTransport | null>(null);
 
   const project = openedProject?.project ?? null;
 
@@ -61,7 +67,16 @@ export function App() {
   useEffect(() => {
     if (!project) return;
 
-    const transport = new BroadcastChannelTransport(project.id);
+    const transport = useManualWebRtc
+      ? new WebRtcTransport(project.id)
+      : new BroadcastChannelTransport(project.id);
+
+    if (transport instanceof WebRtcTransport) {
+      setWebRtcTransport(transport);
+    } else {
+      setWebRtcTransport(null);
+    }
+
     const syncEngine = new ProjectSyncEngine(project, transport);
     syncEngine.start();
 
@@ -151,6 +166,13 @@ export function App() {
             </button>
           ))}
         </nav>
+
+        {webRtcTransport ? (
+          <WebRtcDebugPanel
+            projectId={activeProject.id}
+            transport={webRtcTransport}
+          />
+        ) : null}
       </aside>
 
       <section className="workspace">

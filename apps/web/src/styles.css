@@ -178,3 +178,69 @@ h1 {
     padding-inline: 20px;
   }
 }
+
+
+.webrtc-debug-panel {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #d8d1c5;
+}
+
+.webrtc-status,
+.webrtc-project-id {
+  margin: 6px 0;
+  font-size: 12px;
+  color: #6f695f;
+}
+
+.webrtc-project-id {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webrtc-actions {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.webrtc-actions button {
+  border: 1px solid #cfc8bb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fffdf9;
+  color: inherit;
+  text-align: left;
+}
+
+.webrtc-actions button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.webrtc-field {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6f695f;
+}
+
+.webrtc-field textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #cfc8bb;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fffdf9;
+  color: #292622;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.webrtc-error {
+  margin: 10px 0 0;
+  color: #8b4f44;
+  font-size: 12px;
+}
