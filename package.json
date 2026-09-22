@@ -1,0 +1,11 @@
+{
+  "name": "floe-note",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
