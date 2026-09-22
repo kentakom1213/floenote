@@ -1,4 +1,5 @@
 import type { NoteProject } from "@floe-note/document";
+import type { ProjectId } from "@floe-note/domain";
 
 export type OpenProjectResult = {
   project: NoteProject;
@@ -7,5 +8,6 @@ export type OpenProjectResult = {
 
 export interface ProjectStorage {
   openOrCreateProject(): Promise<OpenProjectResult>;
+  initializeJoinedProject(projectId: ProjectId): Promise<NoteProject>;
   watchProject(project: NoteProject): () => void;
 }
