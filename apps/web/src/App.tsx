@@ -587,6 +587,32 @@ function NoteApp() {
     setDeviceAuthorizationState("authorizing");
     setCoordinationError(null);
 
+    const alreadyAuthorized = localSecurityState.devices.find(
+      (device) => device.deviceId === joiningDevice.deviceId,
+    );
+    if (alreadyAuthorized) {
+      if (
+        !bytesEqual(
+          alreadyAuthorized.encryptionPublicKey,
+          joiningDevice.encryptionPublicKey,
+        ) ||
+        !bytesEqual(
+          alreadyAuthorized.signingPublicKey,
+          joiningDevice.signingPublicKey,
+        )
+      ) {
+        setDeviceAuthorizationState("error");
+        setCoordinationError(
+          "Joining DeviceId is already authorized with different public keys",
+        );
+        return;
+      }
+
+      setDeviceAuthorizationState("authorized");
+      await deliverProjectKey(localSecurityState);
+      return;
+    }
+
     let committedState: SecurityState;
 
     try {
