@@ -24,14 +24,19 @@ import {
 import {
   attachAddDeviceSignature,
   attachCreateProjectSignature,
+  attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
+  createUnsignedRevokeDeviceTransition,
   createUnsignedCreateProjectTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  deriveRevokeDeviceSecurityState,
   encodeAddDeviceTransition,
   encodeCreateProjectTransition,
+  encodeRevokeDeviceTransition,
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  encodeUnsignedRevokeDeviceTransition,
   type DevicePublicIdentity,
   type SecurityState,
 } from "@floe-note/security";
@@ -282,11 +287,27 @@ function NoteApp() {
           await projectStorage.saveCommittedSecurityState(verifiedState);
         }
 
-        const projectKeyReady = await ensureInitialProjectKey(
+        let projectKeyReady = await ensureInitialProjectKey(
           session,
           verifiedState,
           localDeviceId,
         );
+
+        if (!projectKeyReady && verifiedState.keyEpoch > 1) {
+          const sealedEnvelope =
+            await securityCoordinator.getProjectKeyEnvelope(
+              verifiedState.projectId,
+              verifiedState.keyEpoch,
+              localDeviceId,
+            );
+          await session.storeSealedProjectKey(
+            sealedEnvelope,
+            verifiedState.projectId,
+            verifiedState.keyEpoch,
+            verifiedState.headHash,
+          );
+          projectKeyReady = true;
+        }
 
         if (!cancelled) {
           setLocalSecurityState(verifiedState);
@@ -857,6 +878,101 @@ function NoteApp() {
     await deliverProjectKey(committedState);
   }
 
+  async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
+    if (!localSecurityState || !localDeviceId) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+    if (revokedDeviceId === localDeviceId) {
+      setCoordinationError("This device cannot revoke itself");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setCoordinationError("Device Vault must be unlocked before revocation");
+      return;
+    }
+
+    try {
+      setCoordinationError(null);
+      const signer = localSecurityState.devices.find(
+        (device) => device.deviceId === localDeviceId,
+      );
+      if (!signer) {
+        throw new Error("This device is not authorized to revoke another device");
+      }
+
+      const unsignedTransition = createUnsignedRevokeDeviceTransition(
+        localSecurityState,
+        revokedDeviceId,
+        localDeviceId,
+      );
+      const signingBytes =
+        encodeUnsignedRevokeDeviceTransition(unsignedTransition);
+      const signature = await session.sign(signingBytes);
+      const transition = attachRevokeDeviceSignature(
+        unsignedTransition,
+        signature,
+      );
+
+      const verified = await verifyEd25519Signature(
+        signingBytes,
+        transition.signature,
+        signer.signingPublicKey,
+      );
+      if (!verified) {
+        throw new Error("RevokeDevice signature verification failed");
+      }
+
+      const headHash = await sha256(encodeRevokeDeviceTransition(transition));
+      const candidateState = deriveRevokeDeviceSecurityState(
+        localSecurityState,
+        transition,
+        headHash,
+      );
+
+      await session.createProjectKeyIfMissing(
+        candidateState.projectId,
+        candidateState.keyEpoch,
+      );
+
+      const keyEnvelopes = await Promise.all(
+        candidateState.devices
+          .filter((device) => device.deviceId !== localDeviceId)
+          .map(async (device) => ({
+            recipientDeviceId: device.deviceId,
+            sealedEnvelope: await session.sealProjectKeyForRecipient(
+              candidateState.projectId,
+              candidateState.keyEpoch,
+              device.deviceId,
+              device.encryptionPublicKey,
+              candidateState.headHash,
+            ),
+          })),
+      );
+
+      const committedState = await securityCoordinator.commitRevokeDevice(
+        candidateState.projectId,
+        transition,
+        keyEnvelopes,
+      );
+      if (!securityStatesEqual(candidateState, committedState)) {
+        throw new Error(
+          "Coordinator committed a SecurityState that does not match RevokeDevice",
+        );
+      }
+
+      await projectStorage.saveCommittedSecurityState(committedState);
+      setLocalSecurityState(committedState);
+      setLocalProjectKeyReady(true);
+    } catch (error: unknown) {
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to revoke device",
+      );
+    }
+  }
+
   async function retryProjectKeyDelivery(): Promise<void> {
     if (!localSecurityState) {
       setCoordinationError("Committed SecurityState is not available");
@@ -1046,6 +1162,7 @@ function NoteApp() {
             onlineDeviceIds={onlineDeviceIds}
             connectedDeviceIds={automaticSyncStatus.connectedDeviceIds}
             error={presenceError ?? automaticSyncStatus.error}
+            onRevoke={revokeDevice}
           />
         ) : null}
 
