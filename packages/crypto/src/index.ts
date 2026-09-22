@@ -17,3 +17,11 @@ export {
 } from "./device-vault-crypto.js";
 
 export type { EncryptedDeviceVaultPayload } from "./device-vault-crypto.js";
+
+export {
+  ED25519_SIGNATURE_BYTES,
+  SHA256_BYTES,
+  sha256,
+  signEd25519,
+  verifyEd25519Signature,
+} from "./security-crypto.js";
