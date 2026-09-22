@@ -87,6 +87,8 @@ export class AutomaticPeerSyncManager {
     );
     if (!authorized) return;
 
+    if (fromDeviceId >= this.#localDeviceId) return;
+
     this.#startPeer(fromDeviceId, "join", sessionId);
   }
 
@@ -102,7 +104,11 @@ export class AutomaticPeerSyncManager {
   }
 
   #reconcile(): void {
-    const desired = this.#desiredPeerIds();
+    const desired = new Set(
+      this.#onlineDeviceIds.filter(
+        (deviceId) => deviceId !== this.#localDeviceId,
+      ),
+    );
 
     for (const peerDeviceId of [...this.#connections.keys()]) {
       if (!desired.has(peerDeviceId)) {
@@ -110,49 +116,32 @@ export class AutomaticPeerSyncManager {
       }
     }
 
-    const hubDeviceId = this.#onlineDeviceIds[0];
-    if (
-      !hubDeviceId ||
-      hubDeviceId === this.#localDeviceId ||
-      !desired.has(hubDeviceId) ||
-      this.#connections.has(hubDeviceId)
-    ) {
+    if (!this.#onlineDeviceIds.includes(this.#localDeviceId)) {
       return;
     }
 
-    const sessionId = createSessionId();
-    this.#startPeer(hubDeviceId, "host", sessionId);
-
-    try {
-      this.#presence.sendReconnectSession(hubDeviceId, sessionId);
-    } catch (error: unknown) {
-      this.#stopPeer(hubDeviceId);
-      this.#setError(
-        error instanceof Error
-          ? error.message
-          : "Failed to announce automatic reconnect session",
-      );
-    }
-  }
-
-  #desiredPeerIds(): Set<DeviceId> {
-    const desired = new Set<DeviceId>();
-    if (!this.#onlineDeviceIds.includes(this.#localDeviceId)) {
-      return desired;
-    }
-
-    const hubDeviceId = this.#onlineDeviceIds[0];
-    if (!hubDeviceId) return desired;
-
-    if (hubDeviceId === this.#localDeviceId) {
-      for (const deviceId of this.#onlineDeviceIds) {
-        if (deviceId !== this.#localDeviceId) desired.add(deviceId);
+    for (const peerDeviceId of desired) {
+      if (
+        this.#localDeviceId >= peerDeviceId ||
+        this.#connections.has(peerDeviceId)
+      ) {
+        continue;
       }
-      return desired;
-    }
 
-    desired.add(hubDeviceId);
-    return desired;
+      const sessionId = createSessionId();
+      this.#startPeer(peerDeviceId, "host", sessionId);
+
+      try {
+        this.#presence.sendReconnectSession(peerDeviceId, sessionId);
+      } catch (error: unknown) {
+        this.#stopPeer(peerDeviceId);
+        this.#setError(
+          error instanceof Error
+            ? error.message
+            : "Failed to announce automatic reconnect session",
+        );
+      }
+    }
   }
 
   #startPeer(
