@@ -10,8 +10,8 @@ export type DeviceVaultUiState =
 
 export type LocalSecurityBootstrapUiState =
   | "waiting"
-  | "creating"
-  | "ready"
+  | "committing"
+  | "committed"
   | "error";
 
 type DeviceVaultPanelProps = {
@@ -73,9 +73,9 @@ export function DeviceVaultPanel({
       {state === "unlocked" ? (
         <>
           <p className="webrtc-status">
-            Local security: <strong>{securityState}</strong>
+            Security: <strong>{securityState}</strong>
           </p>
-          {securityState === "ready" ? (
+          {securityState === "committed" ? (
             <>
               <p className="webrtc-status">
                 Sequence: <strong>{securitySequence}</strong>
