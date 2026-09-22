@@ -424,9 +424,19 @@ Persistent state includes:
 
 - the current materialized SecurityState;
 - the current sequence/head hash;
-- the current key epoch.
+- the current key epoch;
+- signed SecurityTransitions required for verified client catch-up.
 
-Security transitions are the update protocol, but the coordinator is not required to retain a permanent audit log of every accepted transition.
+When a transition is accepted, the coordinator atomically stores both the new
+materialized SecurityState and the signed transition at its sequence number.
+A client whose locally verified state is behind requests every transition after
+its local sequence. The coordinator returns a chain only when every sequence up
+to the current state is available; a missing transition is an error rather than
+a reason to trust the materialized state directly.
+
+The retained transition history exists to support authorization-state catch-up,
+not as a product-facing permanent audit log. A future pruning policy may remove
+history that is no longer needed by any supported device state.
 
 ### 11.2 Ephemeral rendezvous and signaling
 
@@ -1240,15 +1250,17 @@ visible rather than being implied away by the use of modern primitives.
   authorization prevents unauthorized protocol participants from obtaining the
   key through the intended flow; it cannot constrain a device that is already
   legitimately authorized and compromised or malicious.
-- **SecurityState freshness GET does not yet advance a stale local state.**
-  Normal Project open independently fetches the coordinator's current
-  materialized SecurityState and detects an older coordinator state or any
-  mismatch at the same sequence. If the coordinator has a higher sequence, the
-  client stops rather than trusting that materialized state directly. The
-  current coordinator does not retain or expose the signed transition chain
-  needed for the client to verify unseen transitions from its locally verified
-  head. Transition catch-up remains to be designed before revocation and
-  long-lived multi-device reconnect can rely on automatic SecurityState refresh.
+- **SecurityTransition catch-up requires a complete retained chain from the
+  locally verified head.** Normal Project open fetches the coordinator's current
+  SecurityState. If it is newer, the client fetches every retained signed
+  transition after its local sequence, verifies each signer against the
+  previously verified state, verifies the signature, checks sequence and
+  previousHash continuity through state derivation, recomputes each head hash,
+  and finally requires the derived state to equal the coordinator's current
+  materialized state before persisting it. If any required transition predates
+  transition retention or has been pruned, catch-up fails safely. The current
+  implementation applies AddDevice transitions; RevokeDevice catch-up is added
+  together with the revocation protocol.
 - **Encrypted sync authenticates possession of a ProjectKey, not an individual
   DeviceId.** All devices authorized for the current epoch share the same
   symmetric ProjectKey, so any such device can construct a valid encrypted sync
@@ -1360,9 +1372,8 @@ The following details can be specified independently without changing the core P
 1. Canonical payload details and validation rules for `RevokeDevice`.
 2. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
 3. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
-4. Retrieval and verification of unseen signed SecurityTransitions when the
-   coordinator SecurityState is newer than the locally verified head, including
-   the newly joined-device freshness path.
+4. SecurityTransition retention/pruning policy once devices can safely declare
+   that older transition history is no longer required.
 5. Document tombstone garbage collection.
 6. Stable backup/export archive format.
 7. Background synchronization strategy.
