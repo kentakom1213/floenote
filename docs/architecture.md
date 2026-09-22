@@ -461,7 +461,33 @@ The web application requires WebAuthn support. Environments that cannot provide 
 
 WebAuthn PRF is used to derive or unlock the vault key. The vault boundary remains abstract so a native application can use an equivalent platform-backed mechanism without changing the Project or synchronization model.
 
-### 14.1 Unlock lifetime
+### 14.1 Browser vault
+
+The initial browser implementation stores one encrypted device-vault record in
+IndexedDB. The cleartext record contains only the material required to unlock
+the vault:
+
+- WebAuthn credential id;
+- a random PRF input;
+- AEAD nonce;
+- encrypted vault payload.
+
+The PRF output is not stored. It is evaluated from the WebAuthn credential when
+the vault is unlocked. If PRF output is available during credential creation it
+may be used immediately; otherwise the implementation performs a subsequent
+WebAuthn assertion to evaluate the PRF.
+
+The PRF output is passed through HKDF-SHA-256 with a Floe Note device-vault
+context to derive the 256-bit VaultKey. The vault payload is encrypted with
+XChaCha20-Poly1305. The initial payload contains the long-lived DeviceId and the
+device encryption/signing key pairs. ProjectKeys will be added to the same
+versioned vault boundary when Project encryption is implemented.
+
+Creating a local Device Vault establishes a device identity, but does not by
+itself authorize that device for any Project. Project authorization begins with
+the signed SecurityState transitions.
+
+### 14.2 Unlock lifetime
 
 Vault unlock is valid for the current application session.
 
