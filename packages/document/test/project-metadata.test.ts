@@ -67,6 +67,14 @@ describe("NoteProject metadata", () => {
     expect(project.getDeviceDisplayName(deviceId)).toBe("Work Laptop");
   });
 
+  it("rejects device display names longer than 80 characters", () => {
+    const project = NoteProject.create();
+
+    expect(() =>
+      project.setDeviceDisplayName("device", "x".repeat(81)),
+    ).toThrow("Device name must be 80 characters or fewer");
+  });
+
   it("rejects an empty device display name", () => {
     const project = NoteProject.create();
 
