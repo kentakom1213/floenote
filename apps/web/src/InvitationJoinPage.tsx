@@ -7,6 +7,7 @@ import {
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
+import { authenticatePairingChannel } from "@floe-note/pairing";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import {
@@ -65,9 +66,7 @@ export function InvitationJoinPage({
           throw new Error("Invite URL is missing PairingSecret.");
         }
 
-        // Keep the capability secret local. Authentication with this secret is
-        // added in the device-authorization/key-delivery step.
-        parsePairingSecret(pairingSecret);
+        const parsedPairingSecret = parsePairingSecret(pairingSecret);
 
         const invitationClient = new InvitationClient(coordinatorBaseUrl);
         const claimed = await invitationClient.claimInvite(
@@ -95,10 +94,8 @@ export function InvitationJoinPage({
           setRevision((value) => value + 1);
         });
 
-        const syncEngine = new ProjectSyncEngine(joinedProject, transport, {
-          debugLogger: createConsoleDebugLogger("invite-join-sync"),
-        });
-        syncEngine.start();
+        const abortPairing = new AbortController();
+        let syncEngine: ProjectSyncEngine | null = null;
 
         const signaling = new WebRtcSignalingSession({
           role: "join",
@@ -113,16 +110,39 @@ export function InvitationJoinPage({
         signaling.start();
 
         cleanup = () => {
+          abortPairing.abort();
           stopSignalingState();
           signaling.stop();
           stopProject();
           stopPersistence();
           stopTransportStatus();
-          syncEngine.stop();
+          syncEngine?.stop();
         };
+
+        await authenticatePairingChannel({
+          role: "join",
+          inviteId: parsedInviteId,
+          projectId: claimed.projectId,
+          sessionId: claimed.sessionId,
+          pairingSecret: parsedPairingSecret,
+          transport,
+          signal: abortPairing.signal,
+        });
+        if (disposed) {
+          abortPairing.abort();
+          return;
+        }
+
+        syncEngine = new ProjectSyncEngine(joinedProject, transport, {
+          debugLogger: createConsoleDebugLogger("invite-join-sync"),
+        });
+        syncEngine.start();
 
         setProject(joinedProject);
       } catch (caught: unknown) {
+        cleanup?.();
+        cleanup = null;
+        if (disposed) return;
         setClaimState("error");
         setError(
           caught instanceof Error ? caught.message : "Failed to claim invite",
@@ -174,9 +194,9 @@ export function InvitationJoinPage({
         ) : null}
 
         <p className="join-live-hint">
-          PairingSecret was read from the URL fragment and remains local in
-          this step. The coordinator only resolves the one-time InviteId to a
-          Project and signaling session.
+          PairingSecret is used to authenticate the temporary WebRTC pairing
+          channel before any Project synchronization starts. The coordinator
+          still sees only the InviteId bootstrap and signaling metadata.
         </p>
 
         {webRtcStatus.warning ? (

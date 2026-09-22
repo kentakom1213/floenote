@@ -35,6 +35,9 @@ importers:
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@floe-note/pairing':
+        specifier: workspace:*
+        version: link:../../packages/pairing
       '@floe-note/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -96,6 +99,18 @@ importers:
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
+
+  packages/pairing:
+    dependencies:
+      '@floe-note/coordinator-client':
+        specifier: workspace:*
+        version: link:../coordinator-client
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@floe-note/transport':
+        specifier: workspace:*
+        version: link:../transport
 
   packages/security:
     dependencies:

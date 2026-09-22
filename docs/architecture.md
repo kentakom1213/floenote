@@ -675,7 +675,7 @@ B claims InviteId through Cloudflare
   |
 Cloudflare rendezvous connects A and B
   |
-PairingSecret authenticates/protects temporary pairing session
+PairingSecret mutually authenticates temporary pairing channel
   |
 B generates DeviceId + device key pairs
   |
@@ -695,6 +695,15 @@ normal P2P synchronization begins
 ```
 
 Possessing an invite does not itself authorize a device. Authorization occurs only after the signed `AddDevice` transition is accepted by the sequencer.
+
+Before any Project synchronization or device-key exchange, both peers authenticate
+the WebRTC pairing channel using `PairingSecret`. The initial protocol uses
+HMAC-SHA-256 challenge-response with fresh nonces from both peers. The proof
+transcript binds the InviteId, ProjectId, SessionId, both nonces, and prover role,
+so a proof from another invitation or signaling session cannot be replayed.
+Pairing authentication is separate from device authorization: a peer that knows
+the PairingSecret is still not an authorized Project device until `AddDevice`
+has been committed.
 
 Invitations should be:
 
