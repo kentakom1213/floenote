@@ -10,6 +10,7 @@ import type { OpenProjectResult, ProjectStorage } from "./project-storage.js";
 
 const DATABASE_NAME = "floe-note";
 const LOCAL_PROJECT_SLOT = "default";
+const DETACHED_PROJECT_SLOT_PREFIX = "detached:";
 
 type ProjectRecord = {
   id: string;
@@ -54,6 +55,55 @@ export class DexieProjectStorage implements ProjectStorage {
     return this.#openPromise;
   }
 
+  async initializeJoinedProject(projectId: ProjectId): Promise<NoteProject> {
+    let targetExists = false;
+
+    await this.#db.transaction(
+      "rw",
+      this.#db.projects,
+      this.#db.manifests,
+      async () => {
+        const current = await this.#db.projects
+          .where("localSlot")
+          .equals(LOCAL_PROJECT_SLOT)
+          .first();
+        const target = await this.#db.projects.get(projectId);
+        targetExists = target !== undefined;
+
+        if (current && current.id !== projectId) {
+          await this.#db.projects.update(current.id, {
+            localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+          });
+        }
+
+        if (target) {
+          await this.#db.projects.update(projectId, {
+            localSlot: LOCAL_PROJECT_SLOT,
+          });
+          return;
+        }
+
+        const project = NoteProject.create(projectId);
+        await this.#db.projects.add({
+          id: projectId,
+          localSlot: LOCAL_PROJECT_SLOT,
+          createdAt: Date.now(),
+        });
+        await this.#db.manifests.add({
+          projectId,
+          snapshot: project.exportManifestSnapshot(),
+        });
+      },
+    );
+
+    const project = targetExists
+      ? await this.#loadProject(projectId)
+      : NoteProject.create(projectId);
+
+    this.#openPromise = Promise.resolve({ project, isNew: false });
+    return project;
+  }
+
   watchProject(project: NoteProject): () => void {
     const documentSubscriptions = new Map<string, () => void>();
 
@@ -87,28 +137,25 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #loadOrCreateProject(): Promise<OpenProjectResult> {
-    let projectId: string | null = null;
-    let createdProject: NoteProject | null = null;
+    const existing = await this.#db.projects
+      .where("localSlot")
+      .equals(LOCAL_PROJECT_SLOT)
+      .first();
+
+    if (existing) {
+      return {
+        project: await this.#loadProject(parseProjectId(existing.id)),
+        isNew: false,
+      };
+    }
+
+    const project = NoteProject.create();
 
     await this.#db.transaction(
       "rw",
       this.#db.projects,
       this.#db.manifests,
       async () => {
-        const existing = await this.#db.projects
-          .where("localSlot")
-          .equals(LOCAL_PROJECT_SLOT)
-          .first();
-
-        if (existing) {
-          projectId = existing.id;
-          return;
-        }
-
-        const project = NoteProject.create();
-        createdProject = project;
-        projectId = project.id;
-
         await this.#db.projects.add({
           id: project.id,
           localSlot: LOCAL_PROJECT_SLOT,
@@ -121,14 +168,10 @@ export class DexieProjectStorage implements ProjectStorage {
       },
     );
 
-    if (createdProject) {
-      return { project: createdProject, isNew: true };
-    }
+    return { project, isNew: true };
+  }
 
-    if (!projectId) {
-      throw new Error("Local project metadata is missing");
-    }
-
+  async #loadProject(projectId: ProjectId): Promise<NoteProject> {
     const manifest = await this.#db.manifests.get(projectId);
     if (!manifest) {
       throw new Error("Local project manifest is missing");
@@ -146,14 +189,7 @@ export class DexieProjectStorage implements ProjectStorage {
       ),
     );
 
-    return {
-      project: NoteProject.fromSnapshot(
-        parseProjectId(projectId),
-        manifest.snapshot,
-        documents,
-      ),
-      isNew: false,
-    };
+    return NoteProject.fromSnapshot(projectId, manifest.snapshot, documents);
   }
 
   #enqueue(write: () => Promise<void>): void {

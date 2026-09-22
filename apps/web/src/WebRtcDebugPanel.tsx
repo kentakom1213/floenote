@@ -65,10 +65,25 @@ export function WebRtcDebugPanel({
         Peer connection: <strong>{status.connectionState}</strong>
       </p>
       <p className="webrtc-status">
+        ICE connection: <strong>{status.iceConnectionState}</strong>
+      </p>
+      <p className="webrtc-status">
+        ICE gathering: <strong>{status.iceGatheringState}</strong>
+      </p>
+      <p className="webrtc-status">
+        Candidates: <strong>{status.gatheredCandidateCount}</strong>
+      </p>
+      <p className="webrtc-status">
         Data channel: <strong>{status.dataChannelState}</strong>
       </p>
-      <p className="webrtc-project-id" title={projectId}>
-        Project: {projectId}
+
+      <label className="webrtc-field">
+        <span>Project ID</span>
+        <input readOnly value={projectId} />
+      </label>
+
+      <p className="webrtc-hint">
+        A fresh browser can join this Project at <code>?join=webrtc</code>.
       </p>
 
       <div className="webrtc-actions">
@@ -106,6 +121,9 @@ export function WebRtcDebugPanel({
         />
       </label>
 
+      {status.warning ? (
+        <p className="webrtc-warning">{status.warning}</p>
+      ) : null}
       {status.error ? <p className="webrtc-error">{status.error}</p> : null}
       {error ? <p className="webrtc-error">{error}</p> : null}
     </section>

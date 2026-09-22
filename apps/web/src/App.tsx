@@ -7,12 +7,15 @@ import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
+import { createConsoleDebugLogger } from "./debug.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
+import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
 
 const projectStorage = new DexieProjectStorage();
-const useManualWebRtc =
-  new URLSearchParams(window.location.search).get("transport") === "webrtc";
+const searchParams = new URLSearchParams(window.location.search);
+const useManualWebRtc = searchParams.get("transport") === "webrtc";
+const useManualWebRtcJoin = searchParams.get("join") === "webrtc";
 
 type OpenedProject = {
   project: NoteProject;
@@ -20,6 +23,14 @@ type OpenedProject = {
 };
 
 export function App() {
+  if (useManualWebRtcJoin) {
+    return <WebRtcJoinPage storage={projectStorage} />;
+  }
+
+  return <NoteApp />;
+}
+
+function NoteApp() {
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
@@ -68,7 +79,11 @@ export function App() {
     if (!project) return;
 
     const transport = useManualWebRtc
-      ? new WebRtcTransport(project.id)
+      ? new WebRtcTransport(
+          project.id,
+          undefined,
+          createConsoleDebugLogger("webrtc"),
+        )
       : new BroadcastChannelTransport(project.id);
 
     if (transport instanceof WebRtcTransport) {
@@ -77,7 +92,13 @@ export function App() {
       setWebRtcTransport(null);
     }
 
-    const syncEngine = new ProjectSyncEngine(project, transport);
+    const syncEngine = new ProjectSyncEngine(
+      project,
+      transport,
+      useManualWebRtc
+        ? { debugLogger: createConsoleDebugLogger("sync") }
+        : {},
+    );
     syncEngine.start();
 
     return () => syncEngine.stop();
