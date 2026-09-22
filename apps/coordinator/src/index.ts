@@ -100,6 +100,17 @@ export default {
       return withCors(response);
     }
 
+    const securityStateRoute = parseSecurityStateRoute(url.pathname);
+    if (securityStateRoute) {
+      if (request.method !== "GET") {
+        return withCors(new Response("Method not allowed", { status: 405 }));
+      }
+
+      const id = env.PROJECT_COORDINATOR.idFromName(securityStateRoute.projectId);
+      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      return withCors(response);
+    }
+
     const securityRoute = parseSecurityTransitionRoute(url.pathname);
     if (securityRoute) {
       if (request.method !== "POST") {
@@ -128,6 +139,14 @@ export default {
 export class ProjectCoordinator extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const securityStateRoute = parseSecurityStateRoute(url.pathname);
+    if (securityStateRoute) {
+      if (request.method !== "GET") {
+        return new Response("Method not allowed", { status: 405 });
+      }
+      return this.#getSecurityState(securityStateRoute.projectId);
+    }
+
     const securityRoute = parseSecurityTransitionRoute(url.pathname);
 
     if (securityRoute) {
@@ -169,6 +188,25 @@ export class ProjectCoordinator extends DurableObject<Env> {
       status: 101,
       webSocket: client,
     });
+  }
+
+  async #getSecurityState(projectId: ProjectId): Promise<Response> {
+    const storedWire =
+      await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
+    if (!storedWire) {
+      return new Response("Project security is not initialized", {
+        status: 404,
+      });
+    }
+
+    let state: SecurityState;
+    try {
+      state = parseSecurityStateWirePayload(storedWire, projectId);
+    } catch {
+      return new Response("Stored SecurityState is invalid", { status: 500 });
+    }
+
+    return Response.json(securityStateToWire(state));
   }
 
   async #commitSecurityTransition(
@@ -704,6 +742,20 @@ function parseInviteActionRoute(
   return { inviteId, action };
 }
 
+function parseSecurityStateRoute(
+  pathname: string,
+): SecurityTransitionRoute | null {
+  const match = /^\/projects\/([^/]+)\/security$/.exec(pathname);
+  if (!match) return null;
+
+  const rawProjectId = match[1];
+  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+
+  return {
+    projectId: parseProjectId(rawProjectId.toLowerCase()),
+  };
+}
+
 function parseSecurityTransitionRoute(
   pathname: string,
 ): SecurityTransitionRoute | null {
@@ -768,7 +820,7 @@ function randomHex(byteLength: number): string {
 function withCors(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type");
 
   return new Response(response.body, {
