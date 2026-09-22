@@ -41,24 +41,41 @@ type InvitationJoinPageProps = {
   pairingSecret: string | null;
 };
 
+type JoinVaultState =
+  | "checking"
+  | "missing"
+  | "locked"
+  | "unlocking"
+  | "unlocked"
+  | "error";
+
+type PairingState =
+  | "waiting-for-vault"
+  | "connecting"
+  | "awaiting-authorization"
+  | "error";
+
 export function InvitationJoinPage({
   coordinatorBaseUrl,
   inviteId,
   pairingSecret,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
-  const [project, setProject] = useState<NoteProject | null>(null);
+  const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const [vaultState, setVaultState] = useState<JoinVaultState>("checking");
+  const [vaultError, setVaultError] = useState<string | null>(null);
   const [webRtcStatus, setWebRtcStatus] =
     useState<WebRtcStatus>(INITIAL_WEBRTC_STATUS);
   const [signalingState, setSignalingState] =
     useState<SignalingConnectionState>("idle");
   const [claimState, setClaimState] = useState<
-    "claiming" | "claimed" | "error"
-  >("claiming");
+    "waiting" | "claiming" | "claimed" | "error"
+  >("waiting");
+  const [pairingState, setPairingState] =
+    useState<PairingState>("waiting-for-vault");
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [, setRevision] = useState(0);
 
   useEffect(() => {
     let disposed = false;
