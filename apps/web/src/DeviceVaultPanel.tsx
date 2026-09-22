@@ -23,6 +23,7 @@ type DeviceVaultPanelProps = {
   securitySequence: number | null;
   securityKeyEpoch: number | null;
   securityDeviceCount: number | null;
+  projectKeyReady: boolean | null;
   securityError: string | null;
   onUnlockOrCreate: () => Promise<void>;
 };
@@ -36,6 +37,7 @@ export function DeviceVaultPanel({
   securitySequence,
   securityKeyEpoch,
   securityDeviceCount,
+  projectKeyReady,
   securityError,
   onUnlockOrCreate,
 }: DeviceVaultPanelProps) {
@@ -85,6 +87,16 @@ export function DeviceVaultPanel({
               </p>
               <p className="webrtc-status">
                 Devices: <strong>{securityDeviceCount}</strong>
+              </p>
+              <p className="webrtc-status">
+                Project key:{" "}
+                <strong>
+                  {projectKeyReady === null
+                    ? "checking"
+                    : projectKeyReady
+                      ? "ready"
+                      : "missing"}
+                </strong>
               </p>
             </>
           ) : null}
