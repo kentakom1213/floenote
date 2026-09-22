@@ -64,11 +64,14 @@ export default {
       }
 
       const id = env.INVITATION_COORDINATOR.idFromName(inviteAction.inviteId);
+      const body =
+        inviteAction.action === "claim" ? await request.text() : undefined;
       const response = await env.INVITATION_COORDINATOR
         .get(id)
         .fetch(
           new Request(`https://invitation.internal/${inviteAction.action}`, {
             method: "POST",
+            body,
           }),
         );
 
