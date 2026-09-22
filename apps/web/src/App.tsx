@@ -92,11 +92,13 @@ function NoteApp() {
       setWebRtcTransport(null);
     }
 
-    const syncEngine = new ProjectSyncEngine(project, transport, {
-      debugLogger: useManualWebRtc
-        ? createConsoleDebugLogger("sync")
-        : undefined,
-    });
+    const syncEngine = new ProjectSyncEngine(
+      project,
+      transport,
+      useManualWebRtc
+        ? { debugLogger: createConsoleDebugLogger("sync") }
+        : {},
+    );
     syncEngine.start();
 
     return () => syncEngine.stop();
