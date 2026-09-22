@@ -1,3 +1,7 @@
+import { useRef } from "react";
+
+import { useDismissibleDetails } from "./useDismissibleDetails.js";
+
 export type SyncUiState =
   | { kind: "quiet" }
   | { kind: "connected" }
@@ -39,6 +43,9 @@ const COPY: Record<
 };
 
 export function SyncStatus({ state }: SyncStatusProps) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useDismissibleDetails(detailsRef);
+
   const copy =
     state.kind === "error"
       ? {
@@ -50,7 +57,7 @@ export function SyncStatus({ state }: SyncStatusProps) {
       : COPY[state.kind];
 
   return (
-    <details className="sync-status">
+    <details className="sync-status" ref={detailsRef}>
       <summary className="sync-status-summary">
         <span className="status-dot" data-kind={state.kind} aria-hidden="true" />
         <span>{copy.label}</span>
