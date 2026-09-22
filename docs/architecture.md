@@ -428,6 +428,49 @@ ProjectKeys are random symmetric keys. They are not derived from a user password
 
 The current intended AEAD is XChaCha20-Poly1305 through libsodium.
 
+### 13.1 ProjectKey storage and delivery
+
+The Device Vault stores ProjectKeys as a key ring keyed by
+`(ProjectId, keyEpoch)`. Retaining the epoch explicitly allows old keys to
+remain available for lazy ciphertext migration after a future rotation without
+making old-key garbage collection part of the initial protocol.
+
+For epoch 1, the root device (`addedAtSequence = 0`) creates a random 256-bit
+ProjectKey if its Vault does not already contain one. A non-root device must
+never invent a missing ProjectKey for an existing Project; it receives the key
+from an already authorized device.
+
+After `AddDevice(B)` is committed, the sender constructs a ProjectKey
+envelope containing:
+
+```text
+ProjectKeyEnvelope
+├── protocolVersion
+├── ProjectId
+├── keyEpoch
+├── recipientDeviceId
+├── committed SecurityState headHash
+└── ProjectKey
+```
+
+The complete envelope is encrypted with
+`crypto_box_seal(envelope, B.encryptionPublicKey)`. The recipient opens it
+with its own device encryption key pair and rejects it unless ProjectId,
+keyEpoch, recipientDeviceId, and the committed security head all match the
+pairing context.
+
+The sealed envelope is transported only after AddDevice has committed. The
+receiving device persists the ProjectKey in its encrypted Device Vault and the
+matching committed SecurityState locally before returning a `project-key-stored`
+acknowledgement. The inviter consumes the one-time invitation only after that
+acknowledgement arrives.
+
+`crypto_box_seal` provides recipient confidentiality but not sender
+authentication. Floe Note therefore does not treat a sealed box as proof of who
+sent the ProjectKey. Sender authenticity comes from the already
+PairingSecret-authenticated WebRTC pairing channel together with the committed
+AddDevice authorization state.
+
 Encrypted envelopes should authenticate unencrypted routing metadata, such as:
 
 - protocol version;
@@ -479,9 +522,16 @@ WebAuthn assertion to evaluate the PRF.
 
 The PRF output is passed through HKDF-SHA-256 with a Floe Note device-vault
 context to derive the 256-bit VaultKey. The vault payload is encrypted with
-XChaCha20-Poly1305. The initial payload contains the long-lived DeviceId and the
-device encryption/signing key pairs. ProjectKeys will be added to the same
-versioned vault boundary when Project encryption is implemented.
+XChaCha20-Poly1305. The payload contains the long-lived DeviceId, the device
+encryption/signing key pairs, and ProjectKey entries keyed by ProjectId and key
+epoch.
+
+Vault payload version 2 adds the ProjectKey key ring. Version-1 payloads remain
+readable and are interpreted as having an empty key ring; the next Vault
+mutation rewrites the encrypted payload in version-2 form. The unlocked runtime
+retains the VaultKey in memory so ProjectKeys can be added without prompting
+WebAuthn for every Vault write. The VaultKey and all in-memory private/project
+keys are cleared when the session closes.
 
 Creating a local Device Vault establishes a device identity, but does not by
 itself authorize that device for any Project. Project authorization begins with
@@ -826,11 +876,17 @@ Durable Object commits transition
   |
 A verifies and stores committed SecurityState
   |
-A wraps/delivers current ProjectKey to B
+A seals current ProjectKey envelope to B
   |
-invite consumed
+B opens envelope and validates ProjectId / epoch / DeviceId / security head
   |
-normal P2P synchronization begins
+B stores ProjectKey + committed SecurityState
+  |
+B sends project-key-stored ACK
+  |
+A consumes invite
+  |
+normal encrypted P2P synchronization begins
 ```
 
 Possessing an invite does not itself authorize a device. Authorization occurs only after the signed `AddDevice` transition is accepted by the sequencer.
@@ -985,6 +1041,41 @@ The initial security model assumes:
 - A compromised origin or malicious JavaScript executing inside an unlocked session is outside what storage encryption alone can prevent.
 - Availability attacks by the coordination service are possible; confidentiality and authorization should not depend on trusting that service.
 
+### 24.1 Known security limitations
+
+The initial design has several deliberate limitations that should remain
+visible rather than being implied away by the use of modern primitives.
+
+- **Sealed boxes do not authenticate the sender.** Anyone who knows a device
+  encryption public key can create a valid `crypto_box_seal` ciphertext for
+  that device. Floe Note relies on the PairingSecret-authenticated pairing
+  channel and committed authorization state for sender context.
+- **ProjectKey delivery does not provide forward secrecy against later recipient
+  device-key compromise.** If an attacker records a sealed ProjectKey envelope
+  and later obtains that recipient's device encryption private key, the
+  recorded envelope can be opened. This is accepted for the initial
+  single-user design because compromise of an unlocked or extracted Device
+  Vault already exposes stored ProjectKeys.
+- **Authorization and key delivery are two separate durable events.** A crash or
+  network failure can occur after AddDevice commits but before the new device
+  durably stores the ProjectKey. The stored acknowledgement prevents the
+  invitation from being consumed too early, and same-session delivery can be
+  retried, but a general later recovery/re-delivery flow is still required for
+  abandoned pairings.
+- **Revocation cannot erase information already disclosed.** A revoked device
+  may retain plaintext, old ProjectKeys, and old ciphertext. Rotation only
+  prevents access to data encrypted under future key epochs.
+- **An authorized device is trusted with the current ProjectKey.** Such a device
+  can deliberately disclose that key outside Floe Note. Cryptographic
+  authorization prevents unauthorized protocol participants from obtaining the
+  key through the intended flow; it cannot constrain a device that is already
+  legitimately authorized and compromised or malicious.
+- **Bootstrap SecurityState is received from the inviting authorized device in
+  the current pairing flow.** It is bound to the sealed envelope by head hash
+  and to the recipient identity, but the joining device does not independently
+  fetch the current head from the coordinator in this step. A future
+  SecurityState freshness/GET flow can provide an additional consistency check.
+
 This threat model should be revisited before a security-sensitive public release.
 
 ## 25. Technology stack
@@ -1052,12 +1143,13 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
-1. Exact libsodium APIs and envelope format for ProjectKey wrapping.
-2. Canonical payload details and validation rules for `RevokeDevice`.
-3. Old-ProjectKey retention and migration of ciphertext after key rotation.
-4. Document tombstone garbage collection.
-5. Stable backup/export archive format.
-6. Background synchronization strategy.
-7. Detailed synchronization message formats and protocol-version negotiation.
+1. Canonical payload details and validation rules for `RevokeDevice`.
+2. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
+3. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
+4. Independent SecurityState freshness retrieval by newly joined devices.
+5. Document tombstone garbage collection.
+6. Stable backup/export archive format.
+7. Background synchronization strategy.
+8. Detailed synchronization message formats and protocol-version negotiation.
 
 These details should be introduced only when required by an implementation or product requirement.
