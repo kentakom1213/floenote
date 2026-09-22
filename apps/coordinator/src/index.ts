@@ -1,8 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
-import { parseProjectId, type ProjectId } from "@floe-note/domain";
 import {
+  parseDeviceId,
+  parseProjectId,
+  type DeviceId,
+  type ProjectId,
+} from "@floe-note/domain";
+import {
+  AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
+  SECURITY_PROTOCOL_VERSION,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  encodeAuthorizedPresenceProof,
   encodeAddDeviceTransition,
   encodeCreateProjectTransition,
   encodeUnsignedAddDeviceTransition,
@@ -20,9 +28,22 @@ interface Env {
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
 }
 
-type SocketAttachment = {
+type SignalingSocketAttachment = {
+  kind: "signaling";
   sessionId: string;
 };
+
+type PresenceSocketAttachment = {
+  kind: "presence";
+  projectId: string;
+  challenge: string;
+  securityHead: string;
+  deviceId?: string;
+};
+
+type SocketAttachment =
+  | SignalingSocketAttachment
+  | PresenceSocketAttachment;
 
 type SecurityTransitionRoute = {
   projectId: ProjectId;
@@ -122,8 +143,9 @@ export default {
       return withCors(response);
     }
 
+    const presenceRoute = parsePresenceRoute(url.pathname);
     const signalRoute = parseSignalRoute(url.pathname);
-    if (!signalRoute) {
+    if (!presenceRoute && !signalRoute) {
       return withCors(new Response("Not found", { status: 404 }));
     }
 
@@ -131,7 +153,12 @@ export default {
       return withCors(new Response("Expected WebSocket upgrade", { status: 426 }));
     }
 
-    const id = env.PROJECT_COORDINATOR.idFromName(signalRoute.projectId);
+    const projectId = presenceRoute?.projectId ?? signalRoute?.projectId;
+    if (!projectId) {
+      return withCors(new Response("Not found", { status: 404 }));
+    }
+
+    const id = env.PROJECT_COORDINATOR.idFromName(projectId);
     return env.PROJECT_COORDINATOR.get(id).fetch(request);
   },
 } satisfies ExportedHandler<Env>;
@@ -156,6 +183,11 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return this.#commitSecurityTransition(request, securityRoute.projectId);
     }
 
+    const presenceRoute = parsePresenceRoute(url.pathname);
+    if (presenceRoute) {
+      return this.#openPresenceSocket(presenceRoute.projectId);
+    }
+
     const route = parseSignalRoute(url.pathname);
 
     if (!route) {
@@ -173,8 +205,9 @@ export class ProjectCoordinator extends DurableObject<Env> {
     const server = pair[1];
 
     server.serializeAttachment({
+      kind: "signaling",
       sessionId: route.sessionId,
-    } satisfies SocketAttachment);
+    } satisfies SignalingSocketAttachment);
     this.ctx.acceptWebSocket(server, [tag]);
 
     const peers = this.ctx.getWebSockets(tag);
@@ -183,6 +216,36 @@ export class ProjectCoordinator extends DurableObject<Env> {
         sendJson(peer, { type: "peer-ready" });
       }
     }
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
+  }
+
+  async #openPresenceSocket(projectId: ProjectId): Promise<Response> {
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) return state;
+
+    const challenge = randomHex(AUTHORIZED_PRESENCE_CHALLENGE_BYTES);
+    const securityHead = bytesToHex(state.headHash);
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+
+    server.serializeAttachment({
+      kind: "presence",
+      projectId,
+      challenge,
+      securityHead,
+    } satisfies PresenceSocketAttachment);
+    this.ctx.acceptWebSocket(server, [presenceTag()]);
+
+    sendJson(server, {
+      type: "presence-challenge",
+      challenge,
+      securityHead,
+    });
 
     return new Response(null, {
       status: 101,
@@ -428,17 +491,12 @@ export class ProjectCoordinator extends DurableObject<Env> {
     message: string | ArrayBuffer,
   ): Promise<void> {
     if (typeof message !== "string") {
-      socket.close(1003, "Signaling messages must be JSON text");
+      socket.close(1003, "WebSocket messages must be JSON text");
       return;
     }
 
     if (new TextEncoder().encode(message).byteLength > MAX_SIGNAL_MESSAGE_BYTES) {
-      socket.close(1009, "Signaling message is too large");
-      return;
-    }
-
-    if (!isSignalEnvelope(message)) {
-      socket.close(1007, "Invalid signaling message");
+      socket.close(1009, "WebSocket message is too large");
       return;
     }
 
@@ -446,7 +504,17 @@ export class ProjectCoordinator extends DurableObject<Env> {
       | SocketAttachment
       | null;
     if (!attachment) {
-      socket.close(1011, "Missing signaling session");
+      socket.close(1011, "Missing WebSocket attachment");
+      return;
+    }
+
+    if (attachment.kind === "presence") {
+      await this.#handlePresenceMessage(socket, attachment, message);
+      return;
+    }
+
+    if (!isSignalEnvelope(message)) {
+      socket.close(1007, "Invalid signaling message");
       return;
     }
 
@@ -463,18 +531,122 @@ export class ProjectCoordinator extends DurableObject<Env> {
     _reason: string,
     _wasClean: boolean,
   ): Promise<void> {
-    this.#notifyPeerLeft(socket);
+    this.#handleSocketDeparture(socket);
   }
 
   async webSocketError(socket: WebSocket): Promise<void> {
-    this.#notifyPeerLeft(socket);
+    this.#handleSocketDeparture(socket);
   }
 
-  #notifyPeerLeft(socket: WebSocket): void {
+  async #handlePresenceMessage(
+    socket: WebSocket,
+    attachment: PresenceSocketAttachment,
+    message: string,
+  ): Promise<void> {
+    if (attachment.deviceId) {
+      socket.close(1008, "Authorized presence is already authenticated");
+      return;
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(message);
+    } catch {
+      socket.close(1007, "Invalid authorized-presence JSON");
+      return;
+    }
+
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("type" in payload) ||
+      payload.type !== "presence-auth" ||
+      !("deviceId" in payload) ||
+      typeof payload.deviceId !== "string" ||
+      !("signature" in payload) ||
+      typeof payload.signature !== "string"
+    ) {
+      socket.close(1007, "Invalid authorized-presence authentication");
+      return;
+    }
+
+    let deviceId: DeviceId;
+    let signature: Uint8Array;
+    try {
+      deviceId = parseDeviceId(payload.deviceId);
+      signature = hexToBytes(payload.signature, 64, "Presence signature");
+    } catch {
+      socket.close(1008, "Invalid authorized-presence identity");
+      return;
+    }
+
+    let projectId: ProjectId;
+    try {
+      projectId = parseProjectId(attachment.projectId);
+    } catch {
+      socket.close(1011, "Invalid Project coordinator identity");
+      return;
+    }
+
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) {
+      socket.close(1011, "Project SecurityState is unavailable");
+      return;
+    }
+
+    if (attachment.securityHead !== bytesToHex(state.headHash)) {
+      socket.close(1008, "SecurityState changed during presence authentication");
+      return;
+    }
+
+    const authorizedDevice = state.devices.find(
+      (device) => device.deviceId === deviceId,
+    );
+    if (!authorizedDevice) {
+      socket.close(1008, "Device is not authorized for this Project");
+      return;
+    }
+
+    const challenge = hexToBytes(
+      attachment.challenge,
+      AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
+      "Presence challenge",
+    );
+    const signingBytes = encodeAuthorizedPresenceProof({
+      protocolVersion: SECURITY_PROTOCOL_VERSION,
+      projectId,
+      deviceId,
+      securityHead: state.headHash,
+      challenge,
+    });
+    const verified = await verifyEd25519(
+      signingBytes,
+      signature,
+      authorizedDevice.signingPublicKey,
+    );
+    if (!verified) {
+      socket.close(1008, "Authorized-presence signature verification failed");
+      return;
+    }
+
+    socket.serializeAttachment({
+      ...attachment,
+      deviceId,
+    } satisfies PresenceSocketAttachment);
+
+    this.#broadcastPresenceState();
+  }
+
+  #handleSocketDeparture(socket: WebSocket): void {
     const attachment = socket.deserializeAttachment() as
       | SocketAttachment
       | null;
     if (!attachment) return;
+
+    if (attachment.kind === "presence") {
+      if (attachment.deviceId) this.#broadcastPresenceState(socket);
+      return;
+    }
 
     for (const peer of this.ctx.getWebSockets(sessionTag(attachment.sessionId))) {
       if (peer !== socket) {
@@ -482,6 +654,42 @@ export class ProjectCoordinator extends DurableObject<Env> {
       }
     }
   }
+
+  #broadcastPresenceState(exclude?: WebSocket): void {
+    const sockets = this.ctx.getWebSockets(presenceTag());
+    const authenticated = sockets.flatMap((peer) => {
+      if (peer === exclude) return [];
+      const attachment = peer.deserializeAttachment() as SocketAttachment | null;
+      if (attachment?.kind !== "presence" || !attachment.deviceId) return [];
+      return [attachment.deviceId];
+    });
+    const deviceIds = [...new Set(authenticated)].sort();
+
+    for (const peer of sockets) {
+      if (peer === exclude) continue;
+      const attachment = peer.deserializeAttachment() as SocketAttachment | null;
+      if (attachment?.kind === "presence" && attachment.deviceId) {
+        sendJson(peer, { type: "presence-state", deviceIds });
+      }
+    }
+  }
+
+  async #loadSecurityState(
+    projectId: ProjectId,
+  ): Promise<SecurityState | Response> {
+    const storedWire =
+      await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
+    if (!storedWire) {
+      return new Response("Project security is not initialized", { status: 404 });
+    }
+
+    try {
+      return parseSecurityStateWirePayload(storedWire, projectId);
+    } catch {
+      return new Response("Stored SecurityState is invalid", { status: 500 });
+    }
+  }
+
 }
 
 export class InvitationCoordinator extends DurableObject<Env> {
@@ -770,6 +978,20 @@ function parseSecurityTransitionRoute(
   };
 }
 
+function parsePresenceRoute(
+  pathname: string,
+): { projectId: ProjectId } | null {
+  const match = /^\/projects\/([^/]+)\/presence$/.exec(pathname);
+  if (!match) return null;
+
+  const rawProjectId = match[1];
+  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+
+  return {
+    projectId: parseProjectId(rawProjectId.toLowerCase()),
+  };
+}
+
 function parseSignalRoute(
   pathname: string,
 ): { projectId: string; sessionId: string } | null {
@@ -786,6 +1008,10 @@ function parseSignalRoute(
 
 function sessionTag(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+function presenceTag(): string {
+  return "presence";
 }
 
 function isSignalEnvelope(message: string): boolean {
@@ -814,7 +1040,30 @@ function claimedInvitationResponse(record: InvitationRecord): Response {
 
 function randomHex(byteLength: number): string {
   const bytes = crypto.getRandomValues(new Uint8Array(byteLength));
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return bytesToHex(bytes);
+}
+
+function bytesToHex(value: Uint8Array): string {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(
+  value: string,
+  expectedBytes: number,
+  label: string,
+): Uint8Array {
+  if (
+    value.length !== expectedBytes * 2 ||
+    !/^[0-9a-f]+$/i.test(value)
+  ) {
+    throw new TypeError(`${label} must be ${expectedBytes} bytes of hex`);
+  }
+
+  const result = new Uint8Array(expectedBytes);
+  for (let index = 0; index < expectedBytes; index += 1) {
+    result[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  }
+  return result;
 }
 
 function withCors(response: Response): Response {

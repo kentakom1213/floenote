@@ -359,7 +359,17 @@ WebRTC DataChannels carry project synchronization data directly between devices.
 
 Floe Note does not require or maintain a particular peer-to-peer graph topology. In particular, it does not require a full mesh and does not implement peer-relayed signaling as part of the core protocol.
 
-Each online device may maintain a signaling connection to the Project coordinator. WebRTC offer, answer, and ICE messages are relayed through Cloudflare.
+Each online authorized device maintains an authenticated presence connection to
+the Project coordinator after Device Vault unlock and SecurityState freshness
+verification. Presence authentication uses a fresh coordinator challenge signed
+by the device signing key; the proof binds ProjectId, DeviceId, the current
+SecurityState head, and the challenge. The coordinator verifies the signature
+against the authorized device public key in its current SecurityState before the
+device is included in the online-device set.
+
+Presence discovery only answers which authorized DeviceIds are currently
+connected. It does not create a WebRTC connection by itself. WebRTC offer,
+answer, and ICE messages are relayed through Cloudflare separately.
 
 ```text
 Device A ---- WebSocket ----┐
@@ -409,10 +419,21 @@ Security transitions are the update protocol, but the coordinator is not require
 
 Ephemeral coordination includes:
 
-- online device sessions;
+- authenticated online-device presence;
 - pending invitations;
 - WebSocket rendezvous;
 - WebRTC offer/answer/ICE forwarding.
+
+For normal authorized-device discovery, a client opens
+`/projects/:projectId/presence`. The coordinator returns a random 256-bit
+challenge and its current SecurityState head. The client signs the deterministic
+authorized-presence proof with its Device Vault signing key. Only after the
+coordinator verifies that signature against a DeviceId in the current
+SecurityState does the socket contribute to the online-device list. The list is
+deduplicated by DeviceId and broadcast to authenticated presence sockets.
+
+Presence is ephemeral Durable Object/WebSocket state. It is not persisted as an
+authorization record and does not change SecurityState.
 
 Project-scoped signaling remains in `ProjectCoordinatorDO(ProjectId)`. Because a
 join URL intentionally does not expose `ProjectId`, short-lived invitation
@@ -1222,6 +1243,12 @@ visible rather than being implied away by the use of modern primitives.
   current key epoch, ciphertext length, packet timing, and WebRTC/network
   metadata remain observable even though SyncMessage type, DocumentId, and Loro
   bytes are encrypted.
+- **The coordinator observes authorized-device presence metadata.** Presence
+  authentication necessarily reveals ProjectId and DeviceId to the Project
+  coordinator while a device is online, together with connection timing. It
+  does not reveal ProjectKey, note contents, or device private keys. Hiding the
+  online-device graph from the coordination service is not a goal of the
+  current reconnect design.
 - **Encrypted local persistence still exposes storage metadata.** ProjectId,
   DocumentId, local-slot metadata, record counts, ciphertext sizes, and the
   storage envelope keyEpoch remain observable in IndexedDB. Note titles,

@@ -35,3 +35,9 @@ export type {
 } from "./webrtc-signaling-session.js";
 
 export { SecurityCoordinatorClient } from "./security-client.js";
+
+export { AuthorizedPresenceClient } from "./authorized-presence-client.js";
+export type {
+  AuthorizedPresenceClientOptions,
+  AuthorizedPresenceConnectionState,
+} from "./authorized-presence-client.js";
