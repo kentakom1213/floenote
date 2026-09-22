@@ -1,8 +1,11 @@
 import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
   deriveAddDeviceSecurityState,
+  deriveRevokeDeviceSecurityState,
   encodeAddDeviceTransition,
+  encodeRevokeDeviceTransition,
   encodeUnsignedAddDeviceTransition,
+  encodeUnsignedRevokeDeviceTransition,
   type SecurityState,
   type SecurityTransition,
 } from "@floe-note/security";
@@ -47,10 +50,32 @@ export async function applyVerifiedSecurityTransitions(
           "CreateProject cannot appear after an existing local SecurityState",
         );
 
-      case "revoke-device":
-        throw new Error(
-          "RevokeDevice catch-up is not implemented yet",
+      case "revoke-device": {
+        const signer = state.devices.find(
+          (device) => device.deviceId === transition.signerDeviceId,
         );
+        if (!signer) {
+          throw new Error(
+            `Security transition signer is not authorized at sequence ${transition.sequence}`,
+          );
+        }
+
+        const signingBytes = encodeUnsignedRevokeDeviceTransition(transition);
+        const verified = await verifyEd25519Signature(
+          signingBytes,
+          transition.signature,
+          signer.signingPublicKey,
+        );
+        if (!verified) {
+          throw new Error(
+            `Security transition signature verification failed at sequence ${transition.sequence}`,
+          );
+        }
+
+        const headHash = await sha256(encodeRevokeDeviceTransition(transition));
+        state = deriveRevokeDeviceSecurityState(state, transition, headHash);
+        break;
+      }
     }
   }
 
