@@ -337,3 +337,11 @@ h1 {
   font-size: 12px;
   line-height: 1.5;
 }
+
+
+.join-live-hint {
+  margin: 12px 0 0;
+  color: #6f695f;
+  font-size: 12px;
+  line-height: 1.5;
+}
