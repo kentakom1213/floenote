@@ -416,3 +416,19 @@ h1 {
     border-bottom: 1px solid #d8d1c5;
   }
 }
+
+
+.invite-cancel-button {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid #cfc8bb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fffdf9;
+  color: #8b4f44;
+}
+
+.invite-cancel-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
