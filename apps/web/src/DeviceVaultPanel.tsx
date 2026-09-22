@@ -90,7 +90,7 @@ export function DeviceVaultPanel({
           ) : null}
           {securityHeadHash ? (
             <p className="webrtc-status">
-              Initial head: <strong>{securityHeadHash}</strong>
+              Head: <strong>{securityHeadHash}</strong>
             </p>
           ) : null}
           {securityError ? (
