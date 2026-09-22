@@ -1,12 +1,17 @@
 import { DurableObject } from "cloudflare:workers";
 import { parseProjectId, type ProjectId } from "@floe-note/domain";
 import {
+  deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  encodeAddDeviceTransition,
   encodeCreateProjectTransition,
+  encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  parseAddDeviceWirePayload,
   parseCreateProjectWirePayload,
   parseSecurityStateWirePayload,
   securityStateToWire,
+  type SecurityState,
   type SecurityStateWirePayload,
 } from "@floe-note/security";
 
@@ -129,7 +134,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       if (request.method !== "POST") {
         return new Response("Method not allowed", { status: 405 });
       }
-      return this.#commitCreateProject(request, securityRoute.projectId);
+      return this.#commitSecurityTransition(request, securityRoute.projectId);
     }
 
     const route = parseSignalRoute(url.pathname);
@@ -166,7 +171,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #commitCreateProject(
+  async #commitSecurityTransition(
     request: Request,
     projectId: ProjectId,
   ): Promise<Response> {
@@ -177,6 +182,22 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return new Response("Invalid JSON security transition", { status: 400 });
     }
 
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "type" in payload &&
+      payload.type === "add-device"
+    ) {
+      return this.#commitAddDevice(payload, projectId);
+    }
+
+    return this.#commitCreateProject(payload, projectId);
+  }
+
+  async #commitCreateProject(
+    payload: unknown,
+    projectId: ProjectId,
+  ): Promise<Response> {
     let transition;
     try {
       transition = parseCreateProjectWirePayload(payload, projectId);
@@ -247,6 +268,119 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
 
     return response ?? new Response("Failed to commit SecurityState", {
+      status: 500,
+    });
+  }
+
+  async #commitAddDevice(
+    payload: unknown,
+    projectId: ProjectId,
+  ): Promise<Response> {
+    let transition;
+    try {
+      transition = parseAddDeviceWirePayload(payload, projectId);
+    } catch (error: unknown) {
+      return new Response(
+        error instanceof Error ? error.message : "Invalid AddDevice payload",
+        { status: 400 },
+      );
+    }
+
+    const existingWire =
+      await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
+    if (!existingWire) {
+      return new Response("Project security is not initialized", {
+        status: 409,
+      });
+    }
+
+    let currentState: SecurityState;
+    try {
+      currentState = parseSecurityStateWirePayload(existingWire, projectId);
+    } catch {
+      return new Response("Stored SecurityState is invalid", { status: 500 });
+    }
+
+    const signer = currentState.devices.find(
+      (device) => device.deviceId === transition.signerDeviceId,
+    );
+    if (!signer) {
+      return new Response("AddDevice signer is not authorized", {
+        status: 403,
+      });
+    }
+
+    const signingBytes = encodeUnsignedAddDeviceTransition(transition);
+    const verified = await verifyEd25519(
+      signingBytes,
+      transition.signature,
+      signer.signingPublicKey,
+    );
+    if (!verified) {
+      return new Response("AddDevice signature verification failed", {
+        status: 403,
+      });
+    }
+
+    const headHash = await sha256(encodeAddDeviceTransition(transition));
+
+    if (bytesEqual(currentState.headHash, headHash)) {
+      if (!stateMatchesCommittedAdd(currentState, transition)) {
+        return new Response(
+          "Stored SecurityState does not match its committed AddDevice head",
+          { status: 500 },
+        );
+      }
+      return Response.json(securityStateToWire(currentState));
+    }
+
+    let candidateState: SecurityState;
+    try {
+      candidateState = deriveAddDeviceSecurityState(
+        currentState,
+        transition,
+        headHash,
+      );
+    } catch (error: unknown) {
+      return new Response(
+        error instanceof Error ? error.message : "Invalid AddDevice transition",
+        { status: 409 },
+      );
+    }
+
+    const candidateWire = securityStateToWire(candidateState);
+    let response: Response | null = null;
+
+    await this.ctx.storage.transaction(async (transaction) => {
+      const latestWire =
+        await transaction.get<SecurityStateWirePayload>("security-state");
+      if (!latestWire) {
+        response = new Response("Project security is not initialized", {
+          status: 409,
+        });
+        return;
+      }
+
+      let latestState: SecurityState;
+      try {
+        latestState = parseSecurityStateWirePayload(latestWire, projectId);
+      } catch {
+        response = new Response("Stored SecurityState is invalid", {
+          status: 500,
+        });
+        return;
+      }
+
+      if (!bytesEqual(latestState.headHash, currentState.headHash)) {
+        response = new Response("SecurityState head changed", { status: 409 });
+        return;
+      }
+
+      await transaction.put("security-state", candidateWire);
+      response = Response.json(candidateWire, { status: 201 });
+    });
+
+    return response ?? new Response("Failed to commit AddDevice", {
       status: 500,
     });
   }
@@ -696,4 +830,34 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
     difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
   return difference === 0;
+}
+
+function stateMatchesCommittedAdd(
+  state: SecurityState,
+  transition: ReturnType<typeof parseAddDeviceWirePayload>,
+): boolean {
+  if (
+    state.projectId !== transition.projectId ||
+    state.sequence !== transition.sequence
+  ) {
+    return false;
+  }
+
+  const added = state.devices.find(
+    (device) => device.deviceId === transition.newDevice.deviceId,
+  );
+  if (!added || added.addedAtSequence !== transition.sequence) {
+    return false;
+  }
+
+  return (
+    bytesEqual(
+      added.encryptionPublicKey,
+      transition.newDevice.encryptionPublicKey,
+    ) &&
+    bytesEqual(
+      added.signingPublicKey,
+      transition.newDevice.signingPublicKey,
+    )
+  );
 }
