@@ -554,6 +554,25 @@ function NoteApp() {
 
     try {
       const signerIdentity = session.publicIdentity;
+      const authorizedSigner = localSecurityState.devices.find(
+        (device) => device.deviceId === signerIdentity.deviceId,
+      );
+      if (
+        !authorizedSigner ||
+        !bytesEqual(
+          authorizedSigner.encryptionPublicKey,
+          signerIdentity.encryptionPublicKey,
+        ) ||
+        !bytesEqual(
+          authorizedSigner.signingPublicKey,
+          signerIdentity.signingPublicKey,
+        )
+      ) {
+        throw new Error(
+          "Unlocked Device Vault identity does not match authorized SecurityState",
+        );
+      }
+
       const unsignedTransition = createUnsignedAddDeviceTransition(
         localSecurityState,
         joiningDevice,
@@ -570,7 +589,7 @@ function NoteApp() {
       const verified = await verifyEd25519Signature(
         signingBytes,
         transition.signature,
-        signerIdentity.signingPublicKey,
+        authorizedSigner.signingPublicKey,
       );
       if (!verified) {
         throw new Error("AddDevice signature verification failed");
