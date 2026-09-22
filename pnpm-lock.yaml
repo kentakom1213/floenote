@@ -50,6 +50,9 @@ importers:
       '@floe-note/transport':
         specifier: workspace:*
         version: link:../../packages/transport
+      '@floe-note/vault':
+        specifier: workspace:*
+        version: link:../../packages/vault
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
@@ -168,6 +171,21 @@ importers:
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../domain
+
+  packages/vault:
+    dependencies:
+      '@floe-note/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../security
+      dexie:
+        specifier: ^4.4.6
+        version: 4.4.6
 
 packages:
 
