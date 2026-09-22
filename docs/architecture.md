@@ -849,7 +849,17 @@ RevokeDevice
 └── signerDeviceId
 ```
 
-Revocation and key-epoch advancement are one atomic security transition.
+Revocation and key-epoch advancement are one atomic security transition. The
+signer and revoked device must both be present in the current authorized-device
+set, the signer may not revoke itself, and `newKeyEpoch` must equal the current
+epoch plus one.
+
+The unsigned RevokeDevice logical object is encoded with the same RFC 8949
+deterministic CBOR rules as the other security transitions and signed with the
+authorized signer's Ed25519 key. The new head is SHA-256 of the deterministic
+CBOR encoding of the complete signed RevokeDevice transition. The resulting
+SecurityState advances sequence and keyEpoch together and removes the revoked
+device from the authorized set.
 
 ## 17. Transition ordering
 
@@ -1081,6 +1091,27 @@ After:
 
 Only remaining authorized devices receive K5.
 
+The revoking device prepares K5 ephemerally inside the unlocked Device Vault
+and seals it independently to every device remaining in the candidate
+SecurityState, including itself. Raw K5 is zeroed without first being persisted.
+Each sealed envelope is bound to ProjectId, keyEpoch, recipient DeviceId, and
+the committed security head. The revoking device additionally signs the complete
+sealed-envelope record with its device signing key.
+
+The RevokeDevice transition and the signed sealed envelopes are submitted
+together. The ProjectCoordinator verifies the RevokeDevice signature, derives
+the candidate SecurityState, verifies that exactly every remaining authorized
+device has one correctly signed envelope, and stores the new SecurityState,
+transition, and envelopes in one Durable Object transaction. The coordinator
+therefore acts only as an opaque mailbox and never receives the plaintext
+ProjectKey.
+
+After commit, each remaining device fetches only its own signed sealed envelope,
+verifies its signer and context against the verified SecurityState, opens it
+inside the Device Vault, and then persists K5. A presence connection tied to the
+old security head is invalidated; an unlocked client uses that invalidation to
+run SecurityTransition catch-up and acquire the current key automatically.
+
 A revoked device may retain data and keys it obtained before revocation. Cryptography cannot make already disclosed plaintext disappear.
 
 Therefore revocation means:
@@ -1258,9 +1289,8 @@ visible rather than being implied away by the use of modern primitives.
   previousHash continuity through state derivation, recomputes each head hash,
   and finally requires the derived state to equal the coordinator's current
   materialized state before persisting it. If any required transition predates
-  transition retention or has been pruned, catch-up fails safely. The current
-  implementation applies AddDevice transitions; RevokeDevice catch-up is added
-  together with the revocation protocol.
+  transition retention or has been pruned, catch-up fails safely. AddDevice and
+  RevokeDevice transitions are both applied through this verified chain.
 - **Encrypted sync authenticates possession of a ProjectKey, not an individual
   DeviceId.** All devices authorized for the current epoch share the same
   symmetric ProjectKey, so any such device can construct a valid encrypted sync
@@ -1369,15 +1399,14 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
-1. Canonical payload details and validation rules for `RevokeDevice`.
-2. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
-3. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
-4. SecurityTransition retention/pruning policy once devices can safely declare
+1. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
+2. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
+3. SecurityTransition retention/pruning policy once devices can safely declare
    that older transition history is no longer required.
-5. Document tombstone garbage collection.
-6. Stable backup/export archive format.
-7. Background synchronization strategy.
-8. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
+4. Document tombstone garbage collection.
+5. Stable backup/export archive format.
+6. Background synchronization strategy.
+7. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
 9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
 
 These details should be introduced only when required by an implementation or product requirement.
