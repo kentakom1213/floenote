@@ -67,8 +67,14 @@ export function WebRtcDebugPanel({
       <p className="webrtc-status">
         Data channel: <strong>{status.dataChannelState}</strong>
       </p>
-      <p className="webrtc-project-id" title={projectId}>
-        Project: {projectId}
+
+      <label className="webrtc-field">
+        <span>Project ID</span>
+        <input readOnly value={projectId} />
+      </label>
+
+      <p className="webrtc-hint">
+        A fresh browser can join this Project at <code>?join=webrtc</code>.
       </p>
 
       <div className="webrtc-actions">
