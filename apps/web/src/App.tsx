@@ -57,10 +57,9 @@ import {
 } from "@floe-note/vault";
 
 import { createConsoleDebugLogger } from "./debug.js";
-import {
-  DeviceVaultPanel,
-  type DeviceVaultUiState,
-  type LocalSecurityBootstrapUiState,
+import type {
+  DeviceVaultUiState,
+  LocalSecurityBootstrapUiState,
 } from "./DeviceVaultPanel.js";
 import {
   InvitationHostPanel,
@@ -747,6 +746,7 @@ function NoteApp() {
     const projectId = project.id;
     setProjectSwitching(true);
     setProjectCatalogReady(false);
+    setSelectedId(null);
     setOpenedProject(null);
     resetProjectSecurityUiState();
 
@@ -768,6 +768,21 @@ function NoteApp() {
       }
       setMainView("note");
       setProjectCatalogReady(true);
+    } catch (error) {
+      const recovered = await projectStorage.openLastProject(session).catch(
+        () => null,
+      );
+      const summaries = await projectStorage.listProjects(session).catch(
+        () => [],
+      );
+      setOpenedProject(recovered);
+      setProjectSummaries(
+        recovered
+          ? withActiveProjectSummary(summaries, recovered.project)
+          : summaries,
+      );
+      setProjectCatalogReady(true);
+      throw error;
     } finally {
       setProjectSwitching(false);
     }
@@ -777,6 +792,7 @@ function NoteApp() {
     const session = deviceVaultSessionRef.current;
 
     setProjectCatalogReady(false);
+    setSelectedId(null);
     setOpenedProject(null);
     resetProjectSecurityUiState();
 
