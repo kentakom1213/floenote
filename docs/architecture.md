@@ -714,6 +714,13 @@ Pairing authentication is separate from device authorization: a peer that knows
 the PairingSecret is still not an authorized Project device until `AddDevice`
 has been committed.
 
+Before authorization succeeds, the joining device must not adopt the claimed
+Project as its persistent local Project. It may construct an in-memory
+`NoteProject` keyed by the claimed ProjectId for the temporary pairing flow,
+but the existing local default Project and persistent project storage remain
+unchanged. Persistent adoption happens only after authorization and ProjectKey
+delivery succeed.
+
 Invitations should be:
 
 - one-time;
