@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
-  AuthorizedPresenceClient,
   createPairingSecret,
   createSessionId,
   InvitationClient,
   SecurityCoordinatorClient,
   WebRtcSignalingSession,
-  type AuthorizedPresenceConnectionState,
   type InviteId,
   type PairingSecret,
   type SessionId,
@@ -48,7 +46,6 @@ import {
   EncryptedSyncTransport,
   ProjectSyncEngine,
 } from "@floe-note/sync";
-import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
   WebAuthnPrfDeviceVault,
@@ -56,10 +53,6 @@ import {
 } from "@floe-note/vault";
 
 import { AuthorizedDevicesPanel } from "./AuthorizedDevicesPanel.js";
-import {
-  AutomaticPeerSyncManager,
-  type AutomaticPeerSyncStatus,
-} from "./AutomaticPeerSyncManager.js";
 import { createConsoleDebugLogger } from "./debug.js";
 import {
   DeviceVaultPanel,
@@ -77,17 +70,26 @@ import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
+import {
+  useAuthorizedProjectSync,
+  useEncryptedLocalTabSync,
+} from "./useProjectSync.js";
 
 const projectStorage = new DexieProjectStorage();
 const deviceVault = new WebAuthnPrfDeviceVault();
 const searchParams = new URLSearchParams(window.location.search);
-const useManualWebRtc = searchParams.get("transport") === "webrtc";
-const useSignaledWebRtc = searchParams.get("transport") === "signal";
+const legacyDebugRoutesEnabled = import.meta.env.DEV;
+const useManualWebRtc =
+  legacyDebugRoutesEnabled && searchParams.get("transport") === "webrtc";
+const useSignaledWebRtc =
+  legacyDebugRoutesEnabled && searchParams.get("transport") === "signal";
 const useInvitationWebRtc = searchParams.get("transport") === "invite";
 const useAutomaticReconnect =
   !useManualWebRtc && !useSignaledWebRtc && !useInvitationWebRtc;
-const useManualWebRtcJoin = searchParams.get("join") === "webrtc";
-const useSignaledWebRtcJoin = searchParams.get("join") === "signal";
+const useManualWebRtcJoin =
+  legacyDebugRoutesEnabled && searchParams.get("join") === "webrtc";
+const useSignaledWebRtcJoin =
+  legacyDebugRoutesEnabled && searchParams.get("join") === "signal";
 const invitationPathMatch = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(
   window.location.pathname,
 );
