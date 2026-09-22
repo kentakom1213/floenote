@@ -67,6 +67,7 @@ export async function exchangeJoiningDeviceIdentity(
     const stopMessages = transport.onMessage((data) => {
       try {
         const message = decodeMessage(data);
+        if (!message) return;
 
         if (options.role === "host") {
           if (message.type !== "device-identity") return;
@@ -149,10 +150,10 @@ function encodeMessage(message: DeviceBootstrapMessage): Uint8Array {
   return textEncoder.encode(MESSAGE_PREFIX + JSON.stringify(message));
 }
 
-function decodeMessage(data: Uint8Array): DeviceBootstrapMessage {
+function decodeMessage(data: Uint8Array): DeviceBootstrapMessage | null {
   const text = textDecoder.decode(data);
   if (!text.startsWith(MESSAGE_PREFIX)) {
-    throw new Error("Unexpected data received during device bootstrap");
+    return null;
   }
 
   let parsed: unknown;
