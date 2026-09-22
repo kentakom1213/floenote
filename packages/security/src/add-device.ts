@@ -15,6 +15,9 @@ import type {
   UnsignedAddDeviceTransition,
 } from "./transition.js";
 
+const DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES = 32;
+const DEVICE_SIGNING_PUBLIC_KEY_BYTES = 32;
+
 export function createUnsignedAddDeviceTransition(
   currentState: SecurityState,
   newDevice: DevicePublicIdentity,
@@ -118,6 +121,13 @@ function validateCurrentStateForAdd(
   }
   if (currentState.headHash.byteLength !== SECURITY_HEAD_HASH_BYTES) {
     throw new TypeError("Invalid current security head hash");
+  }
+  if (
+    newDevice.encryptionPublicKey.byteLength !==
+      DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES ||
+    newDevice.signingPublicKey.byteLength !== DEVICE_SIGNING_PUBLIC_KEY_BYTES
+  ) {
+    throw new TypeError("Invalid new device public key lengths");
   }
   if (!currentState.devices.some((device) => device.deviceId === signerDeviceId)) {
     throw new TypeError("AddDevice signer is not authorized");
