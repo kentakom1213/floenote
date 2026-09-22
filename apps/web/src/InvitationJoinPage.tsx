@@ -343,7 +343,6 @@ export function InvitationJoinPage({
                     maxLength={80}
                     value={deviceName}
                     placeholder="Kenta's Pixel"
-                    disabled={vaultState === "unlocking"}
                     onChange={(event) => setDeviceName(event.target.value)}
                   />
                 </label>
