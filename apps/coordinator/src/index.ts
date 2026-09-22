@@ -19,8 +19,10 @@ import {
   parseCreateProjectWirePayload,
   parseSecurityStateWirePayload,
   securityStateToWire,
+  securityTransitionToWire,
   type SecurityState,
   type SecurityStateWirePayload,
+  type SecurityTransitionWirePayload,
 } from "@floe-note/security";
 
 interface Env {
@@ -134,7 +136,7 @@ export default {
 
     const securityRoute = parseSecurityTransitionRoute(url.pathname);
     if (securityRoute) {
-      if (request.method !== "POST") {
+      if (request.method !== "GET" && request.method !== "POST") {
         return withCors(new Response("Method not allowed", { status: 405 }));
       }
 
@@ -177,10 +179,13 @@ export class ProjectCoordinator extends DurableObject<Env> {
     const securityRoute = parseSecurityTransitionRoute(url.pathname);
 
     if (securityRoute) {
-      if (request.method !== "POST") {
-        return new Response("Method not allowed", { status: 405 });
+      if (request.method === "GET") {
+        return this.#getSecurityTransitions(request, securityRoute.projectId);
       }
-      return this.#commitSecurityTransition(request, securityRoute.projectId);
+      if (request.method === "POST") {
+        return this.#commitSecurityTransition(request, securityRoute.projectId);
+      }
+      return new Response("Method not allowed", { status: 405 });
     }
 
     const presenceRoute = parsePresenceRoute(url.pathname);
@@ -270,6 +275,61 @@ export class ProjectCoordinator extends DurableObject<Env> {
     }
 
     return Response.json(securityStateToWire(state));
+  }
+
+  async #getSecurityTransitions(
+    request: Request,
+    projectId: ProjectId,
+  ): Promise<Response> {
+    const url = new URL(request.url);
+    const rawAfter = url.searchParams.get("after");
+    if (rawAfter === null || !/^\d+$/.test(rawAfter)) {
+      return new Response("after must be a non-negative integer", {
+        status: 400,
+      });
+    }
+
+    const afterSequence = Number(rawAfter);
+    if (!Number.isSafeInteger(afterSequence)) {
+      return new Response("after is outside the supported sequence range", {
+        status: 400,
+      });
+    }
+
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) return state;
+
+    if (afterSequence > state.sequence) {
+      return new Response(
+        "Requested transition sequence is newer than current SecurityState",
+        { status: 409 },
+      );
+    }
+
+    const transitions: SecurityTransitionWirePayload[] = [];
+    for (
+      let sequence = afterSequence + 1;
+      sequence <= state.sequence;
+      sequence += 1
+    ) {
+      const transition =
+        await this.ctx.storage.get<SecurityTransitionWirePayload>(
+          securityTransitionKey(sequence),
+        );
+      if (!transition) {
+        return new Response(
+          `Security transition history is unavailable at sequence ${sequence}`,
+          { status: 409 },
+        );
+      }
+      transitions.push(transition);
+    }
+
+    return Response.json({
+      fromSequence: afterSequence,
+      toSequence: state.sequence,
+      transitions,
+    });
   }
 
   async #commitSecurityTransition(
@@ -365,6 +425,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
       }
 
       await transaction.put("security-state", candidateWire);
+      await transaction.put(
+        securityTransitionKey(transition.sequence),
+        securityTransitionToWire(transition),
+      );
       response = Response.json(candidateWire, { status: 201 });
     });
 
@@ -478,6 +542,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
       }
 
       await transaction.put("security-state", candidateWire);
+      await transaction.put(
+        securityTransitionKey(transition.sequence),
+        securityTransitionToWire(transition),
+      );
       response = Response.json(candidateWire, { status: 201 });
     });
 
@@ -1092,6 +1160,10 @@ function parseSignalRoute(
   if (!SESSION_ID_PATTERN.test(sessionId)) return null;
 
   return { projectId, sessionId };
+}
+
+function securityTransitionKey(sequence: number): string {
+  return `security-transition:${sequence}`;
 }
 
 function sessionTag(sessionId: string): string {
