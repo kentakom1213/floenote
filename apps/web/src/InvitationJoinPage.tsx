@@ -1,4 +1,5 @@
 import {
+  createClaimId,
   InvitationClient,
   parseInviteId,
   parsePairingSecret,
@@ -40,6 +41,7 @@ export function InvitationJoinPage({
   inviteId,
   pairingSecret,
 }: InvitationJoinPageProps) {
+  const [claimId] = useState(() => createClaimId());
   const [project, setProject] = useState<NoteProject | null>(null);
   const [webRtcStatus, setWebRtcStatus] =
     useState<WebRtcStatus>(INITIAL_WEBRTC_STATUS);
@@ -68,7 +70,10 @@ export function InvitationJoinPage({
         parsePairingSecret(pairingSecret);
 
         const invitationClient = new InvitationClient(coordinatorBaseUrl);
-        const claimed = await invitationClient.claimInvite(parsedInviteId);
+        const claimed = await invitationClient.claimInvite(
+          parsedInviteId,
+          claimId,
+        );
         if (disposed) return;
 
         setClaimState("claimed");
@@ -129,7 +134,7 @@ export function InvitationJoinPage({
       disposed = true;
       cleanup?.();
     };
-  }, [coordinatorBaseUrl, inviteId, pairingSecret, storage]);
+  }, [claimId, coordinatorBaseUrl, inviteId, pairingSecret, storage]);
 
   if (error) {
     return (
