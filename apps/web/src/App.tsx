@@ -161,6 +161,7 @@ function NoteApp() {
     null,
   );
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const securityMutationInFlightRef = useRef(false);
   const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
   const presenceClientRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
@@ -446,7 +447,10 @@ function NoteApp() {
     );
     const stopErrors = presence.onError((error) => {
       setPresenceError(error.message);
-      if (error.message === "SecurityState changed") {
+      if (
+        error.message === "SecurityState changed" &&
+        !securityMutationInFlightRef.current
+      ) {
         setSecurityRefreshToken((value) => value + 1);
       }
     });
@@ -885,6 +889,10 @@ function NoteApp() {
   }
 
   async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
+    if (securityMutationInFlightRef.current) {
+      setCoordinationError("A security update is already in progress");
+      return;
+    }
     if (!localSecurityState || !localDeviceId) {
       setCoordinationError("Committed SecurityState is not available");
       return;
@@ -900,6 +908,7 @@ function NoteApp() {
       return;
     }
 
+    securityMutationInFlightRef.current = true;
     try {
       setCoordinationError(null);
       const signer = localSecurityState.devices.find(
@@ -996,6 +1005,9 @@ function NoteApp() {
       setCoordinationError(
         error instanceof Error ? error.message : "Failed to revoke device",
       );
+      setSecurityRefreshToken((value) => value + 1);
+    } finally {
+      securityMutationInFlightRef.current = false;
     }
   }
 
