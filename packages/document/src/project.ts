@@ -57,6 +57,12 @@ export class NoteProject {
     return () => this.#listeners.delete(listener);
   }
 
+  subscribeManifestLocalUpdates(
+    listener: (update: Uint8Array) => void,
+  ): () => void {
+    return this.#manifest.subscribeLocalUpdates(listener);
+  }
+
   listDocuments(): DocumentSummary[] {
     const manifest = this.#manifest.getMap("documents");
 
@@ -76,6 +82,29 @@ export class NoteProject {
   exportManifestSnapshot(): Uint8Array {
     this.#manifest.commit();
     return this.#manifest.export({ mode: "snapshot" });
+  }
+
+  exportManifestUpdate(): Uint8Array {
+    this.#manifest.commit();
+    return this.#manifest.export({ mode: "update" });
+  }
+
+  importManifestUpdate(update: Uint8Array): void {
+    this.#manifest.import(update);
+    this.#emit();
+  }
+
+  importDocumentUpdate(id: DocumentId, update: Uint8Array): NoteDocument {
+    let document = this.#documents.get(id);
+
+    if (!document) {
+      document = NoteDocument.empty(id);
+      this.#documents.set(id, document);
+    }
+
+    document.importUpdate(update);
+    this.#emit();
+    return document;
   }
 
   createDocument(title = "Untitled"): NoteDocument {
