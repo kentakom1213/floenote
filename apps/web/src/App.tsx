@@ -24,15 +24,23 @@ import {
 import {
   attachAddDeviceSignature,
   attachCreateProjectSignature,
+  attachProjectKeyRotationEnvelopeSignature,
+  attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
+  createUnsignedRevokeDeviceTransition,
   createUnsignedCreateProjectTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
+  deriveRevokeDeviceSecurityState,
   encodeAddDeviceTransition,
   encodeCreateProjectTransition,
+  encodeRevokeDeviceTransition,
+  encodeUnsignedProjectKeyRotationEnvelope,
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
+  encodeUnsignedRevokeDeviceTransition,
   type DevicePublicIdentity,
+  type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
 import { DexieProjectStorage } from "@floe-note/storage";
@@ -153,6 +161,7 @@ function NoteApp() {
     null,
   );
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const securityMutationInFlightRef = useRef(false);
   const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
   const presenceClientRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
@@ -168,6 +177,7 @@ function NoteApp() {
     useState<string | null>(null);
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
+  const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
   const [presenceState, setPresenceState] =
     useState<AuthorizedPresenceConnectionState>("idle");
   const [onlineDeviceIds, setOnlineDeviceIds] = useState<readonly DeviceId[]>([]);
@@ -282,11 +292,26 @@ function NoteApp() {
           await projectStorage.saveCommittedSecurityState(verifiedState);
         }
 
-        const projectKeyReady = await ensureInitialProjectKey(
+        let projectKeyReady = await ensureInitialProjectKey(
           session,
           verifiedState,
           localDeviceId,
         );
+
+        if (!projectKeyReady && verifiedState.keyEpoch > 1) {
+          const envelope = await securityCoordinator.getProjectKeyEnvelope(
+            verifiedState.projectId,
+            verifiedState.keyEpoch,
+            localDeviceId,
+          );
+          await storeVerifiedRotatedProjectKey(
+            session,
+            verifiedState,
+            localDeviceId,
+            envelope,
+          );
+          projectKeyReady = true;
+        }
 
         if (!cancelled) {
           setLocalSecurityState(verifiedState);
@@ -366,7 +391,7 @@ function NoteApp() {
     return () => {
       cancelled = true;
     };
-  }, [deviceVaultState, localDeviceId, project]);
+  }, [deviceVaultState, localDeviceId, project, securityRefreshToken]);
 
   useEffect(() => {
     if (
@@ -396,8 +421,12 @@ function NoteApp() {
     });
     presenceClientRef.current = presence;
 
+    const automaticReconnectEnabled =
+      useAutomaticReconnect ||
+      (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
+
     const automaticPeerSync =
-      useAutomaticReconnect && localProjectKeyReady
+      automaticReconnectEnabled && localProjectKeyReady
         ? new AutomaticPeerSyncManager({
             coordinatorBaseUrl,
             project,
@@ -420,9 +449,15 @@ function NoteApp() {
         automaticPeerSync?.acceptReconnectSession(fromDeviceId, sessionId);
       },
     );
-    const stopErrors = presence.onError((error) =>
-      setPresenceError(error.message),
-    );
+    const stopErrors = presence.onError((error) => {
+      setPresenceError(error.message);
+      if (
+        error.message === "SecurityState changed" &&
+        !securityMutationInFlightRef.current
+      ) {
+        setSecurityRefreshToken((value) => value + 1);
+      }
+    });
 
     setPresenceError(null);
     setAutomaticSyncStatus({ connectedDeviceIds: [], error: null });
@@ -450,6 +485,7 @@ function NoteApp() {
     localProjectKeyReady,
     localSecurityState,
     project,
+    projectKeyDeliveryState,
   ]);
 
   useEffect(() => {
@@ -857,6 +893,129 @@ function NoteApp() {
     await deliverProjectKey(committedState);
   }
 
+  async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
+    if (securityMutationInFlightRef.current) {
+      setCoordinationError("A security update is already in progress");
+      return;
+    }
+    if (!localSecurityState || !localDeviceId) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+    if (revokedDeviceId === localDeviceId) {
+      setCoordinationError("This device cannot revoke itself");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setCoordinationError("Device Vault must be unlocked before revocation");
+      return;
+    }
+
+    securityMutationInFlightRef.current = true;
+    try {
+      setCoordinationError(null);
+      const signer = localSecurityState.devices.find(
+        (device) => device.deviceId === localDeviceId,
+      );
+      if (!signer) {
+        throw new Error("This device is not authorized to revoke another device");
+      }
+
+      const unsignedTransition = createUnsignedRevokeDeviceTransition(
+        localSecurityState,
+        revokedDeviceId,
+        localDeviceId,
+      );
+      const signingBytes =
+        encodeUnsignedRevokeDeviceTransition(unsignedTransition);
+      const signature = await session.sign(signingBytes);
+      const transition = attachRevokeDeviceSignature(
+        unsignedTransition,
+        signature,
+      );
+
+      const verified = await verifyEd25519Signature(
+        signingBytes,
+        transition.signature,
+        signer.signingPublicKey,
+      );
+      if (!verified) {
+        throw new Error("RevokeDevice signature verification failed");
+      }
+
+      const headHash = await sha256(encodeRevokeDeviceTransition(transition));
+      const candidateState = deriveRevokeDeviceSecurityState(
+        localSecurityState,
+        transition,
+        headHash,
+      );
+
+      const preparedEnvelopes = await session.prepareProjectKeyRotation(
+        candidateState.projectId,
+        candidateState.keyEpoch,
+        candidateState.headHash,
+        candidateState.devices,
+      );
+
+      const keyEnvelopes = await Promise.all(
+        preparedEnvelopes.map(async (prepared) => {
+          const unsignedEnvelope = {
+            protocolVersion: 1 as const,
+            projectId: candidateState.projectId,
+            keyEpoch: candidateState.keyEpoch,
+            securityHead: candidateState.headHash,
+            recipientDeviceId: prepared.recipientDeviceId,
+            sealedEnvelope: prepared.sealedEnvelope,
+            signerDeviceId: localDeviceId,
+          };
+          const envelopeSignature = await session.sign(
+            encodeUnsignedProjectKeyRotationEnvelope(unsignedEnvelope),
+          );
+          return attachProjectKeyRotationEnvelopeSignature(
+            unsignedEnvelope,
+            envelopeSignature,
+          );
+        }),
+      );
+
+      const committedState = await securityCoordinator.commitRevokeDevice(
+        candidateState.projectId,
+        transition,
+        keyEnvelopes,
+      );
+      if (!securityStatesEqual(candidateState, committedState)) {
+        throw new Error(
+          "Coordinator committed a SecurityState that does not match RevokeDevice",
+        );
+      }
+
+      const localEnvelope = await securityCoordinator.getProjectKeyEnvelope(
+        committedState.projectId,
+        committedState.keyEpoch,
+        localDeviceId,
+      );
+      await storeVerifiedRotatedProjectKey(
+        session,
+        committedState,
+        localDeviceId,
+        localEnvelope,
+      );
+
+      await projectStorage.saveCommittedSecurityState(committedState);
+      setLocalSecurityState(committedState);
+      setLocalProjectKeyReady(true);
+    } catch (error: unknown) {
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to revoke device",
+      );
+      setSecurityRefreshToken((value) => value + 1);
+    } finally {
+      securityMutationInFlightRef.current = false;
+    }
+  }
+
   async function retryProjectKeyDelivery(): Promise<void> {
     if (!localSecurityState) {
       setCoordinationError("Committed SecurityState is not available");
@@ -1046,6 +1205,7 @@ function NoteApp() {
             onlineDeviceIds={onlineDeviceIds}
             connectedDeviceIds={automaticSyncStatus.connectedDeviceIds}
             error={presenceError ?? automaticSyncStatus.error}
+            onRevoke={revokeDevice}
           />
         ) : null}
 
@@ -1152,6 +1312,45 @@ function DocumentPane({
       </header>
       <MarkdownEditor document={document} />
     </article>
+  );
+}
+
+async function storeVerifiedRotatedProjectKey(
+  session: DeviceVaultSession,
+  state: SecurityState,
+  localDeviceId: DeviceId,
+  envelope: ProjectKeyRotationEnvelope,
+): Promise<void> {
+  if (
+    envelope.projectId !== state.projectId ||
+    envelope.keyEpoch !== state.keyEpoch ||
+    envelope.recipientDeviceId !== localDeviceId ||
+    !bytesEqual(envelope.securityHead, state.headHash)
+  ) {
+    throw new Error("ProjectKey rotation envelope does not match SecurityState");
+  }
+
+  const signer = state.devices.find(
+    (device) => device.deviceId === envelope.signerDeviceId,
+  );
+  if (!signer) {
+    throw new Error("ProjectKey rotation envelope signer is not authorized");
+  }
+
+  const verified = await verifyEd25519Signature(
+    encodeUnsignedProjectKeyRotationEnvelope(envelope),
+    envelope.signature,
+    signer.signingPublicKey,
+  );
+  if (!verified) {
+    throw new Error("ProjectKey rotation envelope signature verification failed");
+  }
+
+  await session.storeSealedProjectKey(
+    envelope.sealedEnvelope,
+    state.projectId,
+    state.keyEpoch,
+    state.headHash,
   );
 }
 

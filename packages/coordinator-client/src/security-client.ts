@@ -1,11 +1,19 @@
-import type { ProjectId } from "@floe-note/domain";
+import {
+  parseDeviceId,
+  parseProjectId,
+  type DeviceId,
+  type ProjectId,
+} from "@floe-note/domain";
 import {
   addDeviceTransitionToWire,
   createProjectTransitionToWire,
   parseSecurityStateWirePayload,
   parseSecurityTransitionWirePayload,
+  revokeDeviceTransitionToWire,
   type AddDeviceTransition,
   type CreateProjectTransition,
+  type ProjectKeyRotationEnvelope,
+  type RevokeDeviceTransition,
   type SecurityState,
   type SecurityTransition,
 } from "@floe-note/security";
@@ -92,6 +100,85 @@ export class SecurityCoordinatorClient {
     );
   }
 
+  async commitRevokeDevice(
+    projectId: ProjectId,
+    transition: RevokeDeviceTransition,
+    keyEnvelopes: readonly ProjectKeyRotationEnvelope[],
+  ): Promise<SecurityState> {
+    return this.#commitTransition(projectId, {
+      ...revokeDeviceTransitionToWire(transition),
+      keyEnvelopes: keyEnvelopes.map((envelope) => ({
+        protocolVersion: envelope.protocolVersion,
+        projectId: envelope.projectId,
+        keyEpoch: envelope.keyEpoch,
+        securityHead: bytesToHex(envelope.securityHead),
+        recipientDeviceId: envelope.recipientDeviceId,
+        sealedEnvelope: bytesToHex(envelope.sealedEnvelope),
+        signerDeviceId: envelope.signerDeviceId,
+        signature: bytesToHex(envelope.signature),
+      })),
+    });
+  }
+
+  async getProjectKeyEnvelope(
+    projectId: ProjectId,
+    keyEpoch: number,
+    recipientDeviceId: DeviceId,
+  ): Promise<ProjectKeyRotationEnvelope> {
+    if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
+      throw new TypeError("keyEpoch must be a positive safe integer");
+    }
+
+    const response = await fetch(
+      new URL(
+        `/projects/${encodeURIComponent(projectId)}/project-keys/${keyEpoch}/${encodeURIComponent(recipientDeviceId)}`,
+        this.#baseUrl,
+      ),
+    );
+    await ensureOk(response);
+
+    const payload = (await response.json()) as unknown;
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("protocolVersion" in payload) ||
+      payload.protocolVersion !== 1 ||
+      !("projectId" in payload) ||
+      typeof payload.projectId !== "string" ||
+      !("keyEpoch" in payload) ||
+      payload.keyEpoch !== keyEpoch ||
+      !("securityHead" in payload) ||
+      typeof payload.securityHead !== "string" ||
+      !("recipientDeviceId" in payload) ||
+      typeof payload.recipientDeviceId !== "string" ||
+      payload.recipientDeviceId !== recipientDeviceId ||
+      !("sealedEnvelope" in payload) ||
+      typeof payload.sealedEnvelope !== "string" ||
+      !("signerDeviceId" in payload) ||
+      typeof payload.signerDeviceId !== "string" ||
+      !("signature" in payload) ||
+      typeof payload.signature !== "string"
+    ) {
+      throw new TypeError("Invalid ProjectKey envelope response");
+    }
+
+    const parsedProjectId = parseProjectId(payload.projectId);
+    if (parsedProjectId !== projectId) {
+      throw new TypeError("ProjectKey envelope ProjectId does not match request");
+    }
+
+    return {
+      protocolVersion: 1,
+      projectId: parsedProjectId,
+      keyEpoch,
+      securityHead: hexToBytes(payload.securityHead),
+      recipientDeviceId: parseDeviceId(payload.recipientDeviceId),
+      sealedEnvelope: hexToBytes(payload.sealedEnvelope),
+      signerDeviceId: parseDeviceId(payload.signerDeviceId),
+      signature: hexToBytes(payload.signature),
+    };
+  }
+
   async commitCreateProject(
     projectId: ProjectId,
     transition: CreateProjectTransition,
@@ -135,4 +222,25 @@ async function ensureOk(response: Response): Promise<void> {
       ? `Coordinator request failed with HTTP ${response.status}`
       : detail,
   );
+}
+
+
+function bytesToHex(value: Uint8Array): string {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToBytes(value: string): Uint8Array {
+  if (
+    value.length === 0 ||
+    value.length % 2 !== 0 ||
+    !/^[0-9a-f]+$/u.test(value)
+  ) {
+    throw new TypeError("Invalid ProjectKey envelope encoding");
+  }
+
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
 }

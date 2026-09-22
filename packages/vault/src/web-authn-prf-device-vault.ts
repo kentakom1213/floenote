@@ -279,6 +279,54 @@ export class DeviceVaultSession {
     }
   }
 
+  async prepareProjectKeyRotation(
+    projectId: ProjectId,
+    keyEpoch: number,
+    securityHead: Uint8Array,
+    recipients: readonly DevicePublicIdentity[],
+  ): Promise<readonly {
+    recipientDeviceId: DeviceId;
+    sealedEnvelope: Uint8Array;
+  }[]> {
+    this.#requireOpen();
+    assertKeyEpoch(keyEpoch);
+
+    if (this.#findProjectKey(projectId, keyEpoch)) {
+      throw new Error(
+        `ProjectKey epoch ${keyEpoch} already exists on this device`,
+      );
+    }
+
+    const seen = new Set<DeviceId>();
+    for (const recipient of recipients) {
+      if (seen.has(recipient.deviceId)) {
+        throw new TypeError("Duplicate ProjectKey rotation recipient");
+      }
+      seen.add(recipient.deviceId);
+    }
+
+    const projectKey = await generateProjectKey();
+    try {
+      return await Promise.all(
+        recipients.map(async (recipient) => ({
+          recipientDeviceId: recipient.deviceId,
+          sealedEnvelope: await sealProjectKeyForDevice(
+            {
+              projectId,
+              keyEpoch,
+              recipientDeviceId: recipient.deviceId,
+              securityHead,
+            },
+            projectKey,
+            recipient.encryptionPublicKey,
+          ),
+        })),
+      );
+    } finally {
+      projectKey.fill(0);
+    }
+  }
+
   async sealProjectKeyForRecipient(
     projectId: ProjectId,
     keyEpoch: number,

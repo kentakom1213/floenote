@@ -36,7 +36,7 @@ export type UnsignedAddDeviceTransition = TransitionBase & {
 export type AddDeviceTransition = UnsignedAddDeviceTransition &
   SignedTransitionBase;
 
-export type RevokeDeviceTransition = SignedTransitionBase & {
+export type UnsignedRevokeDeviceTransition = TransitionBase & {
   type: "revoke-device";
   sequence: number;
   previousHash: Uint8Array;
@@ -44,6 +44,9 @@ export type RevokeDeviceTransition = SignedTransitionBase & {
   newKeyEpoch: number;
   signerDeviceId: DeviceId;
 };
+
+export type RevokeDeviceTransition = UnsignedRevokeDeviceTransition &
+  SignedTransitionBase;
 
 export type SecurityTransition =
   | CreateProjectTransition
