@@ -7,7 +7,6 @@ import {
 } from "@floe-note/domain";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
-  SECURITY_HEAD_HASH_BYTES,
   SECURITY_PROTOCOL_VERSION,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
