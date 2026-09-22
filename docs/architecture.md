@@ -293,6 +293,59 @@ Possible transports include:
 
 The SyncEngine should depend on the abstraction, not on `RTCPeerConnection` directly.
 
+### 9.3 Encrypted synchronization transport
+
+Normal Project synchronization is encrypted below `ProjectSyncEngine`.
+The engine continues to encode and decode the existing plaintext Loro sync
+protocol, while an `EncryptedSyncTransport` wraps the underlying transport:
+
+```text
+ProjectSyncEngine
+      |
+plaintext sync message
+      |
+EncryptedSyncTransport
+      |
+XChaCha20-Poly1305 envelope
+      |
+WebRTC DataChannel
+```
+
+This keeps CRDT synchronization independent from the cryptographic transport
+policy and avoids passing raw ProjectKey bytes into the sync package.
+
+Protocol version 1 encrypts the complete encoded sync message, including the
+message type and DocumentId when present. The application-layer envelope carries
+only the information needed to select and authenticate the key epoch:
+
+```text
+EncryptedSyncEnvelope
+├── magic = "FLOE"
+├── envelopeVersion = 1
+├── keyEpoch
+├── random XChaCha20 nonce
+└── ciphertext
+    └── complete encoded SyncMessage
+```
+
+AEAD associated data binds a domain-separation string, ProjectId, and keyEpoch.
+The key epoch is therefore visible on the wire but cannot be changed without
+causing authentication failure. ProjectId is supplied by the local Project
+context rather than repeated in the envelope, so a ciphertext copied between
+Projects does not authenticate.
+
+The Device Vault exposes encrypt/decrypt capabilities for a Project and epoch;
+higher layers do not receive raw ProjectKey bytes. The encrypted transport
+serializes asynchronous encrypt/decrypt operations so the ordered semantics of
+the underlying WebRTC DataChannel are preserved.
+
+After successful ProjectKey delivery during pairing, both peers may replace the
+pairing protocol on that same DataChannel with encrypted Project synchronization.
+The joining side starts its encrypted listener before sending the
+`project-key-stored` acknowledgement; after receiving that acknowledgement,
+the inviter starts its encrypted SyncEngine and sends full state. This ordering
+avoids requiring a second WebRTC connection for the initial synchronization.
+
 ## 10. Peer-to-peer connectivity
 
 WebRTC DataChannels carry project synchronization data directly between devices.
@@ -974,7 +1027,13 @@ The exact old-key retention and lazy re-encryption policy remains to be specifie
 
 The persistent source of truth on a device is encrypted serialized application state.
 
-The intended storage implementation is IndexedDB through Dexie.
+The intended storage implementation is IndexedDB through Dexie. During the
+current staged MVP implementation, Device Vault secrets and network sync are
+encrypted first; manifest and document snapshot encryption is introduced in the
+next storage step. Until then, the existing snapshot tables are temporary
+plaintext development storage.
+
+
 
 Conceptually:
 
@@ -1090,6 +1149,27 @@ visible rather than being implied away by the use of modern primitives.
   and to the recipient identity, but the joining device does not independently
   fetch the current head from the coordinator in this step. A future
   SecurityState freshness/GET flow can provide an additional consistency check.
+- **Encrypted sync authenticates possession of a ProjectKey, not an individual
+  DeviceId.** All devices authorized for the current epoch share the same
+  symmetric ProjectKey, so any such device can construct a valid encrypted sync
+  message. Per-message device signatures are not part of the initial
+  single-user protocol.
+- **Encrypted sync does not currently reject replayed valid ciphertexts.** A
+  network participant that records an application-layer envelope may replay it.
+  Loro update imports are designed to tolerate duplicate CRDT updates, but
+  replayed control messages such as `hello` can cause redundant work or
+  traffic. Strong replay protection is deferred unless a concrete requirement
+  justifies per-peer sequence state.
+- **Application-layer encryption does not hide all traffic metadata.** The
+  current key epoch, ciphertext length, packet timing, and WebRTC/network
+  metadata remain observable even though SyncMessage type, DocumentId, and Loro
+  bytes are encrypted.
+- **Local note persistence is still plaintext during the encrypted-sync
+  implementation step.** The Device Vault and network synchronization are
+  encrypted, but existing IndexedDB manifest/document snapshots remain
+  readable to same-origin code or direct local-storage inspection until the
+  encrypted-persistence step replaces that schema. This is an implementation
+  staging limitation, not the intended final storage model.
 
 This threat model should be revisited before a security-sensitive public release.
 
@@ -1165,6 +1245,7 @@ The following details can be specified independently without changing the core P
 5. Document tombstone garbage collection.
 6. Stable backup/export archive format.
 7. Background synchronization strategy.
-8. Detailed synchronization message formats and protocol-version negotiation.
+8. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
+9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
 
 These details should be introduced only when required by an implementation or product requirement.
