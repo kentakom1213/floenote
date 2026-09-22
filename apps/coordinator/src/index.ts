@@ -562,6 +562,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
     const candidateWire = securityStateToWire(candidateState);
     let response: Response | null = null;
+    let committed = false;
 
     await this.ctx.storage.transaction(async (transaction) => {
       const latestWire =
@@ -783,9 +784,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
         );
       }
       response = Response.json(candidateWire, { status: 201 });
+      committed = true;
     });
 
-    if (response?.status === 201) {
+    if (committed) {
       this.#invalidatePresenceForSecurityState(candidateState);
     }
 
