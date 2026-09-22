@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 
 import {
+  createPairingSecret,
   createSessionId,
+  InvitationClient,
   WebRtcSignalingSession,
+  type InviteId,
+  type PairingSecret,
+  type SessionId,
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import { type NoteDocument, type NoteProject } from "@floe-note/document";
@@ -13,6 +18,8 @@ import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channe
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import { InvitationHostPanel } from "./InvitationHostPanel.js";
+import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
@@ -23,8 +30,15 @@ const projectStorage = new DexieProjectStorage();
 const searchParams = new URLSearchParams(window.location.search);
 const useManualWebRtc = searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc = searchParams.get("transport") === "signal";
+const useInvitationWebRtc = searchParams.get("transport") === "invite";
 const useManualWebRtcJoin = searchParams.get("join") === "webrtc";
 const useSignaledWebRtcJoin = searchParams.get("join") === "signal";
+const invitationPathMatch = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(
+  window.location.pathname,
+);
+const pairingSecretFromFragment = new URLSearchParams(
+  window.location.hash.slice(1),
+).get("s");
 const coordinatorBaseUrl =
   import.meta.env.VITE_COORDINATOR_URL ?? "http://localhost:8787";
 
@@ -33,7 +47,26 @@ type OpenedProject = {
   isNew: boolean;
 };
 
+type InvitationHostState = {
+  inviteId: InviteId;
+  pairingSecret: PairingSecret;
+  sessionId: SessionId;
+  expiresAt: number;
+};
+
 export function App() {
+  const invitationId = invitationPathMatch?.[1];
+  if (invitationId) {
+    return (
+      <InvitationJoinPage
+        storage={projectStorage}
+        coordinatorBaseUrl={coordinatorBaseUrl}
+        inviteId={invitationId}
+        pairingSecret={pairingSecretFromFragment}
+      />
+    );
+  }
+
   if (useManualWebRtcJoin) {
     return <WebRtcJoinPage storage={projectStorage} />;
   }
@@ -62,6 +95,11 @@ function NoteApp() {
   const [signalingState, setSignalingState] =
     useState<SignalingConnectionState>("idle");
   const [signalSessionId] = useState(() => createSessionId());
+  const [invitationHost, setInvitationHost] =
+    useState<InvitationHostState | null>(null);
+  const [coordinationError, setCoordinationError] = useState<string | null>(
+    null,
+  );
 
   const project = openedProject?.project ?? null;
 
@@ -102,6 +140,73 @@ function NoteApp() {
 
   useEffect(() => {
     if (!project) return;
+
+    setCoordinationError(null);
+
+    if (useInvitationWebRtc) {
+      let disposed = false;
+      let cleanup: (() => void) | null = null;
+      const invitationClient = new InvitationClient(coordinatorBaseUrl);
+
+      void (async () => {
+        try {
+          const pairingSecret = createPairingSecret();
+          const invitation = await invitationClient.createInvite(project.id);
+          if (disposed) return;
+
+          const transport = new WebRtcTransport(
+            project.id,
+            undefined,
+            createConsoleDebugLogger("invite-host-webrtc"),
+          );
+          setWebRtcTransport(transport);
+
+          const syncEngine = new ProjectSyncEngine(project, transport, {
+            debugLogger: createConsoleDebugLogger("invite-host-sync"),
+          });
+          syncEngine.start();
+
+          const signaling = new WebRtcSignalingSession({
+            role: "host",
+            coordinatorBaseUrl,
+            projectId: project.id,
+            sessionId: invitation.sessionId,
+            transport,
+            debugLogger: createConsoleDebugLogger("invite-host-signal"),
+          });
+          const stopSignalingState =
+            signaling.onConnectionStateChange(setSignalingState);
+          signaling.start();
+
+          setInvitationHost({
+            inviteId: invitation.inviteId,
+            pairingSecret,
+            sessionId: invitation.sessionId,
+            expiresAt: invitation.expiresAt,
+          });
+
+          cleanup = () => {
+            stopSignalingState();
+            signaling.stop();
+            syncEngine.stop();
+          };
+        } catch (caught: unknown) {
+          if (!disposed) {
+            setCoordinationError(
+              caught instanceof Error
+                ? caught.message
+                : "Failed to create invitation",
+            );
+          }
+        }
+      })();
+
+      return () => {
+        disposed = true;
+        cleanup?.();
+        setInvitationHost(null);
+      };
+    }
 
     if (useManualWebRtc || useSignaledWebRtc) {
       const transport = new WebRtcTransport(
@@ -237,7 +342,22 @@ function NoteApp() {
           ))}
         </nav>
 
-        {useSignaledWebRtc && webRtcTransport ? (
+        {useInvitationWebRtc && invitationHost && webRtcTransport ? (
+          <InvitationHostPanel
+            inviteId={invitationHost.inviteId}
+            pairingSecret={invitationHost.pairingSecret}
+            expiresAt={invitationHost.expiresAt}
+            transport={webRtcTransport}
+            signalingState={signalingState}
+            onCancel={() =>
+              new InvitationClient(coordinatorBaseUrl).cancelInvite(
+                invitationHost.inviteId,
+              )
+            }
+          />
+        ) : useInvitationWebRtc ? (
+          <p className="webrtc-hint">Creating invitation…</p>
+        ) : useSignaledWebRtc && webRtcTransport ? (
           <SignalingHostPanel
             projectId={activeProject.id}
             sessionId={signalSessionId}
@@ -249,6 +369,10 @@ function NoteApp() {
             projectId={activeProject.id}
             transport={webRtcTransport}
           />
+        ) : null}
+
+        {coordinationError ? (
+          <p className="webrtc-error">{coordinationError}</p>
         ) : null}
       </aside>
 

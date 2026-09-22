@@ -1,10 +1,24 @@
 export {
+  createClaimId,
+  createPairingSecret,
+  InvitationClient,
+  parseInviteId,
+  parsePairingSecret,
+} from "./invitation.js";
+export {
   createSessionId,
   parseSessionId,
 } from "./session-id.js";
 export { CoordinatorSignalingClient } from "./signaling-client.js";
 export { WebRtcSignalingSession } from "./webrtc-signaling-session.js";
 
+export type {
+  ClaimedInvitation,
+  ClaimId,
+  CreatedInvitation,
+  InviteId,
+  PairingSecret,
+} from "./invitation.js";
 export type {
   CoordinatorServerMessage,
   WebRtcSignal,

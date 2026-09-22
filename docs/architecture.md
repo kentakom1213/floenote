@@ -354,6 +354,24 @@ Ephemeral coordination includes:
 - WebSocket rendezvous;
 - WebRTC offer/answer/ICE forwarding.
 
+Project-scoped signaling remains in `ProjectCoordinatorDO(ProjectId)`. Because a
+join URL intentionally does not expose `ProjectId`, short-lived invitation
+lookup is handled by a separate `InvitationCoordinatorDO(InviteId)`. That
+object stores only the bootstrap mapping and lifecycle metadata needed to
+resolve an invite:
+
+```text
+InviteId
+  -> ProjectId
+  -> SessionId
+  -> waiting / claimed / consumed / cancelled / expired
+  -> expiresAt
+```
+
+The invitation object is not an authorization authority. Claiming an invite
+only resolves rendezvous information; device authorization still requires the
+signed `AddDevice` flow.
+
 WebSocket Hibernation should be used where appropriate so idle connections do not require an actively running object.
 
 The Durable Object must not store:
@@ -685,7 +703,10 @@ Invitations should be:
 - atomically claimable;
 - cancellable/expirable.
 
-A state such as `waiting -> claimed -> consumed` is sufficient for the first version.
+The first version uses `waiting -> claimed -> consumed`, with
+`cancelled` and `expired` as terminal states. Claim is atomic: once one
+device has claimed an InviteId, another claimant must not receive its ProjectId
+or SessionId.
 
 ## 20. Key rotation and revocation
 

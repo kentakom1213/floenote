@@ -8,11 +8,19 @@
       {
         "name": "PROJECT_COORDINATOR",
         "class_name": "ProjectCoordinator"
+      },
+      {
+        "name": "INVITATION_COORDINATOR",
+        "class_name": "InvitationCoordinator"
       }
     ]
   },
   "exports": {
     "ProjectCoordinator": {
+      "type": "durable-object",
+      "storage": "sqlite"
+    },
+    "InvitationCoordinator": {
       "type": "durable-object",
       "storage": "sqlite"
     }
