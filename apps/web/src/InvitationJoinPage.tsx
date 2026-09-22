@@ -14,6 +14,10 @@ import {
 } from "@floe-note/pairing";
 import type { ProjectStorage } from "@floe-note/storage";
 import {
+  EncryptedSyncTransport,
+  ProjectSyncEngine,
+} from "@floe-note/sync";
+import {
   WebRtcTransport,
   type WebRtcStatus,
 } from "@floe-note/transport/webrtc";
@@ -81,6 +85,9 @@ export function InvitationJoinPage({
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [encryptedSyncState, setEncryptedSyncState] = useState<
+    "waiting" | "active" | "error"
+  >("waiting");
 
   useEffect(() => {
     let cancelled = false;
@@ -119,9 +126,12 @@ export function InvitationJoinPage({
 
     let disposed = false;
     let cleanup: (() => void) | null = null;
+    let joinedSyncEngine: ProjectSyncEngine | null = null;
+    let stopJoinedPersistence: (() => void) | null = null;
 
     setClaimState("claiming");
     setPairingState("connecting");
+    setEncryptedSyncState("waiting");
     setError(null);
 
     void (async () => {
@@ -166,6 +176,10 @@ export function InvitationJoinPage({
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
+          joinedSyncEngine?.stop();
+          joinedSyncEngine = null;
+          stopJoinedPersistence?.();
+          stopJoinedPersistence = null;
           stopTransportStatus();
         };
 
@@ -194,7 +208,49 @@ export function InvitationJoinPage({
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
-            await storage.initializeJoinedProject(securityState.projectId);
+            const joinedProject = await storage.initializeJoinedProject(
+              securityState.projectId,
+            );
+
+            stopJoinedPersistence = storage.watchProject(joinedProject);
+
+            const encryptedTransport = new EncryptedSyncTransport(
+              transport,
+              {
+                encrypt: (plaintext) =>
+                  session.encryptProjectSyncPayload(
+                    securityState.projectId,
+                    securityState.keyEpoch,
+                    plaintext,
+                  ),
+                decrypt: (envelope) =>
+                  session.decryptProjectSyncPayload(
+                    securityState.projectId,
+                    securityState.keyEpoch,
+                    envelope,
+                  ),
+              },
+              {
+                onError: (syncError, direction) => {
+                  setEncryptedSyncState("error");
+                  setError(
+                    `Encrypted sync ${direction} failed: ${syncError.message}`,
+                  );
+                },
+              },
+            );
+
+            joinedSyncEngine = new ProjectSyncEngine(
+              joinedProject,
+              encryptedTransport,
+              {
+                debugLogger: createConsoleDebugLogger(
+                  "invite-join-encrypted-sync",
+                ),
+              },
+            );
+            joinedSyncEngine.start();
+            setEncryptedSyncState("active");
           },
         });
         void deliveryPromise.catch(() => undefined);
@@ -343,7 +399,10 @@ export function InvitationJoinPage({
           <>
             <p className="join-live-hint">
               ProjectKey and committed SecurityState stored. This Project is now
-              adopted locally. Encrypted note synchronization is the next step.
+              adopted locally.
+            </p>
+            <p className="webrtc-status">
+              Encrypted sync: <strong>{encryptedSyncState}</strong>
             </p>
             <button
               type="button"

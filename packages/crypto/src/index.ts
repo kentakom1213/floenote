@@ -35,3 +35,10 @@ export {
 } from "./project-key.js";
 
 export type { ProjectKeyEnvelopeContext } from "./project-key.js";
+
+export {
+  decryptProjectSyncPayload,
+  encryptProjectSyncPayload,
+  PROJECT_SYNC_ENVELOPE_VERSION,
+  readProjectSyncPayloadKeyEpoch,
+} from "./project-sync-crypto.js";

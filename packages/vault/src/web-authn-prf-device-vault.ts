@@ -4,13 +4,16 @@ import {
   DEVICE_SIGNING_PRIVATE_KEY_BYTES,
   DEVICE_SIGNING_PUBLIC_KEY_BYTES,
   decryptDeviceVaultPayload,
+  decryptProjectSyncPayload as decryptProjectSyncPayloadWithKey,
   deriveDeviceVaultKey,
   destroyDeviceKeyMaterial,
   encryptDeviceVaultPayload,
+  encryptProjectSyncPayload as encryptProjectSyncPayloadWithKey,
   generateDeviceKeyMaterial,
   generateProjectKey,
   openSealedProjectKeyForDevice,
   PROJECT_KEY_BYTES,
+  readProjectSyncPayloadKeyEpoch,
   sealProjectKeyForDevice,
   signEd25519,
   type DeviceKeyMaterial,
@@ -139,6 +142,56 @@ export class DeviceVaultSession {
       (entry) =>
         entry.projectId === projectId &&
         entry.keyEpoch === keyEpoch,
+    );
+  }
+
+  async encryptProjectSyncPayload(
+    projectId: ProjectId,
+    keyEpoch: number,
+    plaintext: Uint8Array,
+  ): Promise<Uint8Array> {
+    this.#requireOpen();
+    const entry = this.#findProjectKey(projectId, keyEpoch);
+    if (!entry) {
+      throw new Error(
+        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+      );
+    }
+
+    return encryptProjectSyncPayloadWithKey(
+      projectId,
+      keyEpoch,
+      entry.projectKey,
+      plaintext,
+    );
+  }
+
+  async decryptProjectSyncPayload(
+    projectId: ProjectId,
+    expectedKeyEpoch: number,
+    envelope: Uint8Array,
+  ): Promise<Uint8Array> {
+    this.#requireOpen();
+    assertKeyEpoch(expectedKeyEpoch);
+
+    const envelopeKeyEpoch = readProjectSyncPayloadKeyEpoch(envelope);
+    if (envelopeKeyEpoch !== expectedKeyEpoch) {
+      throw new Error(
+        `Encrypted sync uses key epoch ${envelopeKeyEpoch}, expected ${expectedKeyEpoch}`,
+      );
+    }
+
+    const entry = this.#findProjectKey(projectId, expectedKeyEpoch);
+    if (!entry) {
+      throw new Error(
+        `ProjectKey epoch ${expectedKeyEpoch} is not available on this device`,
+      );
+    }
+
+    return decryptProjectSyncPayloadWithKey(
+      projectId,
+      entry.projectKey,
+      envelope,
     );
   }
 
