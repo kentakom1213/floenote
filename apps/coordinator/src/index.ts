@@ -23,6 +23,7 @@ type InvitationRecord = {
   state: InvitationState;
   expiresAt: number;
   claimedAt?: number;
+  claimId?: string;
   consumedAt?: number;
   cancelledAt?: number;
 };
@@ -31,6 +32,7 @@ const PROJECT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SESSION_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const INVITE_ID_PATTERN = /^[0-9a-f]{32}$/i;
+const CLAIM_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const MAX_SIGNAL_MESSAGE_BYTES = 64 * 1024;
 const INVITE_TTL_MS = 10 * 60_000;
 
@@ -197,7 +199,7 @@ export class InvitationCoordinator extends DurableObject<Env> {
       case "/initialize":
         return this.#initialize(request);
       case "/claim":
-        return this.#claim();
+        return this.#claim(request);
       case "/consume":
         return this.#consume();
       case "/cancel":
@@ -242,7 +244,16 @@ export class InvitationCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #claim(): Promise<Response> {
+  async #claim(request: Request): Promise<Response> {
+    const payload = (await request.json()) as { claimId?: unknown };
+    if (
+      typeof payload.claimId !== "string" ||
+      !CLAIM_ID_PATTERN.test(payload.claimId)
+    ) {
+      return new Response("Invalid claim identifier", { status: 400 });
+    }
+
+    const claimId = payload.claimId.toLowerCase();
     let response: Response | null = null;
 
     await this.ctx.storage.transaction(async (transaction) => {
@@ -264,6 +275,11 @@ export class InvitationCoordinator extends DurableObject<Env> {
         return;
       }
 
+      if (record.state === "claimed" && record.claimId === claimId) {
+        response = claimedInvitationResponse(record);
+        return;
+      }
+
       if (record.state !== "waiting") {
         response = new Response(
           `Invitation is already ${record.state}`,
@@ -275,16 +291,12 @@ export class InvitationCoordinator extends DurableObject<Env> {
       const claimed: InvitationRecord = {
         ...record,
         state: "claimed",
+        claimId,
         claimedAt: now,
       };
       await transaction.put("invite", claimed);
 
-      response = Response.json({
-        projectId: claimed.projectId,
-        sessionId: claimed.sessionId,
-        state: claimed.state,
-        expiresAt: claimed.expiresAt,
-      });
+      response = claimedInvitationResponse(claimed);
     });
 
     return response ?? new Response("Failed to claim invitation", { status: 500 });
@@ -464,6 +476,15 @@ function isSignalEnvelope(message: string): boolean {
   } catch {
     return false;
   }
+}
+
+function claimedInvitationResponse(record: InvitationRecord): Response {
+  return Response.json({
+    projectId: record.projectId,
+    sessionId: record.sessionId,
+    state: record.state,
+    expiresAt: record.expiresAt,
+  });
 }
 
 function randomHex(byteLength: number): string {
