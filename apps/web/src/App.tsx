@@ -813,13 +813,15 @@ function NoteApp() {
       return;
     }
 
-    let committedState: SecurityState;
-
+    securityMutationInFlightRef.current = true;
     try {
+      let committedState: SecurityState;
+
+      try {
       const signerIdentity = session.publicIdentity;
       const authorizedSigner = localSecurityState.devices.find(
         (device) => device.deviceId === signerIdentity.deviceId,
-      );
+        );
       if (
         !authorizedSigner ||
         !bytesEqual(
@@ -878,15 +880,19 @@ function NoteApp() {
       await projectStorage.saveCommittedSecurityState(committedState);
       setLocalSecurityState(committedState);
       setDeviceAuthorizationState("authorized");
-    } catch (error: unknown) {
-      setDeviceAuthorizationState("error");
-      setCoordinationError(
-        error instanceof Error ? error.message : "Failed to authorize device",
+      } catch (error: unknown) {
+        setDeviceAuthorizationState("error");
+        setCoordinationError(
+          error instanceof Error ? error.message : "Failed to authorize device",
       );
-      return;
-    }
+        return;
+      }
 
-    await deliverProjectKey(committedState);
+      await deliverProjectKey(committedState);
+
+    } finally {
+      securityMutationInFlightRef.current = false;
+    }
   }
 
   async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
