@@ -1,9 +1,11 @@
+import { useState } from "react";
+
 import type { DeviceVaultUiState } from "./DeviceVaultPanel.js";
 
 type UnlockScreenProps = {
   state: DeviceVaultUiState;
   error: string | null;
-  onUnlockOrCreate: () => Promise<void>;
+  onUnlockOrCreate: (displayName?: string) => Promise<void>;
 };
 
 export function UnlockScreen({
@@ -11,9 +13,11 @@ export function UnlockScreen({
   error,
   onUnlockOrCreate,
 }: UnlockScreenProps) {
+  const [displayName, setDisplayName] = useState("");
   const missing = state === "missing";
   const checking = state === "checking";
   const unlocking = state === "unlocking";
+  const canSubmit = !missing || displayName.trim().length > 0;
 
   return (
     <main className="unlock-screen">
@@ -25,9 +29,23 @@ export function UnlockScreen({
         <h1>{missing ? "Set up this device" : "Unlock Floe Note"}</h1>
         <p className="unlock-copy">
           {missing
-            ? "Create a local device identity to keep Project keys protected on this device."
+            ? "Create a local device identity and give this device a name you will recognize on your other devices."
             : "Unlock this device to open your encrypted local Projects."}
         </p>
+
+        {missing ? (
+          <label className="unlock-field">
+            <span>Device name</span>
+            <input
+              autoFocus
+              maxLength={80}
+              value={displayName}
+              placeholder="Kenta's MacBook"
+              disabled={unlocking}
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          </label>
+        ) : null}
 
         {checking ? (
           <p className="settings-loading">Checking this device…</p>
@@ -35,8 +53,12 @@ export function UnlockScreen({
           <button
             className="unlock-primary-action"
             type="button"
-            disabled={unlocking}
-            onClick={() => void onUnlockOrCreate()}
+            disabled={unlocking || !canSubmit}
+            onClick={() =>
+              void onUnlockOrCreate(
+                missing ? displayName.trim() : undefined,
+              )
+            }
           >
             {unlocking
               ? "Unlocking…"
