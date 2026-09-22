@@ -39,20 +39,6 @@ type SerializedDeviceKeyMaterial = {
   signingPrivateKey: string;
 };
 
-type PrfInput = {
-  prf: {
-    eval?: {
-      first: BufferSource;
-    };
-    evalByCredential?: Record<
-      string,
-      {
-        first: BufferSource;
-      }
-    >;
-  };
-};
-
 type PrfOutput = {
   prf?: {
     enabled?: boolean;
