@@ -33,6 +33,7 @@ type InvitationHostPanelProps = {
   joiningDeviceName: string | null;
   authorizationState: DeviceAuthorizationUiState;
   projectKeyDeliveryState: ProjectKeyDeliveryUiState;
+  error: string | null;
   onConfirm: () => Promise<void>;
   onRetryProjectKeyDelivery: () => Promise<void>;
   onCancel: () => Promise<void>;
@@ -52,6 +53,7 @@ export function InvitationHostPanel({
   joiningDeviceName,
   authorizationState,
   projectKeyDeliveryState,
+  error,
   onConfirm,
   onRetryProjectKeyDelivery,
   onCancel,
@@ -226,7 +228,12 @@ export function InvitationHostPanel({
         ) : null}
 
         {authorizationState === "error" ? (
-          <p className="dialog-error">Could not approve this device.</p>
+          <p className="dialog-error">
+            {error ?? "Could not approve this device."}
+          </p>
+        ) : null}
+        {authorizationState !== "error" && error ? (
+          <p className="dialog-error">{error}</p>
         ) : null}
       </div>
 
