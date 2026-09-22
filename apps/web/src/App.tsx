@@ -349,6 +349,7 @@ function NoteApp() {
     setCoordinationError(null);
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
+    setProjectKeyDeliveryState("waiting");
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -687,6 +688,7 @@ function NoteApp() {
           securitySequence={localSecurityState?.sequence ?? null}
           securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
           securityDeviceCount={localSecurityState?.devices.length ?? null}
+          projectKeyReady={localProjectKeyReady}
           securityError={localSecurityError}
           onUnlockOrCreate={unlockOrCreateDevice}
         />
