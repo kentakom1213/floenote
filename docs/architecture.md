@@ -487,6 +487,17 @@ Creating a local Device Vault establishes a device identity, but does not by
 itself authorize that device for any Project. Project authorization begins with
 the signed SecurityState transitions.
 
+The WebAuthn credential is a vault-unlock mechanism, not the Floe Note device
+identity. A synchronized passkey may therefore be reused to unlock independent
+local Device Vaults on multiple physical devices. Each local vault still creates
+and stores its own DeviceId, device encryption key pair, and device signing key
+pair. Reusing the same synchronized passkey does not copy or merge vault
+contents and does not make two devices the same authorized device.
+
+The current browser bootstrap creates a WebAuthn credential when no local vault
+exists. A later UX may offer "use existing Floe Note passkey" so a discoverable
+synchronized credential can be reused instead of creating another credential.
+
 ### 14.2 Unlock lifetime
 
 Vault unlock is valid for the current application session.
@@ -688,6 +699,23 @@ candidate. It is not persisted as the authoritative `SecurityState` until the
 Project coordinator accepts and commits it. This keeps locally constructed but
 uncommitted security state distinct from committed authorization state.
 
+The HTTP transport representation is separate from the signed representation.
+Security transitions and SecurityState are carried as JSON with binary fields
+encoded as canonical base64url strings. The Project coordinator parses and
+validates that logical object, reconstructs the deterministic CBOR signing
+bytes, verifies the Ed25519 signature, recomputes the signed-transition
+SHA-256 head hash, and derives the materialized SecurityState itself.
+
+For the initial `CreateProject`, `ProjectCoordinatorDO(ProjectId)` atomically
+stores the resulting materialized state only when no state exists yet. Repeating
+the exact same CreateProject is idempotent and returns the existing state.
+Attempting to initialize the same ProjectId with a different head is rejected.
+
+The client accepts the coordinator response only when it exactly matches the
+locally derived candidate state. Only then is the committed SecurityState stored
+in local IndexedDB. The local storage keeps the latest verified materialized
+state and head, not a permanent transition audit log.
+
 These rules avoid signature failures caused by semantically equivalent but
 byte-wise different serializations and define one stable value for the security
 head hash.
@@ -749,6 +777,13 @@ normal P2P synchronization begins
 ```
 
 Possessing an invite does not itself authorize a device. Authorization occurs only after the signed `AddDevice` transition is accepted by the sequencer.
+
+Before an existing device signs `AddDevice`, the application should require
+explicit local confirmation of the candidate device. The confirmation UI may
+later include non-authoritative connection metadata such as the source IP
+observed by Cloudflare during invite claim. Such metadata is only contextual
+information for the user and is not part of device identity or the signed
+SecurityTransition.
 
 Before any Project synchronization or device-key exchange, both peers authenticate
 the WebRTC pairing channel using `PairingSecret`. The initial protocol uses
