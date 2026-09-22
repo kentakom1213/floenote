@@ -63,7 +63,6 @@ export function App() {
   if (invitationId) {
     return (
       <InvitationJoinPage
-        storage={projectStorage}
         coordinatorBaseUrl={coordinatorBaseUrl}
         inviteId={invitationId}
         pairingSecret={pairingSecretFromFragment}
