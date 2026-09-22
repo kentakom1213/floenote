@@ -36,7 +36,11 @@ export class WebRtcTransport implements Transport {
   readonly #messageHandlers = new Set<(data: Uint8Array) => void>();
   readonly #stateHandlers = new Set<(state: WebRtcConnectionState) => void>();
   readonly #statusHandlers = new Set<(status: WebRtcStatus) => void>();
+  readonly #iceCandidateHandlers = new Set<
+    (candidate: RTCIceCandidateInit | null) => void
+  >();
   readonly #pendingMessages: ArrayBuffer[] = [];
+  readonly #pendingRemoteCandidates: RTCIceCandidateInit[] = [];
   readonly #debugLogger: WebRtcDebugLogger | null;
   readonly #instanceId = crypto.randomUUID().slice(0, 8);
   #dataChannel: RTCDataChannel | null = null;
@@ -119,6 +123,11 @@ export class WebRtcTransport implements Transport {
         this.#debug("ice.candidate-end", {
           candidates: this.#gatheredCandidateCount,
         });
+      }
+
+      const candidate = event.candidate?.toJSON() ?? null;
+      for (const handler of this.#iceCandidateHandlers) {
+        handler(candidate);
       }
 
       this.#emitStatus();
@@ -208,7 +217,78 @@ export class WebRtcTransport implements Transport {
 
     const answer = parseDescription(serializedAnswer, "answer");
     await this.#peerConnection.setRemoteDescription(answer);
+    await this.#flushPendingRemoteCandidates();
     this.#debug("answer.remote-description-set");
+  }
+
+  async createTrickleOffer(): Promise<RTCSessionDescriptionInit> {
+    this.#clearDiagnostics();
+    this.#debug("trickle.offer.create-start");
+
+    if (!this.#dataChannel) {
+      this.#attachDataChannel(
+        this.#peerConnection.createDataChannel(this.#dataChannelLabel, {
+          ordered: true,
+        }),
+      );
+    }
+
+    const offer = await this.#peerConnection.createOffer();
+    await this.#peerConnection.setLocalDescription(offer);
+    this.#debug("trickle.offer.local-description-set");
+
+    return descriptionToInit(this.#peerConnection.localDescription);
+  }
+
+  async acceptTrickleOffer(
+    offer: RTCSessionDescriptionInit,
+  ): Promise<RTCSessionDescriptionInit> {
+    this.#clearDiagnostics();
+    this.#debug("trickle.offer.accept-start");
+
+    await this.#peerConnection.setRemoteDescription(offer);
+    await this.#flushPendingRemoteCandidates();
+    this.#debug("trickle.offer.remote-description-set");
+
+    const answer = await this.#peerConnection.createAnswer();
+    await this.#peerConnection.setLocalDescription(answer);
+    this.#debug("trickle.answer.local-description-set");
+
+    return descriptionToInit(this.#peerConnection.localDescription);
+  }
+
+  async acceptTrickleAnswer(
+    answer: RTCSessionDescriptionInit,
+  ): Promise<void> {
+    this.#debug("trickle.answer.accept-start");
+    await this.#peerConnection.setRemoteDescription(answer);
+    await this.#flushPendingRemoteCandidates();
+    this.#debug("trickle.answer.remote-description-set");
+  }
+
+  async addIceCandidate(candidate: RTCIceCandidateInit | null): Promise<void> {
+    if (!candidate) {
+      this.#debug("trickle.remote-candidate-end");
+      return;
+    }
+
+    if (!this.#peerConnection.remoteDescription) {
+      this.#pendingRemoteCandidates.push(candidate);
+      this.#debug("trickle.remote-candidate-queued", {
+        queueLength: this.#pendingRemoteCandidates.length,
+      });
+      return;
+    }
+
+    await this.#peerConnection.addIceCandidate(candidate);
+    this.#debug("trickle.remote-candidate-added");
+  }
+
+  onIceCandidate(
+    handler: (candidate: RTCIceCandidateInit | null) => void,
+  ): () => void {
+    this.#iceCandidateHandlers.add(handler);
+    return () => this.#iceCandidateHandlers.delete(handler);
   }
 
   send(data: Uint8Array): void {
@@ -263,9 +343,11 @@ export class WebRtcTransport implements Transport {
     this.#dataChannel?.close();
     this.#peerConnection.close();
     this.#pendingMessages.length = 0;
+    this.#pendingRemoteCandidates.length = 0;
     this.#messageHandlers.clear();
     this.#stateHandlers.clear();
     this.#statusHandlers.clear();
+    this.#iceCandidateHandlers.clear();
   }
 
   get #dataChannelLabel(): string {
@@ -298,6 +380,15 @@ export class WebRtcTransport implements Transport {
         ? `ICE gathering did not complete within 60 seconds after collecting ${this.#gatheredCandidateCount} candidate(s). Manual SDP exchange requires complete ICE gathering.`
         : "ICE gathering did not complete within 60 seconds and no candidate was gathered.",
     );
+  }
+
+  async #flushPendingRemoteCandidates(): Promise<void> {
+    for (const candidate of this.#pendingRemoteCandidates.splice(0)) {
+      await this.#peerConnection.addIceCandidate(candidate);
+      this.#debug("trickle.remote-candidate-added", {
+        fromQueue: true,
+      });
+    }
   }
 
   #attachDataChannel(channel: RTCDataChannel): void {
@@ -425,6 +516,16 @@ export class WebRtcTransport implements Transport {
       details,
     });
   }
+}
+
+function descriptionToInit(
+  description: RTCSessionDescription | null,
+): RTCSessionDescriptionInit {
+  if (!description) {
+    throw new Error("Local WebRTC description is not available");
+  }
+
+  return description.toJSON();
 }
 
 function serializeDescription(

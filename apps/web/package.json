@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
+    "@floe-note/coordinator-client": "workspace:*",
     "@floe-note/document": "workspace:*",
     "@floe-note/domain": "workspace:*",
     "@floe-note/storage": "workspace:*",
