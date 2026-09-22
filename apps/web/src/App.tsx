@@ -591,12 +591,7 @@ function NoteApp() {
 
     setWebRtcTransport(null);
     setSignalingState("idle");
-
-    const transport = new BroadcastChannelTransport(project.id);
-    const syncEngine = new ProjectSyncEngine(project, transport);
-    syncEngine.start();
-
-    return () => syncEngine.stop();
+    return;
   }, [project, signalSessionId]);
 
   useEffect(() => {
