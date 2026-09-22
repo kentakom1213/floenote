@@ -921,10 +921,12 @@ normal synchronization begin only after authorization and ProjectKey delivery
 succeed.
 
 After the joining device has durably stored the ProjectKey and committed
-SecurityState, the browser should replace the one-time join URL with the normal
-application URL without tearing down the current runtime. This prevents a later
-reload from attempting to claim the already-used invitation again while still
-allowing the stored acknowledgement to finish on the existing DataChannel.
+SecurityState, the browser may replace the one-time join URL in history, but it
+does not immediately reload the application. The completion UI provides an
+explicit "Open Floe Note" action that navigates to the normal application URL.
+This avoids tearing down the current runtime while the stored acknowledgement
+is still propagating on the existing DataChannel, and prevents a later reload
+from attempting to claim the already-used invitation again.
 
 Invitations should be:
 
