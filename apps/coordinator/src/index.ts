@@ -64,16 +64,19 @@ export default {
       }
 
       const id = env.INVITATION_COORDINATOR.idFromName(inviteAction.inviteId);
-      const body =
-        inviteAction.action === "claim" ? await request.text() : undefined;
+      const internalRequest =
+        inviteAction.action === "claim"
+          ? new Request("https://invitation.internal/claim", {
+              method: "POST",
+              body: await request.text(),
+            })
+          : new Request(
+              `https://invitation.internal/${inviteAction.action}`,
+              { method: "POST" },
+            );
       const response = await env.INVITATION_COORDINATOR
         .get(id)
-        .fetch(
-          new Request(`https://invitation.internal/${inviteAction.action}`, {
-            method: "POST",
-            body,
-          }),
-        );
+        .fetch(internalRequest);
 
       return withCors(response);
     }
