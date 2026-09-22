@@ -3,6 +3,7 @@ import type {
   PairingSecret,
   SignalingConnectionState,
 } from "@floe-note/coordinator-client";
+import type { DeviceId } from "@floe-note/domain";
 import type {
   WebRtcStatus,
   WebRtcTransport,
@@ -15,6 +16,7 @@ type InvitationHostPanelProps = {
   expiresAt: number;
   transport: WebRtcTransport;
   signalingState: SignalingConnectionState;
+  joiningDeviceId: DeviceId | null;
   onCancel: () => Promise<void>;
 };
 
@@ -24,6 +26,7 @@ export function InvitationHostPanel({
   expiresAt,
   transport,
   signalingState,
+  joiningDeviceId,
   onCancel,
 }: InvitationHostPanelProps) {
   const [status, setStatus] = useState<WebRtcStatus>(transport.status);
@@ -67,6 +70,9 @@ export function InvitationHostPanel({
       </p>
       <p className="webrtc-status">
         Expires: <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
+      </p>
+      <p className="webrtc-status">
+        Joining device: <strong>{joiningDeviceId ?? "waiting"}</strong>
       </p>
 
       <label className="webrtc-field">
