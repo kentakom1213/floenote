@@ -11,6 +11,8 @@ import type { Transport } from "@floe-note/transport";
 
 const MESSAGE_PREFIX = "floe-note:project-key-delivery:v1:";
 const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_MESSAGE_BYTES = 64 * 1024;
+const MAX_SEALED_ENVELOPE_BYTES = 4 * 1024;
 
 type ProjectKeyDeliveryMessage = {
   protocolVersion: 1;
@@ -73,6 +75,12 @@ export async function sendProjectKeyDelivery(
 
   if (signal?.aborted) {
     throw new Error("ProjectKey delivery aborted");
+  }
+  if (
+    sealedEnvelope.byteLength === 0 ||
+    sealedEnvelope.byteLength > MAX_SEALED_ENVELOPE_BYTES
+  ) {
+    throw new Error("Invalid sealed ProjectKey envelope size");
   }
 
   const recipient = securityState.devices.find(
@@ -251,6 +259,9 @@ export async function receiveProjectKeyDelivery(
         null,
         "sealed ProjectKey envelope",
       );
+      if (sealedEnvelope.byteLength > MAX_SEALED_ENVELOPE_BYTES) {
+        throw new Error("Sealed ProjectKey envelope is too large");
+      }
 
       await onDelivery({
         securityState,
@@ -292,6 +303,10 @@ function encodeMessage(message: ProjectKeyMessage): Uint8Array {
 }
 
 function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
+  if (data.byteLength > MAX_MESSAGE_BYTES) {
+    throw new Error("ProjectKey delivery message is too large");
+  }
+
   const text = new TextDecoder().decode(data);
   if (!text.startsWith(MESSAGE_PREFIX)) return null;
 
