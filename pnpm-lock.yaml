@@ -26,6 +26,12 @@ importers:
       '@floe-note/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@floe-note/sync':
+        specifier: workspace:*
+        version: link:../../packages/sync
+      '@floe-note/transport':
+        specifier: workspace:*
+        version: link:../../packages/transport
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
@@ -87,6 +93,24 @@ importers:
       dexie:
         specifier: ^4.4.6
         version: 4.4.6
+
+  packages/sync:
+    dependencies:
+      '@floe-note/document':
+        specifier: workspace:*
+        version: link:../document
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@floe-note/transport':
+        specifier: workspace:*
+        version: link:../transport
+
+  packages/transport:
+    dependencies:
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../domain
 
 packages:
 

@@ -13,6 +13,8 @@
     "@floe-note/document": "workspace:*",
     "@floe-note/domain": "workspace:*",
     "@floe-note/storage": "workspace:*",
+    "@floe-note/sync": "workspace:*",
+    "@floe-note/transport": "workspace:*",
     "codemirror": "^6.0.2",
     "loro-codemirror": "^0.3.3",
     "loro-crdt": "^1.16.1",

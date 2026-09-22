@@ -1,0 +1,16 @@
+{
+  "name": "@floe-note/transport",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/transport.ts",
+    "./broadcast-channel": "./src/broadcast-channel-transport.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@floe-note/domain": "workspace:*"
+  }
+}

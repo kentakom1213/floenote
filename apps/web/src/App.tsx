@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { type NoteDocument, type NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
+import { ProjectSyncEngine } from "@floe-note/sync";
+import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 
 import { MarkdownEditor } from "./MarkdownEditor.js";
 
@@ -54,6 +56,16 @@ export function App() {
       unsubscribeUi();
       stopPersistence();
     };
+  }, [project]);
+
+  useEffect(() => {
+    if (!project) return;
+
+    const transport = new BroadcastChannelTransport(project.id);
+    const syncEngine = new ProjectSyncEngine(project, transport);
+    syncEngine.start();
+
+    return () => syncEngine.stop();
   }, [project]);
 
   useEffect(() => {
