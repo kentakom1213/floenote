@@ -52,6 +52,13 @@ export function ProjectSettingsView({
     ? getDeviceDisplayName(removeDeviceId) ?? "this device"
     : null;
 
+  async function confirmRemoveDevice(): Promise<void> {
+    if (!removeDeviceId) return;
+    const deviceId = removeDeviceId;
+    await onRemoveDevice(deviceId);
+    setRemoveDeviceId(null);
+  }
+
   return (
     <section className="settings-view">
       <header className="settings-header">
@@ -222,10 +229,7 @@ export function ProjectSettingsView({
             </p>
           }
           confirmLabel="Remove device"
-          onConfirm={async () => {
-            await onRemoveDevice(removeDeviceId);
-            setRemoveDeviceId(null);
-          }}
+          onConfirm={confirmRemoveDevice}
           onClose={() => setRemoveDeviceId(null)}
         />
       ) : null}
