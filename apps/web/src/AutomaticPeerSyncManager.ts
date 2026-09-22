@@ -24,6 +24,20 @@ type AutomaticPeerConnection = {
   stopConnectionState: () => void;
 };
 
+type PeerRetryState = {
+  attempt: number;
+  timer: ReturnType<typeof setTimeout> | null;
+};
+
+export const AUTOMATIC_RECONNECT_RETRY_DELAYS_MS = [
+  1_000,
+  2_000,
+  4_000,
+  8_000,
+  16_000,
+  30_000,
+] as const;
+
 export type AutomaticPeerSyncStatus = {
   connectedDeviceIds: readonly DeviceId[];
   error: string | null;
@@ -49,6 +63,7 @@ export class AutomaticPeerSyncManager {
   readonly #onStatusChange: (status: AutomaticPeerSyncStatus) => void;
   readonly #connections = new Map<DeviceId, AutomaticPeerConnection>();
   readonly #connectedDeviceIds = new Set<DeviceId>();
+  readonly #retryStates = new Map<DeviceId, PeerRetryState>();
   #onlineDeviceIds: readonly DeviceId[] = [];
   #error: string | null = null;
   #stopped = false;
@@ -99,6 +114,9 @@ export class AutomaticPeerSyncManager {
     for (const peerDeviceId of [...this.#connections.keys()]) {
       this.#stopPeer(peerDeviceId);
     }
+    for (const peerDeviceId of [...this.#retryStates.keys()]) {
+      this.#clearRetry(peerDeviceId);
+    }
     this.#connectedDeviceIds.clear();
     this.#emitStatus();
   }
@@ -115,32 +133,50 @@ export class AutomaticPeerSyncManager {
         this.#stopPeer(peerDeviceId);
       }
     }
+    for (const peerDeviceId of [...this.#retryStates.keys()]) {
+      if (!desired.has(peerDeviceId)) {
+        this.#clearRetry(peerDeviceId);
+      }
+    }
 
     if (!this.#onlineDeviceIds.includes(this.#localDeviceId)) {
+      for (const peerDeviceId of [...this.#retryStates.keys()]) {
+        this.#clearRetry(peerDeviceId);
+      }
       return;
     }
 
     for (const peerDeviceId of desired) {
       if (
         this.#localDeviceId >= peerDeviceId ||
-        this.#connections.has(peerDeviceId)
+        this.#connections.has(peerDeviceId) ||
+        this.#retryStates.has(peerDeviceId)
       ) {
         continue;
       }
 
-      const sessionId = createSessionId();
-      this.#startPeer(peerDeviceId, "host", sessionId);
+      this.#startHostReconnect(peerDeviceId);
+    }
+  }
 
-      try {
-        this.#presence.sendReconnectSession(peerDeviceId, sessionId);
-      } catch (error: unknown) {
-        this.#stopPeer(peerDeviceId);
-        this.#setError(
-          error instanceof Error
-            ? error.message
-            : "Failed to announce automatic reconnect session",
-        );
-      }
+  #startHostReconnect(peerDeviceId: DeviceId): void {
+    if (!this.#shouldInitiate(peerDeviceId) || this.#connections.has(peerDeviceId)) {
+      return;
+    }
+
+    const sessionId = createSessionId();
+    this.#startPeer(peerDeviceId, "host", sessionId);
+
+    try {
+      this.#presence.sendReconnectSession(peerDeviceId, sessionId);
+    } catch (error: unknown) {
+      this.#stopPeer(peerDeviceId);
+      this.#setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to announce automatic reconnect session",
+      );
+      this.#scheduleRetry(peerDeviceId);
     }
   }
 
@@ -203,6 +239,7 @@ export class AutomaticPeerSyncManager {
     const stopConnectionState = transport.onConnectionStateChange((state) => {
       if (state === "connected") {
         this.#connectedDeviceIds.add(peerDeviceId);
+        this.#clearRetry(peerDeviceId);
         this.#error = null;
         this.#emitStatus();
         return;
@@ -216,6 +253,7 @@ export class AutomaticPeerSyncManager {
           const current = this.#connections.get(peerDeviceId);
           if (current?.sessionId === sessionId) {
             this.#stopPeer(peerDeviceId);
+            this.#scheduleRetry(peerDeviceId);
           }
         });
       }
@@ -244,6 +282,50 @@ export class AutomaticPeerSyncManager {
     if (this.#connectedDeviceIds.delete(peerDeviceId)) {
       this.#emitStatus();
     }
+  }
+
+  #scheduleRetry(peerDeviceId: DeviceId): void {
+    if (!this.#shouldInitiate(peerDeviceId)) return;
+
+    const retry = this.#retryStates.get(peerDeviceId);
+    if (retry?.timer) return;
+
+    const previousAttempt = retry?.attempt ?? 0;
+    const delayIndex = Math.min(
+      previousAttempt,
+      AUTOMATIC_RECONNECT_RETRY_DELAYS_MS.length - 1,
+    );
+    const delayMs = AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[delayIndex];
+
+    const timer = setTimeout(() => {
+      const current = this.#retryStates.get(peerDeviceId);
+      if (!current || current.timer !== timer) return;
+
+      current.timer = null;
+      this.#startHostReconnect(peerDeviceId);
+    }, delayMs);
+
+    this.#retryStates.set(peerDeviceId, {
+      attempt: previousAttempt + 1,
+      timer,
+    });
+  }
+
+  #clearRetry(peerDeviceId: DeviceId): void {
+    const retry = this.#retryStates.get(peerDeviceId);
+    if (!retry) return;
+
+    if (retry.timer) clearTimeout(retry.timer);
+    this.#retryStates.delete(peerDeviceId);
+  }
+
+  #shouldInitiate(peerDeviceId: DeviceId): boolean {
+    return (
+      !this.#stopped &&
+      this.#localDeviceId < peerDeviceId &&
+      this.#onlineDeviceIds.includes(this.#localDeviceId) &&
+      this.#onlineDeviceIds.includes(peerDeviceId)
+    );
   }
 
   #setError(error: string): void {
