@@ -13,19 +13,16 @@ export type SyncDebugLogger = (event: SyncDebugEvent) => void;
 
 export type ProjectSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
-  onInitialRemoteStateReceived?: () => void;
 };
 
 export class ProjectSyncEngine {
   readonly #project: NoteProject;
   readonly #transport: Transport;
   readonly #debugLogger: SyncDebugLogger | null;
-  readonly #onInitialRemoteStateReceived: (() => void) | null;
   readonly #documentSubscriptions = new Map<string, () => void>();
   #stopProjectSubscription: (() => void) | null = null;
   #stopManifestSubscription: (() => void) | null = null;
   #stopTransportSubscription: (() => void) | null = null;
-  #initialRemoteStateReceived = false;
   #started = false;
 
   constructor(
@@ -36,8 +33,6 @@ export class ProjectSyncEngine {
     this.#project = project;
     this.#transport = transport;
     this.#debugLogger = options.debugLogger ?? null;
-    this.#onInitialRemoteStateReceived =
-      options.onInitialRemoteStateReceived ?? null;
   }
 
   start(): void {
@@ -156,11 +151,6 @@ export class ProjectSyncEngine {
     for (const document of this.#project.getAllDocuments()) {
       this.#sendDocument(document);
     }
-
-    this.#transport.send(
-      encodeSyncMessage({ type: "full-state-end" }),
-    );
-    this.#debug("full-state.end.send");
   }
 
   #sendDocument(document: NoteDocument): void {
@@ -188,14 +178,6 @@ export class ProjectSyncEngine {
         case "hello":
           this.#debug("hello.receive");
           this.#sendFullState();
-          return;
-
-        case "full-state-end":
-          this.#debug("full-state.end.receive");
-          if (!this.#initialRemoteStateReceived) {
-            this.#initialRemoteStateReceived = true;
-            this.#onInitialRemoteStateReceived?.();
-          }
           return;
 
         case "manifest-update":
