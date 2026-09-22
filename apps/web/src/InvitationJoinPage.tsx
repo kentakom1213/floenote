@@ -109,6 +109,16 @@ export function InvitationJoinPage({
           signaling.onConnectionStateChange(setSignalingState);
         signaling.start();
 
+        cleanup = () => {
+          abortPairing.abort();
+          stopSignalingState();
+          signaling.stop();
+          stopProject();
+          stopPersistence();
+          stopTransportStatus();
+          syncEngine?.stop();
+        };
+
         await authenticatePairingChannel({
           role: "join",
           inviteId: parsedInviteId,
@@ -128,18 +138,11 @@ export function InvitationJoinPage({
         });
         syncEngine.start();
 
-        cleanup = () => {
-          abortPairing.abort();
-          stopSignalingState();
-          signaling.stop();
-          stopProject();
-          stopPersistence();
-          stopTransportStatus();
-          syncEngine?.stop();
-        };
-
         setProject(joinedProject);
       } catch (caught: unknown) {
+        cleanup?.();
+        cleanup = null;
+        if (disposed) return;
         setClaimState("error");
         setError(
           caught instanceof Error ? caught.message : "Failed to claim invite",
