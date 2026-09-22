@@ -1,0 +1,43 @@
+import type { DeviceId } from "@floe-note/domain";
+import type { AuthorizedDevice } from "@floe-note/security";
+import type { AuthorizedPresenceConnectionState } from "@floe-note/coordinator-client";
+
+type AuthorizedDevicesPanelProps = {
+  state: AuthorizedPresenceConnectionState;
+  localDeviceId: DeviceId;
+  authorizedDevices: readonly AuthorizedDevice[];
+  onlineDeviceIds: readonly DeviceId[];
+  error: string | null;
+};
+
+export function AuthorizedDevicesPanel({
+  state,
+  localDeviceId,
+  authorizedDevices,
+  onlineDeviceIds,
+  error,
+}: AuthorizedDevicesPanelProps) {
+  const online = new Set<DeviceId>(onlineDeviceIds);
+
+  return (
+    <section className="webrtc-debug-panel">
+      <p className="eyebrow">Authorized devices</p>
+      <p className="webrtc-status">
+        Presence: <strong>{state}</strong>
+      </p>
+
+      {authorizedDevices.map((device) => (
+        <p className="webrtc-status" key={device.deviceId}>
+          <strong>
+            {device.deviceId}
+            {device.deviceId === localDeviceId ? " (this device)" : ""}
+          </strong>
+          {" — "}
+          {online.has(device.deviceId) ? "online" : "offline"}
+        </p>
+      ))}
+
+      {error ? <p className="webrtc-error">{error}</p> : null}
+    </section>
+  );
+}
