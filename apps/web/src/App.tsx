@@ -7,6 +7,7 @@ import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
+import { createConsoleDebugLogger } from "./debug.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
@@ -78,7 +79,11 @@ function NoteApp() {
     if (!project) return;
 
     const transport = useManualWebRtc
-      ? new WebRtcTransport(project.id)
+      ? new WebRtcTransport(
+          project.id,
+          undefined,
+          createConsoleDebugLogger("webrtc"),
+        )
       : new BroadcastChannelTransport(project.id);
 
     if (transport instanceof WebRtcTransport) {
@@ -87,7 +92,11 @@ function NoteApp() {
       setWebRtcTransport(null);
     }
 
-    const syncEngine = new ProjectSyncEngine(project, transport);
+    const syncEngine = new ProjectSyncEngine(project, transport, {
+      debugLogger: useManualWebRtc
+        ? createConsoleDebugLogger("sync")
+        : undefined,
+    });
     syncEngine.start();
 
     return () => syncEngine.stop();
