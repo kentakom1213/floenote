@@ -197,14 +197,10 @@ export function InvitationJoinPage({
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
-            const joinedProject = await storage.initializeJoinedProject(
+            await storage.initializeJoinedProject(
               securityState.projectId,
               session,
               securityState.keyEpoch,
-            );
-            joinedProject.setDeviceDisplayName(
-              session.publicIdentity.deviceId,
-              session.displayName,
             );
           },
         });
