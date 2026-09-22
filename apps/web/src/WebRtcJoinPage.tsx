@@ -11,7 +11,11 @@ import {
 
 const INITIAL_STATUS: WebRtcStatus = {
   connectionState: "new",
+  iceConnectionState: "new",
+  iceGatheringState: "new",
   dataChannelState: "none",
+  gatheredCandidateCount: 0,
+  warning: null,
   error: null,
 };
 
@@ -138,6 +142,15 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
           Peer connection: <strong>{status.connectionState}</strong>
         </p>
         <p className="webrtc-status">
+          ICE connection: <strong>{status.iceConnectionState}</strong>
+        </p>
+        <p className="webrtc-status">
+          ICE gathering: <strong>{status.iceGatheringState}</strong>
+        </p>
+        <p className="webrtc-status">
+          Candidates: <strong>{status.gatheredCandidateCount}</strong>
+        </p>
+        <p className="webrtc-status">
           Data channel: <strong>{status.dataChannelState}</strong>
         </p>
 
@@ -148,6 +161,9 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
           </label>
         ) : null}
 
+        {status.warning ? (
+          <p className="webrtc-warning">{status.warning}</p>
+        ) : null}
         {status.error ? <p className="webrtc-error">{status.error}</p> : null}
         {error ? <p className="webrtc-error">{error}</p> : null}
 
