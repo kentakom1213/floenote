@@ -210,9 +210,15 @@ export function InvitationJoinPage({
             await storage.saveCommittedSecurityState(securityState);
             const joinedProject = await storage.initializeJoinedProject(
               securityState.projectId,
+              session,
+              securityState.keyEpoch,
             );
 
-            stopJoinedPersistence = storage.watchProject(joinedProject);
+            stopJoinedPersistence = storage.watchProject(
+              joinedProject,
+              session,
+              securityState.keyEpoch,
+            );
 
             const encryptedTransport = new EncryptedSyncTransport(
               transport,
