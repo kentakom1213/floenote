@@ -78,9 +78,46 @@ export function InvitationJoinPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    void joinDeviceVault
+      .hasVault()
+      .then((exists) => {
+        if (!cancelled) {
+          setVaultState(exists ? "locked" : "missing");
+        }
+      })
+      .catch((caught: unknown) => {
+        if (!cancelled) {
+          setVaultState("error");
+          setVaultError(
+            caught instanceof Error
+              ? caught.message
+              : "Failed to inspect Device Vault",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      const session = vaultSessionRef.current;
+      vaultSessionRef.current = null;
+      if (session) void session.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (vaultState !== "unlocked" || !deviceId) return;
+
+    const session = vaultSessionRef.current;
+    if (!session) return;
+
     let disposed = false;
     let cleanup: (() => void) | null = null;
-    let deviceKeyMaterial: DeviceKeyMaterial | null = null;
+
+    setClaimState("claiming");
+    setPairingState("connecting");
+    setError(null);
 
     void (async () => {
       try {
@@ -90,7 +127,6 @@ export function InvitationJoinPage({
         }
 
         const parsedPairingSecret = parsePairingSecret(pairingSecret);
-
         const invitationClient = new InvitationClient(coordinatorBaseUrl);
         const claimed = await invitationClient.claimInvite(
           parsedInviteId,
@@ -101,21 +137,13 @@ export function InvitationJoinPage({
         setClaimState("claimed");
         setExpiresAt(claimed.expiresAt);
 
-        const joinedProject = NoteProject.create(claimed.projectId);
-
         const transport = new WebRtcTransport(
           claimed.projectId,
           undefined,
           createConsoleDebugLogger("invite-join-webrtc"),
         );
-        const stopTransportStatus =
-          transport.onStatusChange(setWebRtcStatus);
-        const stopProject = joinedProject.subscribe(() => {
-          setRevision((value) => value + 1);
-        });
-
+        const stopTransportStatus = transport.onStatusChange(setWebRtcStatus);
         const abortPairing = new AbortController();
-        let syncEngine: ProjectSyncEngine | null = null;
 
         const signaling = new WebRtcSignalingSession({
           role: "join",
@@ -133,13 +161,7 @@ export function InvitationJoinPage({
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
-          stopProject();
           stopTransportStatus();
-          syncEngine?.stop();
-          if (deviceKeyMaterial) {
-            void destroyDeviceKeyMaterial(deviceKeyMaterial);
-            deviceKeyMaterial = null;
-          }
         };
 
         await authenticatePairingChannel({
@@ -151,39 +173,27 @@ export function InvitationJoinPage({
           transport,
           signal: abortPairing.signal,
         });
-        if (disposed) {
-          abortPairing.abort();
-          return;
-        }
-
-        const generatedKeyMaterial = await generateDeviceKeyMaterial();
-        if (disposed) {
-          await destroyDeviceKeyMaterial(generatedKeyMaterial);
-          return;
-        }
-        deviceKeyMaterial = generatedKeyMaterial;
+        if (disposed) return;
 
         const identity = await exchangeJoiningDeviceIdentity({
           role: "join",
           transport,
-          identity: generatedKeyMaterial.publicIdentity,
+          identity: session.publicIdentity,
           signal: abortPairing.signal,
         });
         if (disposed) return;
 
-        setDeviceId(identity.deviceId);
+        if (identity.deviceId !== deviceId) {
+          throw new Error("Device Vault identity changed during pairing");
+        }
 
-        syncEngine = new ProjectSyncEngine(joinedProject, transport, {
-          debugLogger: createConsoleDebugLogger("invite-join-sync"),
-        });
-        syncEngine.start();
-
-        setProject(joinedProject);
+        setPairingState("awaiting-authorization");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
         if (disposed) return;
         setClaimState("error");
+        setPairingState("error");
         setError(
           caught instanceof Error ? caught.message : "Failed to join Project",
         );
@@ -194,7 +204,14 @@ export function InvitationJoinPage({
       disposed = true;
       cleanup?.();
     };
-  }, [claimId, coordinatorBaseUrl, inviteId, pairingSecret]);
+  }, [
+    claimId,
+    coordinatorBaseUrl,
+    deviceId,
+    inviteId,
+    pairingSecret,
+    vaultState,
+  ]);
 
   if (error) {
     return (
