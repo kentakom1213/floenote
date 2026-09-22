@@ -920,6 +920,12 @@ synchronize Project data during this stage. Persistent Project adoption and
 normal synchronization begin only after authorization and ProjectKey delivery
 succeed.
 
+After the joining device has durably stored the ProjectKey and committed
+SecurityState, the browser should replace the one-time join URL with the normal
+application URL without tearing down the current runtime. This prevents a later
+reload from attempting to claim the already-used invitation again while still
+allowing the stored acknowledgement to finish on the existing DataChannel.
+
 Invitations should be:
 
 - one-time;
