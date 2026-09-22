@@ -8,10 +8,22 @@ export type DeviceVaultUiState =
   | "unlocked"
   | "error";
 
+export type LocalSecurityBootstrapUiState =
+  | "waiting"
+  | "creating"
+  | "ready"
+  | "error";
+
 type DeviceVaultPanelProps = {
   state: DeviceVaultUiState;
   deviceId: DeviceId | null;
   error: string | null;
+  securityState: LocalSecurityBootstrapUiState;
+  securityHeadHash: string | null;
+  securitySequence: number | null;
+  securityKeyEpoch: number | null;
+  securityDeviceCount: number | null;
+  securityError: string | null;
   onUnlockOrCreate: () => Promise<void>;
 };
 
@@ -19,6 +31,12 @@ export function DeviceVaultPanel({
   state,
   deviceId,
   error,
+  securityState,
+  securityHeadHash,
+  securitySequence,
+  securityKeyEpoch,
+  securityDeviceCount,
+  securityError,
   onUnlockOrCreate,
 }: DeviceVaultPanelProps) {
   const buttonLabel =
@@ -51,6 +69,35 @@ export function DeviceVaultPanel({
       ) : null}
 
       {error ? <p className="webrtc-error">{error}</p> : null}
+
+      {state === "unlocked" ? (
+        <>
+          <p className="webrtc-status">
+            Local security: <strong>{securityState}</strong>
+          </p>
+          {securityState === "ready" ? (
+            <>
+              <p className="webrtc-status">
+                Sequence: <strong>{securitySequence}</strong>
+              </p>
+              <p className="webrtc-status">
+                Key epoch: <strong>{securityKeyEpoch}</strong>
+              </p>
+              <p className="webrtc-status">
+                Devices: <strong>{securityDeviceCount}</strong>
+              </p>
+            </>
+          ) : null}
+          {securityHeadHash ? (
+            <p className="webrtc-status">
+              Initial head: <strong>{securityHeadHash}</strong>
+            </p>
+          ) : null}
+          {securityError ? (
+            <p className="webrtc-error">{securityError}</p>
+          ) : null}
+        </>
+      ) : null}
     </section>
   );
 }

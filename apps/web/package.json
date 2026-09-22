@@ -15,6 +15,7 @@
     "@floe-note/document": "workspace:*",
     "@floe-note/domain": "workspace:*",
     "@floe-note/pairing": "workspace:*",
+    "@floe-note/security": "workspace:*",
     "@floe-note/storage": "workspace:*",
     "@floe-note/sync": "workspace:*",
     "@floe-note/transport": "workspace:*",

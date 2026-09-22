@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
   createPairingSecret,
   createSessionId,
@@ -16,6 +17,14 @@ import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
 } from "@floe-note/pairing";
+import {
+  attachCreateProjectSignature,
+  createUnsignedCreateProjectTransition,
+  deriveInitialSecurityState,
+  encodeCreateProjectTransition,
+  encodeUnsignedCreateProjectTransition,
+  type SecurityState,
+} from "@floe-note/security";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
@@ -29,6 +38,7 @@ import { createConsoleDebugLogger } from "./debug.js";
 import {
   DeviceVaultPanel,
   type DeviceVaultUiState,
+  type LocalSecurityBootstrapUiState,
 } from "./DeviceVaultPanel.js";
 import { InvitationHostPanel } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
@@ -118,6 +128,12 @@ function NoteApp() {
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
   const [deviceVaultError, setDeviceVaultError] = useState<string | null>(null);
+  const [localSecurityBootstrapState, setLocalSecurityBootstrapState] =
+    useState<LocalSecurityBootstrapUiState>("waiting");
+  const [localSecurityState, setLocalSecurityState] =
+    useState<SecurityState | null>(null);
+  const [localSecurityError, setLocalSecurityError] =
+    useState<string | null>(null);
 
   const project = openedProject?.project ?? null;
 
@@ -170,6 +186,81 @@ function NoteApp() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      !project ||
+      !localDeviceId ||
+      deviceVaultState !== "unlocked"
+    ) {
+      setLocalSecurityBootstrapState("waiting");
+      setLocalSecurityState(null);
+      setLocalSecurityError(null);
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) return;
+
+    let cancelled = false;
+    setLocalSecurityBootstrapState("creating");
+    setLocalSecurityState(null);
+    setLocalSecurityError(null);
+
+    void (async () => {
+      const identity = session.publicIdentity;
+      if (identity.deviceId !== localDeviceId) {
+        throw new Error("Unlocked Device Vault identity changed unexpectedly");
+      }
+
+      const unsignedTransition = createUnsignedCreateProjectTransition(
+        project.id,
+        identity,
+      );
+      const signingBytes =
+        encodeUnsignedCreateProjectTransition(unsignedTransition);
+      const signature = await session.sign(signingBytes);
+      const transition = attachCreateProjectSignature(
+        unsignedTransition,
+        signature,
+      );
+
+      const verified = await verifyEd25519Signature(
+        signingBytes,
+        transition.signature,
+        transition.initialDevice.signingPublicKey,
+      );
+      if (!verified) {
+        throw new Error("CreateProject signature verification failed");
+      }
+
+      const headHash = await sha256(
+        encodeCreateProjectTransition(transition),
+      );
+      const securityState = deriveInitialSecurityState(
+        transition,
+        headHash,
+      );
+
+      if (!cancelled) {
+        setLocalSecurityState(securityState);
+        setLocalSecurityBootstrapState("ready");
+      }
+    })().catch((error: unknown) => {
+      if (cancelled) return;
+      setLocalSecurityBootstrapState("error");
+      setLocalSecurityState(null);
+      setLocalSecurityError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create local SecurityState",
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deviceVaultState, localDeviceId, project]);
 
   useEffect(() => {
     if (!project) return;
@@ -435,6 +526,14 @@ function NoteApp() {
           state={deviceVaultState}
           deviceId={localDeviceId}
           error={deviceVaultError}
+          securityState={localSecurityBootstrapState}
+          securityHeadHash={
+            localSecurityState ? bytesToHex(localSecurityState.headHash) : null
+          }
+          securitySequence={localSecurityState?.sequence ?? null}
+          securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
+          securityDeviceCount={localSecurityState?.devices.length ?? null}
+          securityError={localSecurityError}
           onUnlockOrCreate={unlockOrCreateDevice}
         />
 
@@ -537,4 +636,8 @@ function DocumentPane({
       <MarkdownEditor document={document} />
     </article>
   );
+}
+
+function bytesToHex(value: Uint8Array): string {
+  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

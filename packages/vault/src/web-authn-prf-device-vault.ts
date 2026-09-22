@@ -8,6 +8,7 @@ import {
   destroyDeviceKeyMaterial,
   encryptDeviceVaultPayload,
   generateDeviceKeyMaterial,
+  signEd25519,
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
 import { parseDeviceId } from "@floe-note/domain";
@@ -78,6 +79,10 @@ export class DeviceVaultSession {
       encryptionPublicKey: keyMaterial.publicIdentity.encryptionPublicKey.slice(),
       signingPublicKey: keyMaterial.publicIdentity.signingPublicKey.slice(),
     };
+  }
+
+  async sign(message: Uint8Array): Promise<Uint8Array> {
+    return signEd25519(message, this.#requireOpen().signingPrivateKey);
   }
 
   async close(): Promise<void> {
