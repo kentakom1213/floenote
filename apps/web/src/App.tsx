@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 
+import {
+  createSessionId,
+  WebRtcSignalingSession,
+  type SignalingConnectionState,
+} from "@floe-note/coordinator-client";
 import { type NoteDocument, type NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
@@ -9,13 +14,19 @@ import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
 import { createConsoleDebugLogger } from "./debug.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { SignaledJoinPage } from "./SignaledJoinPage.js";
+import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
 
 const projectStorage = new DexieProjectStorage();
 const searchParams = new URLSearchParams(window.location.search);
 const useManualWebRtc = searchParams.get("transport") === "webrtc";
+const useSignaledWebRtc = searchParams.get("transport") === "signal";
 const useManualWebRtcJoin = searchParams.get("join") === "webrtc";
+const useSignaledWebRtcJoin = searchParams.get("join") === "signal";
+const coordinatorBaseUrl =
+  import.meta.env.VITE_COORDINATOR_URL ?? "http://localhost:8787";
 
 type OpenedProject = {
   project: NoteProject;
@@ -25,6 +36,17 @@ type OpenedProject = {
 export function App() {
   if (useManualWebRtcJoin) {
     return <WebRtcJoinPage storage={projectStorage} />;
+  }
+
+  if (useSignaledWebRtcJoin) {
+    return (
+      <SignaledJoinPage
+        storage={projectStorage}
+        coordinatorBaseUrl={coordinatorBaseUrl}
+        projectId={searchParams.get("project")}
+        sessionId={searchParams.get("session")}
+      />
+    );
   }
 
   return <NoteApp />;
@@ -37,6 +59,9 @@ function NoteApp() {
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
   const [webRtcTransport, setWebRtcTransport] =
     useState<WebRtcTransport | null>(null);
+  const [signalingState, setSignalingState] =
+    useState<SignalingConnectionState>("idle");
+  const [signalSessionId] = useState(() => createSessionId());
 
   const project = openedProject?.project ?? null;
 
@@ -78,31 +103,55 @@ function NoteApp() {
   useEffect(() => {
     if (!project) return;
 
-    const transport = useManualWebRtc
-      ? new WebRtcTransport(
-          project.id,
-          undefined,
-          createConsoleDebugLogger("webrtc"),
-        )
-      : new BroadcastChannelTransport(project.id);
-
-    if (transport instanceof WebRtcTransport) {
+    if (useManualWebRtc || useSignaledWebRtc) {
+      const transport = new WebRtcTransport(
+        project.id,
+        undefined,
+        createConsoleDebugLogger(
+          useSignaledWebRtc ? "signal-host-webrtc" : "webrtc",
+        ),
+      );
       setWebRtcTransport(transport);
-    } else {
-      setWebRtcTransport(null);
+
+      const syncEngine = new ProjectSyncEngine(project, transport, {
+        debugLogger: createConsoleDebugLogger(
+          useSignaledWebRtc ? "signal-host-sync" : "sync",
+        ),
+      });
+      syncEngine.start();
+
+      if (!useSignaledWebRtc) {
+        return () => syncEngine.stop();
+      }
+
+      const signaling = new WebRtcSignalingSession({
+        role: "host",
+        coordinatorBaseUrl,
+        projectId: project.id,
+        sessionId: signalSessionId,
+        transport,
+        debugLogger: createConsoleDebugLogger("signal-host"),
+      });
+      const stopSignalingState =
+        signaling.onConnectionStateChange(setSignalingState);
+      signaling.start();
+
+      return () => {
+        stopSignalingState();
+        signaling.stop();
+        syncEngine.stop();
+      };
     }
 
-    const syncEngine = new ProjectSyncEngine(
-      project,
-      transport,
-      useManualWebRtc
-        ? { debugLogger: createConsoleDebugLogger("sync") }
-        : {},
-    );
+    setWebRtcTransport(null);
+    setSignalingState("idle");
+
+    const transport = new BroadcastChannelTransport(project.id);
+    const syncEngine = new ProjectSyncEngine(project, transport);
     syncEngine.start();
 
     return () => syncEngine.stop();
-  }, [project]);
+  }, [project, signalSessionId]);
 
   useEffect(() => {
     if (!openedProject) return;
@@ -188,7 +237,14 @@ function NoteApp() {
           ))}
         </nav>
 
-        {webRtcTransport ? (
+        {useSignaledWebRtc && webRtcTransport ? (
+          <SignalingHostPanel
+            projectId={activeProject.id}
+            sessionId={signalSessionId}
+            transport={webRtcTransport}
+            signalingState={signalingState}
+          />
+        ) : webRtcTransport ? (
           <WebRtcDebugPanel
             projectId={activeProject.id}
             transport={webRtcTransport}
