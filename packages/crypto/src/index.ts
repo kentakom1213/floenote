@@ -42,3 +42,12 @@ export {
   PROJECT_SYNC_ENVELOPE_VERSION,
   readProjectSyncPayloadKeyEpoch,
 } from "./project-sync-crypto.js";
+
+export {
+  decryptProjectStoragePayload,
+  encryptProjectStoragePayload,
+  PROJECT_STORAGE_ENVELOPE_VERSION,
+  readProjectStoragePayloadKeyEpoch,
+} from "./project-storage-crypto.js";
+
+export type { ProjectStorageRecordContext } from "./project-storage-crypto.js";

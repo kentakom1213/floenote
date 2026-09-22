@@ -1032,15 +1032,39 @@ The exact old-key retention and lazy re-encryption policy remains to be specifie
 
 ## 21. Local persistence
 
-The persistent source of truth on a device is encrypted serialized application state.
+The persistent source of truth on a device is encrypted serialized application
+state. IndexedDB is accessed through Dexie.
 
-The intended storage implementation is IndexedDB through Dexie. During the
-current staged MVP implementation, Device Vault secrets and network sync are
-encrypted first; manifest and document snapshot encryption is introduced in the
-next storage step. Until then, the existing snapshot tables are temporary
-plaintext development storage.
+Manifest and document Loro snapshots are encrypted with the ProjectKey using
+XChaCha20-Poly1305. Storage encryption is exposed to the persistence layer only
+as a capability of an unlocked Device Vault session; raw ProjectKey bytes are
+not passed into the storage package.
 
+The v1 encrypted storage envelope is:
 
+```text
+magic = "FLST"
+version = 1
+keyEpoch
+random 24-byte nonce
+ciphertext = complete serialized Loro snapshot
+```
+
+The AEAD additional authenticated data binds:
+
+```text
+domain separation
+ProjectId
+keyEpoch
+record kind = manifest | document
+DocumentId for document records
+```
+
+The envelope carries keyEpoch so records written under an older epoch remain
+self-describing after key rotation. An unlocked Device Vault may decrypt such a
+record using the corresponding retained ProjectKey, while subsequent persistence
+rewrites it under the active epoch. This is the basis for lazy key-rotation
+migration; exact old-key garbage collection remains a separate decision.
 
 Conceptually:
 
@@ -1068,9 +1092,23 @@ indexes
   [ProjectId, DocumentId] -> derived title / updatedAt / etc.
 ```
 
-Indexes are disposable derived data. They must be reconstructable from authoritative decrypted document state.
+Project discovery metadata and verified SecurityState are not Project content and
+remain outside the ProjectKey-encrypted snapshot blobs.
 
-The implementation should include a storage schema version from the beginning.
+The browser schema is versioned independently from network protocols. Dexie
+schema v3 introduces encrypted manifest/document values while retaining read
+compatibility with the earlier plaintext `snapshot` rows. Migration is lazy:
+legacy plaintext is read only after Device Vault unlock, then the normal
+persistence path immediately rewrites the loaded Project as encrypted v3 rows.
+No plaintext fallback is used before unlock.
+
+A Project is not loaded, rendered, edited, or watched for persistence until the
+Device Vault has been unlocked. For a newly created Project, cleartext Project
+metadata may be created first, but the first manifest/document snapshot is not
+persisted until SecurityState bootstrap and ProjectKey creation complete.
+
+Indexes are disposable derived data. They must be reconstructable from
+authoritative decrypted document state.
 
 Storage schema version and network protocol version are separate concepts.
 
@@ -1171,18 +1209,19 @@ visible rather than being implied away by the use of modern primitives.
   current key epoch, ciphertext length, packet timing, and WebRTC/network
   metadata remain observable even though SyncMessage type, DocumentId, and Loro
   bytes are encrypted.
-- **Local note persistence is still plaintext during the encrypted-sync
-  implementation step.** The Device Vault and network synchronization are
-  encrypted, but existing IndexedDB manifest/document snapshots remain
-  readable to same-origin code or direct local-storage inspection until the
-  encrypted-persistence step replaces that schema. This is an implementation
-  staging limitation, not the intended final storage model.
+- **Encrypted local persistence still exposes storage metadata.** ProjectId,
+  DocumentId, local-slot metadata, record counts, ciphertext sizes, and the
+  storage envelope keyEpoch remain observable in IndexedDB. Note titles,
+  document bodies, manifest state, and serialized Loro snapshots are inside the
+  encrypted payload. Hiding local index identifiers is not a goal of the
+  initial storage format.
 - **Legacy development transports remain plaintext.** The manual SDP/signaling
-  debug flows and same-browser BroadcastChannel path predate the security
-  bootstrap and are retained only as development tools. They must not be
-  treated as the normal authorized-device synchronization path. The production
-  path introduced here is the ProjectKey-protected transport started after
-  successful pairing.
+  and same-browser BroadcastChannel transports predate the security bootstrap.
+  The old manual join paths no longer have a plaintext persistence fallback:
+  persistent Project adoption requires an unlocked Device Vault and ProjectKey.
+  These transports must not be treated as the normal authorized-device
+  synchronization path. The production pairing path uses ProjectKey-protected
+  synchronization after successful authorization and key delivery.
 
 This threat model should be revisited before a security-sensitive public release.
 
