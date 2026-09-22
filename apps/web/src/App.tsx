@@ -49,6 +49,7 @@ import {
   DexieProjectStorage,
   type StoredProjectSummary,
 } from "@floe-note/storage";
+import { ProjectSyncEngine } from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
   WebAuthnPrfDeviceVault,
