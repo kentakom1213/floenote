@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { ProjectId } from "@floe-note/domain";
 import type {
-  WebRtcConnectionState,
+  WebRtcStatus,
   WebRtcTransport,
 } from "@floe-note/transport/webrtc";
 
@@ -15,17 +15,13 @@ export function WebRtcDebugPanel({
   projectId,
   transport,
 }: WebRtcDebugPanelProps) {
-  const [connectionState, setConnectionState] =
-    useState<WebRtcConnectionState>(transport.connectionState);
+  const [status, setStatus] = useState<WebRtcStatus>(transport.status);
   const [localDescription, setLocalDescription] = useState("");
   const [remoteDescription, setRemoteDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(
-    () => transport.onConnectionStateChange(setConnectionState),
-    [transport],
-  );
+  useEffect(() => transport.onStatusChange(setStatus), [transport]);
 
   async function createOffer() {
     await run(async () => {
@@ -66,7 +62,10 @@ export function WebRtcDebugPanel({
     <section className="webrtc-debug-panel">
       <p className="eyebrow">Manual WebRTC</p>
       <p className="webrtc-status">
-        Connection: <strong>{connectionState}</strong>
+        Peer connection: <strong>{status.connectionState}</strong>
+      </p>
+      <p className="webrtc-status">
+        Data channel: <strong>{status.dataChannelState}</strong>
       </p>
       <p className="webrtc-project-id" title={projectId}>
         Project: {projectId}
@@ -107,6 +106,7 @@ export function WebRtcDebugPanel({
         />
       </label>
 
+      {status.error ? <p className="webrtc-error">{status.error}</p> : null}
       {error ? <p className="webrtc-error">{error}</p> : null}
     </section>
   );
