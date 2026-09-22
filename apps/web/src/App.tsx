@@ -12,7 +12,7 @@ import {
   type SessionId,
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
-import { type NoteDocument, type NoteProject } from "@floe-note/document";
+import type { NoteProject } from "@floe-note/document";
 import type { DeviceId, DocumentId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
@@ -64,7 +64,7 @@ import {
   type DeviceAuthorizationUiState,
 } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
-import { MarkdownEditor } from "./MarkdownEditor.js";
+import { NoteWorkspace } from "./NoteWorkspace.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
@@ -648,7 +648,6 @@ function NoteApp() {
   }
 
   const activeProject = project;
-  const summaries = activeProject.listDocuments();
   const selectedDocument = selectedId
     ? activeProject.getDocument(selectedId)
     : undefined;
@@ -1083,155 +1082,92 @@ function NoteApp() {
     setSelectedId(next?.id ?? null);
   }
 
-  return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-row">
-          <div>
-            <p className="eyebrow">Local-first notes</p>
-            <h1>Floe Note</h1>
-          </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={createDocument}
-            aria-label="Create note"
-          >
-            +
-          </button>
-        </div>
+  const sidebarControls = (
+    <>
+      <DeviceVaultPanel
+        state={deviceVaultState}
+        deviceId={localDeviceId}
+        error={deviceVaultError}
+        securityState={localSecurityBootstrapState}
+        securityHeadHash={
+          localSecurityState ? bytesToHex(localSecurityState.headHash) : null
+        }
+        securitySequence={localSecurityState?.sequence ?? null}
+        securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
+        securityDeviceCount={localSecurityState?.devices.length ?? null}
+        projectKeyReady={localProjectKeyReady}
+        securityError={localSecurityError}
+        onUnlockOrCreate={unlockOrCreateDevice}
+      />
 
-        <DeviceVaultPanel
-          state={deviceVaultState}
-          deviceId={localDeviceId}
-          error={deviceVaultError}
-          securityState={localSecurityBootstrapState}
-          securityHeadHash={
-            localSecurityState ? bytesToHex(localSecurityState.headHash) : null
+      {localDeviceId && localSecurityState ? (
+        <AuthorizedDevicesPanel
+          state={authorizedSync.presenceState}
+          localDeviceId={localDeviceId}
+          authorizedDevices={localSecurityState.devices}
+          onlineDeviceIds={authorizedSync.onlineDeviceIds}
+          connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          error={authorizedSync.error}
+          onRevoke={revokeDevice}
+        />
+      ) : null}
+
+      {useInvitationWebRtc && invitationHost && webRtcTransport ? (
+        <InvitationHostPanel
+          inviteId={invitationHost.inviteId}
+          pairingSecret={invitationHost.pairingSecret}
+          expiresAt={invitationHost.expiresAt}
+          transport={webRtcTransport}
+          signalingState={signalingState}
+          joiningDeviceId={joiningDevice?.deviceId ?? null}
+          authorizationState={deviceAuthorizationState}
+          projectKeyDeliveryState={projectKeyDeliveryState}
+          encryptedSyncState={invitationSyncState}
+          onConfirm={authorizeJoiningDevice}
+          onRetryProjectKeyDelivery={retryProjectKeyDelivery}
+          onCancel={() =>
+            new InvitationClient(coordinatorBaseUrl).cancelInvite(
+              invitationHost.inviteId,
+            )
           }
-          securitySequence={localSecurityState?.sequence ?? null}
-          securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
-          securityDeviceCount={localSecurityState?.devices.length ?? null}
-          projectKeyReady={localProjectKeyReady}
-          securityError={localSecurityError}
-          onUnlockOrCreate={unlockOrCreateDevice}
         />
+      ) : useInvitationWebRtc ? (
+        <p className="webrtc-hint">Creating invitation…</p>
+      ) : useSignaledWebRtc && webRtcTransport ? (
+        <SignalingHostPanel
+          projectId={activeProject.id}
+          sessionId={signalSessionId}
+          transport={webRtcTransport}
+          signalingState={signalingState}
+        />
+      ) : useManualWebRtc && webRtcTransport ? (
+        <WebRtcDebugPanel
+          projectId={activeProject.id}
+          transport={webRtcTransport}
+        />
+      ) : null}
 
-        {localDeviceId && localSecurityState ? (
-          <AuthorizedDevicesPanel
-            state={authorizedSync.presenceState}
-            localDeviceId={localDeviceId}
-            authorizedDevices={localSecurityState.devices}
-            onlineDeviceIds={authorizedSync.onlineDeviceIds}
-            connectedDeviceIds={authorizedSync.connectedDeviceIds}
-            error={authorizedSync.error}
-            onRevoke={revokeDevice}
-          />
-        ) : null}
-
-        <nav className="note-list" aria-label="Notes">
-          {summaries.map((summary) => (
-            <button
-              className={
-                summary.id === selectedId ? "note-item selected" : "note-item"
-              }
-              key={summary.id}
-              type="button"
-              onClick={() => setSelectedId(summary.id)}
-            >
-              {summary.title || "Untitled"}
-            </button>
-          ))}
-        </nav>
-
-        {useInvitationWebRtc && invitationHost && webRtcTransport ? (
-          <InvitationHostPanel
-            inviteId={invitationHost.inviteId}
-            pairingSecret={invitationHost.pairingSecret}
-            expiresAt={invitationHost.expiresAt}
-            transport={webRtcTransport}
-            signalingState={signalingState}
-            joiningDeviceId={joiningDevice?.deviceId ?? null}
-            authorizationState={deviceAuthorizationState}
-            projectKeyDeliveryState={projectKeyDeliveryState}
-            encryptedSyncState={invitationSyncState}
-            onConfirm={authorizeJoiningDevice}
-            onRetryProjectKeyDelivery={retryProjectKeyDelivery}
-            onCancel={() =>
-              new InvitationClient(coordinatorBaseUrl).cancelInvite(
-                invitationHost.inviteId,
-              )
-            }
-          />
-        ) : useInvitationWebRtc ? (
-          <p className="webrtc-hint">Creating invitation…</p>
-        ) : useSignaledWebRtc && webRtcTransport ? (
-          <SignalingHostPanel
-            projectId={activeProject.id}
-            sessionId={signalSessionId}
-            transport={webRtcTransport}
-            signalingState={signalingState}
-          />
-        ) : webRtcTransport ? (
-          <WebRtcDebugPanel
-            projectId={activeProject.id}
-            transport={webRtcTransport}
-          />
-        ) : null}
-
-        {coordinationError ? (
-          <p className="webrtc-error">{coordinationError}</p>
-        ) : null}
-      </aside>
-
-      <section className="workspace">
-        {selectedDocument ? (
-          <DocumentPane
-            document={selectedDocument}
-            onRename={(title) =>
-              activeProject.renameDocument(selectedDocument.id, title)
-            }
-            onDelete={deleteSelectedDocument}
-          />
-        ) : (
-          <div className="empty-state">
-            <p>No notes yet.</p>
-            <button type="button" onClick={createDocument}>
-              Create a note
-            </button>
-          </div>
-        )}
-      </section>
-    </main>
+      {coordinationError ? (
+        <p className="webrtc-error">{coordinationError}</p>
+      ) : null}
+    </>
   );
-}
 
-type DocumentPaneProps = {
-  document: NoteDocument;
-  onRename: (title: string) => void;
-  onDelete: () => void;
-};
-
-function DocumentPane({
-  document,
-  onRename,
-  onDelete,
-}: DocumentPaneProps) {
   return (
-    <article className="document-pane">
-      <header className="document-header">
-        <input
-          className="title-input"
-          value={document.title}
-          onChange={(event) => onRename(event.target.value)}
-          aria-label="Note title"
-        />
-        <button className="delete-button" type="button" onClick={onDelete}>
-          Delete
-        </button>
-      </header>
-      <MarkdownEditor document={document} />
-    </article>
+    <NoteWorkspace
+      project={activeProject}
+      selectedId={selectedId}
+      selectedDocument={selectedDocument}
+      sidebarControls={sidebarControls}
+      onCreateDocument={createDocument}
+      onSelectDocument={setSelectedId}
+      onRenameDocument={(title) => {
+        if (selectedDocument) {
+          activeProject.renameDocument(selectedDocument.id, title);
+        }
+      }}
+      onDeleteDocument={deleteSelectedDocument}
+    />
   );
 }
 
