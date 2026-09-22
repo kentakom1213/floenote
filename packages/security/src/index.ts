@@ -49,3 +49,11 @@ export {
   encodeAddDeviceTransition,
   encodeUnsignedAddDeviceTransition,
 } from "./add-device.js";
+
+export {
+  AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
+  assertAuthorizedPresenceSignature,
+  encodeAuthorizedPresenceProof,
+} from "./authorized-presence.js";
+
+export type { AuthorizedPresenceProof } from "./authorized-presence.js";
