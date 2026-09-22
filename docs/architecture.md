@@ -334,6 +334,13 @@ causing authentication failure. ProjectId is supplied by the local Project
 context rather than repeated in the envelope, so a ciphertext copied between
 Projects does not authenticate.
 
+For live synchronization, the receiver requires the envelope keyEpoch to equal
+the current committed `SecurityState.keyEpoch`. Older ProjectKeys may remain in
+the Vault for future lazy storage migration, but they are not accepted for
+network sync after the security state advances. This prevents a device that
+knows only a revoked/old epoch key from continuing to inject otherwise valid
+sync ciphertext into the current Project session.
+
 The Device Vault exposes encrypt/decrypt capabilities for a Project and epoch;
 higher layers do not receive raw ProjectKey bytes. The encrypted transport
 serializes asynchronous encrypt/decrypt operations so the ordered semantics of
