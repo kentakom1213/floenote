@@ -554,7 +554,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
     if (attachment.deviceId) {
       await this.#handleAuthenticatedPresenceMessage(
         socket,
-        attachment,
+        {
+          ...attachment,
+          deviceId: attachment.deviceId,
+        },
         payload,
       );
       return;
