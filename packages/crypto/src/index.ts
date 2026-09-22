@@ -25,3 +25,13 @@ export {
   signEd25519,
   verifyEd25519Signature,
 } from "./security-crypto.js";
+
+export {
+  PROJECT_KEY_BYTES,
+  PROJECT_KEY_ENVELOPE_VERSION,
+  generateProjectKey,
+  openSealedProjectKeyForDevice,
+  sealProjectKeyForDevice,
+} from "./project-key.js";
+
+export type { ProjectKeyEnvelopeContext } from "./project-key.js";

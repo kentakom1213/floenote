@@ -17,6 +17,7 @@ import type { DeviceId, DocumentId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
+  sendProjectKeyDelivery,
 } from "@floe-note/pairing";
 import {
   attachAddDeviceSignature,
@@ -96,6 +97,7 @@ export function App() {
         coordinatorBaseUrl={coordinatorBaseUrl}
         inviteId={invitationId}
         pairingSecret={pairingSecretFromFragment}
+        storage={projectStorage}
       />
     );
   }
@@ -148,6 +150,11 @@ function NoteApp() {
     useState<SecurityState | null>(null);
   const [localSecurityError, setLocalSecurityError] =
     useState<string | null>(null);
+  const [localProjectKeyReady, setLocalProjectKeyReady] =
+    useState<boolean | null>(null);
+  const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
+    "waiting" | "delivering" | "delivered" | "error"
+  >("waiting");
 
   const project = openedProject?.project ?? null;
 
@@ -210,6 +217,7 @@ function NoteApp() {
       setLocalSecurityBootstrapState("waiting");
       setLocalSecurityState(null);
       setLocalSecurityError(null);
+      setLocalProjectKeyReady(null);
       return;
     }
 
@@ -220,6 +228,7 @@ function NoteApp() {
     setLocalSecurityBootstrapState("committing");
     setLocalSecurityState(null);
     setLocalSecurityError(null);
+    setLocalProjectKeyReady(null);
 
     void (async () => {
       const storedState = await projectStorage.loadSecurityState(project.id);
@@ -234,9 +243,16 @@ function NoteApp() {
           );
         }
 
+        const projectKeyReady = await ensureInitialProjectKey(
+          session,
+          storedState,
+          localDeviceId,
+        );
+
         if (!cancelled) {
           setLocalSecurityState(storedState);
           setLocalSecurityBootstrapState("committed");
+          setLocalProjectKeyReady(projectKeyReady);
         }
         return;
       }
@@ -286,10 +302,16 @@ function NoteApp() {
       }
 
       await projectStorage.saveCommittedSecurityState(committedState);
+      const projectKeyReady = await ensureInitialProjectKey(
+        session,
+        committedState,
+        localDeviceId,
+      );
 
       if (!cancelled) {
         setLocalSecurityState(committedState);
         setLocalSecurityBootstrapState("committed");
+        setLocalProjectKeyReady(projectKeyReady);
       }
     })().catch((error: unknown) => {
       if (cancelled) return;
@@ -327,6 +349,7 @@ function NoteApp() {
     setCoordinationError(null);
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
+    setProjectKeyDeliveryState("waiting");
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -549,8 +572,48 @@ function NoteApp() {
       return;
     }
 
+    if (
+      !session.hasProjectKey(
+        localSecurityState.projectId,
+        localSecurityState.keyEpoch,
+      )
+    ) {
+      setCoordinationError(
+        "Current ProjectKey is not available on this authorized device",
+      );
+      return;
+    }
+
     setDeviceAuthorizationState("authorizing");
     setCoordinationError(null);
+
+    const alreadyAuthorized = localSecurityState.devices.find(
+      (device) => device.deviceId === joiningDevice.deviceId,
+    );
+    if (alreadyAuthorized) {
+      if (
+        !bytesEqual(
+          alreadyAuthorized.encryptionPublicKey,
+          joiningDevice.encryptionPublicKey,
+        ) ||
+        !bytesEqual(
+          alreadyAuthorized.signingPublicKey,
+          joiningDevice.signingPublicKey,
+        )
+      ) {
+        setDeviceAuthorizationState("error");
+        setCoordinationError(
+          "Joining DeviceId is already authorized with different public keys",
+        );
+        return;
+      }
+
+      setDeviceAuthorizationState("authorized");
+      await deliverProjectKey(localSecurityState);
+      return;
+    }
+
+    let committedState: SecurityState;
 
     try {
       const signerIdentity = session.publicIdentity;
@@ -601,7 +664,7 @@ function NoteApp() {
         transition,
         headHash,
       );
-      const committedState = await securityCoordinator.commitAddDevice(
+      committedState = await securityCoordinator.commitAddDevice(
         activeProject.id,
         transition,
       );
@@ -619,6 +682,94 @@ function NoteApp() {
       setDeviceAuthorizationState("error");
       setCoordinationError(
         error instanceof Error ? error.message : "Failed to authorize device",
+      );
+      return;
+    }
+
+    await deliverProjectKey(committedState);
+  }
+
+  async function retryProjectKeyDelivery(): Promise<void> {
+    if (!localSecurityState) {
+      setCoordinationError("Committed SecurityState is not available");
+      return;
+    }
+    await deliverProjectKey(localSecurityState);
+  }
+
+  async function deliverProjectKey(
+    committedState: SecurityState,
+  ): Promise<void> {
+    if (!joiningDevice || !webRtcTransport || !invitationHost) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError("Pairing session is not available for ProjectKey delivery");
+      return;
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError("Device Vault must be unlocked for ProjectKey delivery");
+      return;
+    }
+
+    const authorizedRecipient = committedState.devices.find(
+      (device) => device.deviceId === joiningDevice.deviceId,
+    );
+    if (
+      !authorizedRecipient ||
+      !bytesEqual(
+        authorizedRecipient.encryptionPublicKey,
+        joiningDevice.encryptionPublicKey,
+      ) ||
+      !bytesEqual(
+        authorizedRecipient.signingPublicKey,
+        joiningDevice.signingPublicKey,
+      )
+    ) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError(
+        "Committed SecurityState does not match the joining device",
+      );
+      return;
+    }
+
+    setProjectKeyDeliveryState("delivering");
+    setCoordinationError(null);
+
+    try {
+      const sealedEnvelope = await session.sealProjectKeyForRecipient(
+        committedState.projectId,
+        committedState.keyEpoch,
+        joiningDevice.deviceId,
+        joiningDevice.encryptionPublicKey,
+        committedState.headHash,
+      );
+
+      await sendProjectKeyDelivery({
+        transport: webRtcTransport,
+        securityState: committedState,
+        recipientDeviceId: joiningDevice.deviceId,
+        sealedEnvelope,
+      });
+
+      setProjectKeyDeliveryState("delivered");
+
+      try {
+        await new InvitationClient(coordinatorBaseUrl).consumeInvite(
+          invitationHost.inviteId,
+        );
+      } catch (error: unknown) {
+        setCoordinationError(
+          error instanceof Error
+            ? `ProjectKey stored, but invite consume failed: ${error.message}`
+            : "ProjectKey stored, but invite consume failed",
+        );
+      }
+    } catch (error: unknown) {
+      setProjectKeyDeliveryState("error");
+      setCoordinationError(
+        error instanceof Error ? error.message : "Failed to deliver ProjectKey",
       );
     }
   }
@@ -665,6 +816,7 @@ function NoteApp() {
           securitySequence={localSecurityState?.sequence ?? null}
           securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
           securityDeviceCount={localSecurityState?.devices.length ?? null}
+          projectKeyReady={localProjectKeyReady}
           securityError={localSecurityError}
           onUnlockOrCreate={unlockOrCreateDevice}
         />
@@ -693,7 +845,9 @@ function NoteApp() {
             signalingState={signalingState}
             joiningDeviceId={joiningDevice?.deviceId ?? null}
             authorizationState={deviceAuthorizationState}
+            projectKeyDeliveryState={projectKeyDeliveryState}
             onConfirm={authorizeJoiningDevice}
+            onRetryProjectKeyDelivery={retryProjectKeyDelivery}
             onCancel={() =>
               new InvitationClient(coordinatorBaseUrl).cancelInvite(
                 invitationHost.inviteId,
@@ -770,6 +924,29 @@ function DocumentPane({
       <MarkdownEditor document={document} />
     </article>
   );
+}
+
+async function ensureInitialProjectKey(
+  session: DeviceVaultSession,
+  state: SecurityState,
+  localDeviceId: DeviceId,
+): Promise<boolean> {
+  if (session.hasProjectKey(state.projectId, state.keyEpoch)) {
+    return true;
+  }
+
+  const localDevice = state.devices.find(
+    (device) => device.deviceId === localDeviceId,
+  );
+  if (
+    state.keyEpoch === 1 &&
+    localDevice?.addedAtSequence === 0
+  ) {
+    await session.createProjectKeyIfMissing(state.projectId, state.keyEpoch);
+    return true;
+  }
+
+  return false;
 }
 
 function bytesToHex(value: Uint8Array): string {

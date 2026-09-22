@@ -14,3 +14,14 @@ export type {
   DeviceBootstrapOptions,
   DeviceBootstrapRole,
 } from "./device-bootstrap.js";
+
+export {
+  receiveProjectKeyDelivery,
+  sendProjectKeyDelivery,
+} from "./project-key-delivery.js";
+
+export type {
+  ProjectKeyDelivery,
+  ReceiveProjectKeyDeliveryOptions,
+  SendProjectKeyDeliveryOptions,
+} from "./project-key-delivery.js";
