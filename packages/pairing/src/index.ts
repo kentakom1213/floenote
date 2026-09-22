@@ -7,3 +7,10 @@ export type {
   PairingAuthenticationOptions,
   PairingRole,
 } from "./pairing-authentication.js";
+
+export { exchangeJoiningDeviceIdentity } from "./device-bootstrap.js";
+
+export type {
+  DeviceBootstrapOptions,
+  DeviceBootstrapRole,
+} from "./device-bootstrap.js";
