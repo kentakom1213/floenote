@@ -243,9 +243,16 @@ function NoteApp() {
           );
         }
 
+        const projectKeyReady = await ensureInitialProjectKey(
+          session,
+          storedState,
+          localDeviceId,
+        );
+
         if (!cancelled) {
           setLocalSecurityState(storedState);
           setLocalSecurityBootstrapState("committed");
+          setLocalProjectKeyReady(projectKeyReady);
         }
         return;
       }
@@ -295,10 +302,16 @@ function NoteApp() {
       }
 
       await projectStorage.saveCommittedSecurityState(committedState);
+      const projectKeyReady = await ensureInitialProjectKey(
+        session,
+        committedState,
+        localDeviceId,
+      );
 
       if (!cancelled) {
         setLocalSecurityState(committedState);
         setLocalSecurityBootstrapState("committed");
+        setLocalProjectKeyReady(projectKeyReady);
       }
     })().catch((error: unknown) => {
       if (cancelled) return;
@@ -779,6 +792,29 @@ function DocumentPane({
       <MarkdownEditor document={document} />
     </article>
   );
+}
+
+async function ensureInitialProjectKey(
+  session: DeviceVaultSession,
+  state: SecurityState,
+  localDeviceId: DeviceId,
+): Promise<boolean> {
+  if (session.hasProjectKey(state.projectId, state.keyEpoch)) {
+    return true;
+  }
+
+  const localDevice = state.devices.find(
+    (device) => device.deviceId === localDeviceId,
+  );
+  if (
+    state.keyEpoch === 1 &&
+    localDevice?.addedAtSequence === 0
+  ) {
+    await session.createProjectKeyIfMissing(state.projectId, state.keyEpoch);
+    return true;
+  }
+
+  return false;
 }
 
 function bytesToHex(value: Uint8Array): string {
