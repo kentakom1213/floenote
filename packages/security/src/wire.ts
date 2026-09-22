@@ -16,6 +16,7 @@ import {
 import type {
   AddDeviceTransition,
   CreateProjectTransition,
+  RevokeDeviceTransition,
   SecurityTransition,
 } from "./transition.js";
 
@@ -52,9 +53,22 @@ export type AddDeviceWirePayload = {
   signature: string;
 };
 
+export type RevokeDeviceWirePayload = {
+  type: "revoke-device";
+  protocolVersion: 1;
+  projectId: string;
+  sequence: number;
+  previousHash: string;
+  revokedDeviceId: string;
+  newKeyEpoch: number;
+  signerDeviceId: string;
+  signature: string;
+};
+
 export type SecurityTransitionWirePayload =
   | CreateProjectWirePayload
-  | AddDeviceWirePayload;
+  | AddDeviceWirePayload
+  | RevokeDeviceWirePayload;
 
 export type SecurityStateWirePayload = {
   protocolVersion: 1;
@@ -233,6 +247,71 @@ export function parseAddDeviceWirePayload(
   };
 }
 
+export function revokeDeviceTransitionToWire(
+  transition: RevokeDeviceTransition,
+): RevokeDeviceWirePayload {
+  return {
+    type: "revoke-device",
+    protocolVersion: SECURITY_PROTOCOL_VERSION,
+    projectId: transition.projectId,
+    sequence: transition.sequence,
+    previousHash: bytesToBase64Url(transition.previousHash),
+    revokedDeviceId: transition.revokedDeviceId,
+    newKeyEpoch: transition.newKeyEpoch,
+    signerDeviceId: transition.signerDeviceId,
+    signature: bytesToBase64Url(transition.signature),
+  };
+}
+
+export function parseRevokeDeviceWirePayload(
+  value: unknown,
+  expectedProjectId?: ProjectId,
+): RevokeDeviceTransition {
+  if (
+    !isRecord(value) ||
+    value.type !== "revoke-device" ||
+    value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
+    typeof value.projectId !== "string" ||
+    typeof value.sequence !== "number" ||
+    !Number.isSafeInteger(value.sequence) ||
+    value.sequence < 1 ||
+    typeof value.previousHash !== "string" ||
+    typeof value.revokedDeviceId !== "string" ||
+    typeof value.newKeyEpoch !== "number" ||
+    !Number.isSafeInteger(value.newKeyEpoch) ||
+    value.newKeyEpoch < 2 ||
+    typeof value.signerDeviceId !== "string" ||
+    typeof value.signature !== "string"
+  ) {
+    throw new TypeError("Invalid RevokeDevice payload");
+  }
+
+  const projectId = parseProjectId(value.projectId);
+  if (expectedProjectId && projectId !== expectedProjectId) {
+    throw new TypeError("RevokeDevice ProjectId does not match request route");
+  }
+
+  return {
+    type: "revoke-device",
+    protocolVersion: SECURITY_PROTOCOL_VERSION,
+    projectId,
+    sequence: value.sequence,
+    previousHash: base64UrlToBytes(
+      value.previousHash,
+      SECURITY_HEAD_HASH_BYTES,
+      "previous security head hash",
+    ),
+    revokedDeviceId: parseDeviceId(value.revokedDeviceId),
+    newKeyEpoch: value.newKeyEpoch,
+    signerDeviceId: parseDeviceId(value.signerDeviceId),
+    signature: base64UrlToBytes(
+      value.signature,
+      SECURITY_SIGNATURE_BYTES,
+      "RevokeDevice signature",
+    ),
+  };
+}
+
 export function securityTransitionToWire(
   transition: SecurityTransition,
 ): SecurityTransitionWirePayload {
@@ -242,7 +321,7 @@ export function securityTransitionToWire(
     case "add-device":
       return addDeviceTransitionToWire(transition);
     case "revoke-device":
-      throw new TypeError("RevokeDevice wire encoding is not implemented yet");
+      return revokeDeviceTransitionToWire(transition);
   }
 }
 
@@ -259,6 +338,8 @@ export function parseSecurityTransitionWirePayload(
       return parseCreateProjectWirePayload(value, expectedProjectId);
     case "add-device":
       return parseAddDeviceWirePayload(value, expectedProjectId);
+    case "revoke-device":
+      return parseRevokeDeviceWirePayload(value, expectedProjectId);
     default:
       throw new TypeError("Unsupported SecurityTransition payload");
   }
