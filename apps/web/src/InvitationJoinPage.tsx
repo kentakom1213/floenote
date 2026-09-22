@@ -226,6 +226,7 @@ export function InvitationJoinPage({
                 decrypt: (envelope) =>
                   session.decryptProjectSyncPayload(
                     securityState.projectId,
+                    securityState.keyEpoch,
                     envelope,
                   ),
               },
