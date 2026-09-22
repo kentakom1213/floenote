@@ -14,10 +14,6 @@ import {
 } from "@floe-note/pairing";
 import type { ProjectStorage } from "@floe-note/storage";
 import {
-  EncryptedSyncTransport,
-  ProjectSyncEngine,
-} from "@floe-note/sync";
-import {
   WebRtcTransport,
   type WebRtcStatus,
 } from "@floe-note/transport/webrtc";
@@ -85,9 +81,6 @@ export function InvitationJoinPage({
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [encryptedSyncState, setEncryptedSyncState] = useState<
-    "waiting" | "active" | "persisting" | "ready" | "error"
-  >("waiting");
 
   useEffect(() => {
     let cancelled = false;
@@ -126,13 +119,9 @@ export function InvitationJoinPage({
 
     let disposed = false;
     let cleanup: (() => void) | null = null;
-    let joinedSyncEngine: ProjectSyncEngine | null = null;
-    let stopJoinedPersistence: (() => void) | null = null;
-    let redirectStarted = false;
 
     setClaimState("claiming");
     setPairingState("connecting");
-    setEncryptedSyncState("waiting");
     setError(null);
 
     void (async () => {
@@ -177,10 +166,6 @@ export function InvitationJoinPage({
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
-          joinedSyncEngine?.stop();
-          joinedSyncEngine = null;
-          stopJoinedPersistence?.();
-          stopJoinedPersistence = null;
           stopTransportStatus();
         };
 
@@ -209,84 +194,11 @@ export function InvitationJoinPage({
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
-            const joinedProject = await storage.initializeJoinedProject(
+            await storage.initializeJoinedProject(
               securityState.projectId,
               session,
               securityState.keyEpoch,
             );
-
-            stopJoinedPersistence = storage.watchProject(
-              joinedProject,
-              session,
-              securityState.keyEpoch,
-            );
-
-            const encryptedTransport = new EncryptedSyncTransport(
-              transport,
-              {
-                encrypt: (plaintext) =>
-                  session.encryptProjectSyncPayload(
-                    securityState.projectId,
-                    securityState.keyEpoch,
-                    plaintext,
-                  ),
-                decrypt: (envelope) =>
-                  session.decryptProjectSyncPayload(
-                    securityState.projectId,
-                    securityState.keyEpoch,
-                    envelope,
-                  ),
-              },
-              {
-                onError: (syncError, direction) => {
-                  setEncryptedSyncState("error");
-                  setError(
-                    `Encrypted sync ${direction} failed: ${syncError.message}`,
-                  );
-                },
-              },
-            );
-
-            joinedSyncEngine = new ProjectSyncEngine(
-              joinedProject,
-              encryptedTransport,
-              {
-                debugLogger: createConsoleDebugLogger(
-                  "invite-join-encrypted-sync",
-                ),
-                onInitialRemoteStateReceived: () => {
-                  if (disposed || redirectStarted) return;
-                  redirectStarted = true;
-                  setEncryptedSyncState("persisting");
-
-                  void storage
-                    .flushPendingWrites()
-                    .then(() => {
-                      if (disposed) return;
-                      setEncryptedSyncState("ready");
-
-                      cleanup?.();
-                      cleanup = null;
-
-                      window.setTimeout(() => {
-                        if (!disposed) window.location.replace("/");
-                      }, 0);
-                    })
-                    .catch((syncError: unknown) => {
-                      redirectStarted = false;
-                      if (disposed) return;
-                      setEncryptedSyncState("error");
-                      setError(
-                        syncError instanceof Error
-                          ? `Failed to persist initial Project sync: ${syncError.message}`
-                          : "Failed to persist initial Project sync",
-                      );
-                    });
-                },
-              },
-            );
-            joinedSyncEngine.start();
-            setEncryptedSyncState("active");
           },
         });
         void deliveryPromise.catch(() => undefined);
@@ -309,6 +221,13 @@ export function InvitationJoinPage({
         if (disposed) return;
 
         setPairingState("key-stored");
+
+        cleanup?.();
+        cleanup = null;
+
+        window.setTimeout(() => {
+          if (!disposed) window.location.replace("/");
+        }, 0);
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -431,15 +350,9 @@ export function InvitationJoinPage({
             authorized device and wait for ProjectKey delivery.
           </p>
         ) : pairingState === "key-stored" ? (
-          <>
-            <p className="join-live-hint">
-              Project access is ready. Floe Note is finishing the initial sync
-              before opening the Project.
-            </p>
-            <p className="webrtc-status">
-              Encrypted sync: <strong>{encryptedSyncState}</strong>
-            </p>
-          </>
+          <p className="join-live-hint">
+            Project access is ready. Opening Floe Note…
+          </p>
         ) : vaultState !== "unlocked" ? (
           <p className="join-live-hint">
             Unlock or initialize this device before claiming the invitation.
