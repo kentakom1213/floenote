@@ -329,3 +329,11 @@ h1 {
   cursor: default;
   opacity: 0.5;
 }
+
+
+.webrtc-warning {
+  margin: 10px 0 0;
+  color: #7a5c20;
+  font-size: 12px;
+  line-height: 1.5;
+}
