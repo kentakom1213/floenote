@@ -1,42 +1,109 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { NoteProject, type NoteDocument } from "@floe-note/document";
+import { type NoteDocument, type NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
+import { DexieProjectStorage } from "@floe-note/storage";
 
 import { MarkdownEditor } from "./MarkdownEditor.js";
 
+const projectStorage = new DexieProjectStorage();
+
+type OpenedProject = {
+  project: NoteProject;
+  isNew: boolean;
+};
+
 export function App() {
-  const project = useMemo(() => new NoteProject(), []);
+  const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
 
-  useEffect(
-    () => project.subscribe(() => setRevision((value) => value + 1)),
-    [project],
-  );
+  const project = openedProject?.project ?? null;
 
   useEffect(() => {
-    if (project.listDocuments().length === 0) {
-      const document = project.createDocument("Welcome to Floe Note");
-      setSelectedId(document.id);
-    }
+    let cancelled = false;
+
+    void projectStorage
+      .openOrCreateProject()
+      .then((result) => {
+        if (!cancelled) setOpenedProject(result);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error ? error.message : "Failed to load project",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!project) return;
+
+    const unsubscribeUi = project.subscribe(() =>
+      setRevision((value) => value + 1),
+    );
+    const stopPersistence = projectStorage.watchProject(project);
+
+    return () => {
+      unsubscribeUi();
+      stopPersistence();
+    };
   }, [project]);
 
-  const summaries = project.listDocuments();
+  useEffect(() => {
+    if (!openedProject) return;
+
+    const { project: loadedProject, isNew } = openedProject;
+    const summaries = loadedProject.listDocuments();
+
+    if (isNew) {
+      const document = loadedProject.createDocument("Welcome to Floe Note");
+      setSelectedId(document.id);
+      return;
+    }
+
+    setSelectedId(summaries[0]?.id ?? null);
+  }, [openedProject]);
+
+  if (loadError) {
+    return (
+      <main className="empty-state">
+        <p>Could not open local storage.</p>
+        <p>{loadError}</p>
+      </main>
+    );
+  }
+
+  if (!project) {
+    return (
+      <main className="empty-state">
+        <p>Loading local notes…</p>
+      </main>
+    );
+  }
+
+  const activeProject = project;
+  const summaries = activeProject.listDocuments();
   const selectedDocument = selectedId
-    ? project.getDocument(selectedId)
+    ? activeProject.getDocument(selectedId)
     : undefined;
 
   function createDocument() {
-    const document = project.createDocument();
+    const document = activeProject.createDocument();
     setSelectedId(document.id);
   }
 
   function deleteSelectedDocument() {
     if (!selectedId) return;
 
-    project.deleteDocument(selectedId);
-    const next = project.listDocuments()[0];
+    activeProject.deleteDocument(selectedId);
+    const next = activeProject.listDocuments()[0];
     setSelectedId(next?.id ?? null);
   }
 
@@ -79,7 +146,7 @@ export function App() {
           <DocumentPane
             document={selectedDocument}
             onRename={(title) =>
-              project.renameDocument(selectedDocument.id, title)
+              activeProject.renameDocument(selectedDocument.id, title)
             }
             onDelete={deleteSelectedDocument}
           />

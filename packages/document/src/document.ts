@@ -10,17 +10,27 @@ export class NoteDocument {
   readonly id: DocumentId;
   readonly #doc: LoroDoc;
 
-  constructor(id: DocumentId, title: string, now = Date.now()) {
+  private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
-    this.#doc = new LoroDoc();
+    this.#doc = doc;
+  }
 
-    const meta = this.#doc.getMap("meta");
+  static create(id: DocumentId, title: string, now = Date.now()): NoteDocument {
+    const doc = new LoroDoc();
+    const meta = doc.getMap("meta");
+
     meta.set("title", title);
     meta.set("createdAt", now);
     meta.set("updatedAt", now);
     meta.ensureMergeableList("tags");
-    this.#doc.getText("body");
-    this.#doc.commit();
+    doc.getText("body");
+    doc.commit();
+
+    return new NoteDocument(id, doc);
+  }
+
+  static fromSnapshot(id: DocumentId, snapshot: Uint8Array): NoteDocument {
+    return new NoteDocument(id, LoroDoc.fromSnapshot(snapshot));
   }
 
   get title(): string {
@@ -33,6 +43,15 @@ export class NoteDocument {
     meta.set("title", title);
     meta.set("updatedAt", Date.now());
     this.#doc.commit();
+  }
+
+  exportSnapshot(): Uint8Array {
+    this.#doc.commit();
+    return this.#doc.export({ mode: "snapshot" });
+  }
+
+  subscribe(listener: () => void): () => void {
+    return this.#doc.subscribe(() => listener());
   }
 
   getEditorBinding(): DocumentEditorBinding {

@@ -12,6 +12,7 @@
     "@codemirror/lang-markdown": "^6.5.2",
     "@floe-note/document": "workspace:*",
     "@floe-note/domain": "workspace:*",
+    "@floe-note/storage": "workspace:*",
     "codemirror": "^6.0.2",
     "loro-codemirror": "^0.3.3",
     "loro-crdt": "^1.16.1",
