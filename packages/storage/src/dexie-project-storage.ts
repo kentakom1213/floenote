@@ -100,6 +100,14 @@ export class DexieProjectStorage implements ProjectStorage {
     }
 
     let targetExists = false;
+    const emptyProject = NoteProject.create(projectId);
+    const emptyEncryptedManifest =
+      await crypto.encryptProjectStoragePayload(
+        projectId,
+        keyEpoch,
+        manifestContext(),
+        emptyProject.exportManifestSnapshot(),
+      );
 
     await this.#db.transaction(
       "rw",
@@ -126,14 +134,6 @@ export class DexieProjectStorage implements ProjectStorage {
           return;
         }
 
-        const project = NoteProject.create(projectId);
-        const encryptedSnapshot = await crypto.encryptProjectStoragePayload(
-          projectId,
-          keyEpoch,
-          manifestContext(),
-          project.exportManifestSnapshot(),
-        );
-
         await this.#db.projects.add({
           id: projectId,
           localSlot: LOCAL_PROJECT_SLOT,
@@ -141,14 +141,14 @@ export class DexieProjectStorage implements ProjectStorage {
         });
         await this.#db.manifests.add({
           projectId,
-          encryptedSnapshot,
+          encryptedSnapshot: emptyEncryptedManifest,
         });
       },
     );
 
     const project = targetExists
       ? await this.#loadProject(projectId, crypto)
-      : NoteProject.create(projectId);
+      : emptyProject;
 
     this.#openPromise = Promise.resolve({ project, isNew: false });
     return project;
@@ -354,6 +354,23 @@ export class DexieProjectStorage implements ProjectStorage {
       this.#db.manifests,
       this.#db.documents,
       async () => {
+        const activeDocumentIds = new Set(
+          documentRows.map((row) => row.documentId),
+        );
+        const existingRows = await this.#db.documents
+          .where("projectId")
+          .equals(project.id)
+          .toArray();
+
+        for (const existing of existingRows) {
+          if (!activeDocumentIds.has(existing.documentId)) {
+            await this.#db.documents.delete([
+              project.id,
+              existing.documentId,
+            ]);
+          }
+        }
+
         for (const row of documentRows) {
           await this.#db.documents.put(row);
         }
