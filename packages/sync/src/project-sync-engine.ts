@@ -128,8 +128,8 @@ export class ProjectSyncEngine {
           );
           return;
       }
-    } catch (error) {
-      console.error("Failed to process sync message", error);
+    } catch {
+      return;
     }
   }
 }
