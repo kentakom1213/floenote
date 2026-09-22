@@ -1,0 +1,15 @@
+{
+  "name": "@floe-note/sync",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@floe-note/document": "workspace:*",
+    "@floe-note/domain": "workspace:*",
+    "@floe-note/transport": "workspace:*"
+  }
+}
