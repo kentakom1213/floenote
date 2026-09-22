@@ -2,6 +2,8 @@ import type { DeviceId, ProjectId } from "@floe-note/domain";
 import type { AuthorizedDevice } from "@floe-note/security";
 import { useEffect, useState } from "react";
 
+import { ConfirmDialog } from "./ConfirmDialog.js";
+
 type ProjectSettingsViewProps = {
   projectId: ProjectId;
   projectName: string;
@@ -10,6 +12,7 @@ type ProjectSettingsViewProps = {
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
   onRenameProject: (name: string) => void;
+  onRemoveProjectFromDevice: () => Promise<void>;
   onAddDevice: () => void;
   onRemoveDevice: (deviceId: DeviceId) => void;
 };
@@ -26,12 +29,14 @@ export function ProjectSettingsView({
   onlineDeviceIds,
   connectedDeviceIds,
   onRenameProject,
+  onRemoveProjectFromDevice,
   onAddDevice,
   onRemoveDevice,
 }: ProjectSettingsViewProps) {
   const online = new Set(onlineDeviceIds);
   const connected = new Set(connectedDeviceIds);
   const [nameDraft, setNameDraft] = useState(projectName);
+  const [removeProjectOpen, setRemoveProjectOpen] = useState(false);
   const normalizedName = nameDraft.trim();
   const nameChanged =
     normalizedName.length > 0 && normalizedName !== projectName;
@@ -167,6 +172,47 @@ export function ProjectSettingsView({
           </dl>
         </details>
       </div>
+
+      <div className="settings-section danger-zone">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Danger zone</h2>
+            <p>Local actions that do not affect other devices.</p>
+          </div>
+        </div>
+        <div className="danger-zone-row">
+          <div>
+            <strong>Remove from this device</strong>
+            <p>
+              Deletes this Project&apos;s local notes, metadata, SecurityState,
+              and Project keys. This device remains authorized and can rejoin
+              later.
+            </p>
+          </div>
+          <button
+            className="settings-danger-outline-action"
+            type="button"
+            onClick={() => setRemoveProjectOpen(true)}
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      {removeProjectOpen ? (
+        <ConfirmDialog
+          title={`Remove ${projectName} from this device?`}
+          description={
+            <p>
+              Other devices are not changed. To use this Project here again,
+              join it again from an authorized device.
+            </p>
+          }
+          confirmLabel="Remove from this device"
+          onConfirm={onRemoveProjectFromDevice}
+          onClose={() => setRemoveProjectOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
