@@ -131,7 +131,7 @@ export function InvitationHostPanel({
           ) : null}
           {projectKeyDeliveryState === "delivered" ? (
             <p className="webrtc-hint">
-              ProjectKey stored by the joining device. Invite consumed.
+              ProjectKey stored by the joining device. Pairing is complete.
             </p>
           ) : null}
         </>
@@ -162,7 +162,7 @@ export function InvitationHostPanel({
         }
       >
         {projectKeyDeliveryState === "delivered"
-          ? "Invite consumed"
+          ? "Pairing complete"
           : cancelState === "cancelled"
           ? "Invite cancelled"
           : cancelState === "cancelling"
