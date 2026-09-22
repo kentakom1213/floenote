@@ -1,5 +1,5 @@
 import type { NoteProject } from "@floe-note/document";
-import type { ProjectId } from "@floe-note/domain";
+import type { DocumentId, ProjectId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 
 export type OpenProjectResult = {
@@ -7,10 +7,47 @@ export type OpenProjectResult = {
   isNew: boolean;
 };
 
+export type ProjectStorageRecordContext =
+  | {
+      kind: "manifest";
+    }
+  | {
+      kind: "document";
+      documentId: DocumentId;
+    };
+
+export interface ProjectStorageCrypto {
+  encryptProjectStoragePayload(
+    projectId: ProjectId,
+    keyEpoch: number,
+    context: ProjectStorageRecordContext,
+    plaintext: Uint8Array,
+  ): Promise<Uint8Array>;
+
+  decryptProjectStoragePayload(
+    projectId: ProjectId,
+    context: ProjectStorageRecordContext,
+    envelope: Uint8Array,
+  ): Promise<{ keyEpoch: number; plaintext: Uint8Array }>;
+}
+
 export interface ProjectStorage {
-  openOrCreateProject(): Promise<OpenProjectResult>;
-  initializeJoinedProject(projectId: ProjectId): Promise<NoteProject>;
+  openOrCreateProject(
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult>;
+
+  initializeJoinedProject(
+    projectId: ProjectId,
+    crypto?: ProjectStorageCrypto,
+    keyEpoch?: number,
+  ): Promise<NoteProject>;
+
   loadSecurityState(projectId: ProjectId): Promise<SecurityState | null>;
   saveCommittedSecurityState(state: SecurityState): Promise<void>;
-  watchProject(project: NoteProject): () => void;
+
+  watchProject(
+    project: NoteProject,
+    crypto?: ProjectStorageCrypto,
+    keyEpoch?: number,
+  ): () => void;
 }
