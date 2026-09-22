@@ -465,6 +465,12 @@ matching committed SecurityState locally before returning a `project-key-stored`
 acknowledgement. The inviter consumes the one-time invitation only after that
 acknowledgement arrives.
 
+If a pairing is retried for a DeviceId that is already authorized with the
+exact same encryption and signing public keys, the inviter must not submit a
+second AddDevice transition. After the same explicit local confirmation, it may
+resume ProjectKey delivery against the current committed SecurityState. If the
+same DeviceId appears with different public keys, the pairing is rejected.
+
 `crypto_box_seal` provides recipient confidentiality but not sender
 authentication. Floe Note therefore does not treat a sealed box as proof of who
 sent the ProjectKey. Sender authenticity comes from the already
@@ -1059,9 +1065,10 @@ visible rather than being implied away by the use of modern primitives.
 - **Authorization and key delivery are two separate durable events.** A crash or
   network failure can occur after AddDevice commits but before the new device
   durably stores the ProjectKey. The stored acknowledgement prevents the
-  invitation from being consumed too early, and same-session delivery can be
-  retried, but a general later recovery/re-delivery flow is still required for
-  abandoned pairings.
+  invitation from being consumed too early. A later pairing with the same
+  DeviceId and exact same public keys can resume ProjectKey delivery without a
+  second AddDevice transition, but broader recovery policy after lost or
+  replaced device keys still requires separate design.
 - **Revocation cannot erase information already disclosed.** A revoked device
   may retain plaintext, old ProjectKeys, and old ciphertext. Rotation only
   prevents access to data encrypted under future key epochs.
