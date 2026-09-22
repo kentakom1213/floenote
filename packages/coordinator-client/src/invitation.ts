@@ -3,10 +3,15 @@ import { parseProjectId, type ProjectId } from "@floe-note/domain";
 import { parseSessionId, type SessionId } from "./session-id.js";
 
 declare const inviteIdBrand: unique symbol;
+declare const claimIdBrand: unique symbol;
 declare const pairingSecretBrand: unique symbol;
 
 export type InviteId = string & {
   readonly [inviteIdBrand]: "InviteId";
+};
+
+export type ClaimId = string & {
+  readonly [claimIdBrand]: "ClaimId";
 };
 
 export type PairingSecret = string & {
@@ -63,8 +68,23 @@ export class InvitationClient {
     };
   }
 
-  async claimInvite(inviteId: InviteId): Promise<ClaimedInvitation> {
-    const response = await this.#postInviteAction(inviteId, "claim");
+  async claimInvite(
+    inviteId: InviteId,
+    claimId: ClaimId,
+  ): Promise<ClaimedInvitation> {
+    const response = await fetch(
+      new URL(
+        `/invites/${encodeURIComponent(inviteId)}/claim`,
+        this.#baseUrl,
+      ),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ claimId }),
+      },
+    );
     await ensureOk(response);
 
     const payload = (await response.json()) as Record<string, unknown>;
@@ -107,6 +127,13 @@ export class InvitationClient {
       },
     );
   }
+}
+
+export function createClaimId(): ClaimId {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  ) as ClaimId;
 }
 
 export function createPairingSecret(): PairingSecret {
