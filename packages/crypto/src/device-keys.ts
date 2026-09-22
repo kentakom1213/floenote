@@ -17,26 +17,32 @@ export async function generateDeviceKeyMaterial(): Promise<DeviceKeyMaterial> {
   const encryptionKeyPair = sodium.crypto_box_keypair();
   const signingKeyPair = sodium.crypto_sign_keypair();
 
-  assertLength(
-    encryptionKeyPair.publicKey,
-    DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
-    "device encryption public key",
-  );
-  assertLength(
-    signingKeyPair.publicKey,
-    DEVICE_SIGNING_PUBLIC_KEY_BYTES,
-    "device signing public key",
-  );
+  try {
+    assertLength(
+      encryptionKeyPair.publicKey,
+      DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
+      "device encryption public key",
+    );
+    assertLength(
+      signingKeyPair.publicKey,
+      DEVICE_SIGNING_PUBLIC_KEY_BYTES,
+      "device signing public key",
+    );
 
-  return {
-    publicIdentity: {
-      deviceId: createDeviceId(),
-      encryptionPublicKey: encryptionKeyPair.publicKey.slice(),
-      signingPublicKey: signingKeyPair.publicKey.slice(),
-    },
-    encryptionPrivateKey: encryptionKeyPair.privateKey.slice(),
-    signingPrivateKey: signingKeyPair.privateKey.slice(),
-  };
+    return {
+      publicIdentity: {
+        deviceId: createDeviceId(),
+        encryptionPublicKey: encryptionKeyPair.publicKey.slice(),
+        signingPublicKey: signingKeyPair.publicKey.slice(),
+      },
+      encryptionPrivateKey: encryptionKeyPair.privateKey,
+      signingPrivateKey: signingKeyPair.privateKey,
+    };
+  } catch (error) {
+    sodium.memzero(encryptionKeyPair.privateKey);
+    sodium.memzero(signingKeyPair.privateKey);
+    throw error;
+  }
 }
 
 export async function destroyDeviceKeyMaterial(
