@@ -98,10 +98,6 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
     }
   }
 
-  function openJoinedProject() {
-    window.location.assign(window.location.pathname);
-  }
-
   const summaries = project?.listDocuments() ?? [];
 
   return (
@@ -190,13 +186,12 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
               <p>Waiting for Project state from the existing browser…</p>
             )}
 
-            <button
-              type="button"
-              onClick={openJoinedProject}
-              disabled={summaries.length === 0}
-            >
-              Open joined Project
-            </button>
+            <p className="join-live-hint">
+              Keep this page open while testing live WebRTC sync. Navigating
+              away closes this manual peer connection. After the test, open
+              the normal app separately to verify that the received state was
+              persisted to IndexedDB.
+            </p>
           </section>
         ) : null}
       </section>
