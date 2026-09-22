@@ -1631,7 +1631,7 @@ function hexToBytes(
   }
 
   const result = new Uint8Array(value.length / 2);
-  for (let index = 0; index < expectedBytes; index += 1) {
+  for (let index = 0; index < result.length; index += 1) {
     result[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
   }
   return result;
