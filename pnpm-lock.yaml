@@ -41,6 +41,9 @@ importers:
       '@floe-note/pairing':
         specifier: workspace:*
         version: link:../../packages/pairing
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@floe-note/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -141,6 +144,9 @@ importers:
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../domain
+      cborg:
+        specifier: ^6.1.2
+        version: 6.1.2
 
   packages/storage:
     dependencies:
@@ -749,6 +755,8 @@ packages:
 
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
+
+  cborg@6.1.2: {}
 
   codemirror@6.0.2:
     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
@@ -1481,6 +1489,8 @@ snapshots:
       vite: 8.3.0(esbuild@0.28.1)
 
   blake3-wasm@2.1.5: {}
+
+  cborg@6.1.2: {}
 
   codemirror@6.0.2:
     dependencies:
