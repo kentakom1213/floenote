@@ -811,6 +811,7 @@ function NoteApp() {
         decrypt: (envelope) =>
           session.decryptProjectSyncPayload(
             committedState.projectId,
+            committedState.keyEpoch,
             envelope,
           ),
       },
