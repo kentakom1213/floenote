@@ -163,13 +163,6 @@ export class DexieProjectStorage implements ProjectStorage {
           .filter((candidate) => candidate.id !== projectId)
           .toArray();
 
-        if (record.localSlot === LOCAL_PROJECT_SLOT && remaining[0]) {
-          await this.#db.projects.update(remaining[0].id, {
-            localSlot: LOCAL_PROJECT_SLOT,
-          });
-          nextProjectId = parseProjectId(remaining[0].id);
-        }
-
         await this.#db.documents
           .where("projectId")
           .equals(projectId)
@@ -177,6 +170,13 @@ export class DexieProjectStorage implements ProjectStorage {
         await this.#db.manifests.delete(projectId);
         await this.#db.security.delete(projectId);
         await this.#db.projects.delete(projectId);
+
+        if (record.localSlot === LOCAL_PROJECT_SLOT && remaining[0]) {
+          await this.#db.projects.update(remaining[0].id, {
+            localSlot: LOCAL_PROJECT_SLOT,
+          });
+          nextProjectId = parseProjectId(remaining[0].id);
+        }
       },
     );
 
