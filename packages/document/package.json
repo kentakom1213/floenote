@@ -1,0 +1,14 @@
+{
+  "name": "@floe-note/document",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@floe-note/domain": "workspace:*",
+    "loro-crdt": "^1.16.1"
+  }
+}

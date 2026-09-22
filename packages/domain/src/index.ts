@@ -1,4 +1,8 @@
 export {
+  createAttachmentId,
+  createDeviceId,
+  createDocumentId,
+  createProjectId,
   parseAttachmentId,
   parseDeviceId,
   parseDocumentId,
