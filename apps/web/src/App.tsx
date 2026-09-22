@@ -212,6 +212,16 @@ function NoteApp() {
     void (async () => {
       const storedState = await projectStorage.loadSecurityState(project.id);
       if (storedState) {
+        if (
+          !storedState.devices.some(
+            (device) => device.deviceId === localDeviceId,
+          )
+        ) {
+          throw new Error(
+            "This Device Vault identity is not authorized by the stored SecurityState",
+          );
+        }
+
         if (!cancelled) {
           setLocalSecurityState(storedState);
           setLocalSecurityBootstrapState("committed");
