@@ -39,9 +39,9 @@ export interface ProjectStorageCrypto {
 }
 
 export interface ProjectStorage {
-  openOrCreateProject(
+  openLastProject(
     crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult>;
+  ): Promise<OpenProjectResult | null>;
 
   listProjects(
     crypto: ProjectStorageCrypto,
@@ -53,6 +53,10 @@ export interface ProjectStorage {
   ): Promise<OpenProjectResult>;
 
   createProject(name: string): Promise<OpenProjectResult>;
+
+  removeProject(projectId: ProjectId): Promise<ProjectId | null>;
+
+  eraseAllLocalData(): Promise<void>;
 
   initializeJoinedProject(
     projectId: ProjectId,
