@@ -153,8 +153,10 @@ export function parseSecurityStateWirePayload(
     !isRecord(value) ||
     value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
     typeof value.projectId !== "string" ||
+    typeof value.sequence !== "number" ||
     !Number.isSafeInteger(value.sequence) ||
     typeof value.headHash !== "string" ||
+    typeof value.keyEpoch !== "number" ||
     !Number.isSafeInteger(value.keyEpoch) ||
     !Array.isArray(value.devices)
   ) {
@@ -194,6 +196,7 @@ function parseAuthorizedDevice(value: unknown): AuthorizedDevice {
     typeof value.deviceId !== "string" ||
     typeof value.encryptionPublicKey !== "string" ||
     typeof value.signingPublicKey !== "string" ||
+    typeof value.addedAtSequence !== "number" ||
     !Number.isSafeInteger(value.addedAtSequence)
   ) {
     throw new TypeError("Invalid authorized device");
@@ -236,13 +239,13 @@ function bytesToBase64Url(value: Uint8Array): string {
       ((second ?? 0) << 8) |
       (third ?? 0);
 
-    output += BASE64URL_ALPHABET[(chunk >>> 18) & 63];
-    output += BASE64URL_ALPHABET[(chunk >>> 12) & 63];
+    output += base64UrlDigit((chunk >>> 18) & 63);
+    output += base64UrlDigit((chunk >>> 12) & 63);
     if (second !== undefined) {
-      output += BASE64URL_ALPHABET[(chunk >>> 6) & 63];
+      output += base64UrlDigit((chunk >>> 6) & 63);
     }
     if (third !== undefined) {
-      output += BASE64URL_ALPHABET[chunk & 63];
+      output += base64UrlDigit(chunk & 63);
     }
   }
 
@@ -284,13 +287,25 @@ function base64UrlToBytes(
     }
   }
 
-  if (outputIndex !== output.length || output.byteLength !== expectedBytes) {
+  if (
+    outputIndex !== output.length ||
+    output.byteLength !== expectedBytes ||
+    bytesToBase64Url(output) !== value
+  ) {
     throw new TypeError(
-      `${label} must be ${expectedBytes} bytes`,
+      `${label} must be ${expectedBytes} canonical base64url bytes`,
     );
   }
 
   return output;
+}
+
+function base64UrlDigit(index: number): string {
+  const digit = BASE64URL_ALPHABET[index];
+  if (digit === undefined) {
+    throw new Error("Invalid base64url digit index");
+  }
+  return digit;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
