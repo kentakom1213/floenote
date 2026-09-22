@@ -1103,10 +1103,11 @@ function NoteApp() {
       setLocalSecurityState(committedState);
       setLocalProjectKeyReady(true);
     } catch (error: unknown) {
-      setCoordinationError(
-        error instanceof Error ? error.message : "Failed to revoke device",
-      );
+      const normalized =
+        error instanceof Error ? error : new Error("Failed to revoke device");
+      setCoordinationError(normalized.message);
       setSecurityRefreshToken((value) => value + 1);
+      throw normalized;
     } finally {
       securityMutationInFlightRef.current = false;
     }
@@ -1241,8 +1242,43 @@ function NoteApp() {
     />
   );
 
+  const invitationContent =
+    useInvitationWebRtc ? (
+      invitationHost && webRtcTransport ? (
+        <InvitationHostPanel
+          inviteId={invitationHost.inviteId}
+          pairingSecret={invitationHost.pairingSecret}
+          expiresAt={invitationHost.expiresAt}
+          transport={webRtcTransport}
+          signalingState={signalingState}
+          joiningDeviceId={joiningDevice?.deviceId ?? null}
+          joiningDeviceName={joiningDevice?.displayName ?? null}
+          authorizationState={deviceAuthorizationState}
+          projectKeyDeliveryState={projectKeyDeliveryState}
+          error={coordinationError}
+          onConfirm={authorizeJoiningDevice}
+          onRetryProjectKeyDelivery={retryProjectKeyDelivery}
+          onCancel={async () => {
+            await new InvitationClient(coordinatorBaseUrl).cancelInvite(
+              invitationHost.inviteId,
+            );
+            webRtcTransport.close();
+            window.location.replace("/");
+          }}
+        />
+      ) : (
+        <section className="invitation-host-view">
+          <header className="settings-header invitation-host-header">
+            <p className="settings-eyebrow">Project devices</p>
+            <h1>Add a device</h1>
+            <p>Creating a secure invitation…</p>
+          </header>
+        </section>
+      )
+    ) : undefined;
+
   const mainContent =
-    mainView === "app-settings" ? (
+    invitationContent ?? (mainView === "app-settings" ? (
       <AppSettingsView
         theme={themePreference}
         localDeviceId={localDeviceId}
@@ -1268,12 +1304,7 @@ function NoteApp() {
           onAddDevice={() => {
             window.location.assign("/?transport=invite");
           }}
-          onRemoveDevice={(deviceId) => {
-            const confirmed = window.confirm(
-              "Remove this device? It will no longer receive new changes from this Project. Data already stored on that device cannot be removed remotely.",
-            );
-            if (confirmed) void revokeDevice(deviceId);
-          }}
+          onRemoveDevice={revokeDevice}
         />
       ) : (
         <div className="settings-view">
@@ -1281,31 +1312,10 @@ function NoteApp() {
           <p className="settings-loading">Loading Project security…</p>
         </div>
       )
-    ) : undefined;
+    ) : undefined);
 
   const debugSidebarControls =
-    useInvitationWebRtc && invitationHost && webRtcTransport ? (
-      <InvitationHostPanel
-        inviteId={invitationHost.inviteId}
-        pairingSecret={invitationHost.pairingSecret}
-        expiresAt={invitationHost.expiresAt}
-        transport={webRtcTransport}
-        signalingState={signalingState}
-        joiningDeviceId={joiningDevice?.deviceId ?? null}
-        joiningDeviceName={joiningDevice?.displayName ?? null}
-        authorizationState={deviceAuthorizationState}
-        projectKeyDeliveryState={projectKeyDeliveryState}
-        onConfirm={authorizeJoiningDevice}
-        onRetryProjectKeyDelivery={retryProjectKeyDelivery}
-        onCancel={() =>
-          new InvitationClient(coordinatorBaseUrl).cancelInvite(
-            invitationHost.inviteId,
-          )
-        }
-      />
-    ) : useInvitationWebRtc ? (
-      <p className="webrtc-hint">Creating invitation…</p>
-    ) : useSignaledWebRtc && webRtcTransport ? (
+    useSignaledWebRtc && webRtcTransport ? (
       <SignalingHostPanel
         projectId={activeProject.id}
         sessionId={signalSessionId}
