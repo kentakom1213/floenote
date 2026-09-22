@@ -20,6 +20,9 @@ type DeviceVaultPanelProps = {
   error: string | null;
   securityState: LocalSecurityBootstrapUiState;
   securityHeadHash: string | null;
+  securitySequence: number | null;
+  securityKeyEpoch: number | null;
+  securityDeviceCount: number | null;
   securityError: string | null;
   onUnlockOrCreate: () => Promise<void>;
 };
@@ -30,6 +33,9 @@ export function DeviceVaultPanel({
   error,
   securityState,
   securityHeadHash,
+  securitySequence,
+  securityKeyEpoch,
+  securityDeviceCount,
   securityError,
   onUnlockOrCreate,
 }: DeviceVaultPanelProps) {
@@ -69,6 +75,19 @@ export function DeviceVaultPanel({
           <p className="webrtc-status">
             Local security: <strong>{securityState}</strong>
           </p>
+          {securityState === "ready" ? (
+            <>
+              <p className="webrtc-status">
+                Sequence: <strong>{securitySequence}</strong>
+              </p>
+              <p className="webrtc-status">
+                Key epoch: <strong>{securityKeyEpoch}</strong>
+              </p>
+              <p className="webrtc-status">
+                Devices: <strong>{securityDeviceCount}</strong>
+              </p>
+            </>
+          ) : null}
           {securityHeadHash ? (
             <p className="webrtc-status">
               Initial head: <strong>{securityHeadHash}</strong>
