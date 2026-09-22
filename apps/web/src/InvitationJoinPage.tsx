@@ -17,7 +17,6 @@ import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
 } from "@floe-note/pairing";
-import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import {
   WebRtcTransport,
@@ -39,14 +38,12 @@ const INITIAL_WEBRTC_STATUS: WebRtcStatus = {
 };
 
 type InvitationJoinPageProps = {
-  storage: DexieProjectStorage;
   coordinatorBaseUrl: string;
   inviteId: string;
   pairingSecret: string | null;
 };
 
 export function InvitationJoinPage({
-  storage,
   coordinatorBaseUrl,
   inviteId,
   pairingSecret,
@@ -182,7 +179,7 @@ export function InvitationJoinPage({
       disposed = true;
       cleanup?.();
     };
-  }, [claimId, coordinatorBaseUrl, inviteId, pairingSecret, storage]);
+  }, [claimId, coordinatorBaseUrl, inviteId, pairingSecret]);
 
   if (error) {
     return (
