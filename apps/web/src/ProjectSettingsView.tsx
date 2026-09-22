@@ -1,5 +1,6 @@
 import type { DeviceId, ProjectId } from "@floe-note/domain";
 import type { AuthorizedDevice } from "@floe-note/security";
+import { useEffect, useState } from "react";
 
 type ProjectSettingsViewProps = {
   projectId: ProjectId;
@@ -8,6 +9,7 @@ type ProjectSettingsViewProps = {
   authorizedDevices: readonly AuthorizedDevice[];
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  onRenameProject: (name: string) => void;
   onAddDevice: () => void;
   onRemoveDevice: (deviceId: DeviceId) => void;
 };
@@ -23,11 +25,20 @@ export function ProjectSettingsView({
   authorizedDevices,
   onlineDeviceIds,
   connectedDeviceIds,
+  onRenameProject,
   onAddDevice,
   onRemoveDevice,
 }: ProjectSettingsViewProps) {
   const online = new Set(onlineDeviceIds);
   const connected = new Set(connectedDeviceIds);
+  const [nameDraft, setNameDraft] = useState(projectName);
+  const normalizedName = nameDraft.trim();
+  const nameChanged =
+    normalizedName.length > 0 && normalizedName !== projectName;
+
+  useEffect(() => {
+    setNameDraft(projectName);
+  }, [projectName]);
 
   return (
     <section className="settings-view">
@@ -38,12 +49,30 @@ export function ProjectSettingsView({
 
       <div className="settings-section">
         <h2>General</h2>
-        <div className="settings-row">
-          <div>
-            <strong>Project name</strong>
-            <p>{projectName}</p>
-          </div>
-        </div>
+        <form
+          className="settings-form-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!nameChanged) return;
+            onRenameProject(normalizedName);
+          }}
+        >
+          <label className="settings-field">
+            <span>Project name</span>
+            <input
+              value={nameDraft}
+              maxLength={80}
+              onChange={(event) => setNameDraft(event.target.value)}
+            />
+          </label>
+          <button
+            className="settings-primary-action"
+            type="submit"
+            disabled={!nameChanged}
+          >
+            Save
+          </button>
+        </form>
       </div>
 
       <div className="settings-section">
