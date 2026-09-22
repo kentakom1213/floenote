@@ -4,19 +4,23 @@ import {
   DEVICE_SIGNING_PRIVATE_KEY_BYTES,
   DEVICE_SIGNING_PUBLIC_KEY_BYTES,
   decryptDeviceVaultPayload,
+  decryptProjectStoragePayload as decryptProjectStoragePayloadWithKey,
   decryptProjectSyncPayload as decryptProjectSyncPayloadWithKey,
   deriveDeviceVaultKey,
   destroyDeviceKeyMaterial,
   encryptDeviceVaultPayload,
+  encryptProjectStoragePayload as encryptProjectStoragePayloadWithKey,
   encryptProjectSyncPayload as encryptProjectSyncPayloadWithKey,
   generateDeviceKeyMaterial,
   generateProjectKey,
   openSealedProjectKeyForDevice,
   PROJECT_KEY_BYTES,
+  readProjectStoragePayloadKeyEpoch,
   readProjectSyncPayloadKeyEpoch,
   sealProjectKeyForDevice,
   signEd25519,
   type DeviceKeyMaterial,
+  type ProjectStorageRecordContext,
 } from "@floe-note/crypto";
 import {
   parseDeviceId,
@@ -193,6 +197,55 @@ export class DeviceVaultSession {
       entry.projectKey,
       envelope,
     );
+  }
+
+  async encryptProjectStoragePayload(
+    projectId: ProjectId,
+    keyEpoch: number,
+    context: ProjectStorageRecordContext,
+    plaintext: Uint8Array,
+  ): Promise<Uint8Array> {
+    this.#requireOpen();
+    const entry = this.#findProjectKey(projectId, keyEpoch);
+    if (!entry) {
+      throw new Error(
+        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+      );
+    }
+
+    return encryptProjectStoragePayloadWithKey(
+      projectId,
+      keyEpoch,
+      context,
+      entry.projectKey,
+      plaintext,
+    );
+  }
+
+  async decryptProjectStoragePayload(
+    projectId: ProjectId,
+    context: ProjectStorageRecordContext,
+    envelope: Uint8Array,
+  ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
+    this.#requireOpen();
+    const keyEpoch = readProjectStoragePayloadKeyEpoch(envelope);
+    const entry = this.#findProjectKey(projectId, keyEpoch);
+    if (!entry) {
+      throw new Error(
+        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+      );
+    }
+
+    return {
+      keyEpoch,
+      plaintext: await decryptProjectStoragePayloadWithKey(
+        projectId,
+        keyEpoch,
+        context,
+        entry.projectKey,
+        envelope,
+      ),
+    };
   }
 
   async createProjectKeyIfMissing(
