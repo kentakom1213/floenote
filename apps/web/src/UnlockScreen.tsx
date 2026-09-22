@@ -33,7 +33,7 @@ export function UnlockScreen({
         <p className="settings-eyebrow">Floe Note</p>
         <h1>{setupMode ? "Set up this device" : "Unlock Floe Note"}</h1>
         <p className="unlock-copy">
-          {missing
+          {setupMode
             ? "Create a local device identity and give this device a name you will recognize on your other devices."
             : "Unlock this device to open your encrypted local Projects."}
         </p>
