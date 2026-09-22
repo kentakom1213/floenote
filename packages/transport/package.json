@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/transport.ts",
-    "./broadcast-channel": "./src/broadcast-channel-transport.ts"
+    "./broadcast-channel": "./src/broadcast-channel-transport.ts",
+    "./webrtc": "./src/webrtc-transport.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
