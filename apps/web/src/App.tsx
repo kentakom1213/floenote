@@ -818,78 +818,77 @@ function NoteApp() {
       let committedState: SecurityState;
 
       try {
-      const signerIdentity = session.publicIdentity;
-      const authorizedSigner = localSecurityState.devices.find(
-        (device) => device.deviceId === signerIdentity.deviceId,
+        const signerIdentity = session.publicIdentity;
+        const authorizedSigner = localSecurityState.devices.find(
+          (device) => device.deviceId === signerIdentity.deviceId,
         );
-      if (
-        !authorizedSigner ||
-        !bytesEqual(
-          authorizedSigner.encryptionPublicKey,
-          signerIdentity.encryptionPublicKey,
-        ) ||
-        !bytesEqual(
+        if (
+          !authorizedSigner ||
+          !bytesEqual(
+            authorizedSigner.encryptionPublicKey,
+            signerIdentity.encryptionPublicKey,
+          ) ||
+          !bytesEqual(
+            authorizedSigner.signingPublicKey,
+            signerIdentity.signingPublicKey,
+          )
+        ) {
+          throw new Error(
+            "Unlocked Device Vault identity does not match authorized SecurityState",
+          );
+        }
+
+        const unsignedTransition = createUnsignedAddDeviceTransition(
+          localSecurityState,
+          joiningDevice,
+          signerIdentity.deviceId,
+        );
+        const signingBytes =
+          encodeUnsignedAddDeviceTransition(unsignedTransition);
+        const signature = await session.sign(signingBytes);
+        const transition = attachAddDeviceSignature(
+          unsignedTransition,
+          signature,
+        );
+
+        const verified = await verifyEd25519Signature(
+          signingBytes,
+          transition.signature,
           authorizedSigner.signingPublicKey,
-          signerIdentity.signingPublicKey,
-        )
-      ) {
-        throw new Error(
-          "Unlocked Device Vault identity does not match authorized SecurityState",
         );
-      }
+        if (!verified) {
+          throw new Error("AddDevice signature verification failed");
+        }
 
-      const unsignedTransition = createUnsignedAddDeviceTransition(
-        localSecurityState,
-        joiningDevice,
-        signerIdentity.deviceId,
-      );
-      const signingBytes =
-        encodeUnsignedAddDeviceTransition(unsignedTransition);
-      const signature = await session.sign(signingBytes);
-      const transition = attachAddDeviceSignature(
-        unsignedTransition,
-        signature,
-      );
-
-      const verified = await verifyEd25519Signature(
-        signingBytes,
-        transition.signature,
-        authorizedSigner.signingPublicKey,
-      );
-      if (!verified) {
-        throw new Error("AddDevice signature verification failed");
-      }
-
-      const headHash = await sha256(encodeAddDeviceTransition(transition));
-      const candidateState = deriveAddDeviceSecurityState(
-        localSecurityState,
-        transition,
-        headHash,
-      );
-      committedState = await securityCoordinator.commitAddDevice(
-        activeProject.id,
-        transition,
-      );
-
-      if (!securityStatesEqual(candidateState, committedState)) {
-        throw new Error(
-          "Coordinator committed a SecurityState that does not match AddDevice",
+        const headHash = await sha256(encodeAddDeviceTransition(transition));
+        const candidateState = deriveAddDeviceSecurityState(
+          localSecurityState,
+          transition,
+          headHash,
         );
-      }
+        committedState = await securityCoordinator.commitAddDevice(
+          activeProject.id,
+          transition,
+        );
 
-      await projectStorage.saveCommittedSecurityState(committedState);
-      setLocalSecurityState(committedState);
-      setDeviceAuthorizationState("authorized");
+        if (!securityStatesEqual(candidateState, committedState)) {
+          throw new Error(
+            "Coordinator committed a SecurityState that does not match AddDevice",
+          );
+        }
+
+        await projectStorage.saveCommittedSecurityState(committedState);
+        setLocalSecurityState(committedState);
+        setDeviceAuthorizationState("authorized");
       } catch (error: unknown) {
         setDeviceAuthorizationState("error");
         setCoordinationError(
           error instanceof Error ? error.message : "Failed to authorize device",
-      );
+        );
         return;
       }
 
       await deliverProjectKey(committedState);
-
     } finally {
       securityMutationInFlightRef.current = false;
     }
