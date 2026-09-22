@@ -10,6 +10,7 @@ export type {
 export type {
   AddDeviceTransition,
   CreateProjectTransition,
+  UnsignedAddDeviceTransition,
   RevokeDeviceTransition,
   SecurityTransition,
 } from "./transition.js";
@@ -37,3 +38,11 @@ export type {
   CreateProjectWirePayload,
   SecurityStateWirePayload,
 } from "./wire.js";
+
+export {
+  attachAddDeviceSignature,
+  createUnsignedAddDeviceTransition,
+  deriveAddDeviceSecurityState,
+  encodeAddDeviceTransition,
+  encodeUnsignedAddDeviceTransition,
+} from "./add-device.js";
