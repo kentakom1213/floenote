@@ -1193,8 +1193,12 @@ function deriveSyncUiState({
   localDeviceId,
   error,
 }: SyncUiInput): SyncUiState {
-  if (error || presenceState === "error") {
-    return { kind: "error", detail: error ?? undefined };
+  if (error) {
+    return { kind: "error", detail: error };
+  }
+
+  if (presenceState === "error") {
+    return { kind: "error" };
   }
 
   if (presenceState === "connecting" || presenceState === "authenticating") {
