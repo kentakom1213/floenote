@@ -1,6 +1,7 @@
 import {
   parseDeviceId,
   parseProjectId,
+  type DeviceId,
   type ProjectId,
 } from "@floe-note/domain";
 import {
@@ -122,7 +123,7 @@ export class SecurityCoordinatorClient {
   async getProjectKeyEnvelope(
     projectId: ProjectId,
     keyEpoch: number,
-    recipientDeviceId: string,
+    recipientDeviceId: DeviceId,
   ): Promise<ProjectKeyRotationEnvelope> {
     if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
       throw new TypeError("keyEpoch must be a positive safe integer");
