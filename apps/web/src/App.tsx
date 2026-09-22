@@ -429,9 +429,13 @@ function NoteApp() {
   useEffect(() => {
     if (!project) return;
 
-    return project.subscribe(() =>
-      setRevision((value) => value + 1),
-    );
+    return project.subscribe(() => {
+      const session = deviceVaultSessionRef.current;
+      if (session) {
+        syncLocalDeviceName(project, session);
+      }
+      setRevision((value) => value + 1);
+    });
   }, [project]);
 
   useEffect(() => {
