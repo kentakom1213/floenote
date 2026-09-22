@@ -215,7 +215,9 @@ export function InvitationJoinPage({
 
         await deliveryPromise;
         if (disposed) return;
+
         setPairingState("key-stored");
+        window.history.replaceState(null, "", "/");
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
