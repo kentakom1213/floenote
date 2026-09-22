@@ -5,4 +5,5 @@ export type {
   ProjectStorage,
   ProjectStorageCrypto,
   ProjectStorageRecordContext,
+  StoredProjectSummary,
 } from "./project-storage.js";

@@ -18,6 +18,7 @@ import type {
   ProjectStorage,
   ProjectStorageCrypto,
   ProjectStorageRecordContext,
+  StoredProjectSummary,
 } from "./project-storage.js";
 
 const DATABASE_NAME = "floe-note";
@@ -78,14 +79,70 @@ class FloeNoteDatabase extends Dexie {
 
 export class DexieProjectStorage implements ProjectStorage {
   readonly #db = new FloeNoteDatabase();
-  #openPromise: Promise<OpenProjectResult> | null = null;
   #writeQueue: Promise<void> = Promise.resolve();
 
   openOrCreateProject(
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult> {
-    this.#openPromise ??= this.#loadOrCreateProject(crypto);
-    return this.#openPromise;
+    return this.#loadOrCreateProject(crypto);
+  }
+
+  async listProjects(
+    crypto: ProjectStorageCrypto,
+  ): Promise<readonly StoredProjectSummary[]> {
+    const records = await this.#db.projects.orderBy("createdAt").toArray();
+
+    return Promise.all(
+      records.map(async (record) => ({
+        id: parseProjectId(record.id),
+        name: await this.#loadProjectName(
+          parseProjectId(record.id),
+          crypto,
+        ),
+        createdAt: record.createdAt,
+        isActive: record.localSlot === LOCAL_PROJECT_SLOT,
+      })),
+    );
+  }
+
+  async openProject(
+    projectId: ProjectId,
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult> {
+    const record = await this.#db.projects.get(projectId);
+    if (!record) {
+      throw new Error("Project is not available on this device");
+    }
+
+    const project = await this.#loadProject(projectId, crypto);
+    await this.#activateProject(projectId);
+    return { project, isNew: false };
+  }
+
+  async createProject(name: string): Promise<OpenProjectResult> {
+    const project = NoteProject.create();
+    project.renameProject(name);
+
+    await this.#db.transaction("rw", this.#db.projects, async () => {
+      const current = await this.#db.projects
+        .where("localSlot")
+        .equals(LOCAL_PROJECT_SLOT)
+        .first();
+
+      if (current) {
+        await this.#db.projects.update(current.id, {
+          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+        });
+      }
+
+      await this.#db.projects.add({
+        id: project.id,
+        localSlot: LOCAL_PROJECT_SLOT,
+        createdAt: Date.now(),
+      });
+    });
+
+    return { project, isNew: true };
   }
 
   async initializeJoinedProject(
@@ -150,7 +207,6 @@ export class DexieProjectStorage implements ProjectStorage {
       ? await this.#loadProject(projectId, crypto)
       : emptyProject;
 
-    this.#openPromise = Promise.resolve({ project, isNew: false });
     return project;
   }
 
@@ -247,6 +303,44 @@ export class DexieProjectStorage implements ProjectStorage {
     });
 
     return { project, isNew: true };
+  }
+
+  async #activateProject(projectId: ProjectId): Promise<void> {
+    await this.#db.transaction("rw", this.#db.projects, async () => {
+      const current = await this.#db.projects
+        .where("localSlot")
+        .equals(LOCAL_PROJECT_SLOT)
+        .first();
+
+      if (current && current.id !== projectId) {
+        await this.#db.projects.update(current.id, {
+          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+        });
+      }
+
+      await this.#db.projects.update(projectId, {
+        localSlot: LOCAL_PROJECT_SLOT,
+      });
+    });
+  }
+
+  async #loadProjectName(
+    projectId: ProjectId,
+    crypto: ProjectStorageCrypto,
+  ): Promise<string> {
+    const manifest = await this.#db.manifests.get(projectId);
+    if (!manifest) {
+      return NoteProject.create(projectId).name;
+    }
+
+    const manifestSnapshot = await this.#readSnapshot(
+      projectId,
+      manifestContext(),
+      manifest,
+      crypto,
+    );
+
+    return NoteProject.fromSnapshot(projectId, manifestSnapshot, []).name;
   }
 
   async #loadProject(

@@ -22,6 +22,7 @@ type AutomaticPeerConnection = {
   signaling: WebRtcSignalingSession;
   syncEngine: ProjectSyncEngine;
   stopConnectionState: () => void;
+  stopTransportStatus: () => void;
   connectionTimer: ReturnType<typeof setTimeout> | null;
   disconnectedTimer: ReturnType<typeof setTimeout> | null;
 };
@@ -286,11 +287,24 @@ export class AutomaticPeerSyncManager {
       }
     });
 
+    const stopTransportStatus = transport.onStatusChange((status) => {
+      if (status.dataChannelState !== "closed") return;
+
+      const current = this.#connections.get(peerDeviceId);
+      if (current?.sessionId !== sessionId) return;
+
+      this.#connectedDeviceIds.delete(peerDeviceId);
+      this.#emitStatus();
+
+      queueMicrotask(() => this.#restartPeer(peerDeviceId, sessionId));
+    });
+
     const connection: AutomaticPeerConnection = {
       sessionId,
       signaling,
       syncEngine,
       stopConnectionState,
+      stopTransportStatus,
       connectionTimer: null,
       disconnectedTimer: null,
     };
@@ -318,6 +332,7 @@ export class AutomaticPeerSyncManager {
     this.#clearConnectionTimer(connection);
     this.#clearDisconnectedTimer(connection);
     connection.stopConnectionState();
+    connection.stopTransportStatus();
     connection.signaling.stop();
     connection.syncEngine.stop();
 

@@ -12,6 +12,7 @@ type NoteWorkspaceProps = {
   selectedDocument: NoteDocument | undefined;
   projectControl: ReactNode;
   sidebarFooter: ReactNode;
+  mainContent?: ReactNode;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
@@ -24,6 +25,7 @@ export function NoteWorkspace({
   selectedDocument,
   projectControl,
   sidebarFooter,
+  mainContent,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
@@ -76,7 +78,7 @@ export function NoteWorkspace({
 
   return (
     <AppShell sidebar={sidebar}>
-      {selectedDocument ? (
+      {mainContent ?? (selectedDocument ? (
         <DocumentPane
           document={selectedDocument}
           onRename={onRenameDocument}
@@ -92,7 +94,7 @@ export function NoteWorkspace({
             Create your first note
           </button>
         </div>
-      )}
+      ))}
     </AppShell>
   );
 }

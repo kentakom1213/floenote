@@ -13,7 +13,11 @@ import {
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
-import type { DeviceId, DocumentId } from "@floe-note/domain";
+import type {
+  DeviceId,
+  DocumentId,
+  ProjectId,
+} from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
@@ -41,11 +45,11 @@ import {
   type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
-import { DexieProjectStorage } from "@floe-note/storage";
 import {
-  EncryptedSyncTransport,
-  ProjectSyncEngine,
-} from "@floe-note/sync";
+  DexieProjectStorage,
+  type StoredProjectSummary,
+} from "@floe-note/storage";
+import { ProjectSyncEngine } from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
   WebAuthnPrfDeviceVault,
@@ -64,6 +68,8 @@ import {
 } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { ProjectSettingsView } from "./ProjectSettingsView.js";
+import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
 import { ThemePicker } from "./ThemePicker.js";
 import { useThemePreference } from "./theme.js";
@@ -148,6 +154,11 @@ export function App() {
 function NoteApp() {
   const [themePreference, setThemePreference] = useThemePreference();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
+  const [projectSummaries, setProjectSummaries] = useState<
+    readonly StoredProjectSummary[]
+  >([]);
+  const [projectSwitching, setProjectSwitching] = useState(false);
+  const [mainView, setMainView] = useState<"note" | "project-settings">("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
@@ -167,7 +178,6 @@ function NoteApp() {
   );
   const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
   const securityMutationInFlightRef = useRef(false);
-  const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -183,9 +193,6 @@ function NoteApp() {
   const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
-  >("waiting");
-  const [invitationSyncState, setInvitationSyncState] = useState<
-    "waiting" | "active" | "error"
   >("waiting");
 
   const project = openedProject?.project ?? null;
@@ -393,9 +400,7 @@ function NoteApp() {
     }
   }, []);
 
-  const automaticReconnectEnabled =
-    useAutomaticReconnect ||
-    (useInvitationWebRtc && projectKeyDeliveryState === "delivered");
+  const automaticReconnectEnabled = useAutomaticReconnect;
 
   const authorizedSync = useAuthorizedProjectSync({
     coordinatorBaseUrl,
@@ -456,7 +461,6 @@ function NoteApp() {
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
     setProjectKeyDeliveryState("waiting");
-    setInvitationSyncState("waiting");
 
     if (useInvitationWebRtc) {
       let disposed = false;
@@ -531,8 +535,6 @@ function NoteApp() {
             abortPairing.abort();
             stopSignalingState();
             signaling.stop();
-            invitationSyncEngineRef.current?.stop();
-            invitationSyncEngineRef.current = null;
           };
         } catch (caught: unknown) {
           if (!disposed) {
@@ -670,7 +672,11 @@ function NoteApp() {
       if (previous) await previous.close();
 
       const result = await projectStorage.openOrCreateProject(session);
+      const summaries = await projectStorage.listProjects(session);
       setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
       setLocalDeviceId(session.publicIdentity.deviceId);
       setDeviceVaultState("unlocked");
     } catch (error: unknown) {
@@ -679,6 +685,62 @@ function NoteApp() {
         error instanceof Error ? error.message : "Failed to unlock Device Vault",
       );
     }
+  }
+
+  async function selectProject(projectId: ProjectId): Promise<void> {
+    if (projectId === activeProject.id || projectSwitching) return;
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before switching Project");
+    }
+
+    setProjectSwitching(true);
+
+    try {
+      const result = await projectStorage.openProject(projectId, session);
+      const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
+      setMainView("note");
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  async function createProject(name: string): Promise<void> {
+    if (projectSwitching) return;
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before creating a Project");
+    }
+
+    setProjectSwitching(true);
+
+    try {
+      const result = await projectStorage.createProject(name);
+      const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
+      setMainView("note");
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  function resetProjectSecurityUiState(): void {
+    setLocalSecurityBootstrapState("waiting");
+    setLocalSecurityState(null);
+    setLocalSecurityError(null);
+    setLocalProjectKeyReady(null);
+    setCoordinationError(null);
   }
 
   async function authorizeJoiningDevice(): Promise<void> {
@@ -739,80 +801,85 @@ function NoteApp() {
       return;
     }
 
-    let committedState: SecurityState;
-
+    securityMutationInFlightRef.current = true;
     try {
-      const signerIdentity = session.publicIdentity;
-      const authorizedSigner = localSecurityState.devices.find(
-        (device) => device.deviceId === signerIdentity.deviceId,
-      );
-      if (
-        !authorizedSigner ||
-        !bytesEqual(
-          authorizedSigner.encryptionPublicKey,
-          signerIdentity.encryptionPublicKey,
-        ) ||
-        !bytesEqual(
+      let committedState: SecurityState;
+
+      try {
+        const signerIdentity = session.publicIdentity;
+        const authorizedSigner = localSecurityState.devices.find(
+          (device) => device.deviceId === signerIdentity.deviceId,
+        );
+        if (
+          !authorizedSigner ||
+          !bytesEqual(
+            authorizedSigner.encryptionPublicKey,
+            signerIdentity.encryptionPublicKey,
+          ) ||
+          !bytesEqual(
+            authorizedSigner.signingPublicKey,
+            signerIdentity.signingPublicKey,
+          )
+        ) {
+          throw new Error(
+            "Unlocked Device Vault identity does not match authorized SecurityState",
+          );
+        }
+
+        const unsignedTransition = createUnsignedAddDeviceTransition(
+          localSecurityState,
+          joiningDevice,
+          signerIdentity.deviceId,
+        );
+        const signingBytes =
+          encodeUnsignedAddDeviceTransition(unsignedTransition);
+        const signature = await session.sign(signingBytes);
+        const transition = attachAddDeviceSignature(
+          unsignedTransition,
+          signature,
+        );
+
+        const verified = await verifyEd25519Signature(
+          signingBytes,
+          transition.signature,
           authorizedSigner.signingPublicKey,
-          signerIdentity.signingPublicKey,
-        )
-      ) {
-        throw new Error(
-          "Unlocked Device Vault identity does not match authorized SecurityState",
         );
-      }
+        if (!verified) {
+          throw new Error("AddDevice signature verification failed");
+        }
 
-      const unsignedTransition = createUnsignedAddDeviceTransition(
-        localSecurityState,
-        joiningDevice,
-        signerIdentity.deviceId,
-      );
-      const signingBytes =
-        encodeUnsignedAddDeviceTransition(unsignedTransition);
-      const signature = await session.sign(signingBytes);
-      const transition = attachAddDeviceSignature(
-        unsignedTransition,
-        signature,
-      );
-
-      const verified = await verifyEd25519Signature(
-        signingBytes,
-        transition.signature,
-        authorizedSigner.signingPublicKey,
-      );
-      if (!verified) {
-        throw new Error("AddDevice signature verification failed");
-      }
-
-      const headHash = await sha256(encodeAddDeviceTransition(transition));
-      const candidateState = deriveAddDeviceSecurityState(
-        localSecurityState,
-        transition,
-        headHash,
-      );
-      committedState = await securityCoordinator.commitAddDevice(
-        activeProject.id,
-        transition,
-      );
-
-      if (!securityStatesEqual(candidateState, committedState)) {
-        throw new Error(
-          "Coordinator committed a SecurityState that does not match AddDevice",
+        const headHash = await sha256(encodeAddDeviceTransition(transition));
+        const candidateState = deriveAddDeviceSecurityState(
+          localSecurityState,
+          transition,
+          headHash,
         );
+        committedState = await securityCoordinator.commitAddDevice(
+          activeProject.id,
+          transition,
+        );
+
+        if (!securityStatesEqual(candidateState, committedState)) {
+          throw new Error(
+            "Coordinator committed a SecurityState that does not match AddDevice",
+          );
+        }
+
+        await projectStorage.saveCommittedSecurityState(committedState);
+        setLocalSecurityState(committedState);
+        setDeviceAuthorizationState("authorized");
+      } catch (error: unknown) {
+        setDeviceAuthorizationState("error");
+        setCoordinationError(
+          error instanceof Error ? error.message : "Failed to authorize device",
+        );
+        return;
       }
 
-      await projectStorage.saveCommittedSecurityState(committedState);
-      setLocalSecurityState(committedState);
-      setDeviceAuthorizationState("authorized");
-    } catch (error: unknown) {
-      setDeviceAuthorizationState("error");
-      setCoordinationError(
-        error instanceof Error ? error.message : "Failed to authorize device",
-      );
-      return;
+      await deliverProjectKey(committedState);
+    } finally {
+      securityMutationInFlightRef.current = false;
     }
-
-    await deliverProjectKey(committedState);
   }
 
   async function revokeDevice(revokedDeviceId: DeviceId): Promise<void> {
@@ -1003,19 +1070,21 @@ function NoteApp() {
       });
 
       setProjectKeyDeliveryState("delivered");
-      startInvitationEncryptedSync(committedState);
 
       try {
         await new InvitationClient(coordinatorBaseUrl).consumeInvite(
           invitationHost.inviteId,
         );
       } catch (error: unknown) {
-        setCoordinationError(
+        console.warn(
           error instanceof Error
             ? `ProjectKey stored, but invite consume failed: ${error.message}`
             : "ProjectKey stored, but invite consume failed",
         );
       }
+
+      webRtcTransport.close();
+      window.location.replace("/");
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
@@ -1024,57 +1093,10 @@ function NoteApp() {
     }
   }
 
-  function startInvitationEncryptedSync(
-    committedState: SecurityState,
-  ): void {
-    if (invitationSyncEngineRef.current) return;
-
-    const session = deviceVaultSessionRef.current;
-    if (!session || !webRtcTransport) {
-      setInvitationSyncState("error");
-      setCoordinationError(
-        "Vault session and WebRTC transport are required for encrypted sync",
-      );
-      return;
-    }
-
-    const encryptedTransport = new EncryptedSyncTransport(
-      webRtcTransport,
-      {
-        encrypt: (plaintext) =>
-          session.encryptProjectSyncPayload(
-            committedState.projectId,
-            committedState.keyEpoch,
-            plaintext,
-          ),
-        decrypt: (envelope) =>
-          session.decryptProjectSyncPayload(
-            committedState.projectId,
-            committedState.keyEpoch,
-            envelope,
-          ),
-      },
-      {
-        onError: (error, direction) => {
-          setInvitationSyncState("error");
-          setCoordinationError(
-            `Encrypted sync ${direction} failed: ${error.message}`,
-          );
-        },
-      },
-    );
-
-    const syncEngine = new ProjectSyncEngine(activeProject, encryptedTransport, {
-      debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
-    });
-    invitationSyncEngineRef.current = syncEngine;
-    syncEngine.start();
-    setInvitationSyncState("active");
-  }
-
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
+    setMainView("note");
   }
 
   function deleteSelectedDocument() {
@@ -1093,12 +1115,52 @@ function NoteApp() {
     error: authorizedSync.error,
   });
 
+  const projectItems = withActiveProjectSummary(
+    projectSummaries,
+    activeProject,
+  ).map((summary) => ({
+    id: summary.id,
+    name: summary.name,
+    isCurrent: summary.id === activeProject.id,
+  }));
+
   const projectControl = (
-    <div className="project-control" title="Project switching is coming next">
-      <span className="project-control-label">Project</span>
-      <span className="project-control-name">Untitled project</span>
-    </div>
+    <ProjectSwitcher
+      projects={projectItems}
+      disabled={projectSwitching}
+      onSelectProject={selectProject}
+      onCreateProject={createProject}
+      onOpenProjectSettings={() => setMainView("project-settings")}
+    />
   );
+
+  const projectSettingsContent =
+    mainView === "project-settings" ? (
+      localDeviceId && localSecurityState ? (
+        <ProjectSettingsView
+          projectId={activeProject.id}
+          projectName={activeProject.name}
+          localDeviceId={localDeviceId}
+          authorizedDevices={localSecurityState.devices}
+          onlineDeviceIds={authorizedSync.onlineDeviceIds}
+          connectedDeviceIds={authorizedSync.connectedDeviceIds}
+          onAddDevice={() => {
+            window.location.assign("/?transport=invite");
+          }}
+          onRemoveDevice={(deviceId) => {
+            const confirmed = window.confirm(
+              "Remove this device? It will no longer receive new changes from this Project. Data already stored on that device cannot be removed remotely.",
+            );
+            if (confirmed) void revokeDevice(deviceId);
+          }}
+        />
+      ) : (
+        <div className="settings-view">
+          <p className="settings-eyebrow">Project settings</p>
+          <p className="settings-loading">Loading Project security…</p>
+        </div>
+      )
+    ) : undefined;
 
   const debugSidebarControls =
     useInvitationWebRtc && invitationHost && webRtcTransport ? (
@@ -1111,7 +1173,6 @@ function NoteApp() {
         joiningDeviceId={joiningDevice?.deviceId ?? null}
         authorizationState={deviceAuthorizationState}
         projectKeyDeliveryState={projectKeyDeliveryState}
-        encryptedSyncState={invitationSyncState}
         onConfirm={authorizeJoiningDevice}
         onRetryProjectKeyDelivery={retryProjectKeyDelivery}
         onCancel={() =>
@@ -1159,8 +1220,12 @@ function NoteApp() {
       selectedDocument={selectedDocument}
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
+      mainContent={projectSettingsContent}
       onCreateDocument={createDocument}
-      onSelectDocument={setSelectedId}
+      onSelectDocument={(documentId) => {
+        setSelectedId(documentId);
+        setMainView("note");
+      }}
       onRenameDocument={(title) => {
         if (selectedDocument) {
           activeProject.renameDocument(selectedDocument.id, title);
@@ -1171,6 +1236,36 @@ function NoteApp() {
   );
 }
 
+
+function withActiveProjectSummary(
+  summaries: readonly StoredProjectSummary[],
+  activeProject: NoteProject,
+): readonly StoredProjectSummary[] {
+  const existing = summaries.find(
+    (summary) => summary.id === activeProject.id,
+  );
+
+  const normalized = summaries.map((summary) => ({
+    ...summary,
+    name:
+      summary.id === activeProject.id
+        ? activeProject.name
+        : summary.name,
+    isActive: summary.id === activeProject.id,
+  }));
+
+  if (existing) return normalized;
+
+  return [
+    ...normalized,
+    {
+      id: activeProject.id,
+      name: activeProject.name,
+      createdAt: Date.now(),
+      isActive: true,
+    },
+  ];
+}
 
 type SyncUiInput = {
   presenceState:

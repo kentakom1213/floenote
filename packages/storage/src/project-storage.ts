@@ -7,6 +7,13 @@ export type OpenProjectResult = {
   isNew: boolean;
 };
 
+export type StoredProjectSummary = {
+  id: ProjectId;
+  name: string;
+  createdAt: number;
+  isActive: boolean;
+};
+
 export type ProjectStorageRecordContext =
   | {
       kind: "manifest";
@@ -35,6 +42,17 @@ export interface ProjectStorage {
   openOrCreateProject(
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult>;
+
+  listProjects(
+    crypto: ProjectStorageCrypto,
+  ): Promise<readonly StoredProjectSummary[]>;
+
+  openProject(
+    projectId: ProjectId,
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult>;
+
+  createProject(name: string): Promise<OpenProjectResult>;
 
   initializeJoinedProject(
     projectId: ProjectId,

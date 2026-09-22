@@ -13,6 +13,8 @@ export type DocumentSummary = {
   title: string;
 };
 
+const DEFAULT_PROJECT_NAME = "Personal";
+
 type Listener = () => void;
 
 export class NoteProject {
@@ -36,6 +38,7 @@ export class NoteProject {
   static create(id: ProjectId = createProjectId()): NoteProject {
     const manifest = new LoroDoc();
     manifest.getMap("documents");
+    manifest.getMap("metadata");
 
     return new NoteProject(id, manifest, []);
   }
@@ -50,6 +53,24 @@ export class NoteProject {
       LoroDoc.fromSnapshot(manifestSnapshot),
       documents,
     );
+  }
+
+  get name(): string {
+    const value = this.#manifest.getMap("metadata").get("name");
+    return typeof value === "string" && value.trim().length > 0
+      ? value
+      : DEFAULT_PROJECT_NAME;
+  }
+
+  renameProject(name: string): void {
+    const normalized = name.trim();
+    if (!normalized) {
+      throw new TypeError("Project name must not be empty");
+    }
+
+    this.#manifest.getMap("metadata").set("name", normalized);
+    this.#manifest.commit();
+    this.#emit();
   }
 
   subscribe(listener: Listener): () => void {
