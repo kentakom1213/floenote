@@ -6,14 +6,23 @@ const DATA_CHANNEL_PREFIX = "floe-note:v1:";
 const ICE_GATHERING_TIMEOUT_MS = 15_000;
 
 export type WebRtcConnectionState = RTCPeerConnectionState;
+export type WebRtcDataChannelState = RTCDataChannelState | "none";
+
+export type WebRtcStatus = {
+  connectionState: WebRtcConnectionState;
+  dataChannelState: WebRtcDataChannelState;
+  error: string | null;
+};
 
 export class WebRtcTransport implements Transport {
   readonly #projectId: ProjectId;
   readonly #peerConnection: RTCPeerConnection;
   readonly #messageHandlers = new Set<(data: Uint8Array) => void>();
   readonly #stateHandlers = new Set<(state: WebRtcConnectionState) => void>();
+  readonly #statusHandlers = new Set<(status: WebRtcStatus) => void>();
   readonly #pendingMessages: ArrayBuffer[] = [];
   #dataChannel: RTCDataChannel | null = null;
+  #error: string | null = null;
 
   constructor(projectId: ProjectId) {
     this.#projectId = projectId;
@@ -21,7 +30,10 @@ export class WebRtcTransport implements Transport {
 
     this.#peerConnection.addEventListener("datachannel", (event) => {
       if (event.channel.label !== this.#dataChannelLabel) {
+        this.#error =
+          "Project mismatch: the remote WebRTC channel belongs to a different Project.";
         event.channel.close();
+        this.#emitStatus();
         return;
       }
 
@@ -30,6 +42,7 @@ export class WebRtcTransport implements Transport {
 
     this.#peerConnection.addEventListener("connectionstatechange", () => {
       this.#emitConnectionState();
+      this.#emitStatus();
     });
   }
 
@@ -37,7 +50,21 @@ export class WebRtcTransport implements Transport {
     return this.#peerConnection.connectionState;
   }
 
+  get dataChannelState(): WebRtcDataChannelState {
+    return this.#dataChannel?.readyState ?? "none";
+  }
+
+  get status(): WebRtcStatus {
+    return {
+      connectionState: this.connectionState,
+      dataChannelState: this.dataChannelState,
+      error: this.#error,
+    };
+  }
+
   async createOffer(): Promise<string> {
+    this.#clearError();
+
     if (!this.#dataChannel) {
       this.#attachDataChannel(
         this.#peerConnection.createDataChannel(this.#dataChannelLabel, {
@@ -54,6 +81,8 @@ export class WebRtcTransport implements Transport {
   }
 
   async acceptOffer(serializedOffer: string): Promise<string> {
+    this.#clearError();
+
     const offer = parseDescription(serializedOffer, "offer");
     await this.#peerConnection.setRemoteDescription(offer);
 
@@ -65,6 +94,8 @@ export class WebRtcTransport implements Transport {
   }
 
   async acceptAnswer(serializedAnswer: string): Promise<void> {
+    this.#clearError();
+
     const answer = parseDescription(serializedAnswer, "answer");
     await this.#peerConnection.setRemoteDescription(answer);
   }
@@ -93,12 +124,19 @@ export class WebRtcTransport implements Transport {
     return () => this.#stateHandlers.delete(handler);
   }
 
+  onStatusChange(handler: (status: WebRtcStatus) => void): () => void {
+    this.#statusHandlers.add(handler);
+    handler(this.status);
+    return () => this.#statusHandlers.delete(handler);
+  }
+
   close(): void {
     this.#dataChannel?.close();
     this.#peerConnection.close();
     this.#pendingMessages.length = 0;
     this.#messageHandlers.clear();
     this.#stateHandlers.clear();
+    this.#statusHandlers.clear();
   }
 
   get #dataChannelLabel(): string {
@@ -107,17 +145,33 @@ export class WebRtcTransport implements Transport {
 
   #attachDataChannel(channel: RTCDataChannel): void {
     if (this.#dataChannel && this.#dataChannel !== channel) {
+      this.#error = "A WebRTC DataChannel is already attached.";
       channel.close();
+      this.#emitStatus();
       return;
     }
 
     this.#dataChannel = channel;
     channel.binaryType = "arraybuffer";
+    this.#emitStatus();
 
     channel.addEventListener("open", () => {
+      this.#clearError();
+
       for (const payload of this.#pendingMessages.splice(0)) {
         channel.send(payload);
       }
+
+      this.#emitStatus();
+    });
+
+    channel.addEventListener("close", () => {
+      this.#emitStatus();
+    });
+
+    channel.addEventListener("error", () => {
+      this.#error = "The WebRTC DataChannel reported an error.";
+      this.#emitStatus();
     });
 
     channel.addEventListener("message", (event: MessageEvent<unknown>) => {
@@ -130,10 +184,23 @@ export class WebRtcTransport implements Transport {
     });
   }
 
+  #clearError(): void {
+    if (this.#error === null) return;
+    this.#error = null;
+    this.#emitStatus();
+  }
+
   #emitConnectionState(): void {
     const state = this.connectionState;
     for (const handler of this.#stateHandlers) {
       handler(state);
+    }
+  }
+
+  #emitStatus(): void {
+    const status = this.status;
+    for (const handler of this.#statusHandlers) {
+      handler(status);
     }
   }
 }
