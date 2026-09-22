@@ -1,5 +1,7 @@
 import type { DeviceId } from "@floe-note/domain";
+import { useState } from "react";
 
+import { ConfirmDialog } from "./ConfirmDialog.js";
 import { ThemePicker } from "./ThemePicker.js";
 import type { ThemePreference } from "./theme.js";
 
@@ -7,6 +9,7 @@ type AppSettingsViewProps = {
   theme: ThemePreference;
   localDeviceId: DeviceId | null;
   onThemeChange: (theme: ThemePreference) => void;
+  onEraseDevice: () => Promise<void>;
 };
 
 function shortDeviceId(deviceId: DeviceId): string {
@@ -17,7 +20,9 @@ export function AppSettingsView({
   theme,
   localDeviceId,
   onThemeChange,
+  onEraseDevice,
 }: AppSettingsViewProps) {
+  const [eraseOpen, setEraseOpen] = useState(false);
   return (
     <section className="settings-view">
       <header className="settings-header">
@@ -75,6 +80,56 @@ export function AppSettingsView({
           </p>
         </div>
       </div>
+
+      <div className="settings-section danger-zone">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Danger zone</h2>
+            <p>Remove all Floe Note data stored by this app on this device.</p>
+          </div>
+        </div>
+        <div className="danger-zone-row">
+          <div>
+            <strong>Erase Floe Note from this device</strong>
+            <p>
+              Removes local Projects, notes, SecurityState, Device Vault keys,
+              Project keys, and Floe Note preferences. Other devices are not
+              changed.
+            </p>
+          </div>
+          <button
+            className="settings-danger-outline-action"
+            type="button"
+            onClick={() => setEraseOpen(true)}
+          >
+            Erase local data
+          </button>
+        </div>
+        <p className="danger-zone-note">
+          A WebAuthn credential may remain in your browser or password manager
+          and can be removed there separately.
+        </p>
+      </div>
+
+      {eraseOpen ? (
+        <ConfirmDialog
+          title="Erase Floe Note from this device?"
+          description={
+            <>
+              <p>
+                This removes all Floe Note data stored by this app on this
+                device. It does not remove data from other devices or revoke
+                this Device ID from Projects.
+              </p>
+              <p>This action cannot be undone locally.</p>
+            </>
+          }
+          confirmLabel="Erase local data"
+          confirmationPhrase="ERASE"
+          onConfirm={onEraseDevice}
+          onClose={() => setEraseOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
