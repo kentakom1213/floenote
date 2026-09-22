@@ -240,7 +240,7 @@ function transcript(input: {
 async function importHmacKey(pairingSecret: PairingSecret): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
-    hexToBytes(pairingSecret),
+    toArrayBuffer(hexToBytes(pairingSecret)),
     {
       name: "HMAC",
       hash: "SHA-256",
@@ -254,7 +254,11 @@ async function createProof(
   key: CryptoKey,
   message: Uint8Array,
 ): Promise<string> {
-  const signature = await crypto.subtle.sign("HMAC", key, message);
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    toArrayBuffer(message),
+  );
   return bytesToHex(new Uint8Array(signature));
 }
 
@@ -267,7 +271,12 @@ async function verifyProof(
     return false;
   }
 
-  return crypto.subtle.verify("HMAC", key, hexToBytes(proof), message);
+  return crypto.subtle.verify(
+    "HMAC",
+    key,
+    toArrayBuffer(hexToBytes(proof)),
+    toArrayBuffer(message),
+  );
 }
 
 function encodeMessage(message: PairingMessage): Uint8Array {
@@ -363,6 +372,12 @@ function hexToBytes(value: string): Uint8Array {
     bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
   }
   return bytes;
+}
+
+function toArrayBuffer(value: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(value.byteLength);
+  copy.set(value);
+  return copy.buffer;
 }
 
 function bytesToHex(value: Uint8Array): string {

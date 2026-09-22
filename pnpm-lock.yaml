@@ -29,6 +29,9 @@ importers:
       '@floe-note/coordinator-client':
         specifier: workspace:*
         version: link:../../packages/coordinator-client
+      '@floe-note/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@floe-note/document':
         specifier: workspace:*
         version: link:../../packages/document
@@ -85,6 +88,18 @@ importers:
         specifier: workspace:*
         version: link:../transport
 
+  packages/crypto:
+    dependencies:
+      '@floe-note/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../security
+      libsodium-wrappers:
+        specifier: ^0.8.4
+        version: 0.8.4
+
   packages/document:
     dependencies:
       '@floe-note/domain':
@@ -105,9 +120,15 @@ importers:
       '@floe-note/coordinator-client':
         specifier: workspace:*
         version: link:../coordinator-client
+      '@floe-note/crypto':
+        specifier: workspace:*
+        version: link:../crypto
       '@floe-note/domain':
         specifier: workspace:*
         version: link:../domain
+      '@floe-note/security':
+        specifier: workspace:*
+        version: link:../security
       '@floe-note/transport':
         specifier: workspace:*
         version: link:../transport
@@ -827,6 +848,12 @@ packages:
     resolution: {integrity: sha512-WkUDrojuJs0xkgGf2udWxa3yGBRxPtxUkB79i6aCZLRgc7PM8fZe9TosfPDcvEpQZbuFASnHYmRLBLUbmLOIIA==}
     engines: {node: '>= 12.0.0'}
 
+  libsodium-wrappers@0.8.4:
+    resolution: {integrity: sha512-mu8aAWucZjTB5O/BtGXtW4e1agy7uHxNYG7zPthmmD1jU43LCDmSWZLN4JhflbdPXj3yDO4lxM1O9hLDgIOXDw==}
+
+  libsodium@0.8.4:
+    resolution: {integrity: sha512-lMcYaRi0zcs7tarATsQUYC7rstliIXZuoq0c6zXSgNtSNtdvBgkSegjWhpMJAXzKX3SUSwIp7+zEsob+j3LuRw==}
+
   loro-codemirror@0.3.3:
     resolution: {integrity: sha512-C6qAUmDjMTyoXVeDxKWixvr/TSTo/jXFrvgGW+wn6RAHeIzNFovBDLQNi/Sary4Ahx8DaYADTCm9eCaRAjvWtw==}
     peerDependencies:
@@ -1545,6 +1572,12 @@ snapshots:
       lightningcss-linux-x64-musl: 1.33.0
       lightningcss-win32-arm64-msvc: 1.33.0
       lightningcss-win32-x64-msvc: 1.33.0
+
+  libsodium-wrappers@0.8.4:
+    dependencies:
+      libsodium: 0.8.4
+
+  libsodium@0.8.4: {}
 
   loro-codemirror@0.3.3(@codemirror/state@6.7.5)(@codemirror/view@6.43.12)(loro-crdt@1.16.3):
     dependencies:

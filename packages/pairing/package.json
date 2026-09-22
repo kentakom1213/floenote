@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@floe-note/coordinator-client": "workspace:*",
+    "@floe-note/crypto": "workspace:*",
     "@floe-note/domain": "workspace:*",
+    "@floe-note/security": "workspace:*",
     "@floe-note/transport": "workspace:*"
   }
 }

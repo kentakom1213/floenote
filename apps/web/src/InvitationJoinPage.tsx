@@ -6,8 +6,17 @@ import {
   WebRtcSignalingSession,
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
+import {
+  destroyDeviceKeyMaterial,
+  generateDeviceKeyMaterial,
+  type DeviceKeyMaterial,
+} from "@floe-note/crypto";
 import type { NoteProject } from "@floe-note/document";
-import { authenticatePairingChannel } from "@floe-note/pairing";
+import type { DeviceId } from "@floe-note/domain";
+import {
+  authenticatePairingChannel,
+  exchangeJoiningDeviceIdentity,
+} from "@floe-note/pairing";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import {
@@ -52,12 +61,14 @@ export function InvitationJoinPage({
     "claiming" | "claimed" | "error"
   >("claiming");
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
 
   useEffect(() => {
     let disposed = false;
     let cleanup: (() => void) | null = null;
+    let deviceKeyMaterial: DeviceKeyMaterial | null = null;
 
     void (async () => {
       try {
@@ -117,6 +128,10 @@ export function InvitationJoinPage({
           stopPersistence();
           stopTransportStatus();
           syncEngine?.stop();
+          if (deviceKeyMaterial) {
+            void destroyDeviceKeyMaterial(deviceKeyMaterial);
+            deviceKeyMaterial = null;
+          }
         };
 
         await authenticatePairingChannel({
@@ -133,6 +148,23 @@ export function InvitationJoinPage({
           return;
         }
 
+        const generatedKeyMaterial = await generateDeviceKeyMaterial();
+        if (disposed) {
+          await destroyDeviceKeyMaterial(generatedKeyMaterial);
+          return;
+        }
+        deviceKeyMaterial = generatedKeyMaterial;
+
+        const identity = await exchangeJoiningDeviceIdentity({
+          role: "join",
+          transport,
+          identity: generatedKeyMaterial.publicIdentity,
+          signal: abortPairing.signal,
+        });
+        if (disposed) return;
+
+        setDeviceId(identity.deviceId);
+
         syncEngine = new ProjectSyncEngine(joinedProject, transport, {
           debugLogger: createConsoleDebugLogger("invite-join-sync"),
         });
@@ -145,7 +177,7 @@ export function InvitationJoinPage({
         if (disposed) return;
         setClaimState("error");
         setError(
-          caught instanceof Error ? caught.message : "Failed to claim invite",
+          caught instanceof Error ? caught.message : "Failed to join Project",
         );
       }
     })();
@@ -192,11 +224,15 @@ export function InvitationJoinPage({
             <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
           </p>
         ) : null}
+        <p className="webrtc-status">
+          Device ID: <strong>{deviceId ?? "not generated"}</strong>
+        </p>
 
         <p className="join-live-hint">
-          PairingSecret is used to authenticate the temporary WebRTC pairing
-          channel before any Project synchronization starts. The coordinator
-          still sees only the InviteId bootstrap and signaling metadata.
+          PairingSecret authenticates the temporary WebRTC pairing channel.
+          After authentication, this device creates separate encryption and
+          signing keys and sends only its public identity to the existing
+          device before Project synchronization starts.
         </p>
 
         {webRtcStatus.warning ? (
@@ -211,7 +247,9 @@ export function InvitationJoinPage({
             <JoinedProjectEditor project={project} />
           </section>
         ) : (
-          <p className="join-live-hint">Claiming invite…</p>
+          <p className="join-live-hint">
+            Authenticating pairing and preparing device identity…
+          </p>
         )}
       </section>
     </main>
