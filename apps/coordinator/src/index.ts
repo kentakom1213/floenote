@@ -223,6 +223,17 @@ export class ProjectCoordinator extends DurableObject<Env> {
           return;
         }
 
+        if (
+          JSON.stringify(securityStateToWire(existing)) !==
+          JSON.stringify(candidateWire)
+        ) {
+          response = new Response(
+            "Stored SecurityState does not match its committed head",
+            { status: 500 },
+          );
+          return;
+        }
+
         response = Response.json(securityStateToWire(existing));
         return;
       }
