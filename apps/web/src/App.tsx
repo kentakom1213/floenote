@@ -17,6 +17,7 @@ import type { DeviceId, DocumentId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
+  sendProjectKeyDelivery,
 } from "@floe-note/pairing";
 import {
   attachAddDeviceSignature,
@@ -96,6 +97,7 @@ export function App() {
         coordinatorBaseUrl={coordinatorBaseUrl}
         inviteId={invitationId}
         pairingSecret={pairingSecretFromFragment}
+        storage={projectStorage}
       />
     );
   }
@@ -148,6 +150,11 @@ function NoteApp() {
     useState<SecurityState | null>(null);
   const [localSecurityError, setLocalSecurityError] =
     useState<string | null>(null);
+  const [localProjectKeyReady, setLocalProjectKeyReady] =
+    useState<boolean | null>(null);
+  const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
+    "waiting" | "delivering" | "delivered" | "error"
+  >("waiting");
 
   const project = openedProject?.project ?? null;
 
@@ -210,6 +217,7 @@ function NoteApp() {
       setLocalSecurityBootstrapState("waiting");
       setLocalSecurityState(null);
       setLocalSecurityError(null);
+      setLocalProjectKeyReady(null);
       return;
     }
 
@@ -220,6 +228,7 @@ function NoteApp() {
     setLocalSecurityBootstrapState("committing");
     setLocalSecurityState(null);
     setLocalSecurityError(null);
+    setLocalProjectKeyReady(null);
 
     void (async () => {
       const storedState = await projectStorage.loadSecurityState(project.id);
