@@ -827,7 +827,16 @@ This prevents two concurrent security changes from silently creating divergent a
 
 The server determines ordering but cannot forge valid transitions because transitions are signed by authorized device keys.
 
-Devices should remember the latest security sequence/head they have observed so obvious server-side rollback can be rejected.
+Devices remember the latest locally verified SecurityState sequence/head. After
+Device Vault unlock, a normal Project open fetches the coordinator's current
+materialized SecurityState through `GET /projects/:projectId/security`.
+
+The current freshness check accepts the fetched state only when it exactly
+matches the locally verified state. A lower coordinator sequence is treated as
+an obvious rollback. A higher sequence is not adopted automatically because the
+materialized state alone does not contain the signed transition history needed
+to verify how the local head advanced to the returned head. Fetching and
+verifying unseen signed transitions is therefore a separate follow-up protocol.
 
 ## 18. Canonical security encoding
 
@@ -1189,11 +1198,15 @@ visible rather than being implied away by the use of modern primitives.
   authorization prevents unauthorized protocol participants from obtaining the
   key through the intended flow; it cannot constrain a device that is already
   legitimately authorized and compromised or malicious.
-- **Bootstrap SecurityState is received from the inviting authorized device in
-  the current pairing flow.** It is bound to the sealed envelope by head hash
-  and to the recipient identity, but the joining device does not independently
-  fetch the current head from the coordinator in this step. A future
-  SecurityState freshness/GET flow can provide an additional consistency check.
+- **SecurityState freshness GET does not yet advance a stale local state.**
+  Normal Project open independently fetches the coordinator's current
+  materialized SecurityState and detects an older coordinator state or any
+  mismatch at the same sequence. If the coordinator has a higher sequence, the
+  client stops rather than trusting that materialized state directly. The
+  current coordinator does not retain or expose the signed transition chain
+  needed for the client to verify unseen transitions from its locally verified
+  head. Transition catch-up remains to be designed before revocation and
+  long-lived multi-device reconnect can rely on automatic SecurityState refresh.
 - **Encrypted sync authenticates possession of a ProjectKey, not an individual
   DeviceId.** All devices authorized for the current epoch share the same
   symmetric ProjectKey, so any such device can construct a valid encrypted sync
@@ -1293,7 +1306,9 @@ The following details can be specified independently without changing the core P
 1. Canonical payload details and validation rules for `RevokeDevice`.
 2. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
 3. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
-4. Independent SecurityState freshness retrieval by newly joined devices.
+4. Retrieval and verification of unseen signed SecurityTransitions when the
+   coordinator SecurityState is newer than the locally verified head, including
+   the newly joined-device freshness path.
 5. Document tombstone garbage collection.
 6. Stable backup/export archive format.
 7. Background synchronization strategy.
