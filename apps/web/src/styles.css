@@ -345,3 +345,74 @@ h1 {
   font-size: 12px;
   line-height: 1.5;
 }
+
+
+.join-editor {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 520px;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #d8d1c5;
+  border-radius: 14px;
+  background: #f7f5f0;
+}
+
+.join-editor-sidebar {
+  padding: 16px;
+  border-right: 1px solid #d8d1c5;
+  background: #ebe6dc;
+}
+
+.join-editor-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.join-editor-main {
+  min-width: 0;
+}
+
+.join-editor .document-pane {
+  min-height: 520px;
+}
+
+.join-editor .editor,
+.join-editor .editor .cm-editor {
+  min-height: 430px;
+}
+
+.join-editor .editor .cm-scroller {
+  min-height: 430px;
+  padding: 24px;
+}
+
+.join-editor .document-header {
+  padding: 20px 24px 14px;
+}
+
+.join-editor .title-input {
+  font-size: 22px;
+}
+
+.join-editor-empty {
+  min-height: 520px;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  text-align: center;
+  color: #736d64;
+}
+
+@media (max-width: 760px) {
+  .join-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .join-editor-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #d8d1c5;
+  }
+}
