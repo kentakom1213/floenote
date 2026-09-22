@@ -36,11 +36,15 @@ export function AuthorizedDevicesPanel({
             {device.deviceId === localDeviceId ? " (this device)" : ""}
           </strong>
           {" — "}
-          {online.has(device.deviceId)
-            ? connected.has(device.deviceId)
-              ? "online · sync connected"
-              : "online · sync pending"
-            : "offline"}
+          {device.deviceId === localDeviceId
+            ? online.has(device.deviceId)
+              ? "online"
+              : "offline"
+            : online.has(device.deviceId)
+              ? connected.has(device.deviceId)
+                ? "online · sync connected"
+                : "online · sync pending"
+              : "offline"}
         </p>
       ))}
 
