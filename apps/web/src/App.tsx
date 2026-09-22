@@ -52,7 +52,6 @@ import {
   type DeviceVaultSession,
 } from "@floe-note/vault";
 
-import { AuthorizedDevicesPanel } from "./AuthorizedDevicesPanel.js";
 import { createConsoleDebugLogger } from "./debug.js";
 import {
   DeviceVaultPanel,
@@ -65,6 +64,9 @@ import {
 } from "./InvitationHostPanel.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
+import { ThemePicker } from "./ThemePicker.js";
+import { useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
@@ -144,6 +146,7 @@ export function App() {
 }
 
 function NoteApp() {
+  const [themePreference, setThemePreference] = useThemePreference();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
@@ -1082,74 +1085,70 @@ function NoteApp() {
     setSelectedId(next?.id ?? null);
   }
 
-  const sidebarControls = (
-    <>
-      <DeviceVaultPanel
-        state={deviceVaultState}
-        deviceId={localDeviceId}
-        error={deviceVaultError}
-        securityState={localSecurityBootstrapState}
-        securityHeadHash={
-          localSecurityState ? bytesToHex(localSecurityState.headHash) : null
+  const syncUiState = deriveSyncUiState({
+    presenceState: authorizedSync.presenceState,
+    onlineDeviceIds: authorizedSync.onlineDeviceIds,
+    connectedDeviceIds: authorizedSync.connectedDeviceIds,
+    localDeviceId,
+    error: authorizedSync.error,
+  });
+
+  const projectControl = (
+    <div className="project-control" title="Project switching is coming next">
+      <span className="project-control-label">Project</span>
+      <span className="project-control-name">Untitled project</span>
+    </div>
+  );
+
+  const debugSidebarControls =
+    useInvitationWebRtc && invitationHost && webRtcTransport ? (
+      <InvitationHostPanel
+        inviteId={invitationHost.inviteId}
+        pairingSecret={invitationHost.pairingSecret}
+        expiresAt={invitationHost.expiresAt}
+        transport={webRtcTransport}
+        signalingState={signalingState}
+        joiningDeviceId={joiningDevice?.deviceId ?? null}
+        authorizationState={deviceAuthorizationState}
+        projectKeyDeliveryState={projectKeyDeliveryState}
+        encryptedSyncState={invitationSyncState}
+        onConfirm={authorizeJoiningDevice}
+        onRetryProjectKeyDelivery={retryProjectKeyDelivery}
+        onCancel={() =>
+          new InvitationClient(coordinatorBaseUrl).cancelInvite(
+            invitationHost.inviteId,
+          )
         }
-        securitySequence={localSecurityState?.sequence ?? null}
-        securityKeyEpoch={localSecurityState?.keyEpoch ?? null}
-        securityDeviceCount={localSecurityState?.devices.length ?? null}
-        projectKeyReady={localProjectKeyReady}
-        securityError={localSecurityError}
-        onUnlockOrCreate={unlockOrCreateDevice}
       />
+    ) : useInvitationWebRtc ? (
+      <p className="webrtc-hint">Creating invitation…</p>
+    ) : useSignaledWebRtc && webRtcTransport ? (
+      <SignalingHostPanel
+        projectId={activeProject.id}
+        sessionId={signalSessionId}
+        transport={webRtcTransport}
+        signalingState={signalingState}
+      />
+    ) : useManualWebRtc && webRtcTransport ? (
+      <WebRtcDebugPanel
+        projectId={activeProject.id}
+        transport={webRtcTransport}
+      />
+    ) : null;
 
-      {localDeviceId && localSecurityState ? (
-        <AuthorizedDevicesPanel
-          state={authorizedSync.presenceState}
-          localDeviceId={localDeviceId}
-          authorizedDevices={localSecurityState.devices}
-          onlineDeviceIds={authorizedSync.onlineDeviceIds}
-          connectedDeviceIds={authorizedSync.connectedDeviceIds}
-          error={authorizedSync.error}
-          onRevoke={revokeDevice}
-        />
-      ) : null}
-
-      {useInvitationWebRtc && invitationHost && webRtcTransport ? (
-        <InvitationHostPanel
-          inviteId={invitationHost.inviteId}
-          pairingSecret={invitationHost.pairingSecret}
-          expiresAt={invitationHost.expiresAt}
-          transport={webRtcTransport}
-          signalingState={signalingState}
-          joiningDeviceId={joiningDevice?.deviceId ?? null}
-          authorizationState={deviceAuthorizationState}
-          projectKeyDeliveryState={projectKeyDeliveryState}
-          encryptedSyncState={invitationSyncState}
-          onConfirm={authorizeJoiningDevice}
-          onRetryProjectKeyDelivery={retryProjectKeyDelivery}
-          onCancel={() =>
-            new InvitationClient(coordinatorBaseUrl).cancelInvite(
-              invitationHost.inviteId,
-            )
-          }
-        />
-      ) : useInvitationWebRtc ? (
-        <p className="webrtc-hint">Creating invitation…</p>
-      ) : useSignaledWebRtc && webRtcTransport ? (
-        <SignalingHostPanel
-          projectId={activeProject.id}
-          sessionId={signalSessionId}
-          transport={webRtcTransport}
-          signalingState={signalingState}
-        />
-      ) : useManualWebRtc && webRtcTransport ? (
-        <WebRtcDebugPanel
-          projectId={activeProject.id}
-          transport={webRtcTransport}
-        />
-      ) : null}
-
+  const sidebarFooter = (
+    <>
+      {debugSidebarControls}
       {coordinationError ? (
         <p className="webrtc-error">{coordinationError}</p>
       ) : null}
+      <div className="sidebar-footer-row">
+        <SyncStatus state={syncUiState} />
+        <ThemePicker
+          value={themePreference}
+          onChange={setThemePreference}
+        />
+      </div>
     </>
   );
 
@@ -1158,7 +1157,8 @@ function NoteApp() {
       project={activeProject}
       selectedId={selectedId}
       selectedDocument={selectedDocument}
-      sidebarControls={sidebarControls}
+      projectControl={projectControl}
+      sidebarFooter={sidebarFooter}
       onCreateDocument={createDocument}
       onSelectDocument={setSelectedId}
       onRenameDocument={(title) => {
@@ -1169,6 +1169,54 @@ function NoteApp() {
       onDeleteDocument={deleteSelectedDocument}
     />
   );
+}
+
+
+type SyncUiInput = {
+  presenceState:
+    | "idle"
+    | "connecting"
+    | "authenticating"
+    | "open"
+    | "closed"
+    | "error";
+  onlineDeviceIds: readonly DeviceId[];
+  connectedDeviceIds: readonly DeviceId[];
+  localDeviceId: DeviceId | null;
+  error: string | null;
+};
+
+function deriveSyncUiState({
+  presenceState,
+  onlineDeviceIds,
+  connectedDeviceIds,
+  localDeviceId,
+  error,
+}: SyncUiInput): SyncUiState {
+  if (error || presenceState === "error") {
+    return { kind: "error", detail: error ?? undefined };
+  }
+
+  if (presenceState === "connecting" || presenceState === "authenticating") {
+    return { kind: "connecting" };
+  }
+
+  if (presenceState === "closed") {
+    return { kind: "offline" };
+  }
+
+  if (presenceState !== "open" || !localDeviceId) {
+    return { kind: "quiet" };
+  }
+
+  if (connectedDeviceIds.length > 0) {
+    return { kind: "connected" };
+  }
+
+  const otherDeviceOnline = onlineDeviceIds.some(
+    (deviceId) => deviceId !== localDeviceId,
+  );
+  return otherDeviceOnline ? { kind: "connecting" } : { kind: "quiet" };
 }
 
 async function storeVerifiedRotatedProjectKey(
