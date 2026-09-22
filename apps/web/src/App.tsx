@@ -88,21 +88,22 @@ export function App() {
     );
   }
 
-  const summaries = project.listDocuments();
+  const activeProject = project;
+  const summaries = activeProject.listDocuments();
   const selectedDocument = selectedId
-    ? project.getDocument(selectedId)
+    ? activeProject.getDocument(selectedId)
     : undefined;
 
   function createDocument() {
-    const document = project.createDocument();
+    const document = activeProject.createDocument();
     setSelectedId(document.id);
   }
 
   function deleteSelectedDocument() {
     if (!selectedId) return;
 
-    project.deleteDocument(selectedId);
-    const next = project.listDocuments()[0];
+    activeProject.deleteDocument(selectedId);
+    const next = activeProject.listDocuments()[0];
     setSelectedId(next?.id ?? null);
   }
 
@@ -145,7 +146,7 @@ export function App() {
           <DocumentPane
             document={selectedDocument}
             onRename={(title) =>
-              project.renameDocument(selectedDocument.id, title)
+              activeProject.renameDocument(selectedDocument.id, title)
             }
             onDelete={deleteSelectedDocument}
           />
