@@ -213,14 +213,38 @@ export function InvitationJoinPage({
     vaultState,
   ]);
 
-  if (error) {
-    return (
-      <main className="empty-state">
-        <p>Could not join Project.</p>
-        <p>{error}</p>
-      </main>
-    );
+  async function unlockOrCreateDevice(): Promise<void> {
+    if (vaultState === "unlocking" || vaultState === "unlocked") return;
+
+    setVaultState("unlocking");
+    setVaultError(null);
+
+    try {
+      const session = await joinDeviceVault.unlockOrCreate();
+      const previous = vaultSessionRef.current;
+      vaultSessionRef.current = session;
+      if (previous) await previous.close();
+
+      setDeviceId(session.publicIdentity.deviceId);
+      setVaultState("unlocked");
+    } catch (caught: unknown) {
+      setVaultState("error");
+      setVaultError(
+        caught instanceof Error
+          ? caught.message
+          : "Failed to unlock Device Vault",
+      );
+    }
   }
+
+  const vaultButtonLabel =
+    vaultState === "missing"
+      ? "Initialize this device"
+      : vaultState === "unlocking"
+        ? "Unlocking…"
+        : vaultState === "error"
+          ? "Retry device setup"
+          : "Unlock this device";
 
   return (
     <main className="join-page">
@@ -229,7 +253,29 @@ export function InvitationJoinPage({
         <h1>Joining Floe Note Project</h1>
 
         <p className="webrtc-status">
+          Device Vault: <strong>{vaultState}</strong>
+        </p>
+        <p className="webrtc-status">
+          Device ID: <strong>{deviceId ?? "not unlocked"}</strong>
+        </p>
+
+        {vaultState !== "unlocked" && vaultState !== "checking" ? (
+          <button
+            type="button"
+            onClick={() => void unlockOrCreateDevice()}
+            disabled={vaultState === "unlocking"}
+          >
+            {vaultButtonLabel}
+          </button>
+        ) : null}
+
+        {vaultError ? <p className="webrtc-error">{vaultError}</p> : null}
+
+        <p className="webrtc-status">
           Invite: <strong>{claimState}</strong>
+        </p>
+        <p className="webrtc-status">
+          Pairing: <strong>{pairingState}</strong>
         </p>
         <p className="webrtc-status">
           Signaling: <strong>{signalingState}</strong>
@@ -243,40 +289,38 @@ export function InvitationJoinPage({
         <p className="webrtc-status">
           Data channel: <strong>{webRtcStatus.dataChannelState}</strong>
         </p>
+
         {expiresAt ? (
           <p className="webrtc-status">
             Invite expires:{" "}
             <strong>{new Date(expiresAt).toLocaleTimeString()}</strong>
           </p>
         ) : null}
-        <p className="webrtc-status">
-          Device ID: <strong>{deviceId ?? "not generated"}</strong>
-        </p>
 
         <p className="join-live-hint">
-          PairingSecret authenticates the temporary WebRTC pairing channel.
-          After authentication, this device creates separate encryption and
-          signing keys and sends only its public identity to the existing
-          device. The claimed Project remains in memory only until device
-          authorization and ProjectKey delivery are implemented.
+          This device sends the public identity stored in its Device Vault.
+          Project data is not synchronized before an existing authorized device
+          explicitly approves this Device ID and ProjectKey delivery completes.
         </p>
 
+        {pairingState === "awaiting-authorization" ? (
+          <p className="join-live-hint">
+            Public device identity sent. Confirm this Device ID on an existing
+            authorized device. ProjectKey delivery is the next step.
+          </p>
+        ) : vaultState !== "unlocked" ? (
+          <p className="join-live-hint">
+            Unlock or initialize this device before claiming the invitation.
+          </p>
+        ) : null}
+
+        {error ? <p className="webrtc-error">{error}</p> : null}
         {webRtcStatus.warning ? (
           <p className="webrtc-warning">{webRtcStatus.warning}</p>
         ) : null}
         {webRtcStatus.error ? (
           <p className="webrtc-error">{webRtcStatus.error}</p>
         ) : null}
-
-        {project ? (
-          <section className="join-result">
-            <JoinedProjectEditor project={project} />
-          </section>
-        ) : (
-          <p className="join-live-hint">
-            Authenticating pairing and preparing device identity…
-          </p>
-        )}
       </section>
     </main>
   );
