@@ -13,7 +13,11 @@ export type WebRtcDataChannelState = RTCDataChannelState | "none";
 
 export type WebRtcStatus = {
   connectionState: WebRtcConnectionState;
+  iceConnectionState: RTCIceConnectionState;
+  iceGatheringState: RTCIceGatheringState;
   dataChannelState: WebRtcDataChannelState;
+  gatheredCandidateCount: number;
+  warning: string | null;
   error: string | null;
 };
 
@@ -25,6 +29,8 @@ export class WebRtcTransport implements Transport {
   readonly #statusHandlers = new Set<(status: WebRtcStatus) => void>();
   readonly #pendingMessages: ArrayBuffer[] = [];
   #dataChannel: RTCDataChannel | null = null;
+  #gatheredCandidateCount = 0;
+  #warning: string | null = null;
   #error: string | null = null;
 
   constructor(
@@ -50,6 +56,27 @@ export class WebRtcTransport implements Transport {
       this.#emitConnectionState();
       this.#emitStatus();
     });
+
+    this.#peerConnection.addEventListener("iceconnectionstatechange", () => {
+      this.#emitStatus();
+    });
+
+    this.#peerConnection.addEventListener("icegatheringstatechange", () => {
+      this.#emitStatus();
+    });
+
+    this.#peerConnection.addEventListener("icecandidate", (event) => {
+      if (event.candidate) {
+        this.#gatheredCandidateCount += 1;
+        this.#emitStatus();
+      }
+    });
+
+    this.#peerConnection.addEventListener("icecandidateerror", (event) => {
+      this.#warning =
+        event.errorText || "An ICE server could not provide a candidate.";
+      this.#emitStatus();
+    });
   }
 
   get connectionState(): WebRtcConnectionState {
@@ -63,13 +90,17 @@ export class WebRtcTransport implements Transport {
   get status(): WebRtcStatus {
     return {
       connectionState: this.connectionState,
+      iceConnectionState: this.#peerConnection.iceConnectionState,
+      iceGatheringState: this.#peerConnection.iceGatheringState,
       dataChannelState: this.dataChannelState,
+      gatheredCandidateCount: this.#gatheredCandidateCount,
+      warning: this.#warning,
       error: this.#error,
     };
   }
 
   async createOffer(): Promise<string> {
-    this.#clearError();
+    this.#clearDiagnostics();
 
     if (!this.#dataChannel) {
       this.#attachDataChannel(
@@ -81,26 +112,26 @@ export class WebRtcTransport implements Transport {
 
     const offer = await this.#peerConnection.createOffer();
     await this.#peerConnection.setLocalDescription(offer);
-    await waitForIceGatheringComplete(this.#peerConnection);
+    await this.#finishIceGatheringForManualSdp();
 
     return serializeDescription(this.#peerConnection.localDescription);
   }
 
   async acceptOffer(serializedOffer: string): Promise<string> {
-    this.#clearError();
+    this.#clearDiagnostics();
 
     const offer = parseDescription(serializedOffer, "offer");
     await this.#peerConnection.setRemoteDescription(offer);
 
     const answer = await this.#peerConnection.createAnswer();
     await this.#peerConnection.setLocalDescription(answer);
-    await waitForIceGatheringComplete(this.#peerConnection);
+    await this.#finishIceGatheringForManualSdp();
 
     return serializeDescription(this.#peerConnection.localDescription);
   }
 
   async acceptAnswer(serializedAnswer: string): Promise<void> {
-    this.#clearError();
+    this.#clearDiagnostics();
 
     const answer = parseDescription(serializedAnswer, "answer");
     await this.#peerConnection.setRemoteDescription(answer);
@@ -149,6 +180,21 @@ export class WebRtcTransport implements Transport {
     return `${DATA_CHANNEL_PREFIX}${this.#projectId}`;
   }
 
+  async #finishIceGatheringForManualSdp(): Promise<void> {
+    const completed = await waitForIceGatheringComplete(
+      this.#peerConnection,
+      ICE_GATHERING_TIMEOUT_MS,
+    );
+
+    if (completed) return;
+
+    this.#warning =
+      this.#gatheredCandidateCount > 0
+        ? `ICE gathering is still in progress; using ${this.#gatheredCandidateCount} gathered candidate(s) in the manual SDP.`
+        : "ICE gathering did not complete and no candidate was gathered before the timeout.";
+    this.#emitStatus();
+  }
+
   #attachDataChannel(channel: RTCDataChannel): void {
     if (this.#dataChannel && this.#dataChannel !== channel) {
       this.#error = "A WebRTC DataChannel is already attached.";
@@ -162,7 +208,7 @@ export class WebRtcTransport implements Transport {
     this.#emitStatus();
 
     channel.addEventListener("open", () => {
-      this.#clearError();
+      this.#error = null;
 
       for (const payload of this.#pendingMessages.splice(0)) {
         channel.send(payload);
@@ -190,9 +236,10 @@ export class WebRtcTransport implements Transport {
     });
   }
 
-  #clearError(): void {
-    if (this.#error === null) return;
+  #clearDiagnostics(): void {
+    this.#warning = null;
     this.#error = null;
+    this.#gatheredCandidateCount = 0;
     this.#emitStatus();
   }
 
@@ -252,21 +299,22 @@ function parseDescription(
 
 function waitForIceGatheringComplete(
   peerConnection: RTCPeerConnection,
-): Promise<void> {
+  timeoutMs: number,
+): Promise<boolean> {
   if (peerConnection.iceGatheringState === "complete") {
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error("Timed out while gathering ICE candidates"));
-    }, ICE_GATHERING_TIMEOUT_MS);
+      resolve(false);
+    }, timeoutMs);
 
     const handleStateChange = () => {
       if (peerConnection.iceGatheringState !== "complete") return;
       cleanup();
-      resolve();
+      resolve(true);
     };
 
     const cleanup = () => {
