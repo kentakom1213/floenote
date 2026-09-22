@@ -82,9 +82,16 @@ export class AuthorizedPresenceClient {
       void this.#handleMessage(socket, generation, event.data);
     });
 
-    socket.addEventListener("close", () => {
+    socket.addEventListener("close", (event) => {
       if (generation !== this.#generation) return;
       this.#socket = null;
+      if (
+        event.code === 1008 &&
+        event.reason === "SecurityState changed"
+      ) {
+        this.#fail(new Error("SecurityState changed"));
+        return;
+      }
       if (this.#state !== "error") {
         this.#setState("closed");
       }
