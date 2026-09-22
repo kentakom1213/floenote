@@ -397,6 +397,15 @@ Device
 
 Encryption and signing keys are separated by purpose.
 
+Protocol version 1 uses libsodium-generated key pairs:
+
+- device encryption keys: `crypto_box_keypair()` (Curve25519 public-key encryption key material);
+- device signing keys: `crypto_sign_keypair()` (Ed25519 signatures).
+
+Both key pairs are generated locally on the device. Only `DeviceId` and the
+two public keys are sent over the authenticated pairing channel. Private keys
+must never leave the device.
+
 Device display names such as "Laptop" or "Phone" are not security-critical identity and should not be part of the signed authorization state unless needed later.
 
 ## 13. Project keys
@@ -899,7 +908,7 @@ React components should not directly manipulate IndexedDB, `RTCPeerConnection`, 
 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
 
-1. Exact libsodium APIs for device key wrapping/exchange and transition signatures.
+1. Exact libsodium APIs and envelope format for ProjectKey wrapping, plus transition-signature encoding and verification.
 2. Exact deterministic-CBOR library and wire encoding details.
 3. Old-ProjectKey retention and migration of ciphertext after key rotation.
 4. Document tombstone garbage collection.
