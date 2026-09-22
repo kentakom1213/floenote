@@ -340,10 +340,18 @@ export function InvitationJoinPage({
             authorized device and wait for ProjectKey delivery.
           </p>
         ) : pairingState === "key-stored" ? (
-          <p className="join-live-hint">
-            ProjectKey and committed SecurityState stored. This Project is now
-            adopted locally. Encrypted note synchronization is the next step.
-          </p>
+          <>
+            <p className="join-live-hint">
+              ProjectKey and committed SecurityState stored. This Project is now
+              adopted locally. Encrypted note synchronization is the next step.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.replace("/")}
+            >
+              Open Floe Note
+            </button>
+          </>
         ) : vaultState !== "unlocked" ? (
           <p className="join-live-hint">
             Unlock or initialize this device before claiming the invitation.
