@@ -168,14 +168,23 @@ export class DeviceVaultSession {
 
   async decryptProjectSyncPayload(
     projectId: ProjectId,
+    expectedKeyEpoch: number,
     envelope: Uint8Array,
   ): Promise<Uint8Array> {
     this.#requireOpen();
-    const keyEpoch = readProjectSyncPayloadKeyEpoch(envelope);
-    const entry = this.#findProjectKey(projectId, keyEpoch);
+    assertKeyEpoch(expectedKeyEpoch);
+
+    const envelopeKeyEpoch = readProjectSyncPayloadKeyEpoch(envelope);
+    if (envelopeKeyEpoch !== expectedKeyEpoch) {
+      throw new Error(
+        `Encrypted sync uses key epoch ${envelopeKeyEpoch}, expected ${expectedKeyEpoch}`,
+      );
+    }
+
+    const entry = this.#findProjectKey(projectId, expectedKeyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+        `ProjectKey epoch ${expectedKeyEpoch} is not available on this device`,
       );
     }
 
