@@ -81,10 +81,10 @@ export class DexieProjectStorage implements ProjectStorage {
   readonly #db = new FloeNoteDatabase();
   #writeQueue: Promise<void> = Promise.resolve();
 
-  openOrCreateProject(
+  openLastProject(
     crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult> {
-    return this.#loadOrCreateProject(crypto);
+  ): Promise<OpenProjectResult | null> {
+    return this.#loadLastProject(crypto);
   }
 
   async listProjects(
@@ -143,6 +143,50 @@ export class DexieProjectStorage implements ProjectStorage {
     });
 
     return { project, isNew: true };
+  }
+
+  async removeProject(projectId: ProjectId): Promise<ProjectId | null> {
+    const record = await this.#db.projects.get(projectId);
+    if (!record) return null;
+
+    let nextProjectId: ProjectId | null = null;
+
+    await this.#db.transaction(
+      "rw",
+      this.#db.projects,
+      this.#db.manifests,
+      this.#db.documents,
+      this.#db.security,
+      async () => {
+        const remaining = await this.#db.projects
+          .orderBy("createdAt")
+          .filter((candidate) => candidate.id !== projectId)
+          .toArray();
+
+        if (record.localSlot === LOCAL_PROJECT_SLOT && remaining[0]) {
+          await this.#db.projects.update(remaining[0].id, {
+            localSlot: LOCAL_PROJECT_SLOT,
+          });
+          nextProjectId = parseProjectId(remaining[0].id);
+        }
+
+        await this.#db.documents
+          .where("projectId")
+          .equals(projectId)
+          .delete();
+        await this.#db.manifests.delete(projectId);
+        await this.#db.security.delete(projectId);
+        await this.#db.projects.delete(projectId);
+      },
+    );
+
+    return nextProjectId;
+  }
+
+  async eraseAllLocalData(): Promise<void> {
+    await this.#writeQueue;
+    this.#db.close();
+    await Dexie.delete(DATABASE_NAME);
   }
 
   async initializeJoinedProject(
@@ -273,36 +317,23 @@ export class DexieProjectStorage implements ProjectStorage {
     };
   }
 
-  async #loadOrCreateProject(
+  async #loadLastProject(
     crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult> {
+  ): Promise<OpenProjectResult | null> {
     const existing = await this.#db.projects
       .where("localSlot")
       .equals(LOCAL_PROJECT_SLOT)
       .first();
 
-    if (existing) {
-      return {
-        project: await this.#loadProject(
-          parseProjectId(existing.id),
-          crypto,
-        ),
-        isNew: false,
-      };
-    }
+    if (!existing) return null;
 
-    const project = NoteProject.create();
-
-    // Project discovery metadata is intentionally cleartext. The first
-    // manifest snapshot is written only after SecurityState + ProjectKey
-    // bootstrap completes and watchProject() is started.
-    await this.#db.projects.add({
-      id: project.id,
-      localSlot: LOCAL_PROJECT_SLOT,
-      createdAt: Date.now(),
-    });
-
-    return { project, isNew: true };
+    return {
+      project: await this.#loadProject(
+        parseProjectId(existing.id),
+        crypto,
+      ),
+      isNew: false,
+    };
   }
 
   async #activateProject(projectId: ProjectId): Promise<void> {
