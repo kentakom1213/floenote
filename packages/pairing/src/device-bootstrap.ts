@@ -126,7 +126,7 @@ export async function exchangeJoiningDeviceIdentity(
         }),
       );
     } else {
-      sendIdentity(options.identity);
+      sendIdentity(options.identity, options.displayName);
     }
 
     function sendIdentity(
