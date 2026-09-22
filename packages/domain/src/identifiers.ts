@@ -1,3 +1,5 @@
+import { v7 as uuidv7 } from "uuid";
+
 declare const identifierBrand: unique symbol;
 
 type Identifier<Kind extends string> = string & {
@@ -21,6 +23,26 @@ function parseUuidV7<Kind extends string>(
   }
 
   return value as Identifier<Kind>;
+}
+
+function createUuidV7<Kind extends string>(): Identifier<Kind> {
+  return uuidv7() as Identifier<Kind>;
+}
+
+export function createProjectId(): ProjectId {
+  return createUuidV7();
+}
+
+export function createDocumentId(): DocumentId {
+  return createUuidV7();
+}
+
+export function createDeviceId(): DeviceId {
+  return createUuidV7();
+}
+
+export function createAttachmentId(): AttachmentId {
+  return createUuidV7();
 }
 
 export function parseProjectId(value: string): ProjectId {
