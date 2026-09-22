@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ProjectId } from "@floe-note/domain";
 
@@ -22,6 +22,7 @@ export function ProjectSwitcher({
   onCreateProject,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
+  const switcherRef = useRef<HTMLDetailsElement>(null);
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [pendingProjectId, setPendingProjectId] =
@@ -37,9 +38,7 @@ export function ProjectSwitcher({
 
     try {
       await onSelectProject(projectId);
-      document
-        .querySelector<HTMLDetailsElement>(".project-switcher[open]")
-        ?.removeAttribute("open");
+      switcherRef.current?.removeAttribute("open");
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Could not open Project",
@@ -71,7 +70,7 @@ export function ProjectSwitcher({
 
   return (
     <>
-      <details className="project-switcher">
+      <details className="project-switcher" ref={switcherRef}>
         <summary
           className="project-switcher-trigger"
           aria-label="Switch project"
