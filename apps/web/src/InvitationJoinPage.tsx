@@ -177,7 +177,7 @@ export function InvitationJoinPage({
         if (disposed) return;
         setClaimState("error");
         setError(
-          caught instanceof Error ? caught.message : "Failed to claim invite",
+          caught instanceof Error ? caught.message : "Failed to join Project",
         );
       }
     })();
@@ -247,7 +247,9 @@ export function InvitationJoinPage({
             <JoinedProjectEditor project={project} />
           </section>
         ) : (
-          <p className="join-live-hint">Claiming invite…</p>
+          <p className="join-live-hint">
+            Authenticating pairing and preparing device identity…
+          </p>
         )}
       </section>
     </main>
