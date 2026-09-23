@@ -9,7 +9,9 @@
     "deploy:web": "pnpm --filter @floe-note/web build && pnpm --filter @floe-note/coordinator exec wrangler deploy --config ../web/wrangler.jsonc",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "version:web": "node scripts/bump-version.mjs web",
+    "version:coordinator": "node scripts/bump-version.mjs coordinator"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
