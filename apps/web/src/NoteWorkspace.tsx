@@ -4,6 +4,12 @@ import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
+import { getEditorModeLayout } from "./editor-mode-layout.js";
+import {
+  readEditorModePreference,
+  writeEditorModePreference,
+  type EditorMode,
+} from "./editor-mode-preference.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { NoteProperties } from "./NoteProperties.js";
@@ -127,7 +133,8 @@ function DocumentPane({
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
+  const layout = getEditorModeLayout(mode);
   useDismissibleDetails(noteMenuRef);
 
   useEffect(() => {
@@ -158,25 +165,6 @@ function DocumentPane({
         />
 
         <div className="document-header-actions">
-          <div className="editor-mode-switch" aria-label="Note view">
-            <button
-              className={mode === "edit" ? "active" : undefined}
-              type="button"
-              aria-pressed={mode === "edit"}
-              onClick={() => setMode("edit")}
-            >
-              Edit
-            </button>
-            <button
-              className={mode === "preview" ? "active" : undefined}
-              type="button"
-              aria-pressed={mode === "preview"}
-              onClick={() => setMode("preview")}
-            >
-              Preview
-            </button>
-          </div>
-
           <details className="note-menu" ref={noteMenuRef}>
             <summary className="note-menu-trigger" aria-label="Note actions">
               •••
@@ -196,12 +184,40 @@ function DocumentPane({
 
       <NoteProperties document={document} />
 
-      {mode === "edit" ? (
-        <MarkdownEditor document={document} />
-      ) : (
-        <MarkdownPreview document={document} />
-      )}
+      <div className="editor-mode-row">
+        <div className="editor-mode-switch" aria-label="Note view">
+          {(["edit", "split", "preview"] as const).map((candidate) => (
+            <button
+              className={mode === candidate ? "active" : undefined}
+              key={candidate}
+              type="button"
+              aria-pressed={mode === candidate}
+              onClick={() => {
+                setMode(candidate);
+                writeEditorModePreference(candidate);
+              }}
+            >
+              {candidate[0].toUpperCase() + candidate.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      <div
+        className={layout.split ? "editor-view editor-view-split" : "editor-view"}
+        data-editor-mode={mode}
+      >
+        {layout.showEditor ? (
+          <div className="editor-view-pane editor-view-source">
+            <MarkdownEditor document={document} />
+          </div>
+        ) : null}
+        {layout.showPreview ? (
+          <div className="editor-view-pane editor-view-preview">
+            <MarkdownPreview document={document} />
+          </div>
+        ) : null}
+      </div>
     </article>
   );
 }
