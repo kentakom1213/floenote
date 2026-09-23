@@ -4,7 +4,6 @@ import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
-import { ConfirmDialog } from "./ConfirmDialog.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
@@ -128,7 +127,6 @@ function DocumentPane({
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const [deleteOpen, setDeleteOpen] = useState(false);
   useDismissibleDetails(noteMenuRef);
 
   useEffect(() => {
@@ -141,9 +139,9 @@ function DocumentPane({
     onTitleFocusHandled();
   }, [document.id, focusTitle, onTitleFocusHandled]);
 
-  function requestDelete(): void {
+  function deleteNote(): void {
     noteMenuRef.current?.removeAttribute("open");
-    setDeleteOpen(true);
+    onDelete();
   }
 
   return (
@@ -186,7 +184,7 @@ function DocumentPane({
               <button
                 className="danger-menu-item"
                 type="button"
-                onClick={requestDelete}
+                onClick={deleteNote}
               >
                 Delete note
               </button>
@@ -201,20 +199,6 @@ function DocumentPane({
         <MarkdownPreview document={document} />
       )}
 
-      {deleteOpen ? (
-        <ConfirmDialog
-          title={`Delete ${document.title.trim() || "this note"}?`}
-          description={
-            <p>
-              This note will be removed from the Project. Trash and recovery
-              are not available yet.
-            </p>
-          }
-          confirmLabel="Delete note"
-          onConfirm={async () => onDelete()}
-          onClose={() => setDeleteOpen(false)}
-        />
-      ) : null}
     </article>
   );
 }
