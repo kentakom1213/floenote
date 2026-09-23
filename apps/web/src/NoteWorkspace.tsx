@@ -11,6 +11,12 @@ import {
   type EditorMode,
 } from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
+import {
+  deriveVisibleNotes,
+  readNoteSortPreference,
+  writeNoteSortPreference,
+} from "./sidebar-navigation.js";
+import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
@@ -49,6 +55,30 @@ export function NoteWorkspace({
   onDeleteDocument,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState(readNoteSortPreference);
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setQuery("");
+  }, [project.id]);
+
+  const navigationNotes = summaries.flatMap((summary) => {
+    const document = project.getDocument(summary.id);
+    return document
+      ? [
+          {
+            id: document.id,
+            title: document.title,
+            tags: document.tags,
+            createdAt: document.createdAt,
+            updatedAt: document.updatedAt,
+          },
+        ]
+      : [];
+  });
+  const visibleNotes = deriveVisibleNotes(navigationNotes, query, sort);
 
   const sidebar = (
     <div className="sidebar-layout">
@@ -64,28 +94,36 @@ export function NoteWorkspace({
 
         <div className="project-slot">{projectControl}</div>
 
-        <button
-          className="new-note-button"
-          type="button"
-          onClick={onCreateDocument}
-        >
-          <span aria-hidden="true">＋</span>
-          <span>New note</span>
-        </button>
+        <SidebarNavigationToolbar
+          query={query}
+          searchOpen={searchOpen}
+          sort={sort}
+          onQueryChange={setQuery}
+          onSearchOpenChange={setSearchOpen}
+          onSortChange={(preference) => {
+            setSort(preference);
+            writeNoteSortPreference(preference);
+          }}
+          onCreateDocument={onCreateDocument}
+        />
 
         <nav className="note-list" aria-label="Notes">
-          {summaries.map((summary) => (
-            <button
-              className={
-                summary.id === selectedId ? "note-item selected" : "note-item"
-              }
-              key={summary.id}
-              type="button"
-              onClick={() => onSelectDocument(summary.id)}
-            >
-              {summary.title || "Untitled"}
-            </button>
-          ))}
+          {visibleNotes.length > 0 ? (
+            visibleNotes.map((note) => (
+              <button
+                className={
+                  note.id === selectedId ? "note-item selected" : "note-item"
+                }
+                key={note.id}
+                type="button"
+                onClick={() => onSelectDocument(note.id)}
+              >
+                {note.title || "Untitled"}
+              </button>
+            ))
+          ) : query.trim() ? (
+            <p className="note-filter-empty">No matching notes</p>
+          ) : null}
         </nav>
       </div>
 
