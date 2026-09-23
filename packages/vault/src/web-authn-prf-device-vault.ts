@@ -788,7 +788,7 @@ function serializeDeviceVaultPayload(
   return new TextEncoder().encode(JSON.stringify(payload));
 }
 
-function deserializeDeviceVaultPayload(
+export function deserializeDeviceVaultPayload(
   plaintext: Uint8Array,
 ): DeviceVaultContents {
   let parsed: unknown;

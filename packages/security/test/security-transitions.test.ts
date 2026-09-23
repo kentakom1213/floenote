@@ -117,6 +117,30 @@ describe("SecurityState transitions", () => {
     ).toThrow("AddDevice does not extend current SecurityState");
   });
 
+  it("rejects AddDevice for an already authorized DeviceId", () => {
+    const projectId = createProjectId();
+    const deviceA = device(35);
+    const initial = deriveInitialSecurityState(
+      attachCreateProjectSignature(
+        createUnsignedCreateProjectTransition(projectId, deviceA),
+        signature(8),
+      ),
+      head(8),
+    );
+
+    expect(() =>
+      createUnsignedAddDeviceTransition(
+        initial,
+        {
+          deviceId: deviceA.deviceId,
+          encryptionPublicKey: deviceA.encryptionPublicKey.slice(),
+          signingPublicKey: deviceA.signingPublicKey.slice(),
+        },
+        deviceA.deviceId,
+      ),
+    ).toThrow("Device is already authorized");
+  });
+
   it("rejects self revocation", () => {
     const projectId = createProjectId();
     const deviceA = device(40);
