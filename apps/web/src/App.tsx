@@ -83,6 +83,7 @@ import {
 } from "./SyncStatus.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
+import { clearSidebarPreference } from "./sidebar-preference.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
@@ -841,6 +842,7 @@ function NoteApp() {
       await deviceVault.eraseVault();
       clearThemePreference();
       clearAllLastDocumentPreferences();
+      clearSidebarPreference();
 
       window.location.replace("/");
     } catch (error) {
