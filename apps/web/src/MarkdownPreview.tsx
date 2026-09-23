@@ -44,7 +44,7 @@ const ALLOWED_TAGS = new Set([
 
 export function MarkdownPreview({ document }: MarkdownPreviewProps) {
   const subscribe = useCallback(
-    (listener: () => void) => document.subscribe(listener),
+    (listener: () => void) => subscribeMarkdownPreview(document, listener),
     [document],
   );
   const getSnapshot = useCallback(() => getMarkdownPreviewSource(document), [document]);
@@ -65,6 +65,21 @@ export function MarkdownPreview({ document }: MarkdownPreviewProps) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+}
+
+export function subscribeMarkdownPreview(
+  document: NoteDocument,
+  listener: () => void,
+): () => void {
+  const unsubscribeDocument = document.subscribe(listener);
+  const unsubscribeLocalUpdates = document.subscribeLocalUpdates(() =>
+    listener(),
+  );
+
+  return () => {
+    unsubscribeLocalUpdates();
+    unsubscribeDocument();
+  };
 }
 
 export function getMarkdownPreviewSource(document: NoteDocument): string {
