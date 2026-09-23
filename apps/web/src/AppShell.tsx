@@ -2,6 +2,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -86,7 +87,7 @@ export function AppShell({ sidebar, children }: AppShellProps) {
   }
 
   function handleResizeKeyDown(
-    event: React.KeyboardEvent<HTMLDivElement>,
+    event: ReactKeyboardEvent<HTMLDivElement>,
   ): void {
     let nextWidth: number | null = null;
 
