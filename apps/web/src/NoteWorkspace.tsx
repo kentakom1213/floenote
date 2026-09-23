@@ -134,7 +134,7 @@ export function NoteWorkspace({
                 title={note.title}
                 selected={note.id === selectedId}
                 onSelect={onSelectDocument}
-                onDelete={() => onDeleteDocument(selectedDocument.id)}
+                onDelete={onDeleteDocument}
               />
             ))
           ) : query.trim() ? (
@@ -179,7 +179,7 @@ type DocumentPaneProps = {
   focusTitle: boolean;
   onTitleFocusHandled: () => void;
   onRename: (title: string) => void;
-  onDelete: () => void;
+  onDelete: (documentId: DocumentId) => void;
 };
 
 function DocumentPane({
@@ -206,7 +206,7 @@ function DocumentPane({
 
   function deleteNote(): void {
     noteMenuRef.current?.removeAttribute("open");
-    onDelete();
+    onDelete(document.id);
   }
 
   return (
