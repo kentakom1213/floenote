@@ -768,6 +768,19 @@ input:focus-visible {
   min-width: 0;
 }
 
+.editor-view[data-editor-mode="edit"] {
+  width: min(820px, calc(100% - 64px));
+  margin: 0 auto;
+}
+
+.editor-view[data-editor-mode="edit"] .editor .cm-scroller {
+  padding-inline: 0;
+}
+
+.editor-view[data-editor-mode="edit"] .editor .cm-content {
+  width: 100%;
+}
+
 .editor-view-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -2700,6 +2713,10 @@ h1 {
   }
 
   .editor-mode-row {
+    width: calc(100% - 40px);
+  }
+
+  .editor-view[data-editor-mode="edit"] {
     width: calc(100% - 40px);
   }
 
