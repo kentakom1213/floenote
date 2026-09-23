@@ -6,6 +6,7 @@ import type { DocumentId } from "@floe-note/domain";
 import { AppShell } from "./AppShell.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
+import { NoteProperties } from "./NoteProperties.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 type NoteWorkspaceProps = {
@@ -192,6 +193,8 @@ function DocumentPane({
           </details>
         </div>
       </header>
+
+      <NoteProperties document={document} />
 
       {mode === "edit" ? (
         <MarkdownEditor document={document} />
