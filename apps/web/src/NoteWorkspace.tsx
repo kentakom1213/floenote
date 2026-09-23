@@ -1,10 +1,12 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
+import { ConfirmDialog } from "./ConfirmDialog.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { MarkdownPreview } from "./MarkdownPreview.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 type NoteWorkspaceProps = {
@@ -79,23 +81,25 @@ export function NoteWorkspace({
 
   return (
     <AppShell sidebar={sidebar}>
-      {mainContent ?? (selectedDocument ? (
-        <DocumentPane
-          document={selectedDocument}
-          onRename={onRenameDocument}
-          onDelete={onDeleteDocument}
-        />
-      ) : (
-        <div className="workspace-empty-state">
-          <div className="empty-floe" aria-hidden="true">
-            ◆
+      {mainContent ??
+        (selectedDocument ? (
+          <DocumentPane
+            document={selectedDocument}
+            onRename={onRenameDocument}
+            onDelete={onDeleteDocument}
+          />
+        ) : (
+          <div className="workspace-empty-state">
+            <div className="empty-floe" aria-hidden="true">
+              ◆
+            </div>
+            <h1>No notes yet</h1>
+            <p>Create a note to start writing in this Project.</p>
+            <button type="button" onClick={onCreateDocument}>
+              Create your first note
+            </button>
           </div>
-          <p>No notes yet.</p>
-          <button type="button" onClick={onCreateDocument}>
-            Create your first note
-          </button>
-        </div>
-      ))}
+        ))}
     </AppShell>
   );
 }
@@ -112,7 +116,14 @@ function DocumentPane({
   onDelete,
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   useDismissibleDetails(noteMenuRef);
+
+  function requestDelete(): void {
+    noteMenuRef.current?.removeAttribute("open");
+    setDeleteOpen(true);
+  }
 
   return (
     <article className="document-pane">
@@ -120,21 +131,68 @@ function DocumentPane({
         <input
           className="title-input"
           value={document.title}
+          placeholder="Untitled"
           onChange={(event) => onRename(event.target.value)}
           aria-label="Note title"
         />
-        <details className="note-menu" ref={noteMenuRef}>
-          <summary className="note-menu-trigger" aria-label="Note actions">
-            •••
-          </summary>
-          <div className="note-menu-popover">
-            <button className="danger-menu-item" type="button" onClick={onDelete}>
-              Delete note
+
+        <div className="document-header-actions">
+          <div className="editor-mode-switch" aria-label="Note view">
+            <button
+              className={mode === "edit" ? "active" : undefined}
+              type="button"
+              aria-pressed={mode === "edit"}
+              onClick={() => setMode("edit")}
+            >
+              Edit
+            </button>
+            <button
+              className={mode === "preview" ? "active" : undefined}
+              type="button"
+              aria-pressed={mode === "preview"}
+              onClick={() => setMode("preview")}
+            >
+              Preview
             </button>
           </div>
-        </details>
+
+          <details className="note-menu" ref={noteMenuRef}>
+            <summary className="note-menu-trigger" aria-label="Note actions">
+              •••
+            </summary>
+            <div className="note-menu-popover">
+              <button
+                className="danger-menu-item"
+                type="button"
+                onClick={requestDelete}
+              >
+                Delete note
+              </button>
+            </div>
+          </details>
+        </div>
       </header>
-      <MarkdownEditor document={document} />
+
+      {mode === "edit" ? (
+        <MarkdownEditor document={document} />
+      ) : (
+        <MarkdownPreview document={document} />
+      )}
+
+      {deleteOpen ? (
+        <ConfirmDialog
+          title={`Delete ${document.title.trim() || "this note"}?`}
+          description={
+            <p>
+              This note will be removed from the Project. Trash and recovery
+              are not available yet.
+            </p>
+          }
+          confirmLabel="Delete note"
+          onConfirm={async () => onDelete()}
+          onClose={() => setDeleteOpen(false)}
+        />
+      ) : null}
     </article>
   );
 }
