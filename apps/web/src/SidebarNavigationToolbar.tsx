@@ -53,6 +53,12 @@ export function SidebarNavigationToolbar({
           ? "asc"
           : "desc";
     onSortChange({ mode, direction });
+    sortMenuRef.current?.removeAttribute("open");
+  }
+
+  function setSortDirection(direction: NoteSortDirection): void {
+    onSortChange({ ...sort, direction });
+    sortMenuRef.current?.removeAttribute("open");
   }
 
   const ascendingLabel = sort.mode === "title" ? "A–Z" : "Oldest first";
@@ -107,16 +113,14 @@ export function SidebarNavigationToolbar({
               <button
                 type="button"
                 aria-pressed={sort.direction === "desc"}
-                onClick={() =>
-                  onSortChange({ ...sort, direction: "desc" })
-                }
+                onClick={() => setSortDirection("desc")}
               >
                 {descendingLabel}
               </button>
               <button
                 type="button"
                 aria-pressed={sort.direction === "asc"}
-                onClick={() => onSortChange({ ...sort, direction: "asc" })}
+                onClick={() => setSortDirection("asc")}
               >
                 {ascendingLabel}
               </button>
