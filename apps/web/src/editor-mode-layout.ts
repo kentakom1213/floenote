@@ -3,16 +3,39 @@ import type { EditorMode } from "./editor-mode-preference.js";
 export type EditorModeLayout = {
   showEditor: boolean;
   showPreview: boolean;
-  split: boolean;\n  livePreview: boolean;
+  split: boolean;
+  livePreview: boolean;
 };
 
 export function getEditorModeLayout(mode: EditorMode): EditorModeLayout {
   switch (mode) {
     case "edit":
-      return {\n        showEditor: true,\n        showPreview: false,\n        split: false,\n        livePreview: false,\n      };
-    case "live":\n      return {\n        showEditor: true,\n        showPreview: false,\n        split: false,\n        livePreview: true,\n      };\n    case "split":
-      return {\n        showEditor: true,\n        showPreview: true,\n        split: true,\n        livePreview: false,\n      };
+      return {
+        showEditor: true,
+        showPreview: false,
+        split: false,
+        livePreview: false,
+      };
+    case "live":
+      return {
+        showEditor: true,
+        showPreview: false,
+        split: false,
+        livePreview: true,
+      };
+    case "split":
+      return {
+        showEditor: true,
+        showPreview: true,
+        split: true,
+        livePreview: false,
+      };
     case "preview":
-      return {\n        showEditor: false,\n        showPreview: true,\n        split: false,\n        livePreview: false,\n      };
+      return {
+        showEditor: false,
+        showPreview: true,
+        split: false,
+        livePreview: false,
+      };
   }
 }
