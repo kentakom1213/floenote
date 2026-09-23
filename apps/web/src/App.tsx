@@ -1422,48 +1422,34 @@ function NoteApp() {
         onEraseDevice={eraseFloeFromThisDevice}
       />
     ) : mainView === "project-settings" ? (
-      localDeviceId && localSecurityState ? (
-        <ProjectSettingsView
-          projectId={activeProject.id}
-          projectName={activeProject.name}
-          localDeviceId={localDeviceId}
-          authorizedDevices={localSecurityState.devices}
-          onlineDeviceIds={authorizedSync.onlineDeviceIds}
-          connectedDeviceIds={authorizedSync.connectedDeviceIds}
-          getDeviceDisplayName={(deviceId) =>
-            activeProject.getDeviceDisplayName(deviceId)
-          }
-          onRenameProject={(name) => activeProject.renameProject(name)}
-          onRemoveProjectFromDevice={removeActiveProjectFromDevice}
-          onAddDevice={() => {
-            window.location.assign("/?transport=invite");
-          }}
-          onRemoveDevice={revokeDevice}
-        />
-      ) : (
-        <div className="settings-view">
-          <p className="settings-eyebrow">Project settings</p>
-          {localSecurityBootstrapState === "error" ? (
-            <div className="project-security-error">
-              <h1>Could not load Project security</h1>
-              <p className="dialog-error">
-                {localSecurityError ?? "Project security setup failed."}
-              </p>
-              <button
-                className="dialog-secondary-button"
-                type="button"
-                onClick={() =>
-                  setSecurityRefreshToken((value) => value + 1)
-                }
-              >
-                Try again
-              </button>
-            </div>
-          ) : (
-            <p className="settings-loading">Loading Project security…</p>
-          )}
-        </div>
-      )
+      <ProjectSettingsView
+        projectId={activeProject.id}
+        projectName={activeProject.name}
+        localDeviceId={localDeviceId}
+        authorizedDevices={localSecurityState?.devices ?? null}
+        onlineDeviceIds={authorizedSync.onlineDeviceIds}
+        connectedDeviceIds={authorizedSync.connectedDeviceIds}
+        securityState={
+          localSecurityBootstrapState === "error"
+            ? "error"
+            : localSecurityState
+              ? "ready"
+              : "loading"
+        }
+        securityError={localSecurityError}
+        getDeviceDisplayName={(deviceId) =>
+          activeProject.getDeviceDisplayName(deviceId)
+        }
+        onRenameProject={(name) => activeProject.renameProject(name)}
+        onRemoveProjectFromDevice={removeActiveProjectFromDevice}
+        onAddDevice={() => {
+          window.location.assign("/?transport=invite");
+        }}
+        onRetrySecurity={() =>
+          setSecurityRefreshToken((value) => value + 1)
+        }
+        onRemoveDevice={revokeDevice}
+      />
     ) : undefined);
 
   const debugSidebarControls =
