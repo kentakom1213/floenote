@@ -27,10 +27,6 @@ export function deriveSyncUiState({
     return { kind: "error", detail: error };
   }
 
-  if (presenceState === "error") {
-    return { kind: "error" };
-  }
-
   if (connectedDeviceIds.length > 0) {
     return { kind: "connected" };
   }
@@ -39,7 +35,7 @@ export function deriveSyncUiState({
     return { kind: "connecting" };
   }
 
-  if (presenceState === "closed") {
+  if (presenceState === "closed" || presenceState === "error") {
     return { kind: "offline" };
   }
 

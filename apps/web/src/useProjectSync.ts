@@ -34,6 +34,7 @@ export type AuthorizedProjectSyncState = {
   presenceState: AuthorizedPresenceConnectionState;
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  coordinationError: string | null;
   error: string | null;
 };
 
@@ -134,9 +135,10 @@ export function useAuthorizedProjectSync({
 
   return {
     presenceState,
-    onlineDeviceIds,
+    onlineDeviceIds: presenceState === "open" ? onlineDeviceIds : [],
     connectedDeviceIds: automaticSyncStatus.connectedDeviceIds,
-    error: presenceError ?? automaticSyncStatus.error,
+    coordinationError: presenceError,
+    error: automaticSyncStatus.error,
   };
 }
 

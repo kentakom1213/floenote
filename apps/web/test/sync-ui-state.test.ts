@@ -45,4 +45,32 @@ describe("deriveSyncUiState", () => {
       }),
     ).toEqual({ kind: "offline" });
   });
+
+  it("keeps Connected when coordinator presence fails but a direct peer remains connected", () => {
+    const localDeviceId = createDeviceId();
+    const remoteDeviceId = createDeviceId();
+
+    expect(
+      deriveSyncUiState({
+        presenceState: "error",
+        onlineDeviceIds: [],
+        connectedDeviceIds: [remoteDeviceId],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "connected" });
+  });
+
+  it("shows Offline when coordinator presence fails and no direct peer remains connected", () => {
+    expect(
+      deriveSyncUiState({
+        presenceState: "error",
+        onlineDeviceIds: [],
+        connectedDeviceIds: [],
+        localDeviceId: createDeviceId(),
+        error: null,
+      }),
+    ).toEqual({ kind: "offline" });
+  });
+
 });
