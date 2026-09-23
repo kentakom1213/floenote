@@ -76,7 +76,11 @@ import {
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
-import { SyncStatus, type SyncUiState } from "./SyncStatus.js";
+import {
+  SyncStatus,
+  type SyncDeviceUi,
+  type SyncUiState,
+} from "./SyncStatus.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
@@ -171,6 +175,8 @@ function NoteApp() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
+  const [focusTitleDocumentId, setFocusTitleDocumentId] =
+    useState<DocumentId | null>(null);
   const [webRtcTransport, setWebRtcTransport] =
     useState<WebRtcTransport | null>(null);
   const [signalingState, setSignalingState] =
@@ -615,6 +621,8 @@ function NoteApp() {
 
   useEffect(() => {
     if (!openedProject) return;
+
+    setFocusTitleDocumentId(null);
 
     const { project: loadedProject, isNew } = openedProject;
     const summaries = loadedProject.listDocuments();
@@ -1227,6 +1235,7 @@ function NoteApp() {
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
+    setFocusTitleDocumentId(document.id);
     writeLastDocumentId(activeProject.id, document.id);
     setMainView("note");
   }
@@ -1252,6 +1261,7 @@ function NoteApp() {
     const nextId = next?.id ?? null;
 
     setSelectedId(nextId);
+    setFocusTitleDocumentId(null);
     writeLastDocumentId(activeProject.id, nextId);
   }
 
@@ -1262,6 +1272,42 @@ function NoteApp() {
     localDeviceId,
     error: authorizedSync.error,
   });
+
+  const connectedDeviceIds = new Set(authorizedSync.connectedDeviceIds);
+  const onlineDeviceIds = new Set(authorizedSync.onlineDeviceIds);
+  const authorizedDeviceIds =
+    localSecurityState?.devices.map((device) => device.deviceId) ??
+    (localDeviceId ? [localDeviceId] : []);
+
+  const syncDevices: SyncDeviceUi[] = authorizedDeviceIds
+    .flatMap((deviceId): SyncDeviceUi[] => {
+      const isCurrent = deviceId === localDeviceId;
+      const state: SyncDeviceUi["state"] | null = isCurrent
+        ? "this-device"
+        : connectedDeviceIds.has(deviceId)
+          ? "connected"
+          : onlineDeviceIds.has(deviceId)
+            ? "online"
+            : null;
+
+      if (!state) return [];
+
+      return [
+        {
+          deviceId,
+          name:
+            activeProject.getDeviceDisplayName(deviceId) ??
+            (isCurrent
+              ? localDeviceName ?? "This device"
+              : "Unnamed device"),
+          state,
+        },
+      ];
+    })
+    .sort((left, right) => {
+      const rank = { "this-device": 0, connected: 1, online: 2 } as const;
+      return rank[left.state] - rank[right.state];
+    });
 
   const projectItems = withActiveProjectSummary(
     projectSummaries,
@@ -1369,6 +1415,15 @@ function NoteApp() {
       />
     ) : null;
 
+  function openProjectDeviceSettings(): void {
+    setMainView("project-settings");
+    window.setTimeout(() => {
+      document
+        .getElementById("project-devices")
+        ?.scrollIntoView({ block: "start" });
+    }, 0);
+  }
+
   const sidebarFooter = (
     <>
       {debugSidebarControls}
@@ -1376,7 +1431,11 @@ function NoteApp() {
         <p className="webrtc-error">{coordinationError}</p>
       ) : null}
       <div className="sidebar-footer-row">
-        <SyncStatus state={syncUiState} />
+        <SyncStatus
+          state={syncUiState}
+          devices={syncDevices}
+          onManageDevices={openProjectDeviceSettings}
+        />
         <button
           className="footer-action"
           type="button"
@@ -1396,9 +1455,12 @@ function NoteApp() {
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
+      focusTitleDocumentId={focusTitleDocumentId}
+      onTitleFocusHandled={() => setFocusTitleDocumentId(null)}
       onCreateDocument={createDocument}
       onSelectDocument={(documentId) => {
         setSelectedId(documentId);
+        setFocusTitleDocumentId(null);
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
       }}

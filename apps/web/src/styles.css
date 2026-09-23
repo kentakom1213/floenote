@@ -123,25 +123,37 @@ input:focus-visible {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 276px minmax(0, 1fr);
+  overflow: hidden;
   background: var(--color-bg);
 }
 
 .sidebar {
   min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  box-sizing: border-box;
+  overflow: hidden;
   border-right: 1px solid var(--color-border);
   padding: 22px 16px 16px;
   background: var(--color-sidebar);
 }
 
 .sidebar-layout {
-  min-height: calc(100vh - 38px);
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 28px;
+  gap: 16px;
+}
+
+.sidebar-content {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
 
 .brand-row {
@@ -336,9 +348,15 @@ input:focus-visible {
 }
 
 .note-list {
+  min-height: 0;
   display: grid;
+  align-content: start;
+  flex: 1;
   gap: 2px;
   margin-top: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .note-item {
@@ -366,9 +384,13 @@ input:focus-visible {
 
 .sidebar-footer {
   position: relative;
+  flex: 0 0 auto;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
 }
 
 .sidebar-footer-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -378,6 +400,10 @@ input:focus-visible {
 
 .main-pane {
   min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-bg);
 }
 
@@ -519,8 +545,9 @@ input:focus-visible {
 
 .editor .cm-scroller {
   padding: 12px 32px 96px;
-  font-family: inherit;
-  line-height: 1.68;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  line-height: 1.62;
 }
 
 .editor .cm-content {
@@ -684,10 +711,13 @@ input:focus-visible {
 
 .markdown-math-block {
   display: block;
-  overflow-x: auto;
   margin: 1.2em 0;
   padding: 0.25em 0;
   text-align: center;
+}
+
+.markdown-math-block .katex-display {
+  margin: 0;
 }
 
 .markdown-image-placeholder {
@@ -738,7 +768,7 @@ input:focus-visible {
 }
 
 .sync-status {
-  position: relative;
+  position: static;
 }
 
 .sync-status-summary,
@@ -784,21 +814,99 @@ input:focus-visible {
 }
 
 .sync-status-popover {
+  right: 0;
   bottom: calc(100% + 8px);
   left: 0;
-  width: 250px;
-  padding: 13px 14px;
+  width: auto;
+  box-sizing: border-box;
+  padding: 13px;
 }
 
-.sync-status-popover strong {
+.sync-status-heading strong {
   font-size: 13px;
 }
 
-.sync-status-popover p {
-  margin: 6px 0 0;
+.sync-status-heading p {
+  margin: 5px 0 0;
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.5;
+}
+
+.sync-device-list {
+  display: grid;
+  gap: 2px;
+  margin-top: 11px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+
+.sync-device-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 7px 5px;
+}
+
+.sync-device-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-faint);
+}
+
+.sync-device-dot[data-state="connected"] {
+  background: var(--color-active);
+}
+
+.sync-device-dot[data-state="online"] {
+  background: var(--color-attention);
+}
+
+.sync-device-copy {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sync-device-copy strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-device-copy span {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+  font-size: 10px;
+}
+
+.sync-manage-devices {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 7px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.sync-manage-devices:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
 }
 
 .appearance-picker {
@@ -1987,21 +2095,36 @@ h1 {
 
 @media (max-width: 760px) {
   .app-shell {
+    height: auto;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .sidebar {
+    height: auto;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
 
   .sidebar-layout {
+    height: auto;
     min-height: auto;
+  }
+
+  .sidebar-content {
+    display: block;
+  }
+
+  .main-pane {
+    height: auto;
+    overflow: visible;
   }
 
   .note-list {
     display: flex;
     overflow-x: auto;
+    overflow-y: hidden;
     padding-bottom: 4px;
   }
 

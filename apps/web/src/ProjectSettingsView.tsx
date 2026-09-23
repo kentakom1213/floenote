@@ -94,7 +94,7 @@ export function ProjectSettingsView({
         </form>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section" id="project-devices">
         <div className="settings-section-heading">
           <div>
             <h2>Devices</h2>

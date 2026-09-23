@@ -1,10 +1,9 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
-import { ConfirmDialog } from "./ConfirmDialog.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
@@ -16,6 +15,8 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
+  focusTitleDocumentId?: DocumentId | null;
+  onTitleFocusHandled: () => void;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
@@ -29,6 +30,8 @@ export function NoteWorkspace({
   projectControl,
   sidebarFooter,
   mainContent,
+  focusTitleDocumentId,
+  onTitleFocusHandled,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
@@ -38,7 +41,7 @@ export function NoteWorkspace({
 
   const sidebar = (
     <div className="sidebar-layout">
-      <div>
+      <div className="sidebar-content">
         <header className="brand-row">
           <div className="brand-lockup">
             <span className="floe-mark" aria-hidden="true">
@@ -85,6 +88,8 @@ export function NoteWorkspace({
         (selectedDocument ? (
           <DocumentPane
             document={selectedDocument}
+            focusTitle={focusTitleDocumentId === selectedDocument.id}
+            onTitleFocusHandled={onTitleFocusHandled}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
           />
@@ -106,29 +111,44 @@ export function NoteWorkspace({
 
 type DocumentPaneProps = {
   document: NoteDocument;
+  focusTitle: boolean;
+  onTitleFocusHandled: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
 };
 
 function DocumentPane({
   document,
+  focusTitle,
+  onTitleFocusHandled,
   onRename,
   onDelete,
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const [deleteOpen, setDeleteOpen] = useState(false);
   useDismissibleDetails(noteMenuRef);
 
-  function requestDelete(): void {
+  useEffect(() => {
+    if (!focusTitle) return;
+    const input = titleRef.current;
+    if (!input) return;
+
+    input.focus();
+    input.select();
+    onTitleFocusHandled();
+  }, [document.id, focusTitle, onTitleFocusHandled]);
+
+  function deleteNote(): void {
     noteMenuRef.current?.removeAttribute("open");
-    setDeleteOpen(true);
+    onDelete();
   }
 
   return (
     <article className="document-pane">
       <header className="document-header">
         <input
+          ref={titleRef}
           className="title-input"
           value={document.title}
           placeholder="Untitled"
@@ -164,7 +184,7 @@ function DocumentPane({
               <button
                 className="danger-menu-item"
                 type="button"
-                onClick={requestDelete}
+                onClick={deleteNote}
               >
                 Delete note
               </button>
@@ -179,20 +199,6 @@ function DocumentPane({
         <MarkdownPreview document={document} />
       )}
 
-      {deleteOpen ? (
-        <ConfirmDialog
-          title={`Delete ${document.title.trim() || "this note"}?`}
-          description={
-            <p>
-              This note will be removed from the Project. Trash and recovery
-              are not available yet.
-            </p>
-          }
-          confirmLabel="Delete note"
-          onConfirm={async () => onDelete()}
-          onClose={() => setDeleteOpen(false)}
-        />
-      ) : null}
     </article>
   );
 }
