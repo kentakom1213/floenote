@@ -23,7 +23,7 @@ function readThemePreference(): ThemePreference {
   const stored = window.localStorage.getItem(STORAGE_KEY);
   return stored && THEME_IDS.has(stored as ThemePreference)
     ? (stored as ThemePreference)
-    : "warm-paper";
+    : "floe";
 }
 
 function resolveSystemTheme(): ResolvedTheme {
