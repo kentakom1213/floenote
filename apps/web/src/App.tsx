@@ -1364,6 +1364,22 @@ function NoteApp() {
     error: authorizedSync.error,
   });
 
+  const projectCoordinationState: "checking" | "ready" | "error" =
+    securityCoordinationState !== "ready"
+      ? securityCoordinationState
+      : authorizedSync.presenceState === "open"
+        ? "ready"
+        : authorizedSync.presenceState === "connecting" ||
+            authorizedSync.presenceState === "authenticating"
+          ? "checking"
+          : "error";
+  const projectCoordinationError =
+    securityCoordinationError ??
+    authorizedSync.coordinationError ??
+    (projectCoordinationState === "error"
+      ? "Coordinator connection is unavailable"
+      : null);
+
   const connectedDeviceIds = new Set(authorizedSync.connectedDeviceIds);
   const onlineDeviceIds = new Set(authorizedSync.onlineDeviceIds);
   const authorizedDeviceIds =
@@ -1443,6 +1459,24 @@ function NoteApp() {
             window.location.replace("/");
           }}
         />
+      ) : coordinationError ? (
+        <section className="invitation-host-view">
+          <header className="settings-header invitation-host-header">
+            <p className="settings-eyebrow">Project devices</p>
+            <h1>Add a device</h1>
+            <p>Device invitations require the coordinator.</p>
+          </header>
+          <div className="project-security-inline-error">
+            <p>{coordinationError}</p>
+            <button
+              className="dialog-secondary-button"
+              type="button"
+              onClick={() => window.location.assign("/")}
+            >
+              Back to Project
+            </button>
+          </div>
+        </section>
       ) : (
         <section className="invitation-host-view">
           <header className="settings-header invitation-host-header">
@@ -1480,8 +1514,8 @@ function NoteApp() {
               : "loading"
         }
         securityError={localSecurityError}
-        coordinationState={securityCoordinationState}
-        coordinationError={securityCoordinationError}
+        coordinationState={projectCoordinationState}
+        coordinationError={projectCoordinationError}
         getDeviceDisplayName={(deviceId) =>
           activeProject.getDeviceDisplayName(deviceId)
         }
