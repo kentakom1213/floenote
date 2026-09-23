@@ -54,6 +54,12 @@ export interface ProjectStorage {
 
   createProject(name: string): Promise<OpenProjectResult>;
 
+  initializeCommittedProject(
+    project: NoteProject,
+    state: SecurityState,
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult>;
+
   removeProject(projectId: ProjectId): Promise<ProjectId | null>;
 
   eraseAllLocalData(): Promise<void>;
