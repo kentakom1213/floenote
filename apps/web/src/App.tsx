@@ -1415,6 +1415,15 @@ function NoteApp() {
       />
     ) : null;
 
+  function openProjectDeviceSettings(): void {
+    setMainView("project-settings");
+    window.setTimeout(() => {
+      document
+        .getElementById("project-devices")
+        ?.scrollIntoView({ block: "start" });
+    }, 0);
+  }
+
   const sidebarFooter = (
     <>
       {debugSidebarControls}
@@ -1425,7 +1434,7 @@ function NoteApp() {
         <SyncStatus
           state={syncUiState}
           devices={syncDevices}
-          onManageDevices={() => setMainView("project-settings")}
+          onManageDevices={openProjectDeviceSettings}
         />
         <button
           className="footer-action"
@@ -1447,6 +1456,7 @@ function NoteApp() {
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
       focusTitleDocumentId={focusTitleDocumentId}
+      onTitleFocusHandled={() => setFocusTitleDocumentId(null)}
       onCreateDocument={createDocument}
       onSelectDocument={(documentId) => {
         setSelectedId(documentId);
