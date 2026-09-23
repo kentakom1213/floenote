@@ -452,7 +452,7 @@ export class WebRtcTransport implements Transport {
         return;
       }
 
-      const pair = report.get(selectedPairId) as unknown as
+      const pair = findRtcStatsById(report, selectedPairId) as
         | Record<string, unknown>
         | undefined;
       if (!pair) {
@@ -464,11 +464,11 @@ export class WebRtcTransport implements Transport {
 
       const localCandidate =
         typeof pair.localCandidateId === "string"
-          ? report.get(pair.localCandidateId)
+          ? findRtcStatsById(report, pair.localCandidateId)
           : undefined;
       const remoteCandidate =
         typeof pair.remoteCandidateId === "string"
-          ? report.get(pair.remoteCandidateId)
+          ? findRtcStatsById(report, pair.remoteCandidateId)
           : undefined;
 
       this.#debug("ice.selected-candidate-pair", {
@@ -641,6 +641,20 @@ function describeIceCandidate(
       sdpMLineIndex: candidate.sdpMLineIndex ?? null,
     };
   }
+}
+
+function findRtcStatsById(
+  report: RTCStatsReport,
+  id: string,
+): unknown | undefined {
+  let match: unknown | undefined;
+  report.forEach((stats) => {
+    if (match !== undefined) return;
+
+    const record = stats as unknown as Record<string, unknown>;
+    if (record.id === id) match = stats;
+  });
+  return match;
 }
 
 function describeIceCandidateStats(
