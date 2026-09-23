@@ -26,10 +26,11 @@ All three produce an ordinary new Floe Note Project with:
 - a new CreateProject root;
 - the current Device as the initial authorized device.
 
-The source only determines the initial Project content.
+The source only determines the initial Project content. Project creation still
+uses the normal coordinator-backed CreateProject commit flow.
 
 This keeps Project creation separate from the authorization identity of any
-source Project.
+source Project without introducing a separate offline-genesis mode.
 
 ## 2. Portable Floe export
 
@@ -355,32 +356,35 @@ readable note contents and should be stored or transferred accordingly.
 Encrypted backups may be added later as a distinct feature. They should not
 replace the portable export.
 
-## 12. Offline Project creation
+## 12. Coordinator dependency of import
 
-Blank Project creation and both import paths should be able to complete without
-coordinator availability.
+Export is deliberately coordinator-independent, but importing into Floe Note
+creates a new Project and therefore follows the normal Project creation flow.
 
-This requires Project genesis to be local-first:
+Conceptually:
 
 ```text
-create/import Project
+Floe export / Markdown directory
+        |
+validate and prepare initial content locally
         |
 generate ProjectId + ProjectKey
+sign CreateProject
         |
-sign CreateProject locally
+coordinator verifies and commits genesis
         |
-persist Project + initial SecurityState locally
-        |
-Project becomes usable
-        |
-register with coordinator asynchronously when available
+persist committed Project locally
 ```
 
-CreateProject is a safe special case because it has no previous head and one
-initial signing device.
+If the coordinator is unavailable, the source files remain readable and
+portable, but Floe Note does not create a partially initialized Project which is
+waiting for later coordinator registration.
 
-This rule does not extend to AddDevice or RevokeDevice. Membership changes still
-use the coordinator sequencer in v1.
+This keeps import/export separate from the authorization protocol:
+
+- exporting existing local data does not require coordinator availability;
+- creating a new Floe Note Project, including through import, does require the
+  normal coordinator-backed Project bootstrap in v1.
 
 ## 13. UI model
 
