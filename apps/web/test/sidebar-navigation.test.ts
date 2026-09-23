@@ -1,13 +1,17 @@
-import { describe, expect, it } from "vitest";
-
 import type { DocumentId } from "@floe-note/domain";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_NOTE_SORT,
   deriveVisibleNotes,
   normalizeNoteSortPreference,
+  readNoteSortPreference,
+  writeNoteSortPreference,
   type SidebarNavigationNote,
 } from "../src/sidebar-navigation.js";
+import { SidebarNavigationToolbar } from "../src/SidebarNavigationToolbar.js";
 
 function note(
   id: string,
@@ -32,6 +36,26 @@ const NOTES = [
 ];
 
 describe("sidebar navigation", () => {
+  it("renders Search, Sort, and New note toolbar controls", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SidebarNavigationToolbar, {
+        query: "",
+        searchOpen: false,
+        sort: DEFAULT_NOTE_SORT,
+        onQueryChange: vi.fn(),
+        onSearchOpenChange: vi.fn(),
+        onSortChange: vi.fn(),
+        onCreateDocument: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain('role="toolbar"');
+    expect(markup).toContain('aria-label="Search notes"');
+    expect(markup).toContain('aria-label="Sort notes"');
+    expect(markup).toContain('aria-label="New note"');
+    expect(markup).toContain("<svg");
+  });
+
   it("filters by title", () => {
     expect(deriveVisibleNotes(NOTES, "beta", DEFAULT_NOTE_SORT).map((n) => n.id))
       .toEqual(["c"]);
@@ -101,5 +125,37 @@ describe("sidebar navigation", () => {
   it("normalizes invalid stored preferences", () => {
     expect(normalizeNoteSortPreference({ mode: "manual", direction: "sideways" }))
       .toEqual(DEFAULT_NOTE_SORT);
+  });
+
+  it("stores sort as a device-local preference", () => {
+    const values = new Map<string, string>();
+    const localStorage = {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        values.set(key, value);
+      }),
+    };
+    const previousWindow = globalThis.window;
+    vi.stubGlobal("window", { localStorage });
+
+    try {
+      expect(readNoteSortPreference()).toEqual(DEFAULT_NOTE_SORT);
+
+      writeNoteSortPreference({ mode: "title", direction: "asc" });
+
+      expect(readNoteSortPreference()).toEqual({
+        mode: "title",
+        direction: "asc",
+      });
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        "floe-note-note-sort",
+        JSON.stringify({ mode: "title", direction: "asc" }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      if (previousWindow !== undefined) {
+        vi.stubGlobal("window", previousWindow);
+      }
+    }
   });
 });
