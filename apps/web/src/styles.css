@@ -1601,6 +1601,37 @@ input:focus-visible {
   gap: 20px;
 }
 
+.project-export-row {
+  align-items: flex-start;
+  margin-top: 18px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
+}
+
+.project-export-copy {
+  max-width: 580px;
+}
+
+.project-export-warning {
+  margin-top: 6px !important;
+  color: var(--color-text-faint) !important;
+  font-size: 12px !important;
+}
+
+.project-export-status,
+.project-export-error {
+  margin-top: 8px !important;
+  font-size: 12px !important;
+}
+
+.project-export-status {
+  color: var(--color-active) !important;
+}
+
+.project-export-error {
+  color: var(--color-danger) !important;
+}
+
 .settings-form-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

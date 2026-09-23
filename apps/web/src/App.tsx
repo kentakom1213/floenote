@@ -75,6 +75,7 @@ import {
   writeLastDocumentId,
 } from "./note-preference.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
+import { exportProjectToBrowser } from "./portable-export-download.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
@@ -1522,6 +1523,9 @@ function NoteApp() {
           activeProject.getDeviceDisplayName(deviceId)
         }
         onRenameProject={(name) => activeProject.renameProject(name)}
+        onExportProject={async () => {
+          exportProjectToBrowser(activeProject);
+        }}
         onRemoveProjectFromDevice={removeActiveProjectFromDevice}
         onAddDevice={() => {
           window.location.assign("/?transport=invite");
