@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
 
 import type { DeviceVaultUiState } from "./DeviceVaultPanel.js";
+import { generateDeviceDisplayName } from "./device-name.js";
 
 type UnlockScreenProps = {
   state: DeviceVaultUiState;
   error: string | null;
-  onUnlockOrCreate: (displayName?: string) => Promise<void>;
+  onUnlock: () => Promise<void>;
+  onCreateWithExistingPasskey: (displayName: string) => Promise<void>;
+  onCreateWithNewPasskey: (displayName: string) => Promise<void>;
+  onResetDevice: () => Promise<void>;
 };
 
 export function UnlockScreen({
   state,
   error,
-  onUnlockOrCreate,
+  onUnlock,
+  onCreateWithExistingPasskey,
+  onCreateWithNewPasskey,
+  onResetDevice,
 }: UnlockScreenProps) {
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(generateDeviceDisplayName);
   const [setupMode, setSetupMode] = useState(state === "missing");
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (state === "missing") setSetupMode(true);
@@ -22,7 +30,21 @@ export function UnlockScreen({
 
   const checking = state === "checking";
   const unlocking = state === "unlocking";
-  const canSubmit = !setupMode || displayName.trim().length > 0;
+  const canSubmit = displayName.trim().length > 0;
+
+  async function resetDevice(): Promise<void> {
+    const confirmed = window.confirm(
+      "Reset this device? This deletes the local Device Vault and all local Project data. You will need another authorized device to join those Projects again.",
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    try {
+      await onResetDevice();
+    } finally {
+      setResetting(false);
+    }
+  }
 
   return (
     <main className="unlock-screen">
@@ -34,48 +56,85 @@ export function UnlockScreen({
         <h1>{setupMode ? "Set up this device" : "Unlock Floe Note"}</h1>
         <p className="unlock-copy">
           {setupMode
-            ? "Create a local device identity and give this device a name you will recognize on your other devices."
+            ? "Create a local device identity. You can reuse a synced Floe Note passkey without creating another one."
             : "Unlock this device to open your encrypted local Projects."}
         </p>
 
         {setupMode ? (
-          <label className="unlock-field">
-            <span>Device name</span>
-            <input
-              autoFocus
-              maxLength={80}
-              value={displayName}
-              placeholder="Kenta's MacBook"
-              disabled={unlocking}
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
-          </label>
-        ) : null}
+          <>
+            <label className="unlock-field">
+              <span>Device name</span>
+              <input
+                autoFocus
+                maxLength={80}
+                value={displayName}
+                disabled={unlocking}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </label>
 
-        {checking ? (
+            <div className="unlock-setup-actions">
+              <button
+                className="unlock-primary-action"
+                type="button"
+                disabled={unlocking || !canSubmit}
+                onClick={() =>
+                  void onCreateWithExistingPasskey(displayName.trim())
+                }
+              >
+                {unlocking ? "Waiting for passkey…" : "Use existing passkey"}
+              </button>
+              <button
+                className="unlock-secondary-action"
+                type="button"
+                disabled={unlocking || !canSubmit}
+                onClick={() =>
+                  void onCreateWithNewPasskey(displayName.trim())
+                }
+              >
+                Create new passkey
+              </button>
+            </div>
+
+            <p className="unlock-passkey-note">
+              Use an existing passkey when your password manager or platform
+              already syncs the Floe Note passkey to this device.
+            </p>
+          </>
+        ) : checking ? (
           <p className="settings-loading">Checking this device…</p>
         ) : (
           <button
             className="unlock-primary-action"
             type="button"
-            disabled={unlocking || !canSubmit}
-            onClick={() =>
-              void onUnlockOrCreate(
-                setupMode ? displayName.trim() : undefined,
-              )
-            }
+            disabled={unlocking || resetting}
+            onClick={() => void onUnlock()}
           >
             {unlocking
               ? "Unlocking…"
-              : setupMode
-                ? "Set up this device"
-                : state === "error"
-                  ? "Try again"
-                  : "Unlock Floe Note"}
+              : state === "error"
+                ? "Try again"
+                : "Unlock Floe Note"}
           </button>
         )}
 
         {error ? <p className="dialog-error">{error}</p> : null}
+
+        {!setupMode && state === "error" ? (
+          <div className="unlock-reset">
+            <p>
+              If this passkey was deleted or is no longer available, this
+              local Vault cannot be recovered in v1.
+            </p>
+            <button
+              type="button"
+              disabled={resetting || unlocking}
+              onClick={() => void resetDevice()}
+            >
+              {resetting ? "Resetting…" : "Reset this device"}
+            </button>
+          </div>
+        ) : null}
       </section>
     </main>
   );

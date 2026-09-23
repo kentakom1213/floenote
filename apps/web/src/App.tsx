@@ -659,7 +659,10 @@ function NoteApp() {
       <UnlockScreen
         state={deviceVaultState}
         error={deviceVaultError}
-        onUnlockOrCreate={unlockOrCreateDevice}
+        onUnlock={unlockDevice}
+        onCreateWithExistingPasskey={createDeviceWithExistingPasskey}
+        onCreateWithNewPasskey={createDeviceWithNewPasskey}
+        onResetDevice={resetLockedDevice}
       />
     );
   }
@@ -681,8 +684,8 @@ function NoteApp() {
     ? activeProject.getDocument(selectedId)
     : undefined;
 
-  async function unlockOrCreateDevice(
-    displayName?: string,
+  async function openDeviceVault(
+    open: () => Promise<DeviceVaultSession>,
   ): Promise<void> {
     if (deviceVaultState === "unlocking" || deviceVaultState === "unlocked") {
       return;
@@ -692,7 +695,7 @@ function NoteApp() {
     setDeviceVaultError(null);
 
     try {
-      const session = await deviceVault.unlockOrCreate(displayName);
+      const session = await open();
       const previous = deviceVaultSessionRef.current;
       deviceVaultSessionRef.current = session;
       if (previous) await previous.close();
@@ -718,6 +721,49 @@ function NoteApp() {
         error instanceof Error ? error.message : "Failed to unlock Device Vault",
       );
     }
+  }
+
+  async function unlockDevice(): Promise<void> {
+    await openDeviceVault(() => deviceVault.unlock());
+  }
+
+  async function createDeviceWithExistingPasskey(
+    displayName: string,
+  ): Promise<void> {
+    await openDeviceVault(() =>
+      deviceVault.createWithExistingPasskey(displayName),
+    );
+  }
+
+  async function createDeviceWithNewPasskey(
+    displayName: string,
+  ): Promise<void> {
+    await openDeviceVault(() =>
+      deviceVault.createWithNewPasskey(displayName),
+    );
+  }
+
+  async function unlockOrCreateDevice(
+    displayName?: string,
+  ): Promise<void> {
+    if (await deviceVault.hasVault()) {
+      await unlockDevice();
+      return;
+    }
+
+    await createDeviceWithNewPasskey(displayName ?? "My device");
+  }
+
+  async function resetLockedDevice(): Promise<void> {
+    const previous = deviceVaultSessionRef.current;
+    deviceVaultSessionRef.current = null;
+    if (previous) await previous.close();
+
+    await projectStorage.eraseAllLocalData();
+    await deviceVault.eraseVault();
+    clearAllLastDocumentPreferences();
+
+    window.location.replace("/");
   }
 
   async function selectProject(projectId: ProjectId): Promise<void> {
@@ -1376,30 +1422,34 @@ function NoteApp() {
         onEraseDevice={eraseFloeFromThisDevice}
       />
     ) : mainView === "project-settings" ? (
-      localDeviceId && localSecurityState ? (
-        <ProjectSettingsView
-          projectId={activeProject.id}
-          projectName={activeProject.name}
-          localDeviceId={localDeviceId}
-          authorizedDevices={localSecurityState.devices}
-          onlineDeviceIds={authorizedSync.onlineDeviceIds}
-          connectedDeviceIds={authorizedSync.connectedDeviceIds}
-          getDeviceDisplayName={(deviceId) =>
-            activeProject.getDeviceDisplayName(deviceId)
-          }
-          onRenameProject={(name) => activeProject.renameProject(name)}
-          onRemoveProjectFromDevice={removeActiveProjectFromDevice}
-          onAddDevice={() => {
-            window.location.assign("/?transport=invite");
-          }}
-          onRemoveDevice={revokeDevice}
-        />
-      ) : (
-        <div className="settings-view">
-          <p className="settings-eyebrow">Project settings</p>
-          <p className="settings-loading">Loading Project security…</p>
-        </div>
-      )
+      <ProjectSettingsView
+        projectId={activeProject.id}
+        projectName={activeProject.name}
+        localDeviceId={localDeviceId}
+        authorizedDevices={localSecurityState?.devices ?? null}
+        onlineDeviceIds={authorizedSync.onlineDeviceIds}
+        connectedDeviceIds={authorizedSync.connectedDeviceIds}
+        securityState={
+          localSecurityBootstrapState === "error"
+            ? "error"
+            : localSecurityState
+              ? "ready"
+              : "loading"
+        }
+        securityError={localSecurityError}
+        getDeviceDisplayName={(deviceId) =>
+          activeProject.getDeviceDisplayName(deviceId)
+        }
+        onRenameProject={(name) => activeProject.renameProject(name)}
+        onRemoveProjectFromDevice={removeActiveProjectFromDevice}
+        onAddDevice={() => {
+          window.location.assign("/?transport=invite");
+        }}
+        onRetrySecurity={() =>
+          setSecurityRefreshToken((value) => value + 1)
+        }
+        onRemoveDevice={revokeDevice}
+      />
     ) : undefined);
 
   const debugSidebarControls =

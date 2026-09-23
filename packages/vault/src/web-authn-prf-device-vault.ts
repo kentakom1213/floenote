@@ -125,6 +125,9 @@ class DeviceVaultDatabase extends Dexie {
 
 export interface DeviceVault {
   hasVault(): Promise<boolean>;
+  unlock(): Promise<DeviceVaultSession>;
+  createWithExistingPasskey(displayName: string): Promise<DeviceVaultSession>;
+  createWithNewPasskey(displayName: string): Promise<DeviceVaultSession>;
   unlockOrCreate(displayName?: string): Promise<DeviceVaultSession>;
   eraseVault(): Promise<void>;
 }
@@ -518,27 +521,34 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
     return (await this.#db.vault.get(VAULT_RECORD_ID)) !== undefined;
   }
 
-  async unlockOrCreate(displayName?: string): Promise<DeviceVaultSession> {
+  async unlock(): Promise<DeviceVaultSession> {
     assertWebAuthnAvailable();
 
     const record = await this.#db.vault.get(VAULT_RECORD_ID);
-    return record ? this.#unlock(record) : this.#create(displayName);
+    if (!record) {
+      throw new Error("Device Vault has not been set up on this device");
+    }
+    return this.#unlock(record);
   }
 
-  async eraseVault(): Promise<void> {
-    this.#db.close();
-    await Dexie.delete(DATABASE_NAME);
+  async createWithExistingPasskey(
+    displayName: string,
+  ): Promise<DeviceVaultSession> {
+    assertWebAuthnAvailable();
+    await this.#assertVaultMissing();
+
+    return this.#create(displayName, async (prfInput) => {
+      return discoverPrfCredential(prfInput);
+    });
   }
 
-  async #create(displayName?: string): Promise<DeviceVaultSession> {
-    const normalizedDisplayName = normalizeDeviceDisplayName(
-      displayName ?? "My device",
-    );
-    const keyMaterial = await generateDeviceKeyMaterial();
-    const prfInput = randomBytes(PRF_INPUT_BYTES);
-    let vaultKey: Uint8Array | null = null;
+  async createWithNewPasskey(
+    displayName: string,
+  ): Promise<DeviceVaultSession> {
+    assertWebAuthnAvailable();
+    await this.#assertVaultMissing();
 
-    try {
+    return this.#create(displayName, async (prfInput) => {
       const credential = await createPrfCredential(prfInput);
       const createResult = readPrfOutput(credential);
       const prfOutput =
@@ -547,6 +557,44 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
           new Uint8Array(credential.rawId),
           prfInput,
         ));
+
+      return { credential, prfOutput };
+    });
+  }
+
+  async unlockOrCreate(displayName?: string): Promise<DeviceVaultSession> {
+    return (await this.hasVault())
+      ? this.unlock()
+      : this.createWithNewPasskey(displayName ?? "My device");
+  }
+
+  async eraseVault(): Promise<void> {
+    this.#db.close();
+    await Dexie.delete(DATABASE_NAME);
+  }
+
+  async #assertVaultMissing(): Promise<void> {
+    if (await this.hasVault()) {
+      throw new Error("Device Vault is already set up on this device");
+    }
+  }
+
+  async #create(
+    displayName: string,
+    obtainCredential: (
+      prfInput: Uint8Array,
+    ) => Promise<{
+      credential: PublicKeyCredential;
+      prfOutput: Uint8Array;
+    }>,
+  ): Promise<DeviceVaultSession> {
+    const normalizedDisplayName = normalizeDeviceDisplayName(displayName);
+    const keyMaterial = await generateDeviceKeyMaterial();
+    const prfInput = randomBytes(PRF_INPUT_BYTES);
+    let vaultKey: Uint8Array | null = null;
+
+    try {
+      const { credential, prfOutput } = await obtainCredential(prfInput);
 
       try {
         vaultKey = await deriveDeviceVaultKey(prfOutput);
@@ -698,7 +746,7 @@ async function createPrfCredential(
       ],
       timeout: WEBAUTHN_TIMEOUT_MS,
       authenticatorSelection: {
-        residentKey: "discouraged",
+        residentKey: "required",
         userVerification: "required",
       },
       attestation: "none",
@@ -711,6 +759,41 @@ async function createPrfCredential(
   }
 
   return credential;
+}
+
+async function discoverPrfCredential(
+  prfInput: Uint8Array,
+): Promise<{
+  credential: PublicKeyCredential;
+  prfOutput: Uint8Array;
+}> {
+  const extensions = {
+    prf: {
+      eval: {
+        first: toArrayBuffer(prfInput),
+      },
+    },
+  } as unknown as AuthenticationExtensionsClientInputs;
+
+  const credential = await navigator.credentials.get({
+    publicKey: {
+      challenge: randomBytes(32).buffer,
+      timeout: WEBAUTHN_TIMEOUT_MS,
+      userVerification: "required",
+      extensions,
+    },
+  });
+
+  if (!(credential instanceof PublicKeyCredential)) {
+    throw new Error("WebAuthn authentication failed");
+  }
+
+  const prfOutput = readPrfOutput(credential);
+  if (!prfOutput) {
+    throw new Error("This passkey does not provide WebAuthn PRF output");
+  }
+
+  return { credential, prfOutput };
 }
 
 async function evaluatePrf(
