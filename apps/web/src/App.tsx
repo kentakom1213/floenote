@@ -68,6 +68,11 @@ import {
 import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import {
+  clearAllLastDocumentPreferences,
+  readLastDocumentId,
+  writeLastDocumentId,
+} from "./note-preference.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
@@ -617,10 +622,18 @@ function NoteApp() {
     if (isNew) {
       const document = loadedProject.createDocument("Welcome to Floe Note");
       setSelectedId(document.id);
+      writeLastDocumentId(loadedProject.id, document.id);
       return;
     }
 
-    setSelectedId(summaries[0]?.id ?? null);
+    const rememberedId = readLastDocumentId(loadedProject.id);
+    const selectedId =
+      rememberedId && loadedProject.getDocument(rememberedId)
+        ? rememberedId
+        : summaries[0]?.id ?? null;
+
+    setSelectedId(selectedId);
+    writeLastDocumentId(loadedProject.id, selectedId);
   }, [openedProject]);
 
   if (loadError) {
@@ -768,6 +781,7 @@ function NoteApp() {
     try {
       const nextProjectId = await projectStorage.removeProject(projectId);
       await session.removeProjectKeys(projectId);
+      writeLastDocumentId(projectId, null);
 
       const summaries = await projectStorage.listProjects(session);
       if (nextProjectId) {
@@ -818,6 +832,7 @@ function NoteApp() {
       await projectStorage.eraseAllLocalData();
       await deviceVault.eraseVault();
       clearThemePreference();
+      clearAllLastDocumentPreferences();
 
       window.location.replace("/");
     } catch (error) {
@@ -1212,15 +1227,32 @@ function NoteApp() {
   function createDocument() {
     const document = activeProject.createDocument();
     setSelectedId(document.id);
+    writeLastDocumentId(activeProject.id, document.id);
     setMainView("note");
   }
 
   function deleteSelectedDocument() {
     if (!selectedId) return;
 
+    const before = activeProject.listDocuments();
+    const selectedIndex = before.findIndex(
+      (summary) => summary.id === selectedId,
+    );
+
     activeProject.deleteDocument(selectedId);
-    const next = activeProject.listDocuments()[0];
-    setSelectedId(next?.id ?? null);
+
+    const remaining = activeProject.listDocuments();
+    const next =
+      remaining[
+        Math.min(
+          Math.max(selectedIndex, 0),
+          Math.max(remaining.length - 1, 0),
+        )
+      ] ?? null;
+    const nextId = next?.id ?? null;
+
+    setSelectedId(nextId);
+    writeLastDocumentId(activeProject.id, nextId);
   }
 
   const syncUiState = deriveSyncUiState({
@@ -1367,6 +1399,7 @@ function NoteApp() {
       onCreateDocument={createDocument}
       onSelectDocument={(documentId) => {
         setSelectedId(documentId);
+        writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
       }}
       onRenameDocument={(title) => {
