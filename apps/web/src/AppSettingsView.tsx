@@ -1,12 +1,17 @@
 import type { DeviceId } from "@floe-note/domain";
 import { useEffect, useState } from "react";
 
+import {
+  useCoordinatorBuildInfo,
+  webBuildInfo,
+} from "./build-info.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { ThemePicker } from "./ThemePicker.js";
 import type { ThemePreference } from "./theme.js";
 
 type AppSettingsViewProps = {
   theme: ThemePreference;
+  coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
   onRenameDevice: (displayName: string) => Promise<void>;
@@ -20,12 +25,14 @@ function shortDeviceId(deviceId: DeviceId): string {
 
 export function AppSettingsView({
   theme,
+  coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
   onRenameDevice,
   onThemeChange,
   onEraseDevice,
 }: AppSettingsViewProps) {
+  const coordinatorBuildInfo = useCoordinatorBuildInfo(coordinatorBaseUrl);
   const [eraseOpen, setEraseOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState(localDeviceName ?? "");
   const [savingName, setSavingName] = useState(false);
@@ -133,6 +140,44 @@ export function AppSettingsView({
             Each Project has its own access boundary and encryption key.
           </p>
         </div>
+
+        <details className="technical-details">
+          <summary>Technical details</summary>
+          <dl>
+            <div>
+              <dt>Web version</dt>
+              <dd>{webBuildInfo.version}</dd>
+            </div>
+            <div>
+              <dt>Web build</dt>
+              <dd>{webBuildInfo.build}</dd>
+            </div>
+            <div>
+              <dt>Coordinator version</dt>
+              <dd>
+                {coordinatorBuildInfo.status === "checking"
+                  ? "Checking…"
+                  : coordinatorBuildInfo.status === "available"
+                    ? coordinatorBuildInfo.info.version
+                    : "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt>Coordinator build</dt>
+              <dd>
+                {coordinatorBuildInfo.status === "checking"
+                  ? "Checking…"
+                  : coordinatorBuildInfo.status === "available"
+                    ? coordinatorBuildInfo.info.build
+                    : "Unavailable"}
+              </dd>
+            </div>
+            <div>
+              <dt>Coordinator URL</dt>
+              <dd>{coordinatorBaseUrl}</dd>
+            </div>
+          </dl>
+        </details>
       </div>
 
       <div className="settings-section danger-zone">

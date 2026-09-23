@@ -1493,6 +1493,7 @@ function NoteApp() {
     invitationContent ?? (mainView === "app-settings" ? (
       <AppSettingsView
         theme={themePreference}
+        coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
         onRenameDevice={renameLocalDevice}
