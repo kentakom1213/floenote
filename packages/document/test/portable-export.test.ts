@@ -16,7 +16,7 @@ describe("portable Project export", () => {
         documents: [
           {
             title: "Welcome",
-            body: "# Floe Note\n\nHello.\n",
+            body: "# Floe Note\n\nこんにちは 🌊\n",
             createdAt: Date.UTC(2026, 8, 20, 12),
             updatedAt: Date.UTC(2026, 8, 23, 1, 45),
             tags: ["floe", "todo"],
@@ -51,7 +51,7 @@ describe("portable Project export", () => {
         ["manifest.json", new TextEncoder().encode(result.manifestJson)],
         [
           "notes/Welcome.md",
-          new TextEncoder().encode("# Floe Note\n\nHello.\n"),
+          new TextEncoder().encode("# Floe Note\n\nこんにちは 🌊\n"),
         ],
       ]),
     );
