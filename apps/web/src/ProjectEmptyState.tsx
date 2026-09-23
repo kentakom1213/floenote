@@ -5,13 +5,16 @@ import { Modal } from "./Modal.js";
 
 type ProjectEmptyStateProps = {
   onCreateProject: (name: string) => Promise<void>;
+  onImportFloeExport: (archive: Uint8Array) => Promise<void>;
 };
 
 export function ProjectEmptyState({
   onCreateProject,
+  onImportFloeExport,
 }: ProjectEmptyStateProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -50,10 +53,29 @@ export function ProjectEmptyState({
     }
   }
 
+  async function importFloeExport(file: File): Promise<void> {
+    if (busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const archive = new Uint8Array(await file.arrayBuffer());
+      await onImportFloeExport(archive);
+      setImportOpen(false);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not import Floe export",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function closeDialogs(): void {
     if (busy) return;
     setCreateOpen(false);
     setJoinOpen(false);
+    setImportOpen(false);
     setProjectName("");
     setInviteUrl("");
     setError(null);
@@ -68,7 +90,8 @@ export function ProjectEmptyState({
         <p className="settings-eyebrow">Floe Note</p>
         <h1>No Projects on this device</h1>
         <p>
-          Create a new Project here, or join one from another authorized device.
+          Create a new Project, join one from another authorized device, or
+          import a portable Floe export.
         </p>
 
         <div className="project-empty-actions">
@@ -91,6 +114,16 @@ export function ProjectEmptyState({
             }}
           >
             Join a project
+          </button>
+          <button
+            className="dialog-secondary-button"
+            type="button"
+            onClick={() => {
+              setError(null);
+              setImportOpen(true);
+            }}
+          >
+            Import Floe export
           </button>
         </div>
       </section>
@@ -189,6 +222,50 @@ export function ProjectEmptyState({
               </button>
             </div>
           </form>
+        </Modal>
+      ) : null}
+
+      {importOpen ? (
+        <Modal
+          labelledBy="empty-import-project-title"
+          onClose={closeDialogs}
+          disabled={busy}
+        >
+          <h2 id="empty-import-project-title">Import Floe export</h2>
+          <p className="dialog-description">
+            Select a portable .floe.zip export. Floe Note validates the entire
+            archive first, then creates a new independent Project identity.
+          </p>
+          <label className="dialog-field">
+            <span>Floe export</span>
+            <input
+              autoFocus
+              type="file"
+              accept=".floe.zip,application/zip"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                if (file) void importFloeExport(file);
+              }}
+            />
+          </label>
+          <p className="settings-field-hint">
+            {busy
+              ? "Validating and creating a new Project…"
+              : "The source Project identity, devices, and keys are not restored."}
+          </p>
+          {error ? <p className="dialog-error">{error}</p> : null}
+          <div className="dialog-actions">
+            <button
+              className="dialog-secondary-button"
+              type="button"
+              disabled={busy}
+              onClick={closeDialogs}
+            >
+              Cancel
+            </button>
+          </div>
         </Modal>
       ) : null}
     </main>
