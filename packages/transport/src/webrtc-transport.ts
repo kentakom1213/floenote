@@ -118,6 +118,8 @@ export class WebRtcTransport implements Transport {
           candidateType: event.candidate.type,
           protocol: event.candidate.protocol,
           tcpType: event.candidate.tcpType,
+          address: event.candidate.address,
+          port: event.candidate.port,
         });
       } else {
         this.#debug("ice.candidate-end", {
