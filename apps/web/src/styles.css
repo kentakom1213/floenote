@@ -1675,6 +1675,76 @@ input:focus-visible {
   opacity: 0.6;
 }
 
+.unlock-setup-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 24px;
+}
+
+.unlock-setup-actions .unlock-primary-action {
+  margin-top: 0;
+}
+
+.unlock-secondary-action {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 15px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.unlock-secondary-action:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.unlock-secondary-action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.unlock-passkey-note {
+  margin: 11px auto 0;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.unlock-reset {
+  margin-top: 22px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.unlock-reset p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.unlock-reset button {
+  margin-top: 10px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--color-danger);
+  background: transparent;
+  font-size: 11px;
+}
+
+.unlock-reset button:hover {
+  background: color-mix(in srgb, var(--color-danger) 9%, transparent);
+}
+
+.unlock-reset button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .unlock-card .dialog-error {
   margin-top: 14px;
 }
@@ -1880,6 +1950,45 @@ h1 {
 
 .invitation-primary {
   margin-top: 14px;
+}
+
+.invitation-vault-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.invitation-vault-actions .invitation-primary {
+  margin-top: 0;
+}
+
+.invitation-passkey-note,
+.invitation-reset-vault p {
+  margin-top: 9px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.invitation-reset-vault {
+  margin-top: 14px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+
+.invitation-reset-vault button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: var(--color-danger);
+  background: transparent;
+  font-size: 11px;
+}
+
+.invitation-reset-vault button:hover {
+  background: color-mix(in srgb, var(--color-danger) 9%, transparent);
 }
 
 .joining-device-chip {
@@ -2275,6 +2384,10 @@ h1 {
   .unlock-screen,
   .project-empty-screen {
     padding: 24px 20px;
+  }
+
+  .unlock-setup-actions {
+    grid-template-columns: 1fr;
   }
 
   .invitation-host-view {
