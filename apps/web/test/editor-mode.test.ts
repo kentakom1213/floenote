@@ -85,6 +85,29 @@ describe("editor modes", () => {
     unsubscribe();
   });
 
+  it("keeps non-BMP emoji intact while refreshing the split preview", async () => {
+    const document = NoteDocument.create(createDocumentId(), "Emoji", 100);
+    const listener = vi.fn();
+    const unsubscribe = subscribeMarkdownPreview(document, listener);
+    const binding = document.getEditorBinding();
+    const text = binding.getText(binding.doc);
+
+    text.insert(0, "🍖...");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    listener.mockClear();
+    text.delete(0, "🍖".length);
+    text.insert(0, "🐗");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalled();
+    expect(getMarkdownPreviewSource(document)).toBe("🐗...");
+
+    unsubscribe();
+  });
+
   it("reflects a local body edit in the preview source", async () => {
     const document = NoteDocument.create(createDocumentId(), "Local", 100);
     const binding = document.getEditorBinding();
