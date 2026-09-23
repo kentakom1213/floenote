@@ -118,6 +118,10 @@ describe("NoteDocument metadata", () => {
 
   it("includes the body edit and its timestamp in local CRDT updates", async () => {
     const document = NoteDocument.create(createDocumentId(), "Body", 100);
+    const replica = NoteDocument.fromSnapshot(
+      document.id,
+      document.exportSnapshot(),
+    );
     const updates: Uint8Array[] = [];
     document.subscribeLocalUpdates((update) => updates.push(update));
     vi.spyOn(Date, "now").mockReturnValue(500);
@@ -129,7 +133,6 @@ describe("NoteDocument metadata", () => {
 
     expect(updates.length).toBeGreaterThanOrEqual(2);
 
-    const replica = NoteDocument.empty(document.id);
     for (const update of updates) replica.importUpdate(update);
 
     expect(replica.bodyText).toBe("Hello");
