@@ -108,56 +108,37 @@ export function sanitizeFileStem(value: string): string {
 function prepareDocuments(
   documents: readonly PortableDocument[],
 ): PreparedDocument[] {
-  const activeDocuments = documents
-    .filter((document) => document.status !== "deleted")
-    .map((document) => ({
-      document,
-      stem: sanitizeFileStem(document.title),
-    }));
-  const reservedFileNames = new Set(
-    activeDocuments.map(({ stem }) =>
-      filenameCollisionKey(`${stem}.md`),
-    ),
-  );
   const usedFileNames = new Set<string>();
+  const prepared: PreparedDocument[] = [];
 
-  return activeDocuments.map(({ document, stem }) => ({
-    document,
-    path: `notes/${allocateFileName(
-      stem,
-      usedFileNames,
-      reservedFileNames,
-    )}`,
-  }));
+  for (const document of documents) {
+    if (document.status === "deleted") continue;
+
+    const stem = sanitizeFileStem(document.title);
+    const fileName = allocateFileName(stem, usedFileNames);
+    prepared.push({
+      document,
+      path: `notes/${fileName}`,
+    });
+  }
+
+  return prepared;
 }
 
-function allocateFileName(
-  stem: string,
-  usedFileNames: Set<string>,
-  reservedFileNames: ReadonlySet<string>,
-): string {
+function allocateFileName(stem: string, usedFileNames: Set<string>): string {
   const first = `${stem}.md`;
-  const firstKey = filenameCollisionKey(first);
-  if (!usedFileNames.has(firstKey)) {
-    usedFileNames.add(firstKey);
+  if (!usedFileNames.has(first)) {
+    usedFileNames.add(first);
     return first;
   }
 
   for (let suffix = 2; ; suffix += 1) {
     const candidate = `${stem} (${suffix}).md`;
-    const candidateKey = filenameCollisionKey(candidate);
-    if (
-      !usedFileNames.has(candidateKey) &&
-      !reservedFileNames.has(candidateKey)
-    ) {
-      usedFileNames.add(candidateKey);
+    if (!usedFileNames.has(candidate)) {
+      usedFileNames.add(candidate);
       return candidate;
     }
   }
-}
-
-function filenameCollisionKey(fileName: string): string {
-  return fileName.toLowerCase();
 }
 
 function createManifest(
