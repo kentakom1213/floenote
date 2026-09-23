@@ -13,6 +13,12 @@ import {
 import { NoteProperties } from "./NoteProperties.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
+const EDITOR_MODE_OPTIONS = [
+  { mode: "edit", label: "Edit" },
+  { mode: "split", label: "Split" },
+  { mode: "preview", label: "Preview" },
+] satisfies readonly { mode: EditorMode; label: string }[];
+
 type NoteWorkspaceProps = {
   project: NoteProject;
   selectedId: DocumentId | null;
@@ -183,18 +189,18 @@ function DocumentPane({
 
       <div className="editor-mode-row">
         <div className="editor-mode-switch" aria-label="Note view">
-          {(["edit", "split", "preview"] as const).map((candidate) => (
+          {EDITOR_MODE_OPTIONS.map((option) => (
             <button
-              className={mode === candidate ? "active" : undefined}
-              key={candidate}
+              className={mode === option.mode ? "active" : undefined}
+              key={option.mode}
               type="button"
-              aria-pressed={mode === candidate}
+              aria-pressed={mode === option.mode}
               onClick={() => {
-                setMode(candidate);
-                writeEditorModePreference(candidate);
+                setMode(option.mode);
+                writeEditorModePreference(option.mode);
               }}
             >
-              {candidate[0].toUpperCase() + candidate.slice(1)}
+              {option.label}
             </button>
           ))}
         </div>
