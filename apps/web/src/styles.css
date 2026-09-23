@@ -123,14 +123,27 @@ input:focus-visible {
 }
 
 .app-shell {
+  position: relative;
   height: 100dvh;
   display: grid;
-  grid-template-columns: 276px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 276px) minmax(0, 1fr);
   overflow: hidden;
   background: var(--color-bg);
+  transition: grid-template-columns 140ms ease;
+}
+
+.app-shell[data-sidebar-resizing="true"] {
+  cursor: col-resize;
+  user-select: none;
+  transition: none;
+}
+
+.app-shell[data-sidebar-collapsed="true"] {
+  grid-template-columns: 0 minmax(0, 1fr);
 }
 
 .sidebar {
+  position: relative;
   min-width: 0;
   min-height: 0;
   height: 100dvh;
@@ -139,6 +152,80 @@ input:focus-visible {
   border-right: 1px solid var(--color-border);
   padding: 22px 16px 16px;
   background: var(--color-sidebar);
+}
+
+.app-shell[data-sidebar-collapsed="true"] .sidebar {
+  display: none;
+}
+
+.sidebar-collapse-button,
+.sidebar-restore-button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-text-faint);
+  background: transparent;
+}
+
+.sidebar-collapse-button:hover,
+.sidebar-restore-button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-collapse-button {
+  position: absolute;
+  z-index: 20;
+  top: 23px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.sidebar-restore-button {
+  position: sticky;
+  z-index: 35;
+  top: 14px;
+  left: 14px;
+  width: 34px;
+  height: 34px;
+  margin: 14px 0 -48px 14px;
+  font-size: 15px;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  z-index: 40;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-width, 276px) - 4px);
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.app-shell[data-sidebar-resizing="true"] .sidebar-resizer::after {
+  background: var(--color-accent);
+}
+
+.sidebar-resizer:focus-visible {
+  outline: none;
 }
 
 .sidebar-layout {
@@ -160,6 +247,7 @@ input:focus-visible {
   min-height: 34px;
   display: flex;
   align-items: center;
+  padding-right: 30px;
 }
 
 .brand-lockup {
@@ -2094,10 +2182,22 @@ h1 {
 }
 
 @media (max-width: 760px) {
-  .app-shell {
+  .app-shell,
+  .app-shell[data-sidebar-collapsed="true"] {
     height: auto;
     grid-template-columns: 1fr;
     overflow: visible;
+    transition: none;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"] .sidebar {
+    display: block;
+  }
+
+  .sidebar-resizer,
+  .sidebar-collapse-button,
+  .sidebar-restore-button {
+    display: none;
   }
 
   .sidebar {
