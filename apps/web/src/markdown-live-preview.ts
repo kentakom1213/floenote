@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import type { EditorState } from "@codemirror/state";
+import type { EditorState, Range } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -93,7 +93,7 @@ export function collectMarkdownLivePreviewTokens(
 
 function buildLivePreviewDecorations(view: EditorView): DecorationSet {
   const tokens = collectTokens(view.state, view.visibleRanges);
-  const ranges = [];
+  const ranges: Range<Decoration>[] = [];
 
   for (const token of tokens) {
     switch (token.kind) {
