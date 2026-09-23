@@ -407,6 +407,15 @@ Additional device pairs can establish direct WebRTC connections as needed. The a
 
 Cloudflare Workers and Durable Objects provide the coordination plane.
 
+The official production client uses the Floe Note coordinator deployment
+(`https://floe-coordinate.pwll.dev`). v1 does not expose per-Project
+coordinator selection or coordinator migration as user-facing features.
+Development builds may use an environment-specific endpoint.
+
+Coordinator availability is required for online coordination operations, but it
+must not gate read/edit/export of a Project whose verified state, ProjectKey,
+and data are already available locally.
+
 Each Project maps to one logical coordinator:
 
 ```text
@@ -906,15 +915,25 @@ This prevents two concurrent security changes from silently creating divergent a
 The server determines ordering but cannot forge valid transitions because transitions are signed by authorized device keys.
 
 Devices remember the latest locally verified SecurityState sequence/head. After
-Device Vault unlock, a normal Project open fetches the coordinator's current
-materialized SecurityState through `GET /projects/:projectId/security`.
+Device Vault unlock, a Project whose encrypted data, ProjectKey, and verified
+SecurityState are already present locally may be opened immediately from that
+local state.
 
-The current freshness check accepts the fetched state only when it exactly
-matches the locally verified state. A lower coordinator sequence is treated as
-an obvious rollback. A higher sequence is not adopted automatically because the
-materialized state alone does not contain the signed transition history needed
-to verify how the local head advanced to the returned head. Fetching and
-verifying unseen signed transitions is therefore a separate follow-up protocol.
+Coordinator freshness reconciliation then runs as an online/background concern
+through `GET /projects/:projectId/security`. Failure to reach the coordinator
+does not invalidate the locally verified state and must not block local
+read/edit/export.
+
+If the coordinator reports the same state, no update is needed. A lower
+coordinator sequence/head is treated as a rollback or coordination error and is
+never adopted. If the coordinator reports a higher state, the materialized
+state alone is not trusted: the client fetches every unseen signed transition,
+verifies the chain from its locally verified head, derives each successive
+state, and only then adopts the newer SecurityState.
+
+A coordination error may disable operations which require current online
+membership, such as AddDevice, RevokeDevice, presence authentication, or new
+peer rendezvous, while leaving the local Project usable.
 
 ## 18. Canonical security encoding
 
@@ -1240,18 +1259,18 @@ encrypted binary blob
 
 Each attachment is addressed by its UUIDv7 `AttachmentId` and maps to an encrypted blob. Content-addressing, deduplication, and attachment garbage collection are outside the core design.
 
-## 23. Backup and project identity
+## 23. Backup, import/export, and project identity
 
 Floe Note does not define a standalone key-recovery mechanism without project data. If every device and every copy of the project data are lost, recovering only encryption keys would not recover the Project.
 
-Backup and export are therefore treated as a separate data-backup concern rather than as part of the device-pairing or authorization protocol.
+Portable import/export is treated as a data portability and survivability concern rather than as part of device pairing or authorization. The v1 portable Floe export uses ordinary Markdown plus a JSON manifest and can be produced entirely from an already-local unlocked Project without coordinator availability. Importing that export always creates a new Project identity and therefore uses the normal coordinator-backed Project creation flow. Creating a Project from a raw Markdown directory follows the same new-Project semantics. See `project-import-export.md`.
 
 Identity semantics are:
 
-- **Restore from backup:** preserve ProjectId.
-- **Duplicate/copy project:** generate a new ProjectId.
+- **Portable export/import or duplicate/copy:** generate a new ProjectId.
+- **Future full restore from backup:** preserve ProjectId.
 
-A future backup format must contain the data and cryptographic material required for restoration and should remain independent from the internal IndexedDB schema.
+A future full backup/restore format would need the data and cryptographic material required to restore the original Project identity and should remain independent from the internal IndexedDB schema. That is intentionally separate from the v1 portable export.
 
 
 ## 24. Threat model
@@ -1412,6 +1431,11 @@ Loro        Transport        Vault
 
 React components should not directly manipulate IndexedDB, `RTCPeerConnection`, libsodium primitives, or raw ProjectKeys.
 
+Coordinator access should remain an application-layer concern. Document logic,
+local persistence, and portable export must not require coordinator network I/O;
+the application layer combines those local capabilities with coordinator state
+for cross-device coordination and device management.
+
 ## 27. Open decisions
 
 The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
@@ -1421,7 +1445,7 @@ The following details can be specified independently without changing the core P
 3. SecurityTransition retention/pruning policy once devices can safely declare
    that older transition history is no longer required.
 4. Document tombstone garbage collection.
-5. Stable backup/export archive format.
+5. Future full backup/restore format for preserving the original Project identity.
 6. Background synchronization strategy.
 7. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
 9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
