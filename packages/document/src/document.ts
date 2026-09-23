@@ -22,7 +22,7 @@ export class NoteDocument {
       }
 
       this.#automaticTimestampPending = true;
-      queueMicrotask(() => {
+      void Promise.resolve().then(() => {
         this.#automaticTimestampPending = false;
 
         this.#withAutomaticTimestampSuppressed(() => {
