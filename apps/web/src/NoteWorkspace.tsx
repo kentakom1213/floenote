@@ -17,6 +17,7 @@ import {
   writeNoteSortPreference,
 } from "./sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
+import { SidebarNoteRow } from "./SidebarNoteRow.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
@@ -37,7 +38,7 @@ type NoteWorkspaceProps = {
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
-  onDeleteDocument: () => void;
+  onDeleteDocument: (documentId: DocumentId) => void;
 };
 
 export function NoteWorkspace({
@@ -127,16 +128,14 @@ export function NoteWorkspace({
         <nav className="note-list" aria-label="Notes">
           {visibleNotes.length > 0 ? (
             visibleNotes.map((note) => (
-              <button
-                className={
-                  note.id === selectedId ? "note-item selected" : "note-item"
-                }
+              <SidebarNoteRow
                 key={note.id}
-                type="button"
-                onClick={() => onSelectDocument(note.id)}
-              >
-                {note.title || "Untitled"}
-              </button>
+                id={note.id}
+                title={note.title}
+                selected={note.id === selectedId}
+                onSelect={onSelectDocument}
+                onDelete={() => onDeleteDocument(selectedDocument.id)}
+              />
             ))
           ) : query.trim() ? (
             <p className="note-filter-empty">No matching notes</p>
