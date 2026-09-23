@@ -35,6 +35,24 @@ describe("NoteProperties", () => {
     expect(markup).toContain(new Date(timestamp).toISOString());
   });
 
+  it("keeps timestamps visible without a disclosure control", () => {
+    const document = NoteDocument.create(
+      createDocumentId(),
+      "Metadata",
+      Date.UTC(2026, 8, 23, 12, 14),
+    );
+
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, { document }),
+    );
+
+    expect(markup).not.toContain("<details");
+    expect(markup).not.toContain("<summary");
+    expect(markup).not.toContain(">Properties<");
+    expect(markup).toContain("Created");
+    expect(markup).toContain("Updated");
+  });
+
   it("formats timestamps as compact local date/time strings", () => {
     const timestamp = Date.UTC(2026, 8, 23, 12, 14);
 
