@@ -4,10 +4,20 @@ import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
-import { MarkdownEditor } from "./MarkdownEditor.js";
-import { MarkdownPreview } from "./MarkdownPreview.js";
+import { EditorModeView } from "./EditorModeView.js";
+import {
+  readEditorModePreference,
+  writeEditorModePreference,
+  type EditorMode,
+} from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
+
+const EDITOR_MODE_OPTIONS = [
+  { mode: "edit", label: "Edit" },
+  { mode: "split", label: "Split" },
+  { mode: "preview", label: "Preview" },
+] satisfies readonly { mode: EditorMode; label: string }[];
 
 type NoteWorkspaceProps = {
   project: NoteProject;
@@ -127,7 +137,7 @@ function DocumentPane({
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
   useDismissibleDetails(noteMenuRef);
 
   useEffect(() => {
@@ -158,25 +168,6 @@ function DocumentPane({
         />
 
         <div className="document-header-actions">
-          <div className="editor-mode-switch" aria-label="Note view">
-            <button
-              className={mode === "edit" ? "active" : undefined}
-              type="button"
-              aria-pressed={mode === "edit"}
-              onClick={() => setMode("edit")}
-            >
-              Edit
-            </button>
-            <button
-              className={mode === "preview" ? "active" : undefined}
-              type="button"
-              aria-pressed={mode === "preview"}
-              onClick={() => setMode("preview")}
-            >
-              Preview
-            </button>
-          </div>
-
           <details className="note-menu" ref={noteMenuRef}>
             <summary className="note-menu-trigger" aria-label="Note actions">
               •••
@@ -196,12 +187,26 @@ function DocumentPane({
 
       <NoteProperties document={document} />
 
-      {mode === "edit" ? (
-        <MarkdownEditor document={document} />
-      ) : (
-        <MarkdownPreview document={document} />
-      )}
+      <div className="editor-mode-row">
+        <div className="editor-mode-switch" aria-label="Note view">
+          {EDITOR_MODE_OPTIONS.map((option) => (
+            <button
+              className={mode === option.mode ? "active" : undefined}
+              key={option.mode}
+              type="button"
+              aria-pressed={mode === option.mode}
+              onClick={() => {
+                setMode(option.mode);
+                writeEditorModePreference(option.mode);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      <EditorModeView document={document} mode={mode} />
     </article>
   );
 }
