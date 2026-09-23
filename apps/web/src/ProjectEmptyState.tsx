@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { parseInvitationUrl } from "./invitation-url.js";
 import { Modal } from "./Modal.js";
 
 type ProjectEmptyStateProps = {
@@ -39,16 +40,7 @@ export function ProjectEmptyState({
 
     setError(null);
     try {
-      const url = new URL(inviteUrl.trim(), window.location.origin);
-      const isInvitation =
-        url.origin === window.location.origin &&
-        /^\/join\/v1\/[0-9a-f]{32}$/iu.test(url.pathname) &&
-        new URLSearchParams(url.hash.slice(1)).has("s");
-
-      if (!isInvitation) {
-        throw new Error("Paste a valid Floe Note invitation link.");
-      }
-
+      const url = parseInvitationUrl(inviteUrl, window.location.origin);
       setBusy(true);
       window.location.assign(url.toString());
     } catch (caught: unknown) {
@@ -62,6 +54,8 @@ export function ProjectEmptyState({
     if (busy) return;
     setCreateOpen(false);
     setJoinOpen(false);
+    setProjectName("");
+    setInviteUrl("");
     setError(null);
   }
 
