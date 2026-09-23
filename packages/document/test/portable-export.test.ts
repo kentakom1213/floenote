@@ -92,6 +92,50 @@ describe("portable Project export", () => {
     );
   });
 
+  it("reserves natural filenames before allocating suffixes", () => {
+    const manifest = createPortableProjectManifest(
+      {
+        name: "Project",
+        documents: [
+          document("Ideas"),
+          document("Ideas"),
+          document("Ideas (2)"),
+          document("Untitled"),
+          document(""),
+        ],
+      },
+      EXPORTED_AT,
+    );
+
+    expect(manifest.documents.map(({ path }) => path)).toEqual([
+      "notes/Ideas.md",
+      "notes/Ideas (3).md",
+      "notes/Ideas (2).md",
+      "notes/Untitled.md",
+      "notes/Untitled (2).md",
+    ]);
+  });
+
+  it("avoids case-insensitive filename collisions", () => {
+    const manifest = createPortableProjectManifest(
+      {
+        name: "Project",
+        documents: [
+          document("Readme"),
+          document("README"),
+          document("readme"),
+        ],
+      },
+      EXPORTED_AT,
+    );
+
+    expect(manifest.documents.map(({ path }) => path)).toEqual([
+      "notes/Readme.md",
+      "notes/README (2).md",
+      "notes/readme (3).md",
+    ]);
+  });
+
   it("omits deleted documents", () => {
     const result = createPortableProjectExport(
       {
