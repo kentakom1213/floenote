@@ -105,19 +105,16 @@ export function NoteProperties({ document }: NotePropertiesProps) {
         </div>
       </div>
 
-      <details className="note-properties-details">
-        <summary>Properties</summary>
-        <dl className="note-properties-grid">
-          <div>
-            <dt>Created</dt>
-            <dd>{renderTimestamp(document.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Updated</dt>
-            <dd>{renderTimestamp(document.updatedAt)}</dd>
-          </div>
-        </dl>
-      </details>
+      <dl className="note-properties-grid">
+        <div>
+          <dt>Created</dt>
+          <dd>{renderTimestamp(document.createdAt)}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{renderTimestamp(document.updatedAt)}</dd>
+        </div>
+      </dl>
     </section>
   );
 }
