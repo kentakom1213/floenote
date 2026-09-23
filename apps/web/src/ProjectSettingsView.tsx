@@ -7,14 +7,17 @@ import { ConfirmDialog } from "./ConfirmDialog.js";
 type ProjectSettingsViewProps = {
   projectId: ProjectId;
   projectName: string;
-  localDeviceId: DeviceId;
-  authorizedDevices: readonly AuthorizedDevice[];
+  localDeviceId: DeviceId | null;
+  authorizedDevices: readonly AuthorizedDevice[] | null;
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  securityState: "loading" | "ready" | "error";
+  securityError: string | null;
   getDeviceDisplayName: (deviceId: DeviceId) => string | null;
   onRenameProject: (name: string) => void;
   onRemoveProjectFromDevice: () => Promise<void>;
   onAddDevice: () => void;
+  onRetrySecurity: () => void;
   onRemoveDevice: (deviceId: DeviceId) => Promise<void>;
 };
 
@@ -29,10 +32,13 @@ export function ProjectSettingsView({
   authorizedDevices,
   onlineDeviceIds,
   connectedDeviceIds,
+  securityState,
+  securityError,
   getDeviceDisplayName,
   onRenameProject,
   onRemoveProjectFromDevice,
   onAddDevice,
+  onRetrySecurity,
   onRemoveDevice,
 }: ProjectSettingsViewProps) {
   const online = new Set(onlineDeviceIds);
@@ -104,69 +110,88 @@ export function ProjectSettingsView({
             className="settings-primary-action"
             type="button"
             onClick={onAddDevice}
+            disabled={securityState !== "ready"}
           >
             Add device
           </button>
         </div>
 
-        <div className="device-list">
-          {authorizedDevices.map((device) => {
-            const isCurrent = device.deviceId === localDeviceId;
-            const isOnline = online.has(device.deviceId);
-            const isConnected = connected.has(device.deviceId);
-            const displayName =
-              getDeviceDisplayName(device.deviceId) ??
-              (isCurrent ? "This device" : "Unnamed device");
+        {securityState === "ready" && authorizedDevices ? (
+          <div className="device-list">
+            {authorizedDevices.map((device) => {
+              const isCurrent = device.deviceId === localDeviceId;
+              const isOnline = online.has(device.deviceId);
+              const isConnected = connected.has(device.deviceId);
+              const displayName =
+                getDeviceDisplayName(device.deviceId) ??
+                (isCurrent ? "This device" : "Unnamed device");
 
-            return (
-              <div className="device-row" key={device.deviceId}>
-                <div className="device-copy">
-                  <div className="device-title-row">
-                    <strong>{displayName}</strong>
-                    {isCurrent ? (
-                      <span className="settings-badge">This device</span>
-                    ) : null}
-                    <span
-                      className="device-status"
-                      data-state={
-                        isCurrent
-                          ? isOnline
-                            ? "online"
-                            : "offline"
-                          : isConnected
-                            ? "connected"
-                            : isOnline
+              return (
+                <div className="device-row" key={device.deviceId}>
+                  <div className="device-copy">
+                    <div className="device-title-row">
+                      <strong>{displayName}</strong>
+                      {isCurrent ? (
+                        <span className="settings-badge">This device</span>
+                      ) : null}
+                      <span
+                        className="device-status"
+                        data-state={
+                          isCurrent
+                            ? isOnline
                               ? "online"
                               : "offline"
-                      }
-                    >
-                      {isCurrent
-                        ? isOnline
-                          ? "Online"
-                          : "Offline"
-                        : isConnected
-                          ? "Connected"
-                          : isOnline
+                            : isConnected
+                              ? "connected"
+                              : isOnline
+                                ? "online"
+                                : "offline"
+                        }
+                      >
+                        {isCurrent
+                          ? isOnline
                             ? "Online"
-                            : "Offline"}
-                    </span>
+                            : "Offline"
+                          : isConnected
+                            ? "Connected"
+                            : isOnline
+                              ? "Online"
+                              : "Offline"}
+                      </span>
+                    </div>
+                    <p>{shortDeviceId(device.deviceId)}</p>
                   </div>
-                  <p>{shortDeviceId(device.deviceId)}</p>
-                </div>
 
-                {!isCurrent ? (
-                  <button
-                    className="settings-danger-action"
-                    type="button"
-                    onClick={() => setRemoveDeviceId(device.deviceId)}
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+                  {!isCurrent ? (
+                    <button
+                      className="settings-danger-action"
+                      type="button"
+                      onClick={() => setRemoveDeviceId(device.deviceId)}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : securityState === "error" ? (
+          <div className="project-security-inline-error">
+            <p>
+              Device authorization could not be loaded.
+              {securityError ? ` ${securityError}` : ""}
+            </p>
+            <button
+              className="dialog-secondary-button"
+              type="button"
+              onClick={onRetrySecurity}
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <p className="settings-loading">Loading authorized devices…</p>
+        )}
       </div>
 
       <div className="settings-section">
