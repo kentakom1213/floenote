@@ -84,7 +84,10 @@ import { deriveSyncUiState } from "./sync-ui-state.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
-import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
+import {
+  reconcileVerifiedSecurityState,
+  securityStatesEqual,
+} from "./security-reconciliation.js";
 import { SignalingHostPanel } from "./SignalingHostPanel.js";
 import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { UnlockScreen } from "./UnlockScreen.js";
@@ -205,6 +208,11 @@ function NoteApp() {
     useState<SecurityState | null>(null);
   const [localSecurityError, setLocalSecurityError] =
     useState<string | null>(null);
+  const [securityCoordinationState, setSecurityCoordinationState] = useState<
+    "checking" | "ready" | "error"
+  >("checking");
+  const [securityCoordinationError, setSecurityCoordinationError] =
+    useState<string | null>(null);
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
   const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
@@ -252,6 +260,8 @@ function NoteApp() {
       setLocalSecurityBootstrapState("waiting");
       setLocalSecurityState(null);
       setLocalSecurityError(null);
+      setSecurityCoordinationState("checking");
+      setSecurityCoordinationError(null);
       setLocalProjectKeyReady(null);
       return;
     }
@@ -263,78 +273,103 @@ function NoteApp() {
     setLocalSecurityBootstrapState("committing");
     setLocalSecurityState(null);
     setLocalSecurityError(null);
+    setSecurityCoordinationState("checking");
+    setSecurityCoordinationError(null);
     setLocalProjectKeyReady(null);
 
     void (async () => {
       const storedState = await projectStorage.loadSecurityState(project.id);
       if (storedState) {
-        const coordinatorState =
-          await securityCoordinator.getSecurityState(project.id);
-
-        if (coordinatorState.sequence < storedState.sequence) {
-          throw new Error(
-            "Coordinator SecurityState is older than the locally verified state",
-          );
-        }
-
-        let verifiedState = storedState;
-
-        if (coordinatorState.sequence > storedState.sequence) {
-          const transitions = await securityCoordinator.getSecurityTransitions(
-            project.id,
-            storedState.sequence,
-          );
-          verifiedState = await applyVerifiedSecurityTransitions(
-            storedState,
-            transitions,
-          );
-        }
-
-        if (!securityStatesEqual(verifiedState, coordinatorState)) {
-          throw new Error(
-            "Verified SecurityState does not match the coordinator current state",
-          );
-        }
-
         if (
-          !verifiedState.devices.some(
+          !storedState.devices.some(
             (device) => device.deviceId === localDeviceId,
           )
         ) {
           throw new Error(
-            "This Device Vault identity is not authorized by the verified SecurityState",
+            "This Device Vault identity is not authorized by the locally verified SecurityState",
           );
         }
 
-        if (!securityStatesEqual(storedState, verifiedState)) {
-          await projectStorage.saveCommittedSecurityState(verifiedState);
-        }
-
-        let projectKeyReady = await ensureInitialProjectKey(
+        const cachedProjectKeyReady = await ensureInitialProjectKey(
           session,
-          verifiedState,
+          storedState,
           localDeviceId,
         );
 
-        if (!projectKeyReady && verifiedState.keyEpoch > 1) {
-          const envelope = await securityCoordinator.getProjectKeyEnvelope(
-            verifiedState.projectId,
-            verifiedState.keyEpoch,
-            localDeviceId,
+        if (cachedProjectKeyReady && !cancelled) {
+          setLocalSecurityState(storedState);
+          setLocalSecurityBootstrapState("committed");
+          setLocalProjectKeyReady(true);
+        }
+
+        try {
+          const verifiedState = await reconcileVerifiedSecurityState(
+            securityCoordinator,
+            storedState,
           );
-          await storeVerifiedRotatedProjectKey(
+
+          if (
+            !verifiedState.devices.some(
+              (device) => device.deviceId === localDeviceId,
+            )
+          ) {
+            throw new Error(
+              "This device is no longer authorized by the coordinator SecurityState",
+            );
+          }
+
+          let projectKeyReady = await ensureInitialProjectKey(
             session,
             verifiedState,
             localDeviceId,
-            envelope,
           );
-          projectKeyReady = true;
-        }
 
-        if (!cancelled) {
-          setLocalSecurityState(verifiedState);
-          setLocalSecurityBootstrapState("committed");
-          setLocalProjectKeyReady(projectKeyReady);
+          if (!projectKeyReady && verifiedState.keyEpoch > 1) {
+            const envelope = await securityCoordinator.getProjectKeyEnvelope(
+              verifiedState.projectId,
+              verifiedState.keyEpoch,
+              localDeviceId,
+            );
+            await storeVerifiedRotatedProjectKey(
+              session,
+              verifiedState,
+              localDeviceId,
+              envelope,
+            );
+            projectKeyReady = true;
+          }
+
+          if (!projectKeyReady) {
+            throw new Error(
+              "Current ProjectKey is not available on this device",
+            );
+          }
+
+          if (!securityStatesEqual(storedState, verifiedState)) {
+            await projectStorage.saveCommittedSecurityState(verifiedState);
+          }
+
+          if (!cancelled) {
+            setLocalSecurityState(verifiedState);
+            setLocalSecurityBootstrapState("committed");
+            setLocalProjectKeyReady(true);
+            setSecurityCoordinationState("ready");
+            setSecurityCoordinationError(null);
+          }
+        } catch (error: unknown) {
+          if (cancelled) return;
+
+          if (cachedProjectKeyReady) {
+            setSecurityCoordinationState("error");
+            setSecurityCoordinationError(
+              error instanceof Error
+                ? error.message
+                : "Could not refresh Project coordination state",
+            );
+            return;
+          }
+
+          throw error;
         }
         return;
       }
@@ -394,16 +429,21 @@ function NoteApp() {
         setLocalSecurityState(committedState);
         setLocalSecurityBootstrapState("committed");
         setLocalProjectKeyReady(projectKeyReady);
+        setSecurityCoordinationState("ready");
+        setSecurityCoordinationError(null);
       }
     })().catch((error: unknown) => {
       if (cancelled) return;
-      setLocalSecurityBootstrapState("error");
-      setLocalSecurityState(null);
-      setLocalSecurityError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Failed to create local SecurityState",
-      );
+          : "Failed to create local SecurityState";
+      setLocalSecurityBootstrapState("error");
+      setLocalSecurityState(null);
+      setLocalSecurityError(message);
+      setSecurityCoordinationState("error");
+      setSecurityCoordinationError(message);
+      setLocalProjectKeyReady(null);
     });
 
     return () => {
@@ -913,6 +953,8 @@ function NoteApp() {
     setLocalSecurityBootstrapState("waiting");
     setLocalSecurityState(null);
     setLocalSecurityError(null);
+    setSecurityCoordinationState("checking");
+    setSecurityCoordinationError(null);
     setLocalProjectKeyReady(null);
     setCoordinationError(null);
   }
@@ -1437,6 +1479,8 @@ function NoteApp() {
               : "loading"
         }
         securityError={localSecurityError}
+        coordinationState={securityCoordinationState}
+        coordinationError={securityCoordinationError}
         getDeviceDisplayName={(deviceId) =>
           activeProject.getDeviceDisplayName(deviceId)
         }
@@ -1631,33 +1675,6 @@ async function ensureInitialProjectKey(
 
 function bytesToHex(value: Uint8Array): string {
   return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function securityStatesEqual(
-  left: SecurityState,
-  right: SecurityState,
-): boolean {
-  if (
-    left.protocolVersion !== right.protocolVersion ||
-    left.projectId !== right.projectId ||
-    left.sequence !== right.sequence ||
-    left.keyEpoch !== right.keyEpoch ||
-    !bytesEqual(left.headHash, right.headHash) ||
-    left.devices.length !== right.devices.length
-  ) {
-    return false;
-  }
-
-  return left.devices.every((device, index) => {
-    const other = right.devices[index];
-    return (
-      other !== undefined &&
-      device.deviceId === other.deviceId &&
-      device.addedAtSequence === other.addedAtSequence &&
-      bytesEqual(device.encryptionPublicKey, other.encryptionPublicKey) &&
-      bytesEqual(device.signingPublicKey, other.signingPublicKey)
-    );
-  });
 }
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
