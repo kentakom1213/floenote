@@ -47,7 +47,7 @@ export function MarkdownPreview({ document }: MarkdownPreviewProps) {
     (listener: () => void) => document.subscribe(listener),
     [document],
   );
-  const getSnapshot = useCallback(() => document.bodyText, [document]);
+  const getSnapshot = useCallback(() => getMarkdownPreviewSource(document), [document]);
   const markdown = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const html = useMemo(() => renderMarkdown(markdown), [markdown]);
 
@@ -65,6 +65,10 @@ export function MarkdownPreview({ document }: MarkdownPreviewProps) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+}
+
+export function getMarkdownPreviewSource(document: NoteDocument): string {
+  return document.bodyText;
 }
 
 export function renderMarkdown(source: string): string {
