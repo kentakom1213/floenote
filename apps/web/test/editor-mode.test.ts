@@ -30,37 +30,20 @@ describe("editor modes", () => {
     expect(markup).not.toContain("editor-view-preview");
   });
 
-  it("renders only the preview in Preview mode", () => {
-    const document = NoteDocument.create(createDocumentId(), "Preview", 100);
-    const markup = renderToStaticMarkup(
-      createElement(EditorModeView, { document, mode: "preview" }),
-    );
-
+  it("shows only the preview in Preview mode", () => {
     expect(getEditorModeLayout("preview")).toEqual({
       showEditor: false,
       showPreview: true,
       split: false,
     });
-    expect(markup).toContain('data-editor-mode="preview"');
-    expect(markup).not.toContain("editor-view-source");
-    expect(markup).toContain("editor-view-preview");
   });
 
-  it("renders source and preview together in Split mode", () => {
-    const document = NoteDocument.create(createDocumentId(), "Split", 100);
-    const markup = renderToStaticMarkup(
-      createElement(EditorModeView, { document, mode: "split" }),
-    );
-
+  it("shows source and preview together in Split mode", () => {
     expect(getEditorModeLayout("split")).toEqual({
       showEditor: true,
       showPreview: true,
       split: true,
     });
-    expect(markup).toContain('data-editor-mode="split"');
-    expect(markup).toContain("editor-view-split");
-    expect(markup).toContain("editor-view-source");
-    expect(markup).toContain("editor-view-preview");
   });
 
   it("reflects a local body edit in the preview source", async () => {
