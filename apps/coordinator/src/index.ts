@@ -33,6 +33,8 @@ import {
 interface Env {
   PROJECT_COORDINATOR: DurableObjectNamespace<ProjectCoordinator>;
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
+  FLOE_VERSION: string;
+  FLOE_BUILD: string;
 }
 
 type SignalingSocketAttachment = {
@@ -109,7 +111,13 @@ export default {
     }
 
     if (url.pathname === "/health") {
-      return withCors(Response.json({ ok: true }));
+      return withCors(
+        Response.json({
+          ok: true,
+          version: env.FLOE_VERSION,
+          build: env.FLOE_BUILD,
+        }),
+      );
     }
 
     const createInviteProjectId = parseCreateInviteRoute(url.pathname);
