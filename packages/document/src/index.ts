@@ -11,7 +11,7 @@ export {
   serializePortableProjectManifest,
 } from "./portable-export.js";
 
-export type { DocumentEditorBinding } from "./document.js";
+export type { DocumentEditorBinding, NoteDocumentInitialState } from "./document.js";
 export type { DocumentSummary } from "./project.js";
 export type {
   FloeExportManifestV1,

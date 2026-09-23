@@ -76,6 +76,7 @@ import {
 } from "./note-preference.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { exportProjectToBrowser } from "./portable-export-download.js";
+import { importPortableProjectArchive } from "./portable-import-integration.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
@@ -718,7 +719,12 @@ function NoteApp() {
       );
     }
 
-    return <ProjectEmptyState onCreateProject={createProject} />;
+    return (
+      <ProjectEmptyState
+        onCreateProject={createProject}
+        onImportFloeExport={importFloeExport}
+      />
+    );
   }
 
   const activeProject = project;
@@ -847,6 +853,37 @@ function NoteApp() {
     try {
       const result = await projectStorage.createProject(name);
       syncLocalDeviceName(result.project, session);
+      const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
+      setMainView("note");
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+      setProjectCatalogReady(true);
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  async function importFloeExport(archive: Uint8Array): Promise<void> {
+    if (projectSwitching) {
+      throw new Error("Another Project operation is already in progress");
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before importing a Project");
+    }
+
+    setProjectSwitching(true);
+
+    try {
+      const result = await importPortableProjectArchive(archive, {
+        session,
+        coordinator: securityCoordinator,
+        storage: projectStorage,
+      });
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
@@ -1433,6 +1470,7 @@ function NoteApp() {
       disabled={projectSwitching}
       onSelectProject={selectProject}
       onCreateProject={createProject}
+      onImportFloeExport={importFloeExport}
       onOpenProjectSettings={() => setMainView("project-settings")}
     />
   );

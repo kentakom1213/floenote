@@ -12,13 +12,14 @@ export type ProjectSwitcherItem = {
   isCurrent: boolean;
 };
 
-type NewProjectSource = "blank" | "invitation";
+type NewProjectSource = "blank" | "invitation" | "floe-import";
 
 type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
   disabled?: boolean;
   onSelectProject: (projectId: ProjectId) => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
+  onImportFloeExport: (archive: Uint8Array) => Promise<void>;
   onOpenProjectSettings: () => void;
 };
 
@@ -27,6 +28,7 @@ export function ProjectSwitcher({
   disabled = false,
   onSelectProject,
   onCreateProject,
+  onImportFloeExport,
   onOpenProjectSettings,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
@@ -95,6 +97,25 @@ export function ProjectSwitcher({
       setError(
         caught instanceof Error ? caught.message : "Invalid invitation link",
       );
+    }
+  }
+
+  async function importFloeExport(file: File): Promise<void> {
+    if (busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const archive = new Uint8Array(await file.arrayBuffer());
+      await onImportFloeExport(archive);
+      setNewProjectSource(null);
+      setNewProjectOpen(false);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not import Floe export",
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -238,6 +259,17 @@ export function ProjectSwitcher({
                     from another authorized device.
                   </span>
                 </button>
+                <button
+                  className="new-project-source-option"
+                  type="button"
+                  onClick={() => setNewProjectSource("floe-import")}
+                >
+                  <strong>Import Floe export</strong>
+                  <span>
+                    Create a new independent Project from a portable .floe.zip
+                    export and preserve note metadata.
+                  </span>
+                </button>
               </div>
 
               <div className="dialog-actions">
@@ -305,7 +337,7 @@ export function ProjectSwitcher({
                 </div>
               </form>
             </>
-          ) : (
+          ) : newProjectSource === "invitation" ? (
             <>
               <p className="dialog-description">
                 Paste an invitation link created on an authorized device. This
@@ -358,6 +390,56 @@ export function ProjectSwitcher({
                   </button>
                 </div>
               </form>
+            </>
+          ) : (
+            <>
+              <p className="dialog-description">
+                Choose a portable Floe export. The archive is fully validated
+                before a new Project is created. Import creates a new Project
+                identity and does not restore device authorization or keys.
+              </p>
+
+              <button
+                className="new-project-source-back"
+                type="button"
+                disabled={busy}
+                onClick={returnToSourceSelection}
+              >
+                ← Choose another source
+              </button>
+
+              <label className="dialog-field">
+                <span>Floe export</span>
+                <input
+                  autoFocus
+                  type="file"
+                  accept=".floe.zip,application/zip"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0] ?? null;
+                    event.currentTarget.value = "";
+                    if (file) void importFloeExport(file);
+                  }}
+                />
+              </label>
+              <p className="settings-field-hint">
+                {busy
+                  ? "Validating and creating a new Project…"
+                  : "Select a .floe.zip file exported by Floe Note."}
+              </p>
+
+              {error ? <p className="dialog-error">{error}</p> : null}
+
+              <div className="dialog-actions">
+                <button
+                  className="dialog-secondary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={closeNewProject}
+                >
+                  Cancel
+                </button>
+              </div>
             </>
           )}
         </Modal>

@@ -6,7 +6,7 @@ import {
 } from "@floe-note/domain";
 import { LoroDoc } from "loro-crdt";
 
-import { NoteDocument } from "./document.js";
+import { NoteDocument, type NoteDocumentInitialState } from "./document.js";
 
 export type DocumentSummary = {
   id: DocumentId;
@@ -148,12 +148,16 @@ export class NoteProject {
   createDocument(title = "Untitled"): NoteDocument {
     const id = createDocumentId();
     const document = NoteDocument.create(id, title);
+    this.#addDocument(document);
+    return document;
+  }
 
-    this.#documents.set(id, document);
-    this.#manifest.getMap("documents").set(id, "active");
-    this.#manifest.commit();
-    this.#emit();
-
+  createDocumentWithInitialState(
+    initial: NoteDocumentInitialState,
+  ): NoteDocument {
+    const id = createDocumentId();
+    const document = NoteDocument.createWithInitialState(id, initial);
+    this.#addDocument(document);
     return document;
   }
 
@@ -175,6 +179,13 @@ export class NoteProject {
     if (manifest.get(id) !== "active") return;
 
     manifest.set(id, "deleted");
+    this.#manifest.commit();
+    this.#emit();
+  }
+
+  #addDocument(document: NoteDocument): void {
+    this.#documents.set(document.id, document);
+    this.#manifest.getMap("documents").set(document.id, "active");
     this.#manifest.commit();
     this.#emit();
   }
