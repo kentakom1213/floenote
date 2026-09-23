@@ -711,10 +711,13 @@ input:focus-visible {
 
 .markdown-math-block {
   display: block;
-  overflow-x: auto;
   margin: 1.2em 0;
   padding: 0.25em 0;
   text-align: center;
+}
+
+.markdown-math-block .katex-display {
+  margin: 0;
 }
 
 .markdown-image-placeholder {
