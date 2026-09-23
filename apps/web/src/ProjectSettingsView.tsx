@@ -13,6 +13,8 @@ type ProjectSettingsViewProps = {
   connectedDeviceIds: readonly DeviceId[];
   securityState: "loading" | "ready" | "error";
   securityError: string | null;
+  coordinationState: "checking" | "ready" | "error";
+  coordinationError: string | null;
   getDeviceDisplayName: (deviceId: DeviceId) => string | null;
   onRenameProject: (name: string) => void;
   onRemoveProjectFromDevice: () => Promise<void>;
@@ -34,6 +36,8 @@ export function ProjectSettingsView({
   connectedDeviceIds,
   securityState,
   securityError,
+  coordinationState,
+  coordinationError,
   getDeviceDisplayName,
   onRenameProject,
   onRemoveProjectFromDevice,
@@ -110,14 +114,35 @@ export function ProjectSettingsView({
             className="settings-primary-action"
             type="button"
             onClick={onAddDevice}
-            disabled={securityState !== "ready"}
+            disabled={
+              securityState !== "ready" || coordinationState !== "ready"
+            }
           >
             Add device
           </button>
         </div>
 
         {securityState === "ready" && authorizedDevices ? (
-          <div className="device-list">
+          <>
+            {coordinationState !== "ready" ? (
+              <div className="project-security-inline-error">
+                <p>
+                  {coordinationState === "checking"
+                    ? "Checking coordinator availability. Cached device authorization remains available locally."
+                    : `Coordinator is unavailable. Cached device authorization is shown below, but device changes are temporarily unavailable.${coordinationError ? ` ${coordinationError}` : ""}`}
+                </p>
+                {coordinationState === "error" ? (
+                  <button
+                    className="dialog-secondary-button"
+                    type="button"
+                    onClick={onRetrySecurity}
+                  >
+                    Try again
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="device-list">
             {authorizedDevices.map((device) => {
               const isCurrent = device.deviceId === localDeviceId;
               const isOnline = online.has(device.deviceId);
@@ -167,6 +192,7 @@ export function ProjectSettingsView({
                       className="settings-danger-action"
                       type="button"
                       onClick={() => setRemoveDeviceId(device.deviceId)}
+                      disabled={coordinationState !== "ready"}
                     >
                       Remove
                     </button>
@@ -174,7 +200,8 @@ export function ProjectSettingsView({
                 </div>
               );
             })}
-          </div>
+            </div>
+          </>
         ) : securityState === "error" ? (
           <div className="project-security-inline-error">
             <p>
