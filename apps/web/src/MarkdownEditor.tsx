@@ -1,4 +1,5 @@
 import { markdown } from "@codemirror/lang-markdown";
+import { Compartment } from "@codemirror/state";
 import { basicSetup, EditorView } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
 import { UndoManager } from "loro-crdt";
@@ -18,6 +19,8 @@ export function MarkdownEditor({
   livePreview = false,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const livePreviewCompartmentRef = useRef<Compartment | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -25,12 +28,15 @@ export function MarkdownEditor({
 
     const binding = document.getEditorBinding();
     const undoManager = new UndoManager(binding.doc, {});
+    const livePreviewCompartment = new Compartment();
     const view = new EditorView({
       parent: host,
       extensions: [
         basicSetup,
         markdown(),
-        livePreview ? markdownLivePreview() : [],
+        livePreviewCompartment.of(
+          livePreview ? markdownLivePreview() : [],
+        ),
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({
           "aria-label": "Markdown editor",
@@ -42,6 +48,9 @@ export function MarkdownEditor({
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
       ],
     });
+
+    viewRef.current = view;
+    livePreviewCompartmentRef.current = livePreviewCompartment;
 
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
@@ -80,8 +89,22 @@ export function MarkdownEditor({
     return () => {
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
+      viewRef.current = null;
+      livePreviewCompartmentRef.current = null;
     };
-  }, [document, livePreview]);
+  }, [document]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    const compartment = livePreviewCompartmentRef.current;
+    if (!view || !compartment) return;
+
+    view.dispatch({
+      effects: compartment.reconfigure(
+        livePreview ? markdownLivePreview() : [],
+      ),
+    });
+  }, [livePreview]);
 
   return <div className="editor" ref={hostRef} />;
 }
