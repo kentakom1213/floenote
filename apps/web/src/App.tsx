@@ -1332,21 +1332,22 @@ function NoteApp() {
     setMainView("note");
   }
 
-  function deleteSelectedDocument() {
-    if (!selectedId) return;
-
+  function deleteDocument(documentId: DocumentId) {
     const before = activeProject.listDocuments();
-    const selectedIndex = before.findIndex(
-      (summary) => summary.id === selectedId,
+    const deletedIndex = before.findIndex(
+      (summary) => summary.id === documentId,
     );
+    if (deletedIndex < 0) return;
 
-    activeProject.deleteDocument(selectedId);
+    activeProject.deleteDocument(documentId);
+
+    if (documentId !== selectedId) return;
 
     const remaining = activeProject.listDocuments();
     const next =
       remaining[
         Math.min(
-          Math.max(selectedIndex, 0),
+          deletedIndex,
           Math.max(remaining.length - 1, 0),
         )
       ] ?? null;
@@ -1610,7 +1611,7 @@ function NoteApp() {
           activeProject.renameDocument(selectedDocument.id, title);
         }
       }}
-      onDeleteDocument={deleteSelectedDocument}
+      onDeleteDocument={deleteDocument}
     />
   );
 }
