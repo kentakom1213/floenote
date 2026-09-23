@@ -1,5 +1,5 @@
 import type { DocumentId } from "@floe-note/domain";
-import { LoroDoc, type LoroText } from "loro-crdt";
+import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
 
 export type DocumentEditorBinding = {
   doc: LoroDoc;
@@ -9,10 +9,28 @@ export type DocumentEditorBinding = {
 export class NoteDocument {
   readonly id: DocumentId;
   readonly #doc: LoroDoc;
+  #suppressAutomaticTimestamp = false;
+  #automaticTimestampPending = false;
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
     this.#doc = doc;
+
+    this.#doc.subscribeLocalUpdates(() => {
+      if (this.#suppressAutomaticTimestamp || this.#automaticTimestampPending) {
+        return;
+      }
+
+      this.#automaticTimestampPending = true;
+      queueMicrotask(() => {
+        this.#automaticTimestampPending = false;
+
+        this.#withAutomaticTimestampSuppressed(() => {
+          this.#doc.getMap("meta").set("updatedAt", Date.now());
+          this.#doc.commit();
+        });
+      });
+    });
   }
 
   static create(id: DocumentId, title: string, now = Date.now()): NoteDocument {
@@ -42,11 +60,66 @@ export class NoteDocument {
     return typeof value === "string" ? value : "";
   }
 
+  get createdAt(): number | null {
+    return this.#getTimestamp("createdAt");
+  }
+
+  get updatedAt(): number | null {
+    return this.#getTimestamp("updatedAt");
+  }
+
+  get tags(): readonly string[] {
+    return normalizeStoredTags(this.#getTagsList()?.toArray() ?? []);
+  }
+
   setTitle(title: string): void {
-    const meta = this.#doc.getMap("meta");
-    meta.set("title", title);
-    meta.set("updatedAt", Date.now());
-    this.#doc.commit();
+    if (title === this.title) return;
+
+    this.#commitLocalMutation(() => {
+      this.#doc.getMap("meta").set("title", title);
+    });
+  }
+
+  setTags(tags: readonly string[]): void {
+    const normalized = normalizeTags(tags);
+    if (sameStrings(normalized, this.tags)) return;
+
+    this.#commitLocalMutation(() => {
+      const list = this.#ensureTagsList();
+      if (list.length > 0) list.delete(0, list.length);
+
+      normalized.forEach((tag, index) => {
+        list.insert(index, tag);
+      });
+    });
+  }
+
+  addTag(tag: string): void {
+    const normalized = normalizeTag(tag);
+    if (this.tags.includes(normalized)) return;
+
+    this.#commitLocalMutation(() => {
+      const list = this.#ensureTagsList();
+      list.insert(list.length, normalized);
+    });
+  }
+
+  removeTag(tag: string): void {
+    const normalized = normalizeTag(tag);
+    const list = this.#getTagsList();
+    if (!list) return;
+
+    const values = list.toArray();
+    const indexes = values.flatMap((value, index) =>
+      typeof value === "string" && value.trim() === normalized ? [index] : [],
+    );
+    if (indexes.length === 0) return;
+
+    this.#commitLocalMutation(() => {
+      for (const index of indexes.reverse()) {
+        list.delete(index, 1);
+      }
+    });
   }
 
   get bodyText(): string {
@@ -81,4 +154,83 @@ export class NoteDocument {
       getText: (doc) => doc.getText("body"),
     };
   }
+
+  #getTimestamp(key: "createdAt" | "updatedAt"): number | null {
+    const value = this.#doc.getMap("meta").get(key);
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  }
+
+  #getTagsList(): LoroList | null {
+    const value = this.#doc.getMap("meta").get("tags");
+    return value instanceof LoroList ? value : null;
+  }
+
+  #ensureTagsList(): LoroList {
+    return this.#doc.getMap("meta").ensureMergeableList("tags");
+  }
+
+  #commitLocalMutation(mutate: () => void): void {
+    this.#withAutomaticTimestampSuppressed(() => {
+      mutate();
+      this.#doc.getMap("meta").set("updatedAt", Date.now());
+      this.#doc.commit();
+    });
+  }
+
+  #withAutomaticTimestampSuppressed<T>(run: () => T): T {
+    const previous = this.#suppressAutomaticTimestamp;
+    this.#suppressAutomaticTimestamp = true;
+    try {
+      return run();
+    } finally {
+      this.#suppressAutomaticTimestamp = previous;
+    }
+  }
+}
+
+function normalizeTag(tag: string): string {
+  const normalized = tag.trim();
+  if (!normalized) {
+    throw new TypeError("Tag must not be empty");
+  }
+  return normalized;
+}
+
+function normalizeTags(tags: readonly string[]): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const tag of tags) {
+    const normalized = normalizeTag(tag);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function normalizeStoredTags(values: readonly unknown[]): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function sameStrings(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
