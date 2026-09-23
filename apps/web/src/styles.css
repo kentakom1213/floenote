@@ -390,6 +390,7 @@ input:focus-visible {
 }
 
 .sidebar-footer-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -764,7 +765,7 @@ input:focus-visible {
 }
 
 .sync-status {
-  position: relative;
+  position: static;
 }
 
 .sync-status-summary,
@@ -810,9 +811,11 @@ input:focus-visible {
 }
 
 .sync-status-popover {
+  right: 0;
   bottom: calc(100% + 8px);
   left: 0;
-  width: 286px;
+  width: auto;
+  box-sizing: border-box;
   padding: 13px;
 }
 
