@@ -66,7 +66,7 @@ export function SidebarNavigationToolbar({
 
   return (
     <div className="sidebar-navigation">
-      <div className="sidebar-toolbar" aria-label="Note navigation">
+      <div className="sidebar-toolbar" role="toolbar" aria-label="Note navigation">
         <button
           className={searchOpen ? "sidebar-tool-button active" : "sidebar-tool-button"}
           type="button"
