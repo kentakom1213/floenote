@@ -1801,6 +1801,39 @@ h1 {
   font-size: 24px;
 }
 
+.debug-environment-panel {
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.debug-environment-label,
+.debug-environment-value {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.debug-environment-label {
+  color: var(--color-attention);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debug-environment-value {
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.debug-environment-value code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
 /* Legacy protocol/debug UI. Kept for DEV routes and the current invitation flow. */
 .webrtc-debug-panel {
   margin-top: 16px;
