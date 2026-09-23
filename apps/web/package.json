@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "VITE_WEB_VERSION=$npm_package_version VITE_WEB_BUILD=$(git rev-parse --short=12 HEAD) vite",
+    "build": "tsc -b && VITE_WEB_VERSION=$npm_package_version VITE_WEB_BUILD=$(git rev-parse --short=12 HEAD) vite build",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
