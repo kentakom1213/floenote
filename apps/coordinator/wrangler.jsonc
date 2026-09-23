@@ -3,29 +3,35 @@
   "name": "floe-note-coordinator",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-22",
+  "routes": [
+    {
+      "pattern": "floe-coordinator.pwll.dev",
+      "custom_domain": true,
+    },
+  ],
   "durable_objects": {
     "bindings": [
       {
         "name": "PROJECT_COORDINATOR",
-        "class_name": "ProjectCoordinator"
+        "class_name": "ProjectCoordinator",
       },
       {
         "name": "INVITATION_COORDINATOR",
-        "class_name": "InvitationCoordinator"
-      }
-    ]
+        "class_name": "InvitationCoordinator",
+      },
+    ],
   },
   "exports": {
     "ProjectCoordinator": {
       "type": "durable-object",
-      "storage": "sqlite"
+      "storage": "sqlite",
     },
     "InvitationCoordinator": {
       "type": "durable-object",
-      "storage": "sqlite"
-    }
+      "storage": "sqlite",
+    },
   },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }
