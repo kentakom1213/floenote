@@ -17,6 +17,7 @@ type NoteWorkspaceProps = {
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
   focusTitleDocumentId?: DocumentId | null;
+  onTitleFocusHandled: () => void;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
@@ -31,6 +32,7 @@ export function NoteWorkspace({
   sidebarFooter,
   mainContent,
   focusTitleDocumentId,
+  onTitleFocusHandled,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
@@ -88,6 +90,7 @@ export function NoteWorkspace({
           <DocumentPane
             document={selectedDocument}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
+            onTitleFocusHandled={onTitleFocusHandled}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
           />
@@ -110,6 +113,7 @@ export function NoteWorkspace({
 type DocumentPaneProps = {
   document: NoteDocument;
   focusTitle: boolean;
+  onTitleFocusHandled: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
 };
@@ -117,6 +121,7 @@ type DocumentPaneProps = {
 function DocumentPane({
   document,
   focusTitle,
+  onTitleFocusHandled,
   onRename,
   onDelete,
 }: DocumentPaneProps) {
@@ -133,7 +138,8 @@ function DocumentPane({
 
     input.focus();
     input.select();
-  }, [document.id, focusTitle]);
+    onTitleFocusHandled();
+  }, [document.id, focusTitle, onTitleFocusHandled]);
 
   function requestDelete(): void {
     noteMenuRef.current?.removeAttribute("open");
