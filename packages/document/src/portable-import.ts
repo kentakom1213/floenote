@@ -95,7 +95,10 @@ function parseManifest(data: Uint8Array): {
     throw new Error(`Unsupported Floe export format: ${String(manifest.format)}`);
   }
 
-  if (!Number.isInteger(manifest.formatVersion)) {
+  if (
+    typeof manifest.formatVersion !== "number" ||
+    !Number.isInteger(manifest.formatVersion)
+  ) {
     throw new Error("manifest.formatVersion must be an integer");
   }
   if (manifest.formatVersion !== FLOE_EXPORT_FORMAT_VERSION) {
