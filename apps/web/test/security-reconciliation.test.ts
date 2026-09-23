@@ -55,7 +55,7 @@ describe("SecurityState coordinator reconciliation", () => {
     const device = await generateDeviceKeyMaterial();
     keyMaterials.push(device);
     const storedState = await createInitialState(device);
-    const getSecurityTransitions = vi.fn();
+    const getSecurityTransitions = vi.fn(async () => []);
 
     const coordinator: SecurityStateCoordinatorReader = {
       getSecurityState: vi.fn(async () => storedState),
@@ -132,7 +132,7 @@ describe("SecurityState coordinator reconciliation", () => {
 
     const coordinator: SecurityStateCoordinatorReader = {
       getSecurityState: vi.fn(async () => initial),
-      getSecurityTransitions: vi.fn(),
+      getSecurityTransitions: vi.fn(async () => []),
     };
 
     await expect(
@@ -153,7 +153,7 @@ describe("SecurityState coordinator reconciliation", () => {
 
     const coordinator: SecurityStateCoordinatorReader = {
       getSecurityState: vi.fn(async () => mismatchedState),
-      getSecurityTransitions: vi.fn(),
+      getSecurityTransitions: vi.fn(async () => []),
     };
 
     await expect(
