@@ -15,6 +15,7 @@ import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
   { mode: "edit", label: "Edit" },
+  { mode: "live", label: "Live" },
   { mode: "split", label: "Split" },
   { mode: "preview", label: "Preview" },
 ] satisfies readonly { mode: EditorMode; label: string }[];
