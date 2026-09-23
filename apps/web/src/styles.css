@@ -1324,6 +1324,18 @@ input:focus-visible {
   margin-bottom: 36px;
 }
 
+.project-security-error {
+  margin-top: 18px;
+}
+
+.project-security-error h1 {
+  margin-bottom: 8px;
+}
+
+.project-security-error .dialog-secondary-button {
+  margin-top: 14px;
+}
+
 .settings-eyebrow {
   margin: 0 0 7px;
   color: var(--color-text-faint);
