@@ -55,6 +55,7 @@ export function NoteWorkspace({
   onDeleteDocument,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
+  const [, setNavigationRevision] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(readNoteSortPreference);
@@ -63,6 +64,22 @@ export function NoteWorkspace({
     setSearchOpen(false);
     setQuery("");
   }, [project.id]);
+
+  const activeDocumentIds = summaries.map((summary) => summary.id).join("\u0000");
+  useEffect(() => {
+    const stopSubscriptions = project
+      .listDocuments()
+      .flatMap((summary) => {
+        const document = project.getDocument(summary.id);
+        return document
+          ? [document.subscribe(() => setNavigationRevision((value) => value + 1))]
+          : [];
+      });
+
+    return () => {
+      stopSubscriptions.forEach((stop) => stop());
+    };
+  }, [project, activeDocumentIds]);
 
   const navigationNotes = summaries.flatMap((summary) => {
     const document = project.getDocument(summary.id);
