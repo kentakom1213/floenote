@@ -782,9 +782,11 @@ input:focus-visible {
 }
 
 .editor-view-split {
+  width: min(1280px, calc(100% - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
+  margin-inline: auto;
   border-top: 1px solid var(--color-border);
 }
 
@@ -2721,6 +2723,7 @@ h1 {
   }
 
   .editor-view-split {
+    width: calc(100% - 40px);
     grid-template-columns: 1fr;
   }
 
@@ -2734,7 +2737,7 @@ h1 {
   }
 
   .editor-view-split .markdown-preview {
-    width: calc(100% - 40px);
+    width: 100%;
     min-height: 0;
     margin-inline: auto;
     padding-inline: 0;
