@@ -1443,7 +1443,25 @@ function NoteApp() {
       ) : (
         <div className="settings-view">
           <p className="settings-eyebrow">Project settings</p>
-          <p className="settings-loading">Loading Project security…</p>
+          {localSecurityBootstrapState === "error" ? (
+            <div className="project-security-error">
+              <h1>Could not load Project security</h1>
+              <p className="dialog-error">
+                {localSecurityError ?? "Project security setup failed."}
+              </p>
+              <button
+                className="dialog-secondary-button"
+                type="button"
+                onClick={() =>
+                  setSecurityRefreshToken((value) => value + 1)
+                }
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <p className="settings-loading">Loading Project security…</p>
+          )}
         </div>
       )
     ) : undefined);
