@@ -2152,27 +2152,80 @@ input:focus-visible {
   background: var(--color-bg);
 }
 
-.unlock-card,
+.unlock-card {
+  width: min(420px, 100%);
+  text-align: center;
+}
+
 .project-empty-card {
   width: min(440px, 100%);
   text-align: center;
 }
 
-.unlock-mark,
 .project-empty-card .empty-floe {
   margin-bottom: 18px;
   color: var(--color-accent);
   font-size: 30px;
 }
 
-.unlock-card h1,
+.unlock-brand {
+  display: grid;
+  justify-items: center;
+}
+
+.unlock-logo {
+  width: 58px;
+  height: 58px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.unlock-brand .settings-eyebrow {
+  margin: 0;
+}
+
+.unlock-tagline {
+  margin: 9px 0 0;
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.unlock-product-copy {
+  max-width: 360px;
+  margin: 7px auto 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.unlock-flow {
+  margin-top: 30px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 28px;
+}
+
+.unlock-card h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.035em;
+}
+
 .project-empty-card h1 {
   margin-top: 4px;
   font-size: 30px;
   letter-spacing: -0.035em;
 }
 
-.unlock-copy,
+.unlock-copy {
+  max-width: 360px;
+  margin: 9px auto 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .project-empty-card > p:not(.settings-eyebrow) {
   margin: 12px auto 0;
   max-width: 390px;
@@ -2184,7 +2237,7 @@ input:focus-visible {
 .unlock-field {
   display: grid;
   gap: 7px;
-  margin: 22px 0 0;
+  margin: 24px 0 0;
   color: var(--color-text-muted);
   font-size: 12px;
   font-weight: 600;
@@ -2194,14 +2247,16 @@ input:focus-visible {
 .unlock-field input {
   width: 100%;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 10px 11px;
+  border-radius: 11px;
+  padding: 11px 12px;
   color: var(--color-text);
   background: var(--color-surface);
 }
 
 .unlock-primary-action {
-  margin-top: 24px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 22px;
   border: 0;
   border-radius: 10px;
   padding: 10px 15px;
@@ -2222,9 +2277,9 @@ input:focus-visible {
 
 .unlock-setup-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
-  margin-top: 24px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .unlock-setup-actions .unlock-primary-action {
@@ -2232,6 +2287,8 @@ input:focus-visible {
 }
 
 .unlock-secondary-action {
+  width: 100%;
+  min-height: 42px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 10px 15px;
@@ -2249,13 +2306,6 @@ input:focus-visible {
 .unlock-secondary-action:disabled {
   cursor: default;
   opacity: 0.6;
-}
-
-.unlock-passkey-note {
-  margin: 11px auto 0;
-  color: var(--color-text-faint);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .unlock-reset {
