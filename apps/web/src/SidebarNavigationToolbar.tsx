@@ -191,8 +191,7 @@ function SortIcon() {
 function NewNoteIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
-      <rect x="3" y="3" width="11" height="14" rx="2" />
-      <path d="M14 7h3M15.5 5.5v3" />
+      <path d="M10 4v12M4 10h12" />
     </svg>
   );
 }
