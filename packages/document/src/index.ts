@@ -1,5 +1,6 @@
 export { NoteDocument } from "./document.js";
 export { NoteProject } from "./project.js";
+export { parsePortableProjectImport } from "./portable-import.js";
 export { createPortableProjectSnapshot } from "./portable-project-adapter.js";
 export {
   FLOE_EXPORT_FORMAT,
@@ -19,3 +20,8 @@ export type {
   PortableProjectExport,
   PortableProjectExportOptions,
 } from "./portable-export.js";
+
+export type {
+  ImportedPortableDocument,
+  ImportedPortableProject,
+} from "./portable-import.js";
