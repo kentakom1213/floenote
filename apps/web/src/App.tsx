@@ -1369,7 +1369,8 @@ function NoteApp() {
       ? securityCoordinationState
       : authorizedSync.presenceState === "open"
         ? "ready"
-        : authorizedSync.presenceState === "connecting" ||
+        : authorizedSync.presenceState === "idle" ||
+            authorizedSync.presenceState === "connecting" ||
             authorizedSync.presenceState === "authenticating"
           ? "checking"
           : "error";
