@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
@@ -16,6 +16,7 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
+  focusTitleDocumentId?: DocumentId | null;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
@@ -29,6 +30,7 @@ export function NoteWorkspace({
   projectControl,
   sidebarFooter,
   mainContent,
+  focusTitleDocumentId,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
@@ -38,7 +40,7 @@ export function NoteWorkspace({
 
   const sidebar = (
     <div className="sidebar-layout">
-      <div>
+      <div className="sidebar-content">
         <header className="brand-row">
           <div className="brand-lockup">
             <span className="floe-mark" aria-hidden="true">
@@ -85,6 +87,7 @@ export function NoteWorkspace({
         (selectedDocument ? (
           <DocumentPane
             document={selectedDocument}
+            focusTitle={focusTitleDocumentId === selectedDocument.id}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
           />
@@ -106,19 +109,31 @@ export function NoteWorkspace({
 
 type DocumentPaneProps = {
   document: NoteDocument;
+  focusTitle: boolean;
   onRename: (title: string) => void;
   onDelete: () => void;
 };
 
 function DocumentPane({
   document,
+  focusTitle,
   onRename,
   onDelete,
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [deleteOpen, setDeleteOpen] = useState(false);
   useDismissibleDetails(noteMenuRef);
+
+  useEffect(() => {
+    if (!focusTitle) return;
+    const input = titleRef.current;
+    if (!input) return;
+
+    input.focus();
+    input.select();
+  }, [document.id, focusTitle]);
 
   function requestDelete(): void {
     noteMenuRef.current?.removeAttribute("open");
@@ -129,6 +144,7 @@ function DocumentPane({
     <article className="document-pane">
       <header className="document-header">
         <input
+          ref={titleRef}
           className="title-input"
           value={document.title}
           placeholder="Untitled"
