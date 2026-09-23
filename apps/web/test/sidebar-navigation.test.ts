@@ -12,6 +12,7 @@ import {
   type SidebarNavigationNote,
 } from "../src/sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "../src/SidebarNavigationToolbar.js";
+import { SidebarNoteRow } from "../src/SidebarNoteRow.js";
 
 function note(
   id: string,
@@ -54,6 +55,23 @@ describe("sidebar navigation", () => {
     expect(markup).toContain('aria-label="Sort notes"');
     expect(markup).toContain('aria-label="New note"');
     expect(markup).toContain("<svg");
+  });
+
+  it("renders an extensible note row action menu with delete", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SidebarNoteRow, {
+        id: "note-a" as DocumentId,
+        title: "Research",
+        selected: true,
+        onSelect: vi.fn(),
+        onDelete: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain('aria-label="Actions for Research"');
+    expect(markup).toContain("Delete note");
+    expect(markup).toContain("note-row-menu-item danger");
+    expect(markup.match(/<circle/g)).toHaveLength(3);
   });
 
   it("filters by title", () => {
