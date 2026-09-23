@@ -186,13 +186,12 @@ input:focus-visible {
 }
 
 .sidebar-restore-button {
-  position: sticky;
+  position: fixed;
   z-index: 35;
   top: 14px;
   left: 14px;
   width: 34px;
   height: 34px;
-  margin: 14px 0 -48px 14px;
   font-size: 15px;
 }
 
