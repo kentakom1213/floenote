@@ -6,6 +6,14 @@ export type DocumentEditorBinding = {
   getText: (doc: LoroDoc) => LoroText;
 };
 
+export type NoteDocumentInitialState = {
+  title: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+  tags: readonly string[];
+};
+
 export class NoteDocument {
   readonly id: DocumentId;
   readonly #doc: LoroDoc;
@@ -42,6 +50,33 @@ export class NoteDocument {
     meta.set("updatedAt", now);
     meta.ensureMergeableList("tags");
     doc.getText("body");
+    doc.commit();
+
+    return new NoteDocument(id, doc);
+  }
+
+  static createWithInitialState(
+    id: DocumentId,
+    initial: NoteDocumentInitialState,
+  ): NoteDocument {
+    assertInitialTimestamp(initial.createdAt, "createdAt");
+    assertInitialTimestamp(initial.updatedAt, "updatedAt");
+
+    const doc = new LoroDoc();
+    const meta = doc.getMap("meta");
+    meta.set("title", initial.title);
+    meta.set("createdAt", initial.createdAt);
+    meta.set("updatedAt", initial.updatedAt);
+
+    const tags = meta.ensureMergeableList("tags");
+    initial.tags.forEach((tag, index) => {
+      tags.insert(index, tag);
+    });
+
+    const body = doc.getText("body");
+    if (initial.body.length > 0) {
+      body.insert(0, initial.body);
+    }
     doc.commit();
 
     return new NoteDocument(id, doc);
@@ -233,4 +268,10 @@ function sameStrings(
     left.length === right.length &&
     left.every((value, index) => value === right[index])
   );
+}
+
+function assertInitialTimestamp(value: number, field: string): void {
+  if (!Number.isFinite(value)) {
+    throw new TypeError(`${field} must be a finite timestamp`);
+  }
 }
