@@ -112,7 +112,7 @@ function assertArchivePath(path: string): void {
   }
 }
 
-function crc32(data: Uint8Array): number {
+export function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
 
   for (const byte of data) {
