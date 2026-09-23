@@ -1,3 +1,4 @@
+import { encodeUtf8 } from "./utf8.js";
 import { encodeStoredZip, type ZipEntry } from "./zip.js";
 
 export const FLOE_EXPORT_FORMAT = "floe-project" as const;
@@ -49,7 +50,6 @@ type PreparedDocument = {
   path: string;
 };
 
-const textEncoder = new TextEncoder();
 const INVALID_COMMON_FILENAME_CHARACTERS = /[\u0000-\u001f<>:"/\\|?*]/g;
 const TRAILING_DOTS_OR_SPACES = /[. ]+$/;
 
@@ -65,11 +65,11 @@ export function createPortableProjectExport(
   const entries: ZipEntry[] = [
     {
       path: "manifest.json",
-      data: textEncoder.encode(manifestJson),
+      data: encodeUtf8(manifestJson),
     },
     ...preparedDocuments.map(({ document, path }) => ({
       path,
-      data: textEncoder.encode(document.body),
+      data: encodeUtf8(document.body),
     })),
   ];
 
