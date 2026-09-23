@@ -71,7 +71,7 @@ export function NoteProperties({ document }: NotePropertiesProps) {
                 className="note-tag-remove"
                 type="button"
                 aria-label={`Remove tag ${tag}`}
-                onClick={() => document.removeTag(tag)}
+                onClick={() => removeTagFromProperties(document, tag)}
               >
                 ×
               </button>
@@ -88,9 +88,7 @@ export function NoteProperties({ document }: NotePropertiesProps) {
                 aria-label="New tag"
                 onChange={(event) => setTagInput(event.target.value)}
                 onKeyDown={handleTagInputKeyDown}
-                onBlur={() => {
-                  if (!tagInput.trim()) stopAddingTag();
-                }}
+                onBlur={() => stopAddingTag()}
               />
             </form>
           ) : (
@@ -142,6 +140,13 @@ export function addTagFromInput(
 
   document.addTag(normalized);
   return "added";
+}
+
+export function removeTagFromProperties(
+  document: NoteDocument,
+  tag: string,
+): void {
+  document.removeTag(tag);
 }
 
 export function formatNoteTimestamp(
