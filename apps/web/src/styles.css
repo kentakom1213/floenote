@@ -726,60 +726,20 @@ input:focus-visible {
   color: var(--color-text-faint);
 }
 
-.note-properties-details {
-  margin-top: 3px;
-}
-
-.note-properties-details > summary {
-  width: fit-content;
-  list-style: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 7px;
-  padding: 4px 6px;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  user-select: none;
-}
-
-.note-properties-details > summary::-webkit-details-marker {
-  display: none;
-}
-
-.note-properties-details > summary::after {
-  content: "›";
-  display: inline-block;
-  font-size: 13px;
-  transform: rotate(90deg);
-  transition: transform 120ms ease;
-}
-
-.note-properties-details[open] > summary::after {
-  transform: rotate(-90deg);
-}
-
-.note-properties-details > summary:hover {
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
 .note-properties-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 18px;
-  margin: 5px 0 0;
-  padding: 7px 8px 5px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin: 4px 0 0;
+  padding: 0;
 }
 
 .note-properties-grid > div {
   min-width: 0;
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
+  display: inline-flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 7px;
 }
 
 .note-properties-grid dt {
@@ -2691,10 +2651,6 @@ h1 {
 
   .note-tags-row {
     grid-template-columns: 46px minmax(0, 1fr);
-  }
-
-  .note-properties-grid {
-    grid-template-columns: 1fr;
   }
 
   .note-tag {
