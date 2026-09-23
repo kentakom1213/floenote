@@ -1,6 +1,6 @@
 const STORAGE_KEY = "floe-note-editor-mode";
 
-export type EditorMode = "edit" | "split" | "preview";
+export type EditorMode = "edit" | "live" | "split" | "preview";
 
 export function readEditorModePreference(): EditorMode {
   try {
@@ -19,7 +19,7 @@ export function writeEditorModePreference(mode: EditorMode): void {
 }
 
 export function normalizeEditorMode(value: unknown): EditorMode {
-  return value === "split" || value === "preview" || value === "edit"
+  return\n    value === "live" ||\n    value === "split" ||\n    value === "preview" ||\n    value === "edit"
     ? value
     : "edit";
 }
