@@ -36,6 +36,15 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       ],
     });
 
+    // loro-codemirror 0.3.3 can leave its initialization flag set when the
+    // editor and Loro text are both empty. Its next real edit is then mistaken
+    // for the initialization dispatch and dropped. Let the binding's init
+    // microtask run first, then send a no-op transaction to clear that flag.
+    // Remove this workaround once the upstream fix is published.
+    void Promise.resolve().then(() => {
+      view.dispatch({});
+    });
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
 

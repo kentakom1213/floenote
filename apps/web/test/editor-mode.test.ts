@@ -11,7 +11,10 @@ import {
   readEditorModePreference,
   writeEditorModePreference,
 } from "../src/editor-mode-preference.js";
-import { getMarkdownPreviewSource } from "../src/MarkdownPreview.js";
+import {
+  getMarkdownPreviewSource,
+  subscribeMarkdownPreview,
+} from "../src/MarkdownPreview.js";
 
 describe("editor modes", () => {
   it("renders only the source editor in Edit mode", () => {
@@ -44,6 +47,65 @@ describe("editor modes", () => {
       showPreview: true,
       split: true,
     });
+  });
+
+  it("notifies the preview subscription for local editor commits", async () => {
+    const document = NoteDocument.create(createDocumentId(), "Local", 100);
+    const listener = vi.fn();
+    const unsubscribe = subscribeMarkdownPreview(document, listener);
+    const binding = document.getEditorBinding();
+
+    binding.getText(binding.doc).insert(0, "Live local edit");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalled();
+    expect(getMarkdownPreviewSource(document)).toBe("Live local edit");
+
+    unsubscribe();
+  });
+
+  it("notifies the preview subscription for remote CRDT imports", async () => {
+    const id = createDocumentId();
+    const source = NoteDocument.create(id, "Source", 100);
+    const target = NoteDocument.fromSnapshot(id, source.exportSnapshot());
+    const listener = vi.fn();
+    const unsubscribe = subscribeMarkdownPreview(target, listener);
+    const binding = source.getEditorBinding();
+
+    binding.getText(binding.doc).insert(0, "Remote preview edit");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    target.importUpdate(source.exportUpdate());
+
+    expect(listener).toHaveBeenCalled();
+    expect(getMarkdownPreviewSource(target)).toBe("Remote preview edit");
+
+    unsubscribe();
+  });
+
+  it("keeps non-BMP emoji intact while refreshing the split preview", async () => {
+    const document = NoteDocument.create(createDocumentId(), "Emoji", 100);
+    const listener = vi.fn();
+    const unsubscribe = subscribeMarkdownPreview(document, listener);
+    const binding = document.getEditorBinding();
+    const text = binding.getText(binding.doc);
+
+    text.insert(0, "🍖...");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    listener.mockClear();
+    text.delete(0, "🍖".length);
+    text.insert(0, "🐗");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    expect(listener).toHaveBeenCalled();
+    expect(getMarkdownPreviewSource(document)).toBe("🐗...");
+
+    unsubscribe();
   });
 
   it("reflects a local body edit in the preview source", async () => {
