@@ -6,11 +6,17 @@ import { useEffect, useRef } from "react";
 
 import type { NoteDocument } from "@floe-note/document";
 
+import { markdownLivePreview } from "./markdown-live-preview.js";
+
 type MarkdownEditorProps = {
   document: NoteDocument;
+  livePreview?: boolean;
 };
 
-export function MarkdownEditor({ document }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  document,
+  livePreview = false,
+}: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -24,6 +30,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       extensions: [
         basicSetup,
         markdown(),
+        livePreview ? markdownLivePreview() : [],
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({
           "aria-label": "Markdown editor",
@@ -74,7 +81,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
     };
-  }, [document]);
+  }, [document, livePreview]);
 
   return <div className="editor" ref={hostRef} />;
 }
