@@ -1,3 +1,5 @@
+import { encodeUtf8 } from "./utf8.js";
+
 export type ZipEntry = {
   path: string;
   data: Uint8Array;
@@ -13,7 +15,6 @@ const DOS_TIME = 0;
 const DOS_DATE = (1 << 5) | 1;
 const UINT16_MAX = 0xffff;
 const UINT32_MAX = 0xffffffff;
-const textEncoder = new TextEncoder();
 
 export function encodeStoredZip(entries: readonly ZipEntry[]): Uint8Array {
   if (entries.length > UINT16_MAX) {
@@ -27,7 +28,7 @@ export function encodeStoredZip(entries: readonly ZipEntry[]): Uint8Array {
   for (const entry of entries) {
     assertArchivePath(entry.path);
 
-    const pathBytes = textEncoder.encode(entry.path);
+    const pathBytes = encodeUtf8(entry.path);
     if (pathBytes.byteLength > UINT16_MAX) {
       throw new RangeError(`ZIP entry path is too long: ${entry.path}`);
     }
