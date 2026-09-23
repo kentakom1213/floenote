@@ -91,6 +91,9 @@ export class WebRtcTransport implements Transport {
       this.#debug("peer.connection-state", {
         state: this.#peerConnection.connectionState,
       });
+      if (this.#peerConnection.connectionState === "connected") {
+        void this.#debugSelectedCandidatePair();
+      }
       this.#emitConnectionState();
       this.#emitStatus();
     });
@@ -274,16 +277,19 @@ export class WebRtcTransport implements Transport {
       return;
     }
 
+    const details = describeIceCandidate(candidate);
+    this.#debug("trickle.remote-candidate-received", details);
+
     if (!this.#peerConnection.remoteDescription) {
       this.#pendingRemoteCandidates.push(candidate);
       this.#debug("trickle.remote-candidate-queued", {
+        ...details,
         queueLength: this.#pendingRemoteCandidates.length,
       });
       return;
     }
 
-    await this.#peerConnection.addIceCandidate(candidate);
-    this.#debug("trickle.remote-candidate-added");
+    await this.#addRemoteIceCandidate(candidate, false);
   }
 
   onIceCandidate(
@@ -386,9 +392,95 @@ export class WebRtcTransport implements Transport {
 
   async #flushPendingRemoteCandidates(): Promise<void> {
     for (const candidate of this.#pendingRemoteCandidates.splice(0)) {
+      await this.#addRemoteIceCandidate(candidate, true);
+    }
+  }
+
+  async #addRemoteIceCandidate(
+    candidate: RTCIceCandidateInit,
+    fromQueue: boolean,
+  ): Promise<void> {
+    const details = describeIceCandidate(candidate);
+
+    try {
       await this.#peerConnection.addIceCandidate(candidate);
       this.#debug("trickle.remote-candidate-added", {
-        fromQueue: true,
+        ...details,
+        fromQueue,
+      });
+    } catch (error: unknown) {
+      this.#debug("trickle.remote-candidate-add-error", {
+        ...details,
+        fromQueue,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  async #debugSelectedCandidatePair(): Promise<void> {
+    try {
+      const report = await this.#peerConnection.getStats();
+      let selectedPairId: string | null = null;
+
+      report.forEach((stats) => {
+        const record = stats as unknown as Record<string, unknown>;
+        if (
+          record.type === "transport" &&
+          typeof record.selectedCandidatePairId === "string"
+        ) {
+          selectedPairId = record.selectedCandidatePairId;
+        }
+      });
+
+      if (!selectedPairId) {
+        report.forEach((stats) => {
+          const record = stats as unknown as Record<string, unknown>;
+          if (
+            record.type === "candidate-pair" &&
+            record.state === "succeeded" &&
+            record.nominated === true &&
+            typeof record.id === "string"
+          ) {
+            selectedPairId = record.id;
+          }
+        });
+      }
+
+      if (!selectedPairId) {
+        this.#debug("ice.selected-candidate-pair-unavailable");
+        return;
+      }
+
+      const pair = report.get(selectedPairId) as unknown as
+        | Record<string, unknown>
+        | undefined;
+      if (!pair) {
+        this.#debug("ice.selected-candidate-pair-unavailable", {
+          selectedPairId,
+        });
+        return;
+      }
+
+      const localCandidate =
+        typeof pair.localCandidateId === "string"
+          ? report.get(pair.localCandidateId)
+          : undefined;
+      const remoteCandidate =
+        typeof pair.remoteCandidateId === "string"
+          ? report.get(pair.remoteCandidateId)
+          : undefined;
+
+      this.#debug("ice.selected-candidate-pair", {
+        selectedPairId,
+        state: pair.state ?? null,
+        nominated: pair.nominated ?? null,
+        local: describeIceCandidateStats(localCandidate),
+        remote: describeIceCandidateStats(remoteCandidate),
+      });
+    } catch (error: unknown) {
+      this.#debug("ice.selected-candidate-pair-error", {
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -518,6 +610,54 @@ export class WebRtcTransport implements Transport {
       details,
     });
   }
+}
+
+function describeIceCandidate(
+  candidate: RTCIceCandidateInit,
+): Record<string, unknown> {
+  try {
+    const parsed = new RTCIceCandidate(candidate);
+    return {
+      candidateType: parsed.type,
+      protocol: parsed.protocol,
+      tcpType: parsed.tcpType,
+      address: parsed.address,
+      port: parsed.port,
+      relatedAddress: parsed.relatedAddress,
+      relatedPort: parsed.relatedPort,
+      sdpMid: parsed.sdpMid,
+      sdpMLineIndex: parsed.sdpMLineIndex,
+    };
+  } catch {
+    return {
+      candidateType: null,
+      protocol: null,
+      tcpType: null,
+      address: null,
+      port: null,
+      relatedAddress: null,
+      relatedPort: null,
+      sdpMid: candidate.sdpMid ?? null,
+      sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+    };
+  }
+}
+
+function describeIceCandidateStats(
+  stats: unknown,
+): Record<string, unknown> | null {
+  if (typeof stats !== "object" || stats === null) return null;
+
+  const record = stats as Record<string, unknown>;
+  return {
+    id: record.id ?? null,
+    candidateType: record.candidateType ?? null,
+    protocol: record.protocol ?? null,
+    address: record.address ?? null,
+    port: record.port ?? null,
+    networkType: record.networkType ?? null,
+    relayProtocol: record.relayProtocol ?? null,
+  };
 }
 
 function descriptionToInit(
