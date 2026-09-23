@@ -79,8 +79,8 @@ import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
   SyncStatus,
   type SyncDeviceUi,
-  type SyncUiState,
 } from "./SyncStatus.js";
+import { deriveSyncUiState } from "./sync-ui-state.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
@@ -1515,57 +1515,6 @@ function withActiveProjectSummary(
       isActive: true,
     },
   ];
-}
-
-type SyncUiInput = {
-  presenceState:
-    | "idle"
-    | "connecting"
-    | "authenticating"
-    | "open"
-    | "closed"
-    | "error";
-  onlineDeviceIds: readonly DeviceId[];
-  connectedDeviceIds: readonly DeviceId[];
-  localDeviceId: DeviceId | null;
-  error: string | null;
-};
-
-function deriveSyncUiState({
-  presenceState,
-  onlineDeviceIds,
-  connectedDeviceIds,
-  localDeviceId,
-  error,
-}: SyncUiInput): SyncUiState {
-  if (error) {
-    return { kind: "error", detail: error };
-  }
-
-  if (presenceState === "error") {
-    return { kind: "error" };
-  }
-
-  if (presenceState === "connecting" || presenceState === "authenticating") {
-    return { kind: "connecting" };
-  }
-
-  if (presenceState === "closed") {
-    return { kind: "offline" };
-  }
-
-  if (presenceState !== "open" || !localDeviceId) {
-    return { kind: "quiet" };
-  }
-
-  if (connectedDeviceIds.length > 0) {
-    return { kind: "connected" };
-  }
-
-  const otherDeviceOnline = onlineDeviceIds.some(
-    (deviceId) => deviceId !== localDeviceId,
-  );
-  return otherDeviceOnline ? { kind: "connecting" } : { kind: "quiet" };
 }
 
 async function storeVerifiedRotatedProjectKey(
