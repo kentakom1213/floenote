@@ -143,6 +143,7 @@ input:focus-visible {
 }
 
 .sidebar {
+  grid-column: 1;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -486,6 +487,7 @@ input:focus-visible {
 }
 
 .main-pane {
+  grid-column: 2;
   min-width: 0;
   min-height: 0;
   height: 100dvh;
@@ -2216,6 +2218,7 @@ h1 {
   }
 
   .main-pane {
+    grid-column: 1;
     height: auto;
     overflow: visible;
   }
