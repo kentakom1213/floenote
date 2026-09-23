@@ -24,6 +24,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import { generateDeviceDisplayName } from "./device-name.js";
+import { clearAllLastDocumentPreferences } from "./note-preference.js";
 
 const joinDeviceVault = new WebAuthnPrfDeviceVault();
 
@@ -70,7 +72,7 @@ export function InvitationJoinPage({
   const [vaultState, setVaultState] = useState<JoinVaultState>("checking");
   const [needsDeviceSetup, setNeedsDeviceSetup] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
-  const [deviceName, setDeviceName] = useState("");
+  const [deviceName, setDeviceName] = useState(generateDeviceDisplayName);
   const [webRtcStatus, setWebRtcStatus] =
     useState<WebRtcStatus>(INITIAL_WEBRTC_STATUS);
   const [signalingState, setSignalingState] =
@@ -258,17 +260,16 @@ export function InvitationJoinPage({
     vaultState,
   ]);
 
-  async function unlockOrCreateDevice(): Promise<void> {
+  async function openDeviceVault(
+    open: () => Promise<DeviceVaultSession>,
+  ): Promise<void> {
     if (vaultState === "unlocking" || vaultState === "unlocked") return;
-    if (needsDeviceSetup && deviceName.trim().length === 0) return;
 
     setVaultState("unlocking");
     setVaultError(null);
 
     try {
-      const session = await joinDeviceVault.unlockOrCreate(
-        needsDeviceSetup ? deviceName.trim() : undefined,
-      );
+      const session = await open();
       const previous = vaultSessionRef.current;
       vaultSessionRef.current = session;
       if (previous) await previous.close();
@@ -282,6 +283,56 @@ export function InvitationJoinPage({
         caught instanceof Error
           ? caught.message
           : "Failed to unlock Device Vault",
+      );
+    }
+  }
+
+  async function unlockDevice(): Promise<void> {
+    await openDeviceVault(() => joinDeviceVault.unlock());
+  }
+
+  async function createWithExistingPasskey(): Promise<void> {
+    const displayName = deviceName.trim();
+    if (!displayName) return;
+
+    await openDeviceVault(() =>
+      joinDeviceVault.createWithExistingPasskey(displayName),
+    );
+  }
+
+  async function createWithNewPasskey(): Promise<void> {
+    const displayName = deviceName.trim();
+    if (!displayName) return;
+
+    await openDeviceVault(() =>
+      joinDeviceVault.createWithNewPasskey(displayName),
+    );
+  }
+
+  async function resetDevice(): Promise<void> {
+    const confirmed = window.confirm(
+      "Reset this device? This deletes the local Device Vault and all local Project data. You will need another authorized device to complete this invitation.",
+    );
+    if (!confirmed) return;
+
+    setVaultState("unlocking");
+    setVaultError(null);
+
+    try {
+      const session = vaultSessionRef.current;
+      vaultSessionRef.current = null;
+      if (session) await session.close();
+
+      await storage.eraseAllLocalData();
+      await joinDeviceVault.eraseVault();
+      clearAllLastDocumentPreferences();
+      window.location.reload();
+    } catch (caught: unknown) {
+      setVaultState("error");
+      setVaultError(
+        caught instanceof Error
+          ? caught.message
+          : "Failed to reset this device",
       );
     }
   }
@@ -340,35 +391,75 @@ export function InvitationJoinPage({
                     autoFocus
                     maxLength={80}
                     value={deviceName}
-                    placeholder="Kenta's Pixel"
                     onChange={(event) => setDeviceName(event.target.value)}
                   />
                 </label>
               ) : null}
 
               {vaultState !== "checking" ? (
-                <button
-                  className="dialog-primary-button invitation-primary"
-                  type="button"
-                  onClick={() => void unlockOrCreateDevice()}
-                  disabled={
-                    vaultState === "unlocking" ||
-                    (needsDeviceSetup &&
-                      deviceName.trim().length === 0)
-                  }
-                >
-                  {vaultState === "unlocking"
-                    ? "Unlocking…"
-                    : needsDeviceSetup
-                      ? "Set up and continue"
+                needsDeviceSetup ? (
+                  <>
+                    <div className="invitation-vault-actions">
+                      <button
+                        className="dialog-primary-button invitation-primary"
+                        type="button"
+                        onClick={() => void createWithExistingPasskey()}
+                        disabled={
+                          vaultState === "unlocking" ||
+                          deviceName.trim().length === 0
+                        }
+                      >
+                        {vaultState === "unlocking"
+                          ? "Waiting for passkey…"
+                          : "Use existing passkey"}
+                      </button>
+                      <button
+                        className="dialog-secondary-button"
+                        type="button"
+                        onClick={() => void createWithNewPasskey()}
+                        disabled={
+                          vaultState === "unlocking" ||
+                          deviceName.trim().length === 0
+                        }
+                      >
+                        Create new passkey
+                      </button>
+                    </div>
+                    <p className="invitation-passkey-note">
+                      Reuse a synced Floe Note passkey when one is already
+                      available on this device.
+                    </p>
+                  </>
+                ) : (
+                  <button
+                    className="dialog-primary-button invitation-primary"
+                    type="button"
+                    onClick={() => void unlockDevice()}
+                    disabled={vaultState === "unlocking"}
+                  >
+                    {vaultState === "unlocking"
+                      ? "Unlocking…"
                       : "Unlock and continue"}
-                </button>
+                  </button>
+                )
               ) : (
                 <p className="settings-loading">Checking this device…</p>
               )}
 
               {vaultError ? (
                 <p className="dialog-error">{vaultError}</p>
+              ) : null}
+
+              {!needsDeviceSetup && vaultState === "error" ? (
+                <div className="invitation-reset-vault">
+                  <p>
+                    If the passkey was deleted, this local Vault cannot be
+                    recovered in v1.
+                  </p>
+                  <button type="button" onClick={() => void resetDevice()}>
+                    Reset this device
+                  </button>
+                </div>
               ) : null}
             </div>
           </div>
