@@ -123,6 +123,30 @@ describe("portable Floe import integration", () => {
     expect(session.createdKeys).toHaveLength(0);
   });
 
+  it("explains coordinator network failures after validation", async () => {
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator(
+      new TypeError("NetworkError when attempting to fetch resource."),
+    );
+    const storage = new FakeStorage();
+
+    await expect(
+      importPortableProjectArchive(exportProject(sourceProject()), {
+        session,
+        coordinator,
+        storage,
+        runtime,
+      }),
+    ).rejects.toThrow(
+      "The Floe export is valid, but the coordinator is unavailable. " +
+        "Connect to the coordinator and try the import again.",
+    );
+
+    expect(storage.initializeCalls).toBe(0);
+    expect(storage.projects.size).toBe(0);
+    expect(session.createdKeys).toHaveLength(0);
+  });
+
   it("does not persist a partial Project when coordinator commit fails", async () => {
     const session = new FakeSession();
     const coordinator = new FakeCoordinator(
