@@ -25,6 +25,13 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
         basicSetup,
         markdown(),
         EditorView.lineWrapping,
+        EditorView.editorAttributes.of({
+          "aria-label": "Markdown editor",
+        }),
+        EditorView.contentAttributes.of({
+          spellcheck: "true",
+          autocapitalize: "sentences",
+        }),
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
       ],
     });

@@ -49,6 +49,10 @@ export class NoteDocument {
     this.#doc.commit();
   }
 
+  get bodyText(): string {
+    return this.#doc.getText("body").toString();
+  }
+
   exportSnapshot(): Uint8Array {
     this.#doc.commit();
     return this.#doc.export({ mode: "snapshot" });

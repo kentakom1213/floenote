@@ -411,6 +411,41 @@ input:focus-visible {
   color: var(--color-text-faint);
 }
 
+.document-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 2px;
+  background: var(--color-surface);
+}
+
+.editor-mode-switch button {
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 9px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.editor-mode-switch button:hover {
+  color: var(--color-text);
+}
+
+.editor-mode-switch button.active {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
 .note-menu {
   position: relative;
 }
@@ -496,6 +531,19 @@ input:focus-visible {
   font-size: 16px;
 }
 
+.editor .cm-line {
+  padding: 0;
+}
+
+.editor .cm-activeLine,
+.editor .cm-activeLineGutter {
+  background: transparent;
+}
+
+.editor .cm-cursor {
+  border-left-color: var(--color-accent);
+}
+
 .editor .cm-gutters {
   display: none;
 }
@@ -509,6 +557,152 @@ input:focus-visible {
   background: var(--color-accent-soft) !important;
 }
 
+.markdown-preview {
+  width: min(820px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 12px 0 96px;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  margin: 1.8em 0 0.65em;
+  line-height: 1.22;
+  letter-spacing: -0.025em;
+}
+
+.markdown-preview h1 {
+  font-size: 1.9em;
+}
+
+.markdown-preview h2 {
+  padding-bottom: 0.28em;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1.5em;
+}
+
+.markdown-preview h3 {
+  font-size: 1.22em;
+}
+
+.markdown-preview p,
+.markdown-preview ul,
+.markdown-preview ol,
+.markdown-preview blockquote,
+.markdown-preview pre,
+.markdown-preview table {
+  margin: 0 0 1.05em;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  padding-left: 1.6em;
+}
+
+.markdown-preview li + li {
+  margin-top: 0.28em;
+}
+
+.markdown-preview blockquote {
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: 16px;
+  color: var(--color-text-muted);
+}
+
+.markdown-preview code {
+  border-radius: 5px;
+  padding: 0.12em 0.35em;
+  background: var(--color-surface-selected);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.markdown-preview pre {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--color-surface);
+}
+
+.markdown-preview pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+.markdown-preview a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.markdown-preview hr {
+  height: 1px;
+  margin: 2em 0;
+  border: 0;
+  background: var(--color-border);
+}
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: var(--color-surface);
+  font-weight: 650;
+}
+
+.markdown-math {
+  max-width: 100%;
+}
+
+.markdown-math-block {
+  display: block;
+  overflow-x: auto;
+  margin: 1.2em 0;
+  padding: 0.25em 0;
+  text-align: center;
+}
+
+.markdown-image-placeholder {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 6px;
+  color: var(--color-text-faint);
+  background: var(--color-surface-selected);
+  font-size: 12px;
+}
+
+.markdown-preview-empty {
+  color: var(--color-text-faint);
+}
+
 .workspace-empty-state {
   min-height: 100vh;
   display: grid;
@@ -517,6 +711,12 @@ input:focus-visible {
   gap: 10px;
   color: var(--color-text-muted);
   text-align: center;
+}
+
+.workspace-empty-state h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 20px;
 }
 
 .workspace-empty-state p {
@@ -1855,6 +2055,27 @@ h1 {
   .invitation-host-view {
     width: calc(100% - 40px);
     padding-top: 34px;
+  }
+
+  .document-header {
+    width: calc(100% - 40px);
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 32px;
+  }
+
+  .document-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .markdown-preview {
+    width: calc(100% - 40px);
+  }
+
+  .editor .cm-scroller {
+    padding-inline: 20px;
   }
 
   .invitation-join-card {
