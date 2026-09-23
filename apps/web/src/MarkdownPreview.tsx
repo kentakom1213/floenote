@@ -230,7 +230,7 @@ function extractMath(source: string): {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
     const trimmed = line.trim();
-    const fenceMatch = /^(\`{3,}|~{3,})/u.exec(trimmed);
+    const fenceMatch = /^(`{3,}|~{3,})/u.exec(trimmed);
 
     if (fenceMatch) {
       const token = fenceMatch[1] ?? "";
