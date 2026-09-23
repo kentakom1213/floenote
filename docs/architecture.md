@@ -1224,18 +1224,18 @@ encrypted binary blob
 
 Each attachment is addressed by its UUIDv7 `AttachmentId` and maps to an encrypted blob. Content-addressing, deduplication, and attachment garbage collection are outside the core design.
 
-## 23. Backup and project identity
+## 23. Backup, import/export, and project identity
 
 Floe Note does not define a standalone key-recovery mechanism without project data. If every device and every copy of the project data are lost, recovering only encryption keys would not recover the Project.
 
-Backup and export are therefore treated as a separate data-backup concern rather than as part of the device-pairing or authorization protocol.
+Portable import/export is treated as a data portability and survivability concern rather than as part of device pairing or authorization. The v1 portable Floe export uses ordinary Markdown plus a JSON manifest and importing it always creates a new Project identity. Creating a Project from a raw Markdown directory follows the same new-Project semantics. See `project-import-export.md`.
 
 Identity semantics are:
 
-- **Restore from backup:** preserve ProjectId.
-- **Duplicate/copy project:** generate a new ProjectId.
+- **Portable export/import or duplicate/copy:** generate a new ProjectId.
+- **Future full restore from backup:** preserve ProjectId.
 
-A future backup format must contain the data and cryptographic material required for restoration and should remain independent from the internal IndexedDB schema.
+A future full backup/restore format would need the data and cryptographic material required to restore the original Project identity and should remain independent from the internal IndexedDB schema. That is intentionally separate from the v1 portable export.
 
 
 ## 24. Threat model
