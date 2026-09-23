@@ -57,6 +57,7 @@ import {
 } from "@floe-note/vault";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import { DebugEnvironmentPanel } from "./DebugEnvironmentPanel.js";
 import type {
   DeviceVaultUiState,
   LocalSecurityBootstrapUiState,
@@ -1496,20 +1497,24 @@ function NoteApp() {
       />
     ) : undefined);
 
-  const debugSidebarControls =
-    useSignaledWebRtc && webRtcTransport ? (
-      <SignalingHostPanel
-        projectId={activeProject.id}
-        sessionId={signalSessionId}
-        transport={webRtcTransport}
-        signalingState={signalingState}
-      />
-    ) : useManualWebRtc && webRtcTransport ? (
-      <WebRtcDebugPanel
-        projectId={activeProject.id}
-        transport={webRtcTransport}
-      />
-    ) : null;
+  const debugSidebarControls = import.meta.env.DEV ? (
+    <>
+      <DebugEnvironmentPanel coordinatorBaseUrl={coordinatorBaseUrl} />
+      {useSignaledWebRtc && webRtcTransport ? (
+        <SignalingHostPanel
+          projectId={activeProject.id}
+          sessionId={signalSessionId}
+          transport={webRtcTransport}
+          signalingState={signalingState}
+        />
+      ) : useManualWebRtc && webRtcTransport ? (
+        <WebRtcDebugPanel
+          projectId={activeProject.id}
+          transport={webRtcTransport}
+        />
+      ) : null}
+    </>
+  ) : null;
 
   function openProjectDeviceSettings(): void {
     setMainView("project-settings");
