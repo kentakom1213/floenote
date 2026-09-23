@@ -662,9 +662,16 @@ and stores its own DeviceId, device encryption key pair, and device signing key
 pair. Reusing the same synchronized passkey does not copy or merge vault
 contents and does not make two devices the same authorized device.
 
-The current browser bootstrap creates a WebAuthn credential when no local vault
-exists. A later UX may offer "use existing Floe Note passkey" so a discoverable
-synchronized credential can be reused instead of creating another credential.
+When no local vault exists, the browser setup offers two explicit paths:
+reuse an existing synchronized Floe Note passkey, or create a new passkey.
+Newly created credentials are discoverable credentials so they can be selected
+on another device after the passkey provider synchronizes them. Reusing a
+passkey evaluates PRF with a fresh device-local PRF input; the resulting VaultKey
+and encrypted vault remain independent for each physical device.
+
+The application does not infer "no existing passkey" from a cancelled or failed
+WebAuthn request. Creating a new credential is always a separate explicit user
+action, which avoids silently creating duplicate passkeys.
 
 ### 14.2 Passkey availability and device authorization
 
@@ -689,7 +696,16 @@ The table is a UX model, not a replacement for the underlying security checks. I
 - a revoked device may still be able to unlock its local vault, but must be rejected as unauthorized for the Project;
 - one synchronized passkey may unlock multiple independent local vaults, each with a distinct DeviceId and device key pairs.
 
-When no local vault exists, the browser onboarding UX should prefer reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or ProjectKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
+When no local vault exists, the browser onboarding UX prefers reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or ProjectKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
+
+v1 does not provide a recovery credential or recovery secret. If a local vault
+still exists but its passkey has been deleted or is permanently unavailable,
+that vault is unrecoverable. The UI therefore offers an explicit local reset
+path that deletes the Device Vault and local Project data so the browser can be
+set up again. Resetting local storage does not revoke the old DeviceId from
+SecurityState; another authorized device is required to rejoin Projects and may
+later revoke the stale device entry. If no other usable device or backup exists,
+the reset can permanently lose the only accessible copy of local Project data.
 
 ### 14.3 Ephemeral sessions
 
