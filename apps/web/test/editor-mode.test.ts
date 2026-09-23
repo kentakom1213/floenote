@@ -24,10 +24,20 @@ describe("editor modes", () => {
       showEditor: true,
       showPreview: false,
       split: false,
+      livePreview: false,
     });
     expect(markup).toContain('data-editor-mode="edit"');
     expect(markup).toContain("editor-view-source");
     expect(markup).not.toContain("editor-view-preview");
+  });
+
+  it("shows a single decorated editor in Live mode", () => {
+    expect(getEditorModeLayout("live")).toEqual({
+      showEditor: true,
+      showPreview: false,
+      split: false,
+      livePreview: true,
+    });
   });
 
   it("shows only the preview in Preview mode", () => {
@@ -35,6 +45,7 @@ describe("editor modes", () => {
       showEditor: false,
       showPreview: true,
       split: false,
+      livePreview: false,
     });
   });
 
@@ -43,6 +54,7 @@ describe("editor modes", () => {
       showEditor: true,
       showPreview: true,
       split: true,
+      livePreview: false,
     });
   });
 
@@ -82,7 +94,7 @@ describe("editor modes", () => {
     binding.doc.commit();
     await Promise.resolve();
 
-    for (const mode of ["edit", "split", "preview"] as const) {
+    for (const mode of ["edit", "live", "split", "preview"] as const) {
       getEditorModeLayout(mode);
       expect(document.title).toBe("Renamed");
       expect(document.tags).toEqual(["metadata"]);
@@ -110,6 +122,7 @@ describe("editor modes", () => {
 
   it("normalizes invalid persisted modes to Edit", () => {
     expect(normalizeEditorMode("edit")).toBe("edit");
+    expect(normalizeEditorMode("live")).toBe("live");
     expect(normalizeEditorMode("split")).toBe("split");
     expect(normalizeEditorMode("preview")).toBe("preview");
     expect(normalizeEditorMode("unknown")).toBe("edit");
