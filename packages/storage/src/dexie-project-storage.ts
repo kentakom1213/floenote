@@ -145,6 +145,78 @@ export class DexieProjectStorage implements ProjectStorage {
     return { project, isNew: true };
   }
 
+  async initializeCommittedProject(
+    project: NoteProject,
+    state: SecurityState,
+    crypto: ProjectStorageCrypto,
+  ): Promise<OpenProjectResult> {
+    if (state.projectId !== project.id) {
+      throw new Error("Committed SecurityState does not match Project");
+    }
+
+    await this.#writeQueue;
+
+    const documentRows = await Promise.all(
+      project.getAllDocuments().map(async (document) => ({
+        projectId: project.id,
+        documentId: document.id,
+        encryptedSnapshot: await crypto.encryptProjectStoragePayload(
+          project.id,
+          state.keyEpoch,
+          documentContext(document.id),
+          document.exportSnapshot(),
+        ),
+      })),
+    );
+    const encryptedManifest = await crypto.encryptProjectStoragePayload(
+      project.id,
+      state.keyEpoch,
+      manifestContext(),
+      project.exportManifestSnapshot(),
+    );
+
+    await this.#db.transaction(
+      "rw",
+      this.#db.projects,
+      this.#db.manifests,
+      this.#db.documents,
+      this.#db.security,
+      async () => {
+        const existing = await this.#db.projects.get(project.id);
+        if (existing) {
+          throw new Error("Project already exists on this device");
+        }
+
+        const current = await this.#db.projects
+          .where("localSlot")
+          .equals(LOCAL_PROJECT_SLOT)
+          .first();
+
+        if (current) {
+          await this.#db.projects.update(current.id, {
+            localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+          });
+        }
+
+        await this.#db.projects.add({
+          id: project.id,
+          localSlot: LOCAL_PROJECT_SLOT,
+          createdAt: Date.now(),
+        });
+        await this.#db.manifests.add({
+          projectId: project.id,
+          encryptedSnapshot: encryptedManifest,
+        });
+        for (const row of documentRows) {
+          await this.#db.documents.add(row);
+        }
+        await this.#db.security.add(securityStateToWire(state));
+      },
+    );
+
+    return { project, isNew: false };
+  }
+
   async removeProject(projectId: ProjectId): Promise<ProjectId | null> {
     await this.#writeQueue;
 
