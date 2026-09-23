@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "pnpm --filter @floe-note/web dev",
     "dev:coordinator": "pnpm --filter @floe-note/coordinator dev",
-    "deploy:coordinator": "pnpm --filter @floe-note/coordinator deploy",
+    "deploy:coordinator": "pnpm --filter @floe-note/coordinator run deploy",
+    "deploy:web": "pnpm --filter @floe-note/web build && pnpm dlx wrangler@4.135.0 deploy --config apps/web/wrangler.jsonc",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run"
