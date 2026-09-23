@@ -4,14 +4,12 @@ import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
-import { getEditorModeLayout } from "./editor-mode-layout.js";
+import { EditorModeView } from "./EditorModeView.js";
 import {
   readEditorModePreference,
   writeEditorModePreference,
   type EditorMode,
 } from "./editor-mode-preference.js";
-import { MarkdownEditor } from "./MarkdownEditor.js";
-import { MarkdownPreview } from "./MarkdownPreview.js";
 import { NoteProperties } from "./NoteProperties.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
@@ -134,7 +132,6 @@ function DocumentPane({
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
-  const layout = getEditorModeLayout(mode);
   useDismissibleDetails(noteMenuRef);
 
   useEffect(() => {
@@ -203,21 +200,7 @@ function DocumentPane({
         </div>
       </div>
 
-      <div
-        className={layout.split ? "editor-view editor-view-split" : "editor-view"}
-        data-editor-mode={mode}
-      >
-        {layout.showEditor ? (
-          <div className="editor-view-pane editor-view-source">
-            <MarkdownEditor document={document} />
-          </div>
-        ) : null}
-        {layout.showPreview ? (
-          <div className="editor-view-pane editor-view-preview">
-            <MarkdownPreview document={document} />
-          </div>
-        ) : null}
-      </div>
+      <EditorModeView document={document} mode={mode} />
     </article>
   );
 }
