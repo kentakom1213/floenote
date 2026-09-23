@@ -19,7 +19,10 @@ export function writeEditorModePreference(mode: EditorMode): void {
 }
 
 export function normalizeEditorMode(value: unknown): EditorMode {
-  return\n    value === "live" ||\n    value === "split" ||\n    value === "preview" ||\n    value === "edit"
+  return value === "live" ||
+    value === "split" ||
+    value === "preview" ||
+    value === "edit"
     ? value
     : "edit";
 }
