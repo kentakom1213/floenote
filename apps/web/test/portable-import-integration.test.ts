@@ -1,0 +1,379 @@
+import {
+  NoteDocument,
+  NoteProject,
+  createPortableProjectExport,
+  createPortableProjectSnapshot,
+} from "@floe-note/document";
+import {
+  createDeviceId,
+  type DocumentId,
+  type ProjectId,
+} from "@floe-note/domain";
+import {
+  deriveInitialSecurityState,
+  type CreateProjectTransition,
+  type DevicePublicIdentity,
+  type SecurityState,
+} from "@floe-note/security";
+import type {
+  OpenProjectResult,
+  ProjectStorageCrypto,
+} from "@floe-note/storage";
+import { describe, expect, it } from "vitest";
+
+import {
+  importPortableProjectArchive,
+} from "../src/portable-import-integration.js";
+import type {
+  ProjectGenesisCoordinator,
+  ProjectGenesisRuntime,
+  ProjectGenesisSession,
+  ProjectGenesisStorage,
+} from "../src/project-genesis.js";
+
+const ZERO_HASH = new Uint8Array(32);
+const runtime: ProjectGenesisRuntime = {
+  async hash() {
+    return ZERO_HASH.slice();
+  },
+  async verify() {
+    return true;
+  },
+};
+
+describe("portable Floe import integration", () => {
+  it("creates a new independent Project and preserves portable content", async () => {
+    const source = sourceProject();
+    const sourceDocumentIds = source.getAllDocuments().map(({ id }) => id);
+    const archive = exportProject(source);
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator();
+    const storage = new FakeStorage();
+
+    const result = await importPortableProjectArchive(archive, {
+      session,
+      coordinator,
+      storage,
+      runtime,
+    });
+
+    expect(result.project.id).not.toBe(source.id);
+    expect(
+      result.project.getAllDocuments().every(
+        ({ id }) => !sourceDocumentIds.includes(id),
+      ),
+    ).toBe(true);
+    expect(result.project.name).toBe("Portable source");
+    expect(projectContents(result.project)).toEqual([
+      {
+        title: "Duplicate",
+        body: "# First\n",
+        createdAt: 100,
+        updatedAt: 200,
+        tags: ["one", "portable"],
+      },
+      {
+        title: "Duplicate",
+        body: "---\nkept: as body\n---\n",
+        createdAt: 300,
+        updatedAt: 400,
+        tags: ["two"],
+      },
+    ]);
+    expect(result.isNew).toBe(false);
+
+    expect(coordinator.transitions).toHaveLength(1);
+    expect(coordinator.transitions[0]!.projectId).toBe(result.project.id);
+    expect(coordinator.transitions[0]!.initialDevice.deviceId).toBe(
+      session.publicIdentity.deviceId,
+    );
+    expect(storage.initializeCalls).toBe(1);
+    expect(session.createdKeys).toEqual([
+      { projectId: result.project.id, keyEpoch: 1 },
+    ]);
+
+    const state = storage.securityStates.get(result.project.id);
+    expect(state).toMatchObject({
+      projectId: result.project.id,
+      sequence: 0,
+      keyEpoch: 1,
+    });
+    expect(state?.devices.map(({ deviceId }) => deviceId)).toEqual([
+      session.publicIdentity.deviceId,
+    ]);
+  });
+
+  it("validates the complete archive before coordinator or persistence work", async () => {
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator();
+    const storage = new FakeStorage();
+
+    await expect(
+      importPortableProjectArchive(Uint8Array.of(1, 2, 3), {
+        session,
+        coordinator,
+        storage,
+        runtime,
+      }),
+    ).rejects.toThrow();
+
+    expect(coordinator.transitions).toHaveLength(0);
+    expect(storage.initializeCalls).toBe(0);
+    expect(storage.projects.size).toBe(0);
+    expect(session.createdKeys).toHaveLength(0);
+  });
+
+  it("does not persist a partial Project when coordinator commit fails", async () => {
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator(
+      new Error("Coordinator unavailable"),
+    );
+    const storage = new FakeStorage();
+
+    await expect(
+      importPortableProjectArchive(exportProject(sourceProject()), {
+        session,
+        coordinator,
+        storage,
+        runtime,
+      }),
+    ).rejects.toThrow("Coordinator unavailable");
+
+    expect(storage.initializeCalls).toBe(0);
+    expect(storage.projects.size).toBe(0);
+    expect(session.createdKeys).toHaveLength(0);
+  });
+
+  it("removes a newly generated local ProjectKey if persistence fails", async () => {
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator();
+    const storage = new FakeStorage();
+    storage.failure = new Error("Local persistence failed");
+
+    await expect(
+      importPortableProjectArchive(exportProject(sourceProject()), {
+        session,
+        coordinator,
+        storage,
+        runtime,
+      }),
+    ).rejects.toThrow("Local persistence failed");
+
+    expect(storage.projects.size).toBe(0);
+    expect(session.createdKeys).toHaveLength(1);
+    expect(session.removedProjectIds).toHaveLength(1);
+    expect(session.hasProjectKey(session.createdKeys[0]!.projectId, 1)).toBe(
+      false,
+    );
+  });
+
+  it("keeps existing Projects while adding the imported Project", async () => {
+    const storage = new FakeStorage();
+    const existing = NoteProject.create();
+    existing.renameProject("Existing");
+    storage.storeExisting(existing);
+
+    const result = await importPortableProjectArchive(
+      exportProject(sourceProject()),
+      {
+        session: new FakeSession(),
+        coordinator: new FakeCoordinator(),
+        storage,
+        runtime,
+      },
+    );
+
+    expect(storage.projects.has(existing.id)).toBe(true);
+    expect(storage.projects.has(result.project.id)).toBe(true);
+    expect(storage.projects.size).toBe(2);
+  });
+
+  it("reloads the imported Project from persisted snapshots", async () => {
+    const storage = new FakeStorage();
+    const result = await importPortableProjectArchive(
+      exportProject(sourceProject()),
+      {
+        session: new FakeSession(),
+        coordinator: new FakeCoordinator(),
+        storage,
+        runtime,
+      },
+    );
+
+    const reloaded = storage.reload(result.project.id);
+
+    expect(reloaded.id).toBe(result.project.id);
+    expect(reloaded.name).toBe("Portable source");
+    expect(projectContents(reloaded)).toEqual(projectContents(result.project));
+  });
+
+  it("round-trips export to import without restoring source identity", async () => {
+    const source = sourceProject();
+    const imported = await importPortableProjectArchive(exportProject(source), {
+      session: new FakeSession(),
+      coordinator: new FakeCoordinator(),
+      storage: new FakeStorage(),
+      runtime,
+    });
+
+    expect(imported.project.id).not.toBe(source.id);
+    expect(imported.project.name).toBe(source.name);
+    expect(projectContents(imported.project)).toEqual(projectContents(source));
+  });
+});
+
+function sourceProject(): NoteProject {
+  const project = NoteProject.create();
+  project.renameProject("Portable source");
+  project.createDocumentWithInitialState({
+    title: "Duplicate",
+    body: "# First\n",
+    createdAt: 100,
+    updatedAt: 200,
+    tags: ["one", "portable"],
+  });
+  project.createDocumentWithInitialState({
+    title: "Duplicate",
+    body: "---\nkept: as body\n---\n",
+    createdAt: 300,
+    updatedAt: 400,
+    tags: ["two"],
+  });
+  return project;
+}
+
+function exportProject(project: NoteProject): Uint8Array {
+  return createPortableProjectExport(createPortableProjectSnapshot(project), {
+    exportedAt: 500,
+  }).archive;
+}
+
+function projectContents(project: NoteProject) {
+  return project.getAllDocuments().map((document) => ({
+    title: document.title,
+    body: document.bodyText,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
+    tags: [...document.tags],
+  }));
+}
+
+class FakeSession implements ProjectGenesisSession {
+  readonly publicIdentity: DevicePublicIdentity = {
+    deviceId: createDeviceId(),
+    encryptionPublicKey: new Uint8Array(32).fill(1),
+    signingPublicKey: new Uint8Array(32).fill(2),
+  };
+  readonly displayName = "Import device";
+  readonly createdKeys: Array<{ projectId: ProjectId; keyEpoch: number }> = [];
+  readonly removedProjectIds: ProjectId[] = [];
+  readonly #keys = new Set<string>();
+
+  async sign(): Promise<Uint8Array> {
+    return new Uint8Array(64);
+  }
+
+  async createProjectKeyIfMissing(
+    projectId: ProjectId,
+    keyEpoch: number,
+  ): Promise<boolean> {
+    const key = `${projectId}:${keyEpoch}`;
+    if (this.#keys.has(key)) return false;
+    this.#keys.add(key);
+    this.createdKeys.push({ projectId, keyEpoch });
+    return true;
+  }
+
+  hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean {
+    return this.#keys.has(`${projectId}:${keyEpoch}`);
+  }
+
+  async removeProjectKeys(projectId: ProjectId): Promise<void> {
+    this.removedProjectIds.push(projectId);
+    for (const key of [...this.#keys]) {
+      if (key.startsWith(`${projectId}:`)) this.#keys.delete(key);
+    }
+  }
+
+  async encryptProjectStoragePayload(
+    _projectId: ProjectId,
+    _keyEpoch: number,
+    _context: Parameters<ProjectStorageCrypto["encryptProjectStoragePayload"]>[2],
+    plaintext: Uint8Array,
+  ): Promise<Uint8Array> {
+    return plaintext.slice();
+  }
+
+  async decryptProjectStoragePayload(
+    _projectId: ProjectId,
+    _context: Parameters<ProjectStorageCrypto["decryptProjectStoragePayload"]>[1],
+    envelope: Uint8Array,
+  ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
+    return { keyEpoch: 1, plaintext: envelope.slice() };
+  }
+}
+
+class FakeCoordinator implements ProjectGenesisCoordinator {
+  readonly transitions: CreateProjectTransition[] = [];
+  constructor(readonly failure: Error | null = null) {}
+
+  async commitCreateProject(
+    _projectId: ProjectId,
+    transition: CreateProjectTransition,
+  ): Promise<SecurityState> {
+    this.transitions.push(transition);
+    if (this.failure) throw this.failure;
+    return deriveInitialSecurityState(transition, ZERO_HASH);
+  }
+}
+
+type StoredSnapshot = {
+  manifest: Uint8Array;
+  documents: Array<{ id: DocumentId; snapshot: Uint8Array }>;
+};
+
+class FakeStorage implements ProjectGenesisStorage {
+  readonly projects = new Map<ProjectId, StoredSnapshot>();
+  readonly securityStates = new Map<ProjectId, SecurityState>();
+  initializeCalls = 0;
+  failure: Error | null = null;
+
+  async initializeCommittedProject(
+    project: NoteProject,
+    state: SecurityState,
+  ): Promise<OpenProjectResult> {
+    this.initializeCalls += 1;
+    if (this.failure) throw this.failure;
+
+    this.projects.set(project.id, snapshot(project));
+    this.securityStates.set(project.id, state);
+    return { project, isNew: false };
+  }
+
+  storeExisting(project: NoteProject): void {
+    this.projects.set(project.id, snapshot(project));
+  }
+
+  reload(projectId: ProjectId): NoteProject {
+    const stored = this.projects.get(projectId);
+    if (!stored) throw new Error("Project not found");
+
+    return NoteProject.fromSnapshot(
+      projectId,
+      stored.manifest,
+      stored.documents.map(({ id, snapshot: documentSnapshot }) =>
+        NoteDocument.fromSnapshot(id, documentSnapshot),
+      ),
+    );
+  }
+}
+
+function snapshot(project: NoteProject): StoredSnapshot {
+  return {
+    manifest: project.exportManifestSnapshot(),
+    documents: project.getAllDocuments().map((document) => ({
+      id: document.id,
+      snapshot: document.exportSnapshot(),
+    })),
+  };
+}
