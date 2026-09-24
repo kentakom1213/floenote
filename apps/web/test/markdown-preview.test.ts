@@ -337,7 +337,9 @@ describe("GFM task-list preview", () => {
 
   it("keeps ordinary lists ordinary and fenced task-looking text as code", () => {
     const ordinary = renderMarkdown("- ordinary item");
-    const fenced = renderMarkdown("```md\\n- [ ] not a task here\\n```");
+    const fenced = renderMarkdown(
+      ["```md", "- [ ] not a task here", "```"].join("\n"),
+    );
 
     expect(parseHtml(ordinary).querySelector("input")).toBeNull();
     expect(parseHtml(fenced).querySelector("input")).toBeNull();
@@ -347,11 +349,12 @@ describe("GFM task-list preview", () => {
   });
 
   it("maps multiple, nested, Japanese, and emoji-prefixed tasks independently", () => {
-    const source =
-      "😀 introduction\\n" +
-      "- [ ] 日本語 task\\n" +
-      "  * [x] nested task\\n" +
-      "+ [X] third task";
+    const source = [
+      "😀 introduction",
+      "- [ ] 日本語 task",
+      "  * [x] nested task",
+      "+ [X] third task",
+    ].join("\n");
     const rendered = renderMarkdownWithImagePolicy(source, {
       loadExternalImages: false,
       interactiveTasks: true,
@@ -388,7 +391,10 @@ describe("GFM task-list preview", () => {
 
   it("toggles source Markdown from an interactive Preview", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-    const note = noteWithBody("Tasks", "- [ ] Buy milk\\n- [x] Write paper");
+    const note = noteWithBody(
+      "Tasks",
+      ["- [ ] Buy milk", "- [x] Write paper"].join("\n"),
+    );
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -413,7 +419,9 @@ describe("GFM task-list preview", () => {
         await Promise.resolve();
       });
 
-      expect(note.bodyText).toBe("- [x] Buy milk\\n- [x] Write paper");
+      expect(note.bodyText).toBe(
+        ["- [x] Buy milk", "- [x] Write paper"].join("\n"),
+      );
       expect(
         container.querySelectorAll<HTMLInputElement>(
           ".markdown-task-checkbox",
