@@ -43,18 +43,14 @@ export class ProjectSyncEngine {
       documents: this.#project.getAllDocuments().length,
     });
 
-    for (const document of this.#project.getAllDocuments()) {
-      this.#attachDocument(document, false);
-    }
+    this.#reconcileDocumentSubscriptions(false);
 
     this.#stopProjectSubscription = this.#project.subscribe(() => {
       this.#debug("project.changed", {
         documents: this.#project.getAllDocuments().length,
       });
 
-      for (const document of this.#project.getAllDocuments()) {
-        this.#attachDocument(document, true);
-      }
+      this.#reconcileDocumentSubscriptions(true);
     });
 
     this.#stopManifestSubscription =
@@ -101,6 +97,26 @@ export class ProjectSyncEngine {
     this.#documentSubscriptions.clear();
 
     this.#transport.close();
+  }
+
+  #reconcileDocumentSubscriptions(announceNew: boolean): void {
+    const currentDocuments = new Map<string, NoteDocument>(
+      this.#project
+        .getAllDocuments()
+        .map((document) => [document.id, document] as const),
+    );
+
+    for (const [documentId, unsubscribe] of this.#documentSubscriptions) {
+      if (currentDocuments.has(documentId)) continue;
+
+      this.#debug("document.detach", { documentId });
+      unsubscribe();
+      this.#documentSubscriptions.delete(documentId);
+    }
+
+    for (const document of currentDocuments.values()) {
+      this.#attachDocument(document, announceNew);
+    }
   }
 
   #attachDocument(document: NoteDocument, announce: boolean): void {

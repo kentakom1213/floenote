@@ -13,6 +13,12 @@ import {
 } from "@floe-note/security";
 import Dexie, { type Table } from "dexie";
 
+import {
+  filterLoadableDocumentRows,
+  reconcileDocumentSubscriptions,
+  shouldPersistDocumentReference,
+  staleDocumentRowIds,
+} from "./document-persistence-reconciliation.js";
 import type {
   OpenProjectResult,
   ProjectStorage,
@@ -356,21 +362,32 @@ export class DexieProjectStorage implements ProjectStorage {
       if (documentSubscriptions.has(document.id)) return;
 
       const unsubscribe = document.subscribe(() => {
-        this.#enqueue(() =>
-          this.#saveDocument(project.id, document, crypto, keyEpoch),
-        );
+        this.#enqueue(async () => {
+          if (!shouldPersistDocumentReference(project, document)) return;
+
+          await this.#saveDocument(
+            project.id,
+            document,
+            crypto,
+            keyEpoch,
+          );
+        });
       });
       documentSubscriptions.set(document.id, unsubscribe);
     };
 
-    for (const document of project.getAllDocuments()) {
-      attachDocument(document);
-    }
+    const reconcileDocuments = () => {
+      reconcileDocumentSubscriptions(
+        project.getAllDocuments(),
+        documentSubscriptions,
+        attachDocument,
+      );
+    };
+
+    reconcileDocuments();
 
     const unsubscribeProject = project.subscribe(() => {
-      for (const document of project.getAllDocuments()) {
-        attachDocument(document);
-      }
+      reconcileDocuments();
 
       this.#enqueue(() =>
         this.#saveProjectState(project, crypto, keyEpoch),
@@ -464,22 +481,29 @@ export class DexieProjectStorage implements ProjectStorage {
       crypto,
     );
 
+    const manifestProject = NoteProject.fromSnapshot(
+      projectId,
+      manifestSnapshot,
+      [],
+    );
     const documentRows = await this.#db.documents
       .where("projectId")
       .equals(projectId)
       .toArray();
 
     const documents = await Promise.all(
-      documentRows.map(async (record) => {
-        const documentId = parseDocumentId(record.documentId);
-        const snapshot = await this.#readSnapshot(
-          projectId,
-          documentContext(documentId),
-          record,
-          crypto,
-        );
-        return NoteDocument.fromSnapshot(documentId, snapshot);
-      }),
+      filterLoadableDocumentRows(manifestProject, documentRows).map(
+        async (record) => {
+          const documentId = parseDocumentId(record.documentId);
+          const snapshot = await this.#readSnapshot(
+            projectId,
+            documentContext(documentId),
+            record,
+            crypto,
+          );
+          return NoteDocument.fromSnapshot(documentId, snapshot);
+        },
+      ),
     );
 
     return NoteProject.fromSnapshot(
@@ -553,21 +577,19 @@ export class DexieProjectStorage implements ProjectStorage {
       this.#db.manifests,
       this.#db.documents,
       async () => {
-        const activeDocumentIds = new Set<string>(
-          documentRows.map((row) => row.documentId),
-        );
         const existingRows = await this.#db.documents
           .where("projectId")
           .equals(project.id)
           .toArray();
 
-        for (const existing of existingRows) {
-          if (!activeDocumentIds.has(existing.documentId)) {
-            await this.#db.documents.delete([
-              project.id,
-              existing.documentId,
-            ]);
-          }
+        for (const documentId of staleDocumentRowIds(
+          project.getAllDocuments(),
+          existingRows,
+        )) {
+          await this.#db.documents.delete([
+            project.id,
+            documentId,
+          ]);
         }
 
         for (const row of documentRows) {
