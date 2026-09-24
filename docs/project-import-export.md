@@ -280,9 +280,9 @@ case-insensitively.
 Hidden files/directories and tool-specific directories such as `.obsidian` and
 `.git` are ignored.
 
-Directory hierarchy is not represented in Floe Note v1 because Floe Note does
-not yet have folders. All imported Markdown files become notes in the new
-Project.
+Directory hierarchy is intentionally discarded during Markdown directory
+import. All imported Markdown files become ordinary notes in the new Project,
+regardless of their source directory depth.
 
 Duplicate note titles are allowed.
 
