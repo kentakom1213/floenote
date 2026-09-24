@@ -7,6 +7,8 @@ export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
   undoExcludeOriginPrefixes: readonly string[];
+  beginComposition: () => void;
+  endComposition: () => void;
 };
 
 export type NoteDocumentInitialState = {
@@ -22,27 +24,22 @@ export class NoteDocument {
   readonly #doc: LoroDoc;
   #suppressAutomaticTimestamp = false;
   #automaticTimestampPending = false;
+  #automaticTimestampDeferDepth = 0;
+  #automaticTimestampDirty = false;
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
     this.#doc = doc;
 
     this.#doc.subscribeLocalUpdates(() => {
-      if (this.#suppressAutomaticTimestamp || this.#automaticTimestampPending) {
+      if (this.#suppressAutomaticTimestamp) return;
+
+      if (this.#automaticTimestampDeferDepth > 0) {
+        this.#automaticTimestampDirty = true;
         return;
       }
 
-      this.#automaticTimestampPending = true;
-      void Promise.resolve().then(() => {
-        this.#automaticTimestampPending = false;
-
-        this.#withAutomaticTimestampSuppressed(() => {
-          this.#doc.getMap("meta").set("updatedAt", Date.now());
-          this.#doc.commit({
-            origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
-          });
-        });
-      });
+      this.#scheduleAutomaticTimestamp();
     });
   }
 
@@ -193,7 +190,43 @@ export class NoteDocument {
       doc: this.#doc,
       getText: (doc) => doc.getText("body"),
       undoExcludeOriginPrefixes: [EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX],
+      beginComposition: () => {
+        this.#automaticTimestampDeferDepth += 1;
+      },
+      endComposition: () => {
+        if (this.#automaticTimestampDeferDepth === 0) return;
+        this.#automaticTimestampDeferDepth -= 1;
+
+        if (
+          this.#automaticTimestampDeferDepth === 0 &&
+          this.#automaticTimestampDirty
+        ) {
+          this.#automaticTimestampDirty = false;
+          this.#scheduleAutomaticTimestamp();
+        }
+      },
     };
+  }
+
+  #scheduleAutomaticTimestamp(): void {
+    if (this.#automaticTimestampPending) return;
+
+    this.#automaticTimestampPending = true;
+    void Promise.resolve().then(() => {
+      this.#automaticTimestampPending = false;
+
+      if (this.#automaticTimestampDeferDepth > 0) {
+        this.#automaticTimestampDirty = true;
+        return;
+      }
+
+      this.#withAutomaticTimestampSuppressed(() => {
+        this.#doc.getMap("meta").set("updatedAt", Date.now());
+        this.#doc.commit({
+          origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
+        });
+      });
+    });
   }
 
   #getTimestamp(key: "createdAt" | "updatedAt"): number | null {
