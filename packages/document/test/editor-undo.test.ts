@@ -56,40 +56,49 @@ describe("NoteDocument editor undo history", () => {
   });
 
 
-  it("groups IME composition commits into one body undo step", async () => {
+  it("groups a complete IME composition into one body undo step", async () => {
     const document = NoteDocument.create(createDocumentId(), "IME", 100);
     const binding = document.getEditorBinding();
     const undoManager = createEditorUndoManager(document);
     const text = binding.getText(binding.doc);
+    const now = vi.spyOn(Date, "now");
 
-    const replaceBody = async (value: string) => {
+    const replaceBody = (value: string) => {
       const current = text.toString();
       if (current.length > 0) text.delete(0, current.length);
       if (value.length > 0) text.insert(0, value);
       binding.doc.commit();
-      await flushAutomaticTimestamp();
     };
 
-    await replaceBody("に");
+    // A regular edit immediately before the composition gets its own
+    // timestamp commit, which forms a CRDT counter boundary.
+    now.mockReturnValue(200);
+    replaceBody("prefix ");
+    await flushAutomaticTimestamp();
 
-    // Floe opens the Loro group after CodeMirror's first composition
-    // transaction has already been committed, so the composition does not
-    // merge with the edit immediately before it.
+    now.mockReturnValue(300);
+    binding.beginComposition();
     undoManager.groupStart();
-    await replaceBody("にほ");
-    await replaceBody("にほん");
-    await replaceBody("日本");
-    undoManager.groupEnd();
 
-    expect(document.bodyText).toBe("日本");
+    replaceBody("prefix に");
+    replaceBody("prefix にほ");
+    replaceBody("prefix にほん");
+    replaceBody("prefix 日本");
+
+    undoManager.groupEnd();
+    binding.endComposition();
+    await flushAutomaticTimestamp();
+
+    expect(document.bodyText).toBe("prefix 日本");
+    expect(document.updatedAt).toBe(300);
 
     expect(undoManager.undo()).toBe(true);
     await flushAutomaticTimestamp();
-    expect(document.bodyText).toBe("");
+    expect(document.bodyText).toBe("prefix ");
 
     expect(undoManager.redo()).toBe(true);
     await flushAutomaticTimestamp();
-    expect(document.bodyText).toBe("日本");
+    expect(document.bodyText).toBe("prefix 日本");
   });
 
   it("does not undo title or tag metadata from the source editor", async () => {
