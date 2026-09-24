@@ -6,6 +6,8 @@ import { useEffect, useRef } from "react";
 
 import type { NoteDocument } from "@floe-note/document";
 
+import { floeCodeMirrorAppearance } from "./editor-appearance.js";
+
 type MarkdownEditorProps = {
   document: NoteDocument;
 };
@@ -24,6 +26,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       extensions: [
         basicSetup,
         markdown(),
+        ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({
           "aria-label": "Markdown editor",
