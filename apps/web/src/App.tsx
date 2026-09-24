@@ -69,6 +69,7 @@ import {
 import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
   clearAllLastDocumentPreferences,
   readLastDocumentId,
@@ -86,6 +87,7 @@ import {
 import { deriveSyncUiState } from "./sync-ui-state.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
+import { TrashView } from "./TrashView.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
 import {
   reconcileVerifiedSecurityState,
@@ -178,7 +180,7 @@ function NoteApp() {
   const [projectCatalogReady, setProjectCatalogReady] = useState(false);
   const [projectSwitching, setProjectSwitching] = useState(false);
   const [mainView, setMainView] = useState<
-    "note" | "app-settings" | "project-settings"
+    "note" | "trash" | "app-settings" | "project-settings"
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
@@ -1383,14 +1385,11 @@ function NoteApp() {
     if (documentId !== selectedId) return;
 
     const remaining = activeProject.listDocuments();
-    const next =
-      remaining[
-        Math.min(
-          deletedIndex,
-          Math.max(remaining.length - 1, 0),
-        )
-      ] ?? null;
-    const nextId = next?.id ?? null;
+    const nextId = selectNextDocumentAfterDeletion(
+      before,
+      remaining,
+      documentId,
+    );
 
     setSelectedId(nextId);
     setFocusTitleDocumentId(null);
@@ -1542,6 +1541,13 @@ function NoteApp() {
         onThemeChange={setThemePreference}
         onEraseDevice={eraseFloeFromThisDevice}
       />
+    ) : mainView === "trash" ? (
+      <TrashView
+        project={activeProject}
+        onRestoreDocument={(documentId) =>
+          activeProject.restoreDocument(documentId)
+        }
+      />
     ) : mainView === "project-settings" ? (
       <ProjectSettingsView
         projectId={activeProject.id}
@@ -1637,6 +1643,7 @@ function NoteApp() {
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
+      trashActive={mainView === "trash"}
       focusTitleDocumentId={focusTitleDocumentId}
       onTitleFocusHandled={() => setFocusTitleDocumentId(null)}
       onCreateDocument={createDocument}
@@ -1652,6 +1659,10 @@ function NoteApp() {
         }
       }}
       onDeleteDocument={deleteDocument}
+      onOpenTrash={() => {
+        setFocusTitleDocumentId(null);
+        setMainView("trash");
+      }}
     />
   );
 }
