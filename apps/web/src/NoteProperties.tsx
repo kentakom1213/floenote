@@ -106,14 +106,16 @@ export function NoteProperties({
 
     if (event.key === "ArrowDown" && tagOptions.length > 0) {
       event.preventDefault();
-      setActiveOptionIndex((index) => (index + 1) % tagOptions.length);
+      setActiveOptionIndex((index) =>
+        moveTagOptionIndex(index, tagOptions.length, "next"),
+      );
       return;
     }
 
     if (event.key === "ArrowUp" && tagOptions.length > 0) {
       event.preventDefault();
-      setActiveOptionIndex(
-        (index) => (index - 1 + tagOptions.length) % tagOptions.length,
+      setActiveOptionIndex((index) =>
+        moveTagOptionIndex(index, tagOptions.length, "previous"),
       );
     }
   }
@@ -238,6 +240,17 @@ export function NoteProperties({
       </dl>
     </section>
   );
+}
+
+export function moveTagOptionIndex(
+  currentIndex: number,
+  optionCount: number,
+  direction: "next" | "previous",
+): number {
+  if (optionCount <= 0) return 0;
+  return direction === "next"
+    ? (currentIndex + 1) % optionCount
+    : (currentIndex - 1 + optionCount) % optionCount;
 }
 
 export function getTagAssignmentOptions(
