@@ -1,0 +1,344 @@
+/** @vitest-environment jsdom */
+
+import { createDocumentId } from "@floe-note/domain";
+import { NoteDocument } from "@floe-note/document";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  MarkdownPreview,
+  renderMarkdown,
+  renderMarkdownWithImagePolicy,
+} from "../src/MarkdownPreview.js";
+import { classifyMarkdownImageSource } from "../src/markdown-images.js";
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+describe("Markdown image source policy", () => {
+  it("classifies HTTPS, HTTP, relative, and unsafe image sources", () => {
+    expect(classifyMarkdownImageSource("https://example.com/a.png")).toBe(
+      "external-https",
+    );
+    expect(classifyMarkdownImageSource("http://example.com/a.png")).toBe(
+      "insecure-http",
+    );
+    expect(classifyMarkdownImageSource("images/a.png")).toBe("relative");
+    expect(classifyMarkdownImageSource("./images/a.png")).toBe("relative");
+    expect(classifyMarkdownImageSource("../images/a.png")).toBe("relative");
+    expect(classifyMarkdownImageSource("/images/a.png")).toBe("relative");
+
+    for (const source of [
+      "data:image/png;base64,abc",
+      "javascript:alert(1)",
+      "blob:https://example.com/id",
+      "file:///tmp/a.png",
+      "//example.com/a.png",
+      "custom:a.png",
+      "",
+    ]) {
+      expect(classifyMarkdownImageSource(source)).toBe("unsafe");
+    }
+  });
+
+  it("does not materialize an HTTPS image before explicit permission", () => {
+    const rendered = renderMarkdownWithImagePolicy(
+      "![diagram](https://example.com/diagram.png)",
+      { loadExternalImages: false },
+    );
+
+    expect(rendered.hasExternalImages).toBe(true);
+    expect(rendered.html).toContain("[Image: diagram]");
+    expect(rendered.html).not.toContain("<img");
+    expect(rendered.html).not.toContain("https://example.com/diagram.png");
+  });
+
+  it("materializes only permitted HTTPS images with privacy attributes", () => {
+    const rendered = renderMarkdownWithImagePolicy(
+      '![diagram](https://example.com/diagram.png "Architecture")',
+      { loadExternalImages: true },
+    );
+    const image = parseHtml(rendered.html).querySelector("img");
+
+    expect(image?.getAttribute("src")).toBe(
+      "https://example.com/diagram.png",
+    );
+    expect(image?.getAttribute("alt")).toBe("diagram");
+    expect(image?.getAttribute("title")).toBe("Architecture");
+    expect(image?.getAttribute("loading")).toBe("lazy");
+    expect(image?.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(image?.hasAttribute("crossorigin")).toBe(false);
+    expect(image?.hasAttribute("srcset")).toBe(false);
+  });
+
+  it("keeps HTTP images blocked even after permission", () => {
+    const rendered = renderMarkdownWithImagePolicy(
+      "![Insecure](http://example.com/image.png)",
+      { loadExternalImages: true },
+    );
+
+    expect(rendered.html).toContain("Image blocked: insecure source");
+    expect(rendered.html).not.toContain("<img");
+    expect(rendered.html).not.toContain("http://example.com/image.png");
+  });
+
+  it("never resolves relative images against the Floe app origin", () => {
+    for (const source of [
+      "![Local](image.png)",
+      "![Local](./image.png)",
+      "![Local](../image.png)",
+      "![Local](/image.png)",
+    ]) {
+      const rendered = renderMarkdownWithImagePolicy(source, {
+        loadExternalImages: true,
+      });
+
+      expect(rendered.html).toContain("[Image unavailable: Local]");
+      expect(rendered.html).not.toContain("<img");
+    }
+  });
+
+  it("never loads unsupported image schemes", () => {
+    for (const url of [
+      "data:image/png;base64,abc",
+      "javascript:alert(1)",
+      "blob:https://example.com/id",
+      "file:///tmp/image.png",
+      "//example.com/image.png",
+      "custom:image.png",
+    ]) {
+      const rendered = renderMarkdownWithImagePolicy(
+        `![bad](${url})`,
+        { loadExternalImages: true },
+      );
+
+      expect(rendered.html).not.toContain("<img");
+    }
+  });
+
+  it("applies the same policy to raw HTML images and source elements", () => {
+    const source =
+      '<picture><source srcset="https://tracker.example/source.png 1x">' +
+      '<img src="https://tracker.example/x.png" alt="Tracker" srcset="https://tracker.example/2x.png 2x" onerror="alert(1)">' +
+      "</picture>";
+
+    const blocked = renderMarkdownWithImagePolicy(source, {
+      loadExternalImages: false,
+    });
+
+    expect(blocked.hasExternalImages).toBe(true);
+    expect(blocked.html).toContain("[Image: Tracker]");
+    expect(blocked.html).not.toContain("<img");
+    expect(blocked.html).not.toContain("<source");
+    expect(blocked.html).not.toContain("srcset");
+    expect(blocked.html).not.toContain("tracker.example");
+
+    const loaded = renderMarkdownWithImagePolicy(source, {
+      loadExternalImages: true,
+    });
+    const image = parseHtml(loaded.html).querySelector("img");
+
+    expect(image?.getAttribute("src")).toBe(
+      "https://tracker.example/x.png",
+    );
+    expect(image?.getAttribute("alt")).toBe("Tracker");
+    expect(image?.hasAttribute("srcset")).toBe(false);
+    expect(image?.hasAttribute("onerror")).toBe(false);
+  });
+
+  it("does not turn image metadata into executable markup", () => {
+    const source =
+      '<img src="https://example.com/x.png" ' +
+      'alt="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" ' +
+      'title="&quot; onerror=&quot;alert(1)">';
+
+    const loaded = renderMarkdownWithImagePolicy(source, {
+      loadExternalImages: true,
+    });
+    const body = parseHtml(loaded.html);
+    const image = body.querySelector("img");
+
+    expect(image).not.toBeNull();
+    expect(body.querySelector("script")).toBeNull();
+    expect(image?.hasAttribute("onerror")).toBe(false);
+    expect(image?.getAttribute("alt")).toContain("<script>");
+  });
+});
+
+describe("Markdown sanitizer", () => {
+  it("removes executable and unsupported HTML while keeping allowed content", () => {
+    const html = renderMarkdown(
+      '<p style="color:red" onclick="alert(1)">Safe</p>' +
+        '<script>alert(1)</script>' +
+        '<iframe src="https://example.com"></iframe>' +
+        "<object>object</object><embed><form>form</form>" +
+        '<svg onload="alert(1)"><circle></circle></svg>',
+    );
+    const body = parseHtml(html);
+    const paragraph = body.querySelector("p");
+
+    expect(paragraph?.textContent).toBe("Safe");
+    expect(paragraph?.hasAttribute("style")).toBe(false);
+    expect(paragraph?.hasAttribute("onclick")).toBe(false);
+    expect(body.querySelector("script")).toBeNull();
+    expect(body.querySelector("iframe")).toBeNull();
+    expect(body.querySelector("object")).toBeNull();
+    expect(body.querySelector("embed")).toBeNull();
+    expect(body.querySelector("form")).toBeNull();
+    expect(body.querySelector("svg")).toBeNull();
+  });
+
+  it("preserves supported Markdown formatting", () => {
+    const html = renderMarkdown(
+      "# Heading\n\n" +
+        "**strong** *emphasis* ~~deleted~~\n\n" +
+        "- one\n- two\n\n" +
+        "> quote\n\n" +
+        "```typescript\nconst value = 1;\n```\n\n" +
+        "| A | B |\n| --- | --- |\n| 1 | 2 |",
+    );
+    const body = parseHtml(html);
+
+    expect(body.querySelector("h1")?.textContent).toBe("Heading");
+    expect(body.querySelector("strong")?.textContent).toBe("strong");
+    expect(body.querySelector("em")?.textContent).toBe("emphasis");
+    expect(body.querySelector("del")?.textContent).toBe("deleted");
+    expect(body.querySelectorAll("li")).toHaveLength(2);
+    expect(body.querySelector("blockquote")?.textContent).toContain("quote");
+    expect(body.querySelector("code")?.className).toBe(
+      "language-typescript",
+    );
+    expect(body.querySelector("table")).not.toBeNull();
+  });
+
+  it("preserves safe links and removes unsafe href schemes", () => {
+    const html = renderMarkdown(
+      [
+        "[anchor](#part)",
+        "[root](/notes)",
+        "[dot](./note)",
+        "[parent](../note)",
+        "[http](http://example.com)",
+        "[https](https://example.com)",
+        "[mail](mailto:test@example.com)",
+        "[bad](javascript:alert(1))",
+      ].join("\n\n"),
+    );
+    const links = Array.from(parseHtml(html).querySelectorAll("a"));
+
+    for (const link of links.slice(0, 7)) {
+      expect(link.getAttribute("href")).not.toBeNull();
+      expect(link.getAttribute("rel")).toBe("noreferrer noopener");
+    }
+    expect(links[7]?.hasAttribute("href")).toBe(false);
+  });
+
+  it("keeps only fenced-code language classes", () => {
+    const markdown = renderMarkdown("```ts\nconst x = 1;\n```");
+    expect(parseHtml(markdown).querySelector("code")?.className).toBe(
+      "language-ts",
+    );
+
+    const raw = renderMarkdown(
+      '<code class="language-ts extra" data-test="x">value</code>',
+    );
+    const code = parseHtml(raw).querySelector("code");
+    expect(code?.hasAttribute("class")).toBe(false);
+    expect(code?.hasAttribute("data-test")).toBe(false);
+  });
+
+  it("hydrates inline and display KaTeX after sanitizing Markdown HTML", () => {
+    const html = renderMarkdown(
+      "Inline $x^2$\n\n$$\n\\frac{a}{b}\n$$",
+    );
+    const body = parseHtml(html);
+
+    expect(body.querySelector(".markdown-math .katex")).not.toBeNull();
+    expect(
+      body.querySelector(".markdown-math-block .katex-display"),
+    ).not.toBeNull();
+  });
+});
+
+describe("MarkdownPreview external-image permission", () => {
+  it("is note-scoped, explicit, and resets when switching notes", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const first = noteWithBody(
+      "First",
+      "![External](https://example.com/first.png)",
+    );
+    const second = noteWithBody(
+      "Second",
+      "![External](https://example.com/second.png)",
+    );
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(createElement(MarkdownPreview, { document: first }));
+      });
+
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.textContent).toContain("External images are blocked");
+
+      const button = container.querySelector("button");
+      expect(button?.textContent).toBe("Load external images");
+
+      await act(async () => {
+        button?.click();
+      });
+
+      expect(container.querySelector("img")?.getAttribute("src")).toBe(
+        "https://example.com/first.png",
+      );
+
+      await act(async () => {
+        root.render(createElement(MarkdownPreview, { document: second }));
+      });
+
+      expect(container.querySelector("img")).toBeNull();
+      expect(container.textContent).toContain("External images are blocked");
+      expect(container.textContent).toContain("[Image: External]");
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps the empty-preview behavior", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const note = NoteDocument.create(createDocumentId(), "Empty", 100);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(createElement(MarkdownPreview, { document: note }));
+      });
+      expect(container.textContent).toContain("Nothing to preview yet.");
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+function parseHtml(html: string): HTMLElement {
+  return new DOMParser().parseFromString(html, "text/html").body;
+}
+
+function noteWithBody(title: string, body: string): NoteDocument {
+  const note = NoteDocument.create(createDocumentId(), title, 100);
+  const binding = note.getEditorBinding();
+  binding.getText(binding.doc).insert(0, body);
+  binding.doc.commit();
+  return note;
+}
