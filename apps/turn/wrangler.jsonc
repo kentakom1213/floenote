@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "floe-note-turn",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-24",
+  "observability": {
+    "enabled": true
+  }
+}
