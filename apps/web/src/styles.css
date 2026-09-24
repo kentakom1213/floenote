@@ -1164,10 +1164,12 @@ input:focus-visible {
   width: 100%;
   flex: 1;
   overflow: hidden;
+  box-sizing: border-box;
   border: 0;
   outline: none;
   resize: none;
-  padding: 0;
+  margin-left: -1px;
+  padding: 2px 0 3px 1px;
   color: var(--color-text);
   background: transparent;
   font-family: inherit;
@@ -1332,7 +1334,7 @@ input:focus-visible {
   padding: 3px 4px 3px 9px;
   color: var(--color-text-muted);
   background: var(--color-surface-selected);
-  line-height: 1.35;
+  line-height: 1;
 }
 
 .note-tag > span {
