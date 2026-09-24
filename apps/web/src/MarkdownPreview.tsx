@@ -260,6 +260,7 @@ function hydrateTasks(
       checkbox.type = "checkbox";
       checkbox.className = "markdown-task-checkbox";
       checkbox.checked = next.checked;
+      if (next.checked) checkbox.setAttribute("checked", "");
       checkbox.disabled = !interactive;
       checkbox.dataset.floeTaskId = next.id;
       checkbox.setAttribute("aria-label", next.label || "Task");
