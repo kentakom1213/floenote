@@ -65,6 +65,11 @@ export function clearEditorPreference(): void {
   } catch {
     // Editor appearance preferences are best-effort only.
   }
+
+  const root = document.documentElement;
+  root.style.removeProperty("--editor-font-size");
+  root.style.removeProperty("--editor-line-height");
+  root.style.removeProperty("--editor-content-width");
 }
 
 export function applyEditorPreference(preference: EditorPreference): void {
