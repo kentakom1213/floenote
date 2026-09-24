@@ -210,7 +210,9 @@ export function ProjectSettingsView({
                             ? "Online"
                             : "Offline"
                           : isConnected
-                            ? "Connected"
+                            ? connectionMode
+                              ? `Connected · ${connectionMode === "relay" ? "Relay" : "Direct"}`
+                              : "Connected"
                             : connectionMode
                               ? `Connecting · ${connectionMode === "relay" ? "Relay" : "Direct"}`
                               : isOnline
