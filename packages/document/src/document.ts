@@ -7,8 +7,8 @@ export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
   undoExcludeOriginPrefixes: readonly string[];
-  beginComposition: () => void;
-  endComposition: () => void;
+  beginEditorHistoryGroup: () => void;
+  endEditorHistoryGroup: () => void;
 };
 
 export type NoteDocumentInitialState = {
@@ -190,10 +190,10 @@ export class NoteDocument {
       doc: this.#doc,
       getText: (doc) => doc.getText("body"),
       undoExcludeOriginPrefixes: [EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX],
-      beginComposition: () => {
+      beginEditorHistoryGroup: () => {
         this.#automaticTimestampDeferDepth += 1;
       },
-      endComposition: () => {
+      endEditorHistoryGroup: () => {
         if (this.#automaticTimestampDeferDepth === 0) return;
         this.#automaticTimestampDeferDepth -= 1;
 
