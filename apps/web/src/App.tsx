@@ -1697,6 +1697,9 @@ function NoteApp() {
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
       }}
+      onPurgeDocument={(documentId) => {
+        activeProject.purgeDocument(documentId);
+      }}
       onOpenTrash={() => {
         setFocusTitleDocumentId(null);
         setMainView("trash");

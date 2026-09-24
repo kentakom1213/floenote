@@ -1,6 +1,7 @@
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
+import { ConfirmDialog } from "./ConfirmDialog.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { formatNoteTimestamp } from "./NoteProperties.js";
 
@@ -9,6 +10,7 @@ type TrashViewProps = {
   selectedDocumentId: DocumentId | null;
   onSelectDocument: (documentId: DocumentId) => void;
   onRestoreDocument: (documentId: DocumentId) => void;
+  onRequestPermanentDelete: (documentId: DocumentId) => void;
 };
 
 export function TrashView({
@@ -16,6 +18,7 @@ export function TrashView({
   selectedDocumentId,
   onSelectDocument,
   onRestoreDocument,
+  onRequestPermanentDelete,
 }: TrashViewProps) {
   const selectedDocument = selectedDocumentId
     ? project.getDeletedDocument(selectedDocumentId)
@@ -26,6 +29,9 @@ export function TrashView({
       <TrashNotePreview
         document={selectedDocument}
         onRestore={() => onRestoreDocument(selectedDocument.id)}
+        onRequestPermanentDelete={() =>
+          onRequestPermanentDelete(selectedDocument.id)
+        }
       />
     );
   }
@@ -56,13 +62,24 @@ export function TrashView({
               >
                 {document.title || "Untitled"}
               </button>
-              <button
-                className="trash-restore-button"
-                type="button"
-                onClick={() => onRestoreDocument(document.id)}
-              >
-                Restore
-              </button>
+              <div className="trash-item-actions">
+                <button
+                  className="trash-restore-button"
+                  type="button"
+                  onClick={() => onRestoreDocument(document.id)}
+                >
+                  Restore
+                </button>
+                <button
+                  className="trash-delete-button"
+                  type="button"
+                  onClick={() =>
+                    onRequestPermanentDelete(document.id)
+                  }
+                >
+                  Delete permanently
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -74,11 +91,13 @@ export function TrashView({
 type TrashNotePreviewProps = {
   document: NoteDocument;
   onRestore: () => void;
+  onRequestPermanentDelete: () => void;
 };
 
-function TrashNotePreview({
+export function TrashNotePreview({
   document,
   onRestore,
+  onRequestPermanentDelete,
 }: TrashNotePreviewProps) {
   return (
     <article className="trash-note-preview">
@@ -87,13 +106,22 @@ function TrashNotePreview({
           <p className="settings-eyebrow">Trash</p>
           <h1>{document.title || "Untitled"}</h1>
         </div>
-        <button
-          className="trash-preview-restore-button"
-          type="button"
-          onClick={onRestore}
-        >
-          Restore
-        </button>
+        <div className="trash-note-preview-actions">
+          <button
+            className="trash-preview-restore-button"
+            type="button"
+            onClick={onRestore}
+          >
+            Restore
+          </button>
+          <button
+            className="trash-preview-delete-button"
+            type="button"
+            onClick={onRequestPermanentDelete}
+          >
+            Delete permanently
+          </button>
+        </div>
       </header>
 
       <section
@@ -141,5 +169,30 @@ function renderTimestamp(timestamp: number | null) {
     <time dateTime={new Date(timestamp).toISOString()}>
       {formatNoteTimestamp(timestamp)}
     </time>
+  );
+}
+
+type PermanentDeleteConfirmationProps = {
+  onCancel: () => void;
+  onConfirm: () => void;
+};
+
+export function PermanentDeleteConfirmation({
+  onCancel,
+  onConfirm,
+}: PermanentDeleteConfirmationProps) {
+  return (
+    <ConfirmDialog
+      title="Permanently delete this note?"
+      description={
+        <p>
+          This note cannot be restored. Offline devices will apply the
+          deletion when they reconnect.
+        </p>
+      }
+      confirmLabel="Delete permanently"
+      onClose={onCancel}
+      onConfirm={async () => onConfirm()}
+    />
   );
 }

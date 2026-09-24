@@ -731,12 +731,15 @@ input:focus-visible {
 }
 
 .sidebar-trash-section {
+  position: relative;
   min-width: 0;
   flex: 0 0 auto;
   margin-top: 8px;
 }
 
 .sidebar-trash-entry {
+  position: relative;
+  z-index: 2;
   min-width: 0;
   width: 100%;
   display: grid;
@@ -747,7 +750,7 @@ input:focus-visible {
   border-radius: 9px;
   padding: 8px 10px;
   color: var(--color-text-faint);
-  background: transparent;
+  background: var(--color-sidebar);
   font-size: 12px;
   text-align: left;
 }
@@ -790,38 +793,55 @@ input:focus-visible {
 }
 
 .sidebar-trash-list {
+  position: relative;
+  z-index: 1;
   max-height: min(200px, 30vh);
   display: grid;
   align-content: start;
   gap: 2px;
   margin-top: 2px;
+  padding-right: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  contain: paint;
 }
 
-.sidebar-trash-note {
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  border: 0;
-  border-radius: 8px;
-  padding: 7px 9px 7px 46px;
+.sidebar-trash-note-row {
   color: var(--color-text-faint);
-  background: transparent;
   font-size: 12px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.sidebar-trash-note:hover {
+.sidebar-trash-note-row:hover {
   color: var(--color-text-muted);
-  background: var(--color-surface-hover);
 }
 
-.sidebar-trash-note.selected {
+.sidebar-trash-note-row.selected {
   color: var(--color-text);
-  background: var(--color-surface-selected);
+}
+
+.sidebar-trash-note-item {
+  padding-left: 46px;
+}
+
+.sidebar-trash-note-row > .note-row-menu-trigger {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.sidebar-trash-floating-menu {
+  position: fixed;
+  z-index: 80;
+  top: 0;
+  right: auto;
+  min-width: 170px;
+  visibility: visible;
+}
+
+.sidebar-trash-floating-menu:not([style]) {
+  visibility: hidden;
 }
 
 .trash-view {
@@ -882,20 +902,42 @@ input:focus-visible {
   background: var(--color-surface-hover);
 }
 
-.trash-restore-button {
+.trash-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.trash-restore-button,
+.trash-delete-button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 9px;
-  color: var(--color-text-muted);
   background: var(--color-surface);
   font-size: 11px;
   font-weight: 650;
+  white-space: nowrap;
+}
+
+.trash-restore-button {
+  color: var(--color-text-muted);
 }
 
 .trash-restore-button:hover {
   color: var(--color-text);
   border-color: var(--color-border-strong);
   background: var(--color-surface-hover);
+}
+
+.trash-delete-button {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 34%, var(--color-border));
+}
+
+.trash-delete-button:hover {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
 }
 
 .trash-empty-state {
@@ -944,7 +986,15 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.trash-preview-restore-button {
+.trash-note-preview-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trash-preview-restore-button,
+.trash-preview-delete-button {
   flex: 0 0 auto;
   border: 1px solid var(--color-border);
   border-radius: 9px;
@@ -959,6 +1009,16 @@ input:focus-visible {
   color: var(--color-text);
   border-color: var(--color-border-strong);
   background: var(--color-surface-hover);
+}
+
+.trash-preview-delete-button {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 38%, var(--color-border));
+}
+
+.trash-preview-delete-button:hover {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
 }
 
 .trash-note-properties {
@@ -3424,7 +3484,7 @@ h1 {
   }
 
   .sidebar-trash-entry,
-  .sidebar-trash-note {
+  .sidebar-trash-note-row {
     min-height: 44px;
   }
 
@@ -3672,8 +3732,19 @@ h1 {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 
+  .trash-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .trash-item-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .trash-note-preview-header {
-    align-items: center;
+    align-items: stretch;
+    flex-direction: column;
     gap: 12px;
     padding-top: 28px;
   }
@@ -3682,8 +3753,16 @@ h1 {
     font-size: clamp(24px, 8vw, 32px);
   }
 
+  .trash-note-preview-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .trash-preview-restore-button,
+  .trash-preview-delete-button,
   .trash-restore-button,
+  .trash-delete-button,
   .settings-primary-action,
   .settings-danger-action,
   .settings-danger-outline-action,
