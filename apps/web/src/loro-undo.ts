@@ -1,4 +1,8 @@
-import { Prec, type Extension } from "@codemirror/state";
+import {
+  Prec,
+  Transaction,
+  type Extension,
+} from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -9,6 +13,8 @@ import {
 import type { UndoManager } from "loro-crdt";
 
 export const EDITOR_UNDO_MAX_STEPS = 500;
+export const EDITOR_UNDO_GROUP_DELAY_MS = 1000;
+export const EDITOR_UNDO_MERGE_INTERVAL_MS = 0;
 
 export type UndoManagerCommands = {
   canUndo: () => boolean;
@@ -22,10 +28,23 @@ export type UndoGroupingManager = {
   groupEnd: () => void;
 };
 
-export type CompositionLifecycle = {
-  beginComposition: () => void;
-  endComposition: () => void;
+export type EditorHistoryLifecycle = {
+  beginEditorHistoryGroup: () => void;
+  endEditorHistoryGroup: () => void;
 };
+
+export type EditorUndoEventKind =
+  | "typing"
+  | "deleting"
+  | "composition"
+  | "atomic"
+  | "selection"
+  | "none";
+
+type GroupedEditorUndoEventKind = Extract<
+  EditorUndoEventKind,
+  "typing" | "deleting" | "composition"
+>;
 
 export function runLoroUndo(undoManager: UndoManagerCommands): boolean {
   if (undoManager.canUndo()) {
@@ -45,106 +64,239 @@ export function runLoroRedo(undoManager: UndoManagerCommands): boolean {
   return true;
 }
 
-export class CompositionUndoGroup {
-  #active = false;
+export function classifyEditorUndoEvent(
+  transactions: readonly Transaction[],
+): EditorUndoEventKind {
+  const documentTransactions = transactions.filter(
+    (transaction) => transaction.docChanged,
+  );
 
-  constructor(
-    private readonly undoManager: UndoGroupingManager,
-    private readonly lifecycle: CompositionLifecycle,
-  ) {}
+  if (documentTransactions.length > 0) {
+    if (
+      documentTransactions.every((transaction) =>
+        transaction.isUserEvent("input.type.compose"),
+      )
+    ) {
+      return "composition";
+    }
 
-  get active(): boolean {
-    return this.#active;
+    if (
+      documentTransactions.every((transaction) =>
+        transaction.isUserEvent("input.type"),
+      )
+    ) {
+      return "typing";
+    }
+
+    if (
+      documentTransactions.every((transaction) =>
+        transaction.isUserEvent("delete"),
+      )
+    ) {
+      return "deleting";
+    }
+
+    // Enter/Shift-Enter are emitted by CodeMirror as userEvent "input".
+    // Paste/drop/completion and structural editor commands also belong here.
+    // They are intentionally kept as one action per undo step.
+    return "atomic";
   }
 
-  begin(): void {
-    if (this.#active) return;
-    this.lifecycle.beginComposition();
-    this.undoManager.groupStart();
-    this.#active = true;
+  if (
+    transactions.some((transaction) => transaction.isUserEvent("select"))
+  ) {
+    return "selection";
   }
 
-  end(): void {
-    if (!this.#active) return;
-    this.undoManager.groupEnd();
-    this.lifecycle.endComposition();
-    this.#active = false;
-  }
+  return "none";
 }
 
-class CompositionUndoPluginValue implements PluginValue {
-  readonly #group: CompositionUndoGroup;
-  #scheduledEnd: number | null = null;
+class EditorUndoGroupController {
+  #activeKind: GroupedEditorUndoEventKind | null = null;
+  #groupStarted = false;
+  #idleTimer: number | null = null;
+  #compositionEndFrame: number | null = null;
 
   constructor(
     private readonly view: EditorView,
-    undoManager: UndoManager,
-    lifecycle: CompositionLifecycle,
-  ) {
-    this.#group = new CompositionUndoGroup(undoManager, lifecycle);
-  }
+    private readonly undoManager: UndoGroupingManager,
+    private readonly lifecycle: EditorHistoryLifecycle,
+  ) {}
 
-  update(update: ViewUpdate): void {
-    if (!this.#group.active) return;
+  beforeUpdate(update: ViewUpdate): void {
+    const kind = classifyEditorUndoEvent(update.transactions);
 
-    const hasCompositionChange = update.transactions.some(
-      (transaction) =>
-        transaction.docChanged &&
-        transaction.isUserEvent("input.type.compose"),
-    );
-    if (!hasCompositionChange) return;
+    if (kind === "none") return;
 
-    // LoroExtensions is installed before this plugin, so the final
-    // composition transaction has already been committed to Loro here.
-    if (!this.view.compositionStarted) {
-      this.#cancelScheduledEnd();
-      this.#group.end();
+    if (kind === "selection" || kind === "atomic") {
+      this.#closeGroup();
+      return;
+    }
+
+    if (this.#activeKind !== kind) {
+      this.#closeGroup();
+      this.#openPendingGroup(kind);
     }
   }
 
+  afterUpdate(update: ViewUpdate): void {
+    const kind = classifyEditorUndoEvent(update.transactions);
+    if (!isGroupedKind(kind) || this.#activeKind !== kind) return;
+
+    if (!this.#groupStarted) {
+      // This runs after LoroExtensions, so the first operation in a semantic
+      // group is already an independent undo item (mergeInterval is zero).
+      // Starting the group now makes following operations merge into it.
+      this.undoManager.groupStart();
+      this.#groupStarted = true;
+    }
+
+    if (kind === "composition") {
+      if (!this.view.compositionStarted) {
+        this.#cancelCompositionEndFrame();
+        this.#closeGroup();
+      }
+      return;
+    }
+
+    this.#scheduleIdleClose();
+  }
+
   onCompositionStart(): void {
-    // A new composition should never be absorbed into a previous one.
-    this.#cancelScheduledEnd();
-    this.#group.end();
-    this.#group.begin();
+    this.#cancelCompositionEndFrame();
+    this.#closeGroup();
+    this.#openPendingGroup("composition");
   }
 
   onCompositionEnd(): void {
-    if (!this.#group.active || this.#scheduledEnd !== null) return;
+    if (
+      this.#activeKind !== "composition" ||
+      this.#compositionEndFrame !== null
+    ) {
+      return;
+    }
 
-    // CodeMirror can flush the final composition DOM mutation in a microtask
-    // or, on Android, in requestAnimationFrame. Its own observer runs before
-    // this plugin handler, so this callback is queued after that pending flush.
-    this.#scheduledEnd = this.view.dom.ownerDocument.defaultView!.requestAnimationFrame(
-      () => {
-        this.#scheduledEnd = null;
-        if (!this.view.compositionStarted) {
-          this.#group.end();
-        }
-      },
-    );
+    const win = this.view.dom.ownerDocument.defaultView;
+    if (!win) {
+      this.#closeGroup();
+      return;
+    }
+
+    // CodeMirror may flush the final composition DOM mutation in a microtask
+    // or, on Android, in requestAnimationFrame. Its built-in compositionend
+    // observer runs before plugin event handlers, so this frame is queued
+    // after CodeMirror's pending composition flush.
+    this.#compositionEndFrame = win.requestAnimationFrame(() => {
+      this.#compositionEndFrame = null;
+      if (!this.view.compositionStarted) {
+        this.#closeGroup();
+      }
+    });
   }
 
   destroy(): void {
-    this.#cancelScheduledEnd();
-    this.#group.end();
+    this.#closeGroup();
   }
 
-  #cancelScheduledEnd(): void {
-    if (this.#scheduledEnd === null) return;
-    this.view.dom.ownerDocument.defaultView!.cancelAnimationFrame(
-      this.#scheduledEnd,
+  #openPendingGroup(kind: GroupedEditorUndoEventKind): void {
+    this.lifecycle.beginEditorHistoryGroup();
+    this.#activeKind = kind;
+    this.#groupStarted = false;
+  }
+
+  #closeGroup(): void {
+    this.#cancelIdleClose();
+    this.#cancelCompositionEndFrame();
+
+    if (this.#activeKind === null) return;
+
+    if (this.#groupStarted) {
+      this.undoManager.groupEnd();
+    }
+    this.lifecycle.endEditorHistoryGroup();
+    this.#activeKind = null;
+    this.#groupStarted = false;
+  }
+
+  #scheduleIdleClose(): void {
+    this.#cancelIdleClose();
+
+    const win = this.view.dom.ownerDocument.defaultView;
+    if (!win) {
+      this.#closeGroup();
+      return;
+    }
+
+    this.#idleTimer = win.setTimeout(() => {
+      this.#idleTimer = null;
+      this.#closeGroup();
+    }, EDITOR_UNDO_GROUP_DELAY_MS);
+  }
+
+  #cancelIdleClose(): void {
+    if (this.#idleTimer === null) return;
+    this.view.dom.ownerDocument.defaultView?.clearTimeout(this.#idleTimer);
+    this.#idleTimer = null;
+  }
+
+  #cancelCompositionEndFrame(): void {
+    if (this.#compositionEndFrame === null) return;
+    this.view.dom.ownerDocument.defaultView?.cancelAnimationFrame(
+      this.#compositionEndFrame,
     );
-    this.#scheduledEnd = null;
+    this.#compositionEndFrame = null;
   }
 }
 
-export function compositionUndoGrouping(
+class BeforeUndoGroupingPlugin implements PluginValue {
+  constructor(private readonly controller: EditorUndoGroupController) {}
+
+  update(update: ViewUpdate): void {
+    this.controller.beforeUpdate(update);
+  }
+
+  onCompositionStart(): void {
+    this.controller.onCompositionStart();
+  }
+
+  onCompositionEnd(): void {
+    this.controller.onCompositionEnd();
+  }
+}
+
+class AfterUndoGroupingPlugin implements PluginValue {
+  constructor(private readonly controller: EditorUndoGroupController) {}
+
+  update(update: ViewUpdate): void {
+    this.controller.afterUpdate(update);
+  }
+
+  destroy(): void {
+    this.controller.destroy();
+  }
+}
+
+export function editorUndoGrouping(
   undoManager: UndoManager,
-  lifecycle: CompositionLifecycle,
-): Extension {
-  return ViewPlugin.define(
-    (view) => new CompositionUndoPluginValue(view, undoManager, lifecycle),
+  lifecycle: EditorHistoryLifecycle,
+): { before: Extension; after: Extension } {
+  const controllers = new WeakMap<EditorView, EditorUndoGroupController>();
+
+  const getController = (view: EditorView): EditorUndoGroupController => {
+    const existing = controllers.get(view);
+    if (existing) return existing;
+
+    const controller = new EditorUndoGroupController(
+      view,
+      undoManager,
+      lifecycle,
+    );
+    controllers.set(view, controller);
+    return controller;
+  };
+
+  const before = ViewPlugin.define(
+    (view) => new BeforeUndoGroupingPlugin(getController(view)),
     {
       eventHandlers: {
         compositionstart() {
@@ -158,6 +310,12 @@ export function compositionUndoGrouping(
       },
     },
   );
+
+  const after = ViewPlugin.define(
+    (view) => new AfterUndoGroupingPlugin(getController(view)),
+  );
+
+  return { before, after };
 }
 
 export function synchronousLoroUndoKeymap(
@@ -182,5 +340,15 @@ export function synchronousLoroUndoKeymap(
         preventDefault: true,
       },
     ]),
+  );
+}
+
+function isGroupedKind(
+  kind: EditorUndoEventKind,
+): kind is GroupedEditorUndoEventKind {
+  return (
+    kind === "typing" ||
+    kind === "deleting" ||
+    kind === "composition"
   );
 }
