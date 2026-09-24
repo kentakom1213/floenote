@@ -242,8 +242,9 @@ describe("NoteProject edit history", () => {
 
     const historical = document.createHistoricalView(frontiers);
 
-    expect(historical.title).toBe("Before");
-    expect(historical.bodyText).toBe("before");
+    expect(historical).not.toBeNull();
+    expect(historical?.title).toBe("Before");
+    expect(historical?.bodyText).toBe("before");
     expect(document.title).toBe("After");
     expect(document.bodyText).toBe("after");
   });
