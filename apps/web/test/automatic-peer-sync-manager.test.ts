@@ -13,13 +13,15 @@ const harness = vi.hoisted(() => {
   class FakeWebRtcTransport {
     static instances: FakeWebRtcTransport[] = [];
 
+    readonly configuration: RTCConfiguration | undefined;
     readonly connectionHandlers = new Set<(state: ConnectionState) => void>();
     readonly statusHandlers = new Set<
       (status: { dataChannelState: "none" | "open" | "closed" }) => void
     >();
     readonly messageHandlers = new Set<(data: Uint8Array) => void>();
 
-    constructor() {
+    constructor(_projectId?: unknown, configuration?: RTCConfiguration) {
+      this.configuration = configuration;
       FakeWebRtcTransport.instances.push(this);
     }
 
@@ -93,9 +95,11 @@ vi.mock("@floe-note/coordinator-client", () => ({
 }));
 
 import {
+  AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS,
   AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS,
   AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS,
   AUTOMATIC_RECONNECT_RETRY_DELAYS_MS,
+  type AutomaticPeerSyncStatus,
   AutomaticPeerSyncManager,
 } from "../src/AutomaticPeerSyncManager.js";
 
@@ -110,16 +114,24 @@ const PROJECT_ID = parseProjectId(
 );
 
 type PresenceHarness = {
-  sent: Array<{ peerDeviceId: DeviceId; sessionId: string }>;
-  sendReconnectSession: (peerDeviceId: DeviceId, sessionId: string) => void;
+  sent: Array<{
+    peerDeviceId: DeviceId;
+    sessionId: string;
+    transportMode: "direct" | "relay";
+  }>;
+  sendReconnectSession: (
+    peerDeviceId: DeviceId,
+    sessionId: string,
+    transportMode?: "direct" | "relay",
+  ) => void;
 };
 
 function createPresence(): PresenceHarness {
   const sent: PresenceHarness["sent"] = [];
   return {
     sent,
-    sendReconnectSession(peerDeviceId, sessionId) {
-      sent.push({ peerDeviceId, sessionId });
+    sendReconnectSession(peerDeviceId, sessionId, transportMode = "direct") {
+      sent.push({ peerDeviceId, sessionId, transportMode });
     },
   };
 }
@@ -145,7 +157,16 @@ function createSecurityState(): SecurityState {
   };
 }
 
-function createManager(presence: PresenceHarness) {
+function createManager(
+  presence: PresenceHarness,
+  options: {
+    relayFallbackEnabled?: boolean;
+    rtcConfigurationProvider?: (
+      mode: "direct" | "relay",
+    ) => Promise<RTCConfiguration | undefined>;
+    onStatusChange?: (status: AutomaticPeerSyncStatus) => void;
+  } = {},
+) {
   const project = NoteProject.create(PROJECT_ID);
   const vaultSession = {
     encryptProjectSyncPayload: async (
@@ -167,7 +188,9 @@ function createManager(presence: PresenceHarness) {
     securityState: createSecurityState(),
     vaultSession: vaultSession as never,
     presence: presence as never,
-    onStatusChange: () => undefined,
+    relayFallbackEnabled: options.relayFallbackEnabled,
+    rtcConfigurationProvider: options.rtcConfigurationProvider,
+    onStatusChange: options.onStatusChange ?? (() => undefined),
   });
 }
 
@@ -243,6 +266,57 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
 
     expect(presence.sent).toHaveLength(2);
     expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
+
+    manager.stop();
+  });
+
+  it("falls back from direct to relay-only when direct connection stalls", async () => {
+    const presence = createPresence();
+    const statuses: AutomaticPeerSyncStatus[] = [];
+    const rtcConfigurationProvider = vi.fn(
+      async (mode: "direct" | "relay") =>
+        mode === "relay"
+          ? {
+              iceServers: [
+                {
+                  urls: "turn:turn.example:3478",
+                  username: "temporary-user",
+                  credential: "temporary-password",
+                },
+              ],
+            }
+          : undefined,
+    );
+    const manager = createManager(presence, {
+      relayFallbackEnabled: true,
+      rtcConfigurationProvider,
+      onStatusChange: (status) => statuses.push(status),
+    });
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
+
+    expect(presence.sent).toHaveLength(1);
+    expect(presence.sent[0]?.transportMode).toBe("direct");
+    expect(statuses.at(-1)?.connectionAttempts).toEqual([
+      { deviceId: PEER_DEVICE_ID, mode: "direct" },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS);
+    await flushConnectionCleanup();
+
+    expect(presence.sent).toHaveLength(2);
+    expect(presence.sent[1]?.transportMode).toBe("relay");
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
+    expect(
+      harness.FakeWebRtcTransport.instances[1]?.configuration
+        ?.iceTransportPolicy,
+    ).toBe("relay");
+    expect(statuses.at(-1)?.connectionAttempts).toEqual([
+      { deviceId: PEER_DEVICE_ID, mode: "relay" },
+    ]);
+    expect(rtcConfigurationProvider).toHaveBeenNthCalledWith(1, "direct");
+    expect(rtcConfigurationProvider).toHaveBeenNthCalledWith(2, "relay");
 
     manager.stop();
   });
