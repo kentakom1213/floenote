@@ -68,6 +68,11 @@ import {
 } from "./InvitationHostPanel.js";
 import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
+import {
+  closeOwnedDeviceVaultSession,
+  type DeviceVaultSessionOwner,
+} from "./device-vault-session-owner.js";
+import { clearInvitationUrl } from "./invitation-url.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
 import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
@@ -118,20 +123,26 @@ const useManualWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "signal";
-const useInvitationWebRtc = searchParams.get("transport") === "invite";
+const initialInvitationHostRequested = searchParams.get("transport") === "invite";
 const INVITATION_ICE_RESTART_RETRY_DELAYS_MS = [5_000, 5_000] as const;
-const useAutomaticReconnect =
-  !useManualWebRtc && !useSignaledWebRtc && !useInvitationWebRtc;
+const useAutomaticReconnect = !useManualWebRtc && !useSignaledWebRtc;
 const useManualWebRtcJoin =
   legacyDebugRoutesEnabled && searchParams.get("join") === "webrtc";
 const useSignaledWebRtcJoin =
   legacyDebugRoutesEnabled && searchParams.get("join") === "signal";
-const invitationPathMatch = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(
-  window.location.pathname,
-);
-const pairingSecretFromFragment = new URLSearchParams(
-  window.location.hash.slice(1),
-).get("s");
+function readInvitationJoinRoute(): {
+  inviteId: string;
+  pairingSecret: string | null;
+} | null {
+  const match = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(window.location.pathname);
+  const inviteId = match?.[1];
+  if (!inviteId) return null;
+
+  return {
+    inviteId,
+    pairingSecret: new URLSearchParams(window.location.hash.slice(1)).get("s"),
+  };
+}
 const coordinatorBaseUrl =
   import.meta.env.VITE_COORDINATOR_URL ?? "http://localhost:8787";
 const securityCoordinator = new SecurityCoordinatorClient(coordinatorBaseUrl);
@@ -149,15 +160,36 @@ type InvitationHostState = {
 };
 
 export function App() {
-  const invitationId = invitationPathMatch?.[1];
-  if (invitationId) {
+  const [invitationJoinRoute, setInvitationJoinRoute] = useState(
+    readInvitationJoinRoute,
+  );
+  const deviceVaultSessionOwner = useRef<DeviceVaultSession | null>(null);
+
+  useEffect(() => {
+    return () => {
+      void closeOwnedDeviceVaultSession(deviceVaultSessionOwner);
+    };
+  }, []);
+
+  function handoffJoinedDeviceVaultSession(session: DeviceVaultSession): void {
+    if (deviceVaultSessionOwner.current) {
+      throw new Error("A Device Vault session is already active");
+    }
+
+    clearInvitationUrl(window.history);
+    deviceVaultSessionOwner.current = session;
+    setInvitationJoinRoute(null);
+  }
+
+  if (invitationJoinRoute) {
     return (
       <InvitationJoinPage
         coordinatorBaseUrl={coordinatorBaseUrl}
-        inviteId={invitationId}
-        pairingSecret={pairingSecretFromFragment}
+        inviteId={invitationJoinRoute.inviteId}
+        pairingSecret={invitationJoinRoute.pairingSecret}
         storage={projectStorage}
         turnCredentialEndpoint={readTurnCredentialEndpoint()}
+        onSessionHandoff={handoffJoinedDeviceVaultSession}
       />
     );
   }
@@ -177,10 +209,14 @@ export function App() {
     );
   }
 
-  return <NoteApp />;
+  return <NoteApp deviceVaultSessionOwner={deviceVaultSessionOwner} />;
 }
 
-function NoteApp() {
+function NoteApp({
+  deviceVaultSessionOwner,
+}: {
+  deviceVaultSessionOwner: DeviceVaultSessionOwner;
+}) {
   const [themePreference, setThemePreference] = useThemePreference();
   const [turnCredentialEndpoint, setTurnCredentialEndpoint] =
     useTurnCredentialEndpoint();
@@ -203,6 +239,9 @@ function NoteApp() {
   const [signalingState, setSignalingState] =
     useState<SignalingConnectionState>("idle");
   const [signalSessionId] = useState(() => createSessionId());
+  const [invitationHostActive, setInvitationHostActive] = useState(
+    initialInvitationHostRequested,
+  );
   const [invitationHost, setInvitationHost] =
     useState<InvitationHostState | null>(null);
   const [joiningDevice, setJoiningDevice] =
@@ -212,7 +251,7 @@ function NoteApp() {
   const [coordinationError, setCoordinationError] = useState<string | null>(
     null,
   );
-  const deviceVaultSessionRef = useRef<DeviceVaultSession | null>(null);
+  const deviceVaultSessionRef = deviceVaultSessionOwner;
   const securityMutationInFlightRef = useRef(false);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
@@ -241,6 +280,24 @@ function NoteApp() {
 
   useEffect(() => {
     let cancelled = false;
+    const existingSession = deviceVaultSessionRef.current;
+
+    if (existingSession) {
+      void adoptDeviceVaultSession(existingSession).catch((error: unknown) => {
+        if (!cancelled) {
+          setDeviceVaultState("error");
+          setDeviceVaultError(
+            error instanceof Error
+              ? error.message
+              : "Failed to adopt Device Vault session",
+          );
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void deviceVault
       .hasVault()
@@ -262,9 +319,6 @@ function NoteApp() {
 
     return () => {
       cancelled = true;
-      const session = deviceVaultSessionRef.current;
-      deviceVaultSessionRef.current = null;
-      if (session) void session.close();
     };
   }, []);
 
@@ -474,7 +528,8 @@ function NoteApp() {
     }
   }, []);
 
-  const automaticReconnectEnabled = useAutomaticReconnect;
+  const automaticReconnectEnabled =
+    useAutomaticReconnect && !invitationHostActive;
 
   const authorizedSync = useAuthorizedProjectSync({
     coordinatorBaseUrl,
@@ -489,7 +544,7 @@ function NoteApp() {
   });
 
   useEncryptedLocalTabSync({
-    enabled: useAutomaticReconnect,
+    enabled: automaticReconnectEnabled,
     project,
     securityState: localSecurityState,
     projectKeyReady: localProjectKeyReady,
@@ -541,9 +596,10 @@ function NoteApp() {
     setDeviceAuthorizationState("waiting");
     setProjectKeyDeliveryState("waiting");
 
-    if (useInvitationWebRtc) {
+    if (invitationHostActive) {
       let disposed = false;
       let cleanup: (() => void) | null = null;
+      let invitationTransport: WebRtcTransport | null = null;
       const invitationClient = new InvitationClient(coordinatorBaseUrl);
 
       void (async () => {
@@ -557,6 +613,7 @@ function NoteApp() {
             await resolveRtcConfiguration(turnCredentialEndpoint),
             createConsoleDebugLogger("invite-host-webrtc"),
           );
+          invitationTransport = transport;
           setWebRtcTransport(transport);
 
           const abortPairing = new AbortController();
@@ -572,6 +629,15 @@ function NoteApp() {
           });
           const stopSignalingState =
             signaling.onConnectionStateChange(setSignalingState);
+
+          cleanup = () => {
+            abortPairing.abort();
+            stopSignalingState();
+            signaling.stop();
+            transport.close();
+            invitationTransport = null;
+          };
+
           signaling.start();
 
           void authenticatePairingChannel({
@@ -597,6 +663,9 @@ function NoteApp() {
             })
             .catch((error: unknown) => {
               if (disposed || abortPairing.signal.aborted) return;
+              cleanup?.();
+              cleanup = null;
+              setWebRtcTransport(null);
               setCoordinationError(
                 error instanceof Error
                   ? error.message
@@ -610,13 +679,16 @@ function NoteApp() {
             sessionId: invitation.sessionId,
             expiresAt: invitation.expiresAt,
           });
-
-          cleanup = () => {
-            abortPairing.abort();
-            stopSignalingState();
-            signaling.stop();
-          };
         } catch (caught: unknown) {
+          if (cleanup) {
+            cleanup();
+            cleanup = null;
+          } else {
+            invitationTransport?.close();
+            invitationTransport = null;
+          }
+          setWebRtcTransport(null);
+
           if (!disposed) {
             setCoordinationError(
               caught instanceof Error
@@ -629,7 +701,13 @@ function NoteApp() {
 
       return () => {
         disposed = true;
-        cleanup?.();
+        if (cleanup) {
+          cleanup();
+          cleanup = null;
+        } else {
+          invitationTransport?.close();
+          invitationTransport = null;
+        }
         setInvitationHost(null);
       };
     }
@@ -677,7 +755,12 @@ function NoteApp() {
     setWebRtcTransport(null);
     setSignalingState("idle");
     return;
-  }, [project, signalSessionId, turnCredentialEndpoint]);
+  }, [
+    invitationHostActive,
+    project,
+    signalSessionId,
+    turnCredentialEndpoint,
+  ]);
 
   useEffect(() => {
     if (!openedProject) return;
@@ -783,8 +866,10 @@ function NoteApp() {
     session: DeviceVaultSession,
   ): Promise<void> {
     const previous = deviceVaultSessionRef.current;
-    deviceVaultSessionRef.current = session;
-    if (previous) await previous.close();
+    if (previous !== session) {
+      deviceVaultSessionRef.current = session;
+      if (previous) await previous.close();
+    }
 
     const result = await projectStorage.openLastProject(session);
     const summaries = await projectStorage.listProjects(session);
@@ -1105,6 +1190,14 @@ function NoteApp() {
     setSecurityCoordinationError(null);
     setLocalProjectKeyReady(null);
     setCoordinationError(null);
+  }
+
+  function exitInvitationHost(): void {
+    if (initialInvitationHostRequested) {
+      window.history.replaceState(null, "", "/");
+    }
+    setInvitationHostActive(false);
+    setMainView("project-settings");
   }
 
   async function authorizeJoiningDevice(): Promise<void> {
@@ -1460,8 +1553,8 @@ function NoteApp() {
         );
       }
 
-      webRtcTransport.close();
-      window.location.replace("/");
+      setSecurityRefreshToken((value) => value + 1);
+      exitInvitationHost();
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
@@ -1584,7 +1677,7 @@ function NoteApp() {
   );
 
   const invitationContent =
-    useInvitationWebRtc ? (
+    invitationHostActive ? (
       invitationHost && webRtcTransport ? (
         <InvitationHostPanel
           inviteId={invitationHost.inviteId}
@@ -1603,8 +1696,7 @@ function NoteApp() {
             await new InvitationClient(coordinatorBaseUrl).cancelInvite(
               invitationHost.inviteId,
             );
-            webRtcTransport.close();
-            window.location.replace("/");
+            exitInvitationHost();
           }}
         />
       ) : coordinationError ? (
@@ -1619,7 +1711,7 @@ function NoteApp() {
             <button
               className="dialog-secondary-button"
               type="button"
-              onClick={() => window.location.assign("/")}
+              onClick={exitInvitationHost}
             >
               Back to Project
             </button>
@@ -1677,7 +1769,7 @@ function NoteApp() {
         }}
         onRemoveProjectFromDevice={removeActiveProjectFromDevice}
         onAddDevice={() => {
-          window.location.assign("/?transport=invite");
+          setInvitationHostActive(true);
         }}
         onRetrySecurity={() =>
           setSecurityRefreshToken((value) => value + 1)
