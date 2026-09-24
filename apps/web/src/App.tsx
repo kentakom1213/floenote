@@ -69,6 +69,7 @@ import {
 import { AppSettingsView } from "./AppSettingsView.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
   clearAllLastDocumentPreferences,
   readLastDocumentId,
@@ -178,7 +179,7 @@ function NoteApp() {
   const [projectCatalogReady, setProjectCatalogReady] = useState(false);
   const [projectSwitching, setProjectSwitching] = useState(false);
   const [mainView, setMainView] = useState<
-    "note" | "app-settings" | "project-settings"
+    "note" | "trash" | "app-settings" | "project-settings"
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [, setRevision] = useState(0);
@@ -1383,14 +1384,11 @@ function NoteApp() {
     if (documentId !== selectedId) return;
 
     const remaining = activeProject.listDocuments();
-    const next =
-      remaining[
-        Math.min(
-          deletedIndex,
-          Math.max(remaining.length - 1, 0),
-        )
-      ] ?? null;
-    const nextId = next?.id ?? null;
+    const nextId = selectNextDocumentAfterDeletion(
+      before,
+      remaining,
+      documentId,
+    );
 
     setSelectedId(nextId);
     setFocusTitleDocumentId(null);
@@ -1542,7 +1540,7 @@ function NoteApp() {
         onThemeChange={setThemePreference}
         onEraseDevice={eraseFloeFromThisDevice}
       />
-    ) : mainView === "project-settings" ? (
+        ) : mainView === "project-settings" ? (
       <ProjectSettingsView
         projectId={activeProject.id}
         projectName={activeProject.name}
@@ -1637,6 +1635,7 @@ function NoteApp() {
       projectControl={projectControl}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
+      trashActive={mainView === "trash"}
       focusTitleDocumentId={focusTitleDocumentId}
       onTitleFocusHandled={() => setFocusTitleDocumentId(null)}
       onCreateDocument={createDocument}
@@ -1652,6 +1651,20 @@ function NoteApp() {
         }
       }}
       onDeleteDocument={deleteDocument}
+      onRestoreDocument={(documentId) => {
+        const document = activeProject.getDeletedDocument(documentId);
+        if (!document) return;
+
+        activeProject.restoreDocument(documentId);
+        setSelectedId(documentId);
+        setFocusTitleDocumentId(null);
+        writeLastDocumentId(activeProject.id, documentId);
+        setMainView("note");
+      }}
+      onOpenTrash={() => {
+        setFocusTitleDocumentId(null);
+        setMainView("trash");
+      }}
     />
   );
 }

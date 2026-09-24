@@ -18,6 +18,7 @@ import {
 } from "./sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
 import { SidebarNoteRow } from "./SidebarNoteRow.js";
+import { TrashView } from "./TrashView.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
@@ -33,12 +34,15 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
+  trashActive: boolean;
   focusTitleDocumentId?: DocumentId | null;
   onTitleFocusHandled: () => void;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
   onDeleteDocument: (documentId: DocumentId) => void;
+  onRestoreDocument: (documentId: DocumentId) => void;
+  onOpenTrash: () => void;
 };
 
 export function NoteWorkspace({
@@ -48,39 +52,64 @@ export function NoteWorkspace({
   projectControl,
   sidebarFooter,
   mainContent,
+  trashActive,
   focusTitleDocumentId,
   onTitleFocusHandled,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
   onDeleteDocument,
+  onRestoreDocument,
+  onOpenTrash,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
   const [, setNavigationRevision] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(readNoteSortPreference);
+  const [trashExpanded, setTrashExpanded] = useState(false);
+  const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
+    useState<DocumentId | null>(null);
 
   useEffect(() => {
     setSearchOpen(false);
     setQuery("");
+    setTrashExpanded(false);
+    setSelectedTrashDocumentId(null);
   }, [project.id]);
 
-  const activeDocumentIds = summaries.map((summary) => summary.id).join("\u0000");
+  const navigationDocumentIds = project
+    .getAllDocuments()
+    .map((document) => document.id)
+    .join("\u0000");
   useEffect(() => {
     const stopSubscriptions = project
-      .listDocuments()
-      .flatMap((summary) => {
-        const document = project.getDocument(summary.id);
-        return document
-          ? [document.subscribe(() => setNavigationRevision((value) => value + 1))]
-          : [];
-      });
+      .getAllDocuments()
+      .map((document) =>
+        document.subscribe(() =>
+          setNavigationRevision((value) => value + 1),
+        ),
+      );
 
     return () => {
       stopSubscriptions.forEach((stop) => stop());
     };
-  }, [project, activeDocumentIds]);
+  }, [project, navigationDocumentIds]);
+
+  const deletedSummaries = project.listDeletedDocuments();
+  const selectedTrashDocument =
+    selectedTrashDocumentId === null
+      ? undefined
+      : project.getDeletedDocument(selectedTrashDocumentId);
+
+  useEffect(() => {
+    if (
+      selectedTrashDocumentId !== null &&
+      selectedTrashDocument === undefined
+    ) {
+      setSelectedTrashDocumentId(null);
+    }
+  }, [selectedTrashDocument, selectedTrashDocumentId]);
 
   const navigationNotes = summaries.flatMap((summary) => {
     const document = project.getDocument(summary.id);
@@ -132,8 +161,11 @@ export function NoteWorkspace({
                 key={note.id}
                 id={note.id}
                 title={note.title}
-                selected={note.id === selectedId}
-                onSelect={onSelectDocument}
+                selected={!trashActive && note.id === selectedId}
+                onSelect={(documentId) => {
+                  setSelectedTrashDocumentId(null);
+                  onSelectDocument(documentId);
+                }}
                 onDelete={onDeleteDocument}
               />
             ))
@@ -141,6 +173,60 @@ export function NoteWorkspace({
             <p className="note-filter-empty">No matching notes</p>
           ) : null}
         </nav>
+
+        <div className="sidebar-trash-section">
+          <button
+            className={
+              trashActive && selectedTrashDocumentId === null
+                ? "sidebar-trash-entry selected"
+                : "sidebar-trash-entry"
+            }
+            type="button"
+            aria-expanded={trashExpanded}
+            aria-current={
+              trashActive && selectedTrashDocumentId === null
+                ? "page"
+                : undefined
+            }
+            onClick={() => {
+              setSelectedTrashDocumentId(null);
+              setTrashExpanded((expanded) => !expanded);
+              onOpenTrash();
+            }}
+          >
+            <span
+              className={trashExpanded ? "trash-chevron expanded" : "trash-chevron"}
+              aria-hidden="true"
+            >
+              <ChevronIcon />
+            </span>
+            <TrashIcon />
+            <span>Trash</span>
+          </button>
+
+          {trashExpanded && deletedSummaries.length > 0 ? (
+            <div className="sidebar-trash-list" aria-label="Deleted notes">
+              {deletedSummaries.map((summary) => (
+                <button
+                  className={
+                    trashActive &&
+                    selectedTrashDocumentId === summary.id
+                      ? "sidebar-trash-note selected"
+                      : "sidebar-trash-note"
+                  }
+                  key={summary.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTrashDocumentId(summary.id);
+                    onOpenTrash();
+                  }}
+                >
+                  {summary.title || "Untitled"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <footer className="sidebar-footer">{sidebarFooter}</footer>
@@ -150,7 +236,17 @@ export function NoteWorkspace({
   return (
     <AppShell sidebar={sidebar}>
       {mainContent ??
-        (selectedDocument ? (
+        (trashActive ? (
+          <TrashView
+            project={project}
+            selectedDocumentId={selectedTrashDocumentId}
+            onSelectDocument={(documentId) => {
+              setSelectedTrashDocumentId(documentId);
+              setTrashExpanded(true);
+            }}
+            onRestoreDocument={onRestoreDocument}
+          />
+        ) : selectedDocument ? (
           <DocumentPane
             document={selectedDocument}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
@@ -262,5 +358,23 @@ function DocumentPane({
 
       <EditorModeView document={document} mode={mode} />
     </article>
+  );
+}
+
+
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="m7 5 5 5-5 5" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4.5 6h11M8 3.5h4M6 6l.7 10h6.6L14 6" />
+      <path d="M8.5 8.5v5M11.5 8.5v5" />
+    </svg>
   );
 }

@@ -724,6 +724,324 @@ input:focus-visible {
   color: var(--color-danger);
 }
 
+.sidebar-trash-section {
+  min-width: 0;
+  flex: 0 0 auto;
+  margin-top: 8px;
+}
+
+.sidebar-trash-entry {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 14px 15px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.sidebar-trash-entry:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-trash-entry.selected {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
+.sidebar-trash-entry svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trash-chevron {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  transition: transform 120ms ease;
+}
+
+.trash-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.trash-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.sidebar-trash-list {
+  max-height: min(200px, 30vh);
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  margin-top: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sidebar-trash-note {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 9px 7px 46px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-trash-note:hover {
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-trash-note.selected {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
+.trash-view {
+  width: min(820px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 52px 0 96px;
+}
+
+.trash-view-header {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trash-view-header h1 {
+  margin: 4px 0 8px;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+}
+
+.trash-view-header > p:last-child {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.trash-list {
+  display: grid;
+  gap: 1px;
+  margin-top: 16px;
+}
+
+.trash-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 4px;
+}
+
+.trash-item-open {
+  min-width: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: var(--color-text);
+  background: transparent;
+  font-size: 14px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-item-open:hover {
+  background: var(--color-surface-hover);
+}
+
+.trash-restore-button {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.trash-restore-button:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.trash-empty-state {
+  margin-top: 40px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.trash-empty-state h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+}
+
+.trash-empty-state p {
+  margin: 7px 0 0;
+  font-size: 12px;
+}
+
+.trash-note-preview {
+  min-height: 100vh;
+}
+
+.trash-note-preview-header {
+  width: min(820px, calc(100% - 64px));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 0 auto;
+  padding: 52px 0 18px;
+}
+
+.trash-note-preview-heading {
+  min-width: 0;
+}
+
+.trash-note-preview-heading h1 {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: var(--color-text);
+  font-size: clamp(28px, 3.2vw, 38px);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-preview-restore-button {
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 7px 11px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.trash-preview-restore-button:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.trash-note-properties {
+  width: min(820px, calc(100% - 64px));
+  margin: 0 auto;
+  padding-bottom: 10px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.trash-note-tags {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.trash-note-property-label {
+  padding-top: 5px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.trash-note-tag-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.trash-note-tag {
+  max-width: 220px;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-selected);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-note-property-empty {
+  padding-top: 4px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+}
+
+.trash-note-timestamps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.trash-note-timestamps > div {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.trash-note-timestamps dt {
+  color: var(--color-text-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.trash-note-timestamps dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.trash-note-preview-body {
+  border-top: 1px solid var(--color-border);
+  padding-top: 18px;
+}
+
+.trash-note-preview-body .markdown-preview {
+  padding-top: 0;
+}
+
 .sidebar-footer {
   position: relative;
   flex: 0 0 auto;

@@ -52,6 +52,21 @@ export function deriveVisibleNotes(
     .map(({ note }) => note);
 }
 
+export function selectNextDocumentAfterDeletion(
+  before: readonly { id: DocumentId }[],
+  remaining: readonly { id: DocumentId }[],
+  deletedId: DocumentId,
+): DocumentId | null {
+  const deletedIndex = before.findIndex(({ id }) => id === deletedId);
+  if (deletedIndex < 0) return null;
+
+  return (
+    remaining[
+      Math.min(deletedIndex, Math.max(remaining.length - 1, 0))
+    ]?.id ?? null
+  );
+}
+
 export function readNoteSortPreference(): NoteSortPreference {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);

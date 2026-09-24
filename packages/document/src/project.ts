@@ -102,15 +102,11 @@ export class NoteProject {
   }
 
   listDocuments(): DocumentSummary[] {
-    const manifest = this.#manifest.getMap("documents");
+    return this.#listDocumentsByStatus("active");
+  }
 
-    return manifest
-      .entries()
-      .filter(([, status]) => status === "active")
-      .flatMap(([id]) => {
-        const document = this.#documents.get(id as DocumentId);
-        return document ? [{ id: document.id, title: document.title }] : [];
-      });
+  listDeletedDocuments(): DocumentSummary[] {
+    return this.#listDocumentsByStatus("deleted");
   }
 
   getAllDocuments(): readonly NoteDocument[] {
@@ -166,6 +162,11 @@ export class NoteProject {
     return status === "active" ? this.#documents.get(id) : undefined;
   }
 
+  getDeletedDocument(id: DocumentId): NoteDocument | undefined {
+    const status = this.#manifest.getMap("documents").get(id);
+    return status === "deleted" ? this.#documents.get(id) : undefined;
+  }
+
   renameDocument(id: DocumentId, title: string): void {
     const document = this.getDocument(id);
     if (!document) return;
@@ -175,17 +176,43 @@ export class NoteProject {
   }
 
   deleteDocument(id: DocumentId): void {
-    const manifest = this.#manifest.getMap("documents");
-    if (manifest.get(id) !== "active") return;
+    this.#setDocumentStatus(id, "active", "deleted");
+  }
 
-    manifest.set(id, "deleted");
-    this.#manifest.commit();
-    this.#emit();
+  restoreDocument(id: DocumentId): void {
+    this.#setDocumentStatus(id, "deleted", "active");
   }
 
   #addDocument(document: NoteDocument): void {
     this.#documents.set(document.id, document);
     this.#manifest.getMap("documents").set(document.id, "active");
+    this.#manifest.commit();
+    this.#emit();
+  }
+
+  #listDocumentsByStatus(
+    status: "active" | "deleted",
+  ): DocumentSummary[] {
+    const manifest = this.#manifest.getMap("documents");
+
+    return manifest
+      .entries()
+      .filter(([, value]) => value === status)
+      .flatMap(([id]) => {
+        const document = this.#documents.get(id as DocumentId);
+        return document ? [{ id: document.id, title: document.title }] : [];
+      });
+  }
+
+  #setDocumentStatus(
+    id: DocumentId,
+    expected: "active" | "deleted",
+    next: "active" | "deleted",
+  ): void {
+    const manifest = this.#manifest.getMap("documents");
+    if (manifest.get(id) !== expected) return;
+
+    manifest.set(id, next);
     this.#manifest.commit();
     this.#emit();
   }

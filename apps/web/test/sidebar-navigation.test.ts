@@ -8,6 +8,7 @@ import {
   deriveVisibleNotes,
   normalizeNoteSortPreference,
   readNoteSortPreference,
+  selectNextDocumentAfterDeletion,
   writeNoteSortPreference,
   type SidebarNavigationNote,
 } from "../src/sidebar-navigation.js";
@@ -138,6 +139,30 @@ describe("sidebar navigation", () => {
         (n) => n.id,
       ),
     ).toEqual(["a", "c", "b"]);
+  });
+
+  it("preserves next-note selection semantics after deleting the selected note", () => {
+    const before = [
+      { id: "a" as DocumentId },
+      { id: "b" as DocumentId },
+      { id: "c" as DocumentId },
+    ];
+
+    expect(
+      selectNextDocumentAfterDeletion(
+        before,
+        [{ id: "a" as DocumentId }, { id: "c" as DocumentId }],
+        "b" as DocumentId,
+      ),
+    ).toBe("c");
+
+    expect(
+      selectNextDocumentAfterDeletion(
+        before,
+        [{ id: "a" as DocumentId }, { id: "b" as DocumentId }],
+        "c" as DocumentId,
+      ),
+    ).toBe("b");
   });
 
   it("normalizes invalid stored preferences", () => {
