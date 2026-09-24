@@ -3287,12 +3287,19 @@ h1 {
       max(14px, env(safe-area-inset-left));
     background: var(--color-sidebar);
     box-shadow: 18px 0 48px rgb(25 37 42 / 0.18);
+    visibility: hidden;
     transform: translateX(calc(-100% - 24px));
-    transition: transform 180ms ease;
+    transition:
+      transform 180ms ease,
+      visibility 0s linear 180ms;
   }
 
   .sidebar[data-mobile-open="true"] {
+    visibility: visible;
     transform: translateX(0);
+    transition:
+      transform 180ms ease,
+      visibility 0s;
   }
 
   .mobile-navigation-backdrop {
