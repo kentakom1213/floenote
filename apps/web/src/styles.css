@@ -4043,15 +4043,14 @@ h1 {
 }
 
 .onboarding-settings-button svg {
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   display: block;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.55;
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
-  transform: translateY(-0.25px);
 }
 
 .onboarding-primary-actions,
