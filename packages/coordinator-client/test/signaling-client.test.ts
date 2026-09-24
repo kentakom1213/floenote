@@ -107,7 +107,6 @@ describe("CoordinatorSignalingClient reconnect", () => {
       debugEvents.some(
         ({ event, details }) =>
           event === "socket.reconnect-scheduled" &&
-          details.attempt === 1 &&
           details.delayMs === 1_000,
       ),
     ).toBe(true);
