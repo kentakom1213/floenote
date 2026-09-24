@@ -23,17 +23,47 @@ export const DEFAULT_NOTE_SORT: NoteSortPreference = {
   direction: "desc",
 };
 
+export function deriveProjectTags(
+  notes: readonly Pick<SidebarNavigationNote, "tags">[],
+): string[] {
+  const tags = new Set<string>();
+  for (const note of notes) {
+    for (const tag of note.tags) tags.add(tag);
+  }
+
+  return [...tags].sort((left, right) =>
+    left.localeCompare(right, undefined, {
+      sensitivity: "variant",
+      numeric: true,
+    }),
+  );
+}
+
+export function resolveSelectedTag(
+  selectedTag: string | null,
+  projectTags: readonly string[],
+): string | null {
+  if (selectedTag === null) return null;
+  return projectTags.includes(selectedTag) ? selectedTag : null;
+}
+
 export function deriveVisibleNotes(
   notes: readonly SidebarNavigationNote[],
   query: string,
   preference: NoteSortPreference,
+  selectedTag: string | null = null,
 ): SidebarNavigationNote[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
+  const filteredByTag =
+    selectedTag === null
+      ? [...notes]
+      : notes.filter((note) => note.tags.includes(selectedTag));
+
   const filtered =
     normalizedQuery.length === 0
-      ? [...notes]
-      : notes.filter((note) => {
+      ? filteredByTag
+      : filteredByTag.filter((note) => {
           const titleMatches = note.title
             .toLocaleLowerCase()
             .includes(normalizedQuery);
