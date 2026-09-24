@@ -3436,3 +3436,48 @@ h1 {
     max-width: min(220px, calc(100vw - 110px));
   }
 }
+
+
+.pwa-update-banner {
+  position: fixed;
+  z-index: 100;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(380px, calc(100vw - 36px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 10px 11px 10px 14px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pwa-update-banner span {
+  min-width: 0;
+  flex: 1;
+}
+
+.pwa-update-banner button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #fff;
+  background: var(--color-accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.pwa-update-banner button:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.pwa-update-banner button:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
