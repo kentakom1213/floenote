@@ -132,6 +132,8 @@ Project
 ├── ProjectId
 ├── SecurityState
 ├── Manifest: LoroDoc
+│   ├── document membership / lifecycle
+│   └── edit-history checkpoint metadata
 ├── Documents
 │   ├── DocumentId -> LoroDoc
 │   └── ...
@@ -150,15 +152,28 @@ Conceptually:
 
 ```text
 Manifest
-└── documents: LoroMap
-    ├── DocumentId A -> active
-    ├── DocumentId B -> deleted
-    └── DocumentId C -> active
+├── documents: LoroMap
+│   ├── DocumentId A -> active
+│   ├── DocumentId B -> deleted
+│   └── DocumentId C -> active
+└── editHistoryCheckpoints: LoroMap
+    ├── CheckpointId X -> checkpoint metadata
+    └── CheckpointId Y -> checkpoint metadata
 ```
 
 The manifest should contain as little duplicated document metadata as possible.
 
 In particular, the document title should not be authoritative in both the manifest and the document itself. Local indexes may cache titles for efficient listing, but those indexes are derived state.
+
+Edit-history checkpoints are an exception only in the sense that they are
+Project-level references to Document history, not duplicated Document content.
+A checkpoint stores a DocumentId, encoded Loro Frontiers, a display timestamp,
+and optional restore-source metadata. It does not store a copy of the title,
+tags, or Markdown body. Checkpoint records are immutable after creation and are
+ordered for display by their timestamps rather than by CRDT container order.
+
+The detailed edit-history semantics are defined in
+[edit-history.md](./edit-history.md).
 
 ### 6.2 Deletion
 
@@ -226,6 +241,25 @@ Examples:
 
 Application code should not add its own last-write-wins rules on top of Loro.
 
+### 7.3 Edit history
+
+User-facing edit history is distinct from editor Undo/Redo.
+
+Undo/Redo uses Loro `UndoManager` for local editing history. Persistent edit
+history instead records selected Loro `Frontiers` as shared Project-manifest
+checkpoints. Historical preview reconstructs a read-only state from the
+Document's retained Loro history, while restore applies historical title, tags,
+and body to the current Document as new CRDT operations.
+
+The live Document must remain attached while a historical version is viewed;
+preview therefore uses an independent historical Loro view rather than
+checking out the live editor document.
+
+v1 retains both checkpoint metadata and full Loro Document history
+indefinitely. Retention and shallow-history pruning are future concerns.
+
+See [edit-history.md](./edit-history.md) for the complete v1 specification.
+
 ## 8. CRDT and conflict resolution
 
 Loro is the authority for collaborative merge semantics.
@@ -251,9 +285,15 @@ Synchronization operates at three object classes:
 
 ```text
 Project Manifest
+  └── includes edit-history checkpoint metadata
 Document
 Attachment
 ```
+
+Edit history does not add a fourth synchronization object or a separate
+protocol. Checkpoint metadata converges through the existing Project manifest
+Loro synchronization, while the referenced historical content remains in each
+Document's Loro history.
 
 A typical synchronization flow is:
 
