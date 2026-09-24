@@ -731,12 +731,15 @@ input:focus-visible {
 }
 
 .sidebar-trash-section {
+  position: relative;
   min-width: 0;
   flex: 0 0 auto;
   margin-top: 8px;
 }
 
 .sidebar-trash-entry {
+  position: relative;
+  z-index: 2;
   min-width: 0;
   width: 100%;
   display: grid;
@@ -747,7 +750,7 @@ input:focus-visible {
   border-radius: 9px;
   padding: 8px 10px;
   color: var(--color-text-faint);
-  background: transparent;
+  background: var(--color-sidebar);
   font-size: 12px;
   text-align: left;
 }
@@ -790,13 +793,18 @@ input:focus-visible {
 }
 
 .sidebar-trash-list {
+  position: relative;
+  z-index: 1;
   max-height: min(200px, 30vh);
   display: grid;
   align-content: start;
   gap: 2px;
   margin-top: 2px;
+  padding-right: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  contain: paint;
 }
 
 .sidebar-trash-note-row {
