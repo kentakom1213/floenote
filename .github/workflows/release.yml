@@ -175,7 +175,7 @@ jobs:
           release_sha="$(git rev-parse HEAD)"
           git tag "$TAG"
 
-          git push --atomic origin             "HEAD:refs/heads/main"             "refs/tags/$TAG:refs/tags/$TAG"
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG:refs/tags/$TAG"
 
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
