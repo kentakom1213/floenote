@@ -248,6 +248,11 @@ export class WebRtcTransport implements Transport {
     this.#clearDiagnostics();
     this.#debug("trickle.ice-restart.create-start");
 
+    if (this.#peerConnection.signalingState === "have-local-offer") {
+      this.#debug("trickle.ice-restart.rollback-pending-offer");
+      await this.#peerConnection.setLocalDescription({ type: "rollback" });
+    }
+
     if (this.#peerConnection.signalingState !== "stable") {
       throw new Error(
         `Cannot restart ICE while signaling state is ${this.#peerConnection.signalingState}`,
