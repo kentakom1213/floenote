@@ -2,10 +2,12 @@ import { Prec, type Extension } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import type { UndoManager } from "loro-crdt";
 
-type UndoManagerCommands = Pick<
-  UndoManager,
-  "canUndo" | "undo" | "canRedo" | "redo"
->;
+export type UndoManagerCommands = {
+  canUndo: () => boolean;
+  undo: () => unknown;
+  canRedo: () => boolean;
+  redo: () => unknown;
+};
 
 export function runLoroUndo(undoManager: UndoManagerCommands): boolean {
   if (undoManager.canUndo()) {
