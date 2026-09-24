@@ -234,8 +234,8 @@ export function ProjectEmptyState({
         onClick={() => setView("settings")}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 8.75a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5Z" />
-          <path d="M19.14 12.94a7.6 7.6 0 0 0 .05-.94 7.6 7.6 0 0 0-.05-.94l2.02-1.58-1.9-3.29-2.38.96a7.1 7.1 0 0 0-1.63-.94L14.9 3.7h-3.8l-.36 2.51c-.58.25-1.12.56-1.62.94l-2.39-.96-1.9 3.29 2.03 1.58a7.6 7.6 0 0 0-.06.94c0 .32.02.63.06.94l-2.03 1.58 1.9 3.29 2.39-.96c.5.38 1.04.69 1.62.94l.36 2.51h3.8l.35-2.51a7.1 7.1 0 0 0 1.63-.94l2.38.96 1.9-3.29-2.02-1.58Z" />
+          <circle cx="12" cy="12" r="3.1" />
+          <path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3.5h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.5a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2.1-1.5Z" />
         </svg>
       </button>
 
@@ -252,20 +252,23 @@ export function ProjectEmptyState({
           </p>
         </header>
 
-        <div className="onboarding-action-grid">
+        <div className="onboarding-primary-actions">
           <button
             className="onboarding-action-card onboarding-action-primary"
             type="button"
             onClick={() => chooseAction("create")}
           >
             <span className="onboarding-action-icon" aria-hidden="true">
-              +
+              <svg viewBox="0 0 24 24">
+                <path d="M7 3.5h7l4 4V20.5H7z" />
+                <path d="M14 3.5v4h4" />
+              </svg>
             </span>
-            <span>
+            <span className="onboarding-action-copy">
               <strong>Create a Project</strong>
               <small>Start a new space for your notes.</small>
             </span>
-            <span className="onboarding-action-arrow" aria-hidden="true">
+            <span className="onboarding-action-arrow onboarding-action-arrow-circle" aria-hidden="true">
               →
             </span>
           </button>
@@ -279,23 +282,37 @@ export function ProjectEmptyState({
             }}
           >
             <span className="onboarding-action-icon" aria-hidden="true">
-              ↗
+              <svg viewBox="0 0 24 24">
+                <circle cx="9" cy="8" r="3" />
+                <circle cx="16.5" cy="9" r="2.5" />
+                <path d="M3.5 19c.6-3.3 2.5-5 5.5-5s4.9 1.7 5.5 5" />
+                <path d="M14 14.5c2.8-.2 4.8 1.3 5.5 4.5" />
+              </svg>
             </span>
-            <span>
+            <span className="onboarding-action-copy">
               <strong>Join a Project</strong>
               <small>Connect another authorized device.</small>
             </span>
-            <span className="onboarding-action-arrow" aria-hidden="true">
+            <span className="onboarding-action-arrow onboarding-action-arrow-circle" aria-hidden="true">
               →
             </span>
           </button>
+        </div>
 
+        <div className="onboarding-import-actions">
           <button
             className="onboarding-action-card onboarding-action-compact"
             type="button"
             onClick={() => chooseAction("import-floe")}
           >
-            <span>
+            <span className="onboarding-action-icon onboarding-action-icon-compact" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 15V4" />
+                <path d="m8 8 4-4 4 4" />
+                <path d="M5 13.5v6h14v-6" />
+              </svg>
+            </span>
+            <span className="onboarding-action-copy">
               <strong>Import Floe export</strong>
               <small>Import a portable .floe.zip archive</small>
             </span>
@@ -309,7 +326,12 @@ export function ProjectEmptyState({
             type="button"
             onClick={() => chooseAction("import-markdown")}
           >
-            <span>
+            <span className="onboarding-action-icon onboarding-action-icon-compact" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M3.5 6.5h6l2 2h9v10h-17z" />
+              </svg>
+            </span>
+            <span className="onboarding-action-copy">
               <strong>Import Markdown directory</strong>
               <small>Import a folder of Markdown files</small>
             </span>
