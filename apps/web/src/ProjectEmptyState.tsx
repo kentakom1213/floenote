@@ -19,10 +19,12 @@ type ProjectEmptyStateProps = {
   coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
+  turnCredentialEndpoint: string | null;
   onCreateWithExistingPasskey: (displayName: string) => Promise<void>;
   onCreateWithNewPasskey: (displayName: string) => Promise<void>;
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
+  onTurnCredentialEndpointChange: (endpoint: string | null) => void;
   onEraseDevice: () => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
@@ -38,10 +40,12 @@ export function ProjectEmptyState({
   coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
+  turnCredentialEndpoint,
   onCreateWithExistingPasskey,
   onCreateWithNewPasskey,
   onRenameDevice,
   onThemeChange,
+  onTurnCredentialEndpointChange,
   onEraseDevice,
   onCreateProject,
   onImportFloeExport,
@@ -191,8 +195,10 @@ export function ProjectEmptyState({
           coordinatorBaseUrl={coordinatorBaseUrl}
           localDeviceId={localDeviceId}
           localDeviceName={localDeviceName}
+          turnCredentialEndpoint={turnCredentialEndpoint}
           onRenameDevice={onRenameDevice}
           onThemeChange={onThemeChange}
+          onTurnCredentialEndpointChange={onTurnCredentialEndpointChange}
           onEraseDevice={onEraseDevice}
           onBack={() => setView("entry")}
           showDeviceControls={vaultState === "unlocked"}
