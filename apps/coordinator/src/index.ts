@@ -1031,7 +1031,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
       !("peerDeviceId" in payload) ||
       typeof payload.peerDeviceId !== "string" ||
       !("sessionId" in payload) ||
-      typeof payload.sessionId !== "string"
+      typeof payload.sessionId !== "string" ||
+      ("transportMode" in payload &&
+        payload.transportMode !== "direct" &&
+        payload.transportMode !== "relay")
     ) {
       socket.close(1007, "Invalid authorized-presence control message");
       return;
@@ -1050,6 +1053,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
     }
 
     const sessionId = payload.sessionId.toLowerCase();
+    const transportMode =
+      "transportMode" in payload && payload.transportMode === "relay"
+        ? "relay"
+        : "direct";
     if (!SESSION_ID_PATTERN.test(sessionId)) {
       socket.close(1008, "Invalid reconnect signaling session");
       return;
@@ -1093,6 +1100,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
           type: "reconnect-session",
           fromDeviceId: senderDeviceId,
           sessionId,
+          transportMode,
         });
         return;
       }
