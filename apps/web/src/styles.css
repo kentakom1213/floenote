@@ -3966,42 +3966,57 @@ h1 {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 64px 28px;
+  padding:
+    max(56px, env(safe-area-inset-top))
+    max(28px, env(safe-area-inset-right))
+    max(56px, env(safe-area-inset-bottom))
+    max(28px, env(safe-area-inset-left));
   background: var(--color-bg);
 }
 
 .onboarding-entry {
-  width: min(760px, 100%);
+  width: min(900px, 100%);
 }
 
 .onboarding-entry-header {
-  max-width: 520px;
-  margin: 0 auto 34px;
+  max-width: 650px;
+  margin: 0 auto 38px;
   text-align: center;
 }
 
 .onboarding-entry-header .empty-floe {
   margin-bottom: 8px;
+  color: var(--color-accent);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.onboarding-entry-header .settings-eyebrow {
+  margin: 0;
+  letter-spacing: 0.16em;
 }
 
 .onboarding-entry-header h1 {
-  margin: 8px 0 10px;
+  margin: 10px 0 12px;
   color: var(--color-text);
-  font-size: clamp(30px, 4vw, 42px);
-  letter-spacing: -0.035em;
+  font-size: clamp(34px, 4.2vw, 48px);
+  font-weight: 730;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
 }
 
 .onboarding-entry-header > p:last-child {
-  margin: 0;
+  max-width: 590px;
+  margin: 0 auto;
   color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 .onboarding-settings-button {
   position: absolute;
-  top: max(18px, env(safe-area-inset-top));
-  right: max(18px, env(safe-area-inset-right));
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
   width: 40px;
   height: 40px;
   display: grid;
@@ -4011,6 +4026,7 @@ h1 {
   padding: 0;
   color: var(--color-text-muted);
   background: transparent;
+  line-height: 0;
 }
 
 .onboarding-settings-button:hover {
@@ -4027,106 +4043,191 @@ h1 {
 }
 
 .onboarding-settings-button svg {
-  width: 20px;
-  height: 20px;
+  width: 19px;
+  height: 19px;
+  display: block;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.55;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transform: translateY(-0.25px);
 }
 
-.onboarding-action-grid {
+.onboarding-primary-actions,
+.onboarding-import-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
+}
+
+.onboarding-primary-actions {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+}
+
+.onboarding-import-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
 }
 
 .onboarding-action-card {
   min-width: 0;
-  min-height: 124px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
-  padding: 20px;
   color: var(--color-text);
   background: var(--color-surface);
-  box-shadow: 0 8px 28px rgb(22 34 39 / 0.035);
   text-align: left;
   transition:
     transform 120ms ease,
     border-color 120ms ease,
-    background 120ms ease,
-    box-shadow 120ms ease;
+    background 120ms ease;
 }
 
 .onboarding-action-card:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
-  box-shadow: 0 12px 34px rgb(22 34 39 / 0.07);
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 96%, var(--color-accent) 4%);
 }
 
-.onboarding-action-card > span:nth-child(2),
-.onboarding-action-compact > span:first-child {
-  min-width: 0;
+.onboarding-action-primary,
+.onboarding-action-secondary {
+  min-height: 178px;
   display: grid;
-  gap: 6px;
-}
-
-.onboarding-action-card strong {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.onboarding-action-card small {
-  color: inherit;
-  opacity: 0.7;
-  font-size: 11px;
-  line-height: 1.45;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  gap: 18px 20px;
+  align-items: start;
+  border-radius: 18px;
+  padding: 26px 28px;
 }
 
 .onboarding-action-primary {
-  border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
-  color: white;
-  background: color-mix(in srgb, var(--color-accent) 88%, #315e62);
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--color-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 76%, var(--color-border));
+  color: #fff;
+  background: color-mix(in srgb, var(--color-accent) 88%, #264f54);
 }
 
 .onboarding-action-primary:hover {
-  border-color: color-mix(in srgb, white 22%, var(--color-accent));
-  background: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 72%, white 28%);
+  background: color-mix(in srgb, var(--color-accent) 94%, #264f54);
 }
 
 .onboarding-action-secondary {
-  background: color-mix(in srgb, var(--color-surface) 82%, var(--color-accent) 5%);
+  background: var(--color-surface);
 }
 
 .onboarding-action-icon {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  background: color-mix(in srgb, currentColor 9%, transparent);
+  grid-column: 1;
+  grid-row: 1;
+  border-radius: 13px;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
+.onboarding-action-primary .onboarding-action-icon {
+  color: #fff;
+  background: rgb(255 255 255 / 0.13);
+}
+
+.onboarding-action-icon svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.onboarding-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.onboarding-action-primary .onboarding-action-copy,
+.onboarding-action-secondary .onboarding-action-copy {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+}
+
+.onboarding-action-card strong {
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.onboarding-action-card small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.onboarding-action-primary small {
+  color: rgb(255 255 255 / 0.8);
 }
 
 .onboarding-action-arrow {
-  align-self: center;
+  color: var(--color-text-muted);
   font-size: 18px;
-  opacity: 0.72;
+  line-height: 1;
+}
+
+.onboarding-action-primary > .onboarding-action-arrow,
+.onboarding-action-secondary > .onboarding-action-arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.onboarding-action-arrow-circle {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg));
+}
+
+.onboarding-action-primary .onboarding-action-arrow-circle {
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
 }
 
 .onboarding-action-compact {
-  min-height: 88px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  border-radius: 15px;
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-radius: 16px;
   padding: 16px 18px;
-  box-shadow: none;
+}
+
+.onboarding-action-compact strong {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.onboarding-action-compact small {
+  font-size: 11px;
+}
+
+.onboarding-action-icon-compact {
+  width: 42px;
+  height: 42px;
+  grid-column: auto;
+  grid-row: auto;
+  border-radius: 12px;
+}
+
+.onboarding-action-icon-compact svg {
+  width: 23px;
+  height: 23px;
 }
 
 .onboarding-settings-screen {
@@ -4190,26 +4291,44 @@ h1 {
   }
 
   .onboarding-entry-header {
-    margin-bottom: 24px;
+    margin-bottom: 26px;
   }
 
   .onboarding-entry-header h1 {
-    font-size: clamp(28px, 9vw, 36px);
+    font-size: clamp(30px, 9vw, 38px);
   }
 
-  .onboarding-action-grid {
+  .onboarding-entry-header > p:last-child {
+    font-size: 13px;
+  }
+
+  .onboarding-primary-actions,
+  .onboarding-import-actions {
     grid-template-columns: 1fr;
     gap: 10px;
   }
 
-  .onboarding-action-card {
-    min-height: 100px;
-    border-radius: 15px;
-    padding: 16px;
+  .onboarding-import-actions {
+    margin-top: 10px;
+  }
+
+  .onboarding-action-primary,
+  .onboarding-action-secondary {
+    min-height: 138px;
+    padding: 20px;
+  }
+
+  .onboarding-action-card strong {
+    font-size: 17px;
   }
 
   .onboarding-action-compact {
-    min-height: 78px;
+    min-height: 84px;
+    padding: 14px 16px;
+  }
+
+  .onboarding-action-compact strong {
+    font-size: 14px;
   }
 
   .onboarding-settings-button {
