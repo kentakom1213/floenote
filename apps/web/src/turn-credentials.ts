@@ -20,6 +20,19 @@ export async function resolveRtcConfiguration(
   }
 }
 
+export async function resolveRelayRtcConfiguration(
+  endpoint: string | null,
+): Promise<RTCConfiguration> {
+  if (!endpoint) {
+    throw new Error("TURN credential endpoint is not configured on this device");
+  }
+
+  return {
+    iceServers: await fetchTurnIceServers(endpoint),
+    iceTransportPolicy: "relay",
+  };
+}
+
 export async function testTurnCredentialEndpoint(
   endpoint: string,
 ): Promise<void> {
