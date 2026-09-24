@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { runLoroRedo, runLoroUndo } from "../src/loro-undo.js";
+import {
+  CompositionUndoGroup,
+  EDITOR_UNDO_MAX_STEPS,
+  runLoroRedo,
+  runLoroUndo,
+} from "../src/loro-undo.js";
 
 describe("Loro undo commands", () => {
+  it("uses a larger editor undo stack", () => {
+    expect(EDITOR_UNDO_MAX_STEPS).toBe(500);
+  });
+
   it("runs undo synchronously when available", () => {
     const events: string[] = [];
     const manager = {
@@ -49,5 +58,49 @@ describe("Loro undo commands", () => {
     expect(runLoroUndo(manager)).toBe(true);
     expect(runLoroRedo(manager)).toBe(true);
     expect(mutations).toBe(0);
+  });
+
+  it("allows repeated undo commands to consume multiple history entries", () => {
+    let remaining = 3;
+    let undoCalls = 0;
+    const manager = {
+      canUndo: () => remaining > 0,
+      undo: () => {
+        remaining -= 1;
+        undoCalls += 1;
+      },
+      canRedo: () => false,
+      redo: () => undefined,
+    };
+
+    expect(runLoroUndo(manager)).toBe(true);
+    expect(runLoroUndo(manager)).toBe(true);
+    expect(runLoroUndo(manager)).toBe(true);
+    expect(runLoroUndo(manager)).toBe(true);
+
+    expect(undoCalls).toBe(3);
+    expect(remaining).toBe(0);
+  });
+});
+
+describe("CompositionUndoGroup", () => {
+  it("opens once after the first composition change and closes once", () => {
+    const events: string[] = [];
+    const group = new CompositionUndoGroup({
+      groupStart: () => events.push("start"),
+      groupEnd: () => events.push("end"),
+    });
+
+    expect(group.active).toBe(false);
+
+    group.startAfterFirstChange();
+    group.startAfterFirstChange();
+    expect(group.active).toBe(true);
+
+    group.end();
+    group.end();
+
+    expect(group.active).toBe(false);
+    expect(events).toEqual(["start", "end"]);
   });
 });
