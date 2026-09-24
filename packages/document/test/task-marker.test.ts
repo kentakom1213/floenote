@@ -18,21 +18,36 @@ describe("NoteDocument task marker mutation", () => {
 
     expect(
       document.toggleTaskMarker(
-        taskAt(document.bodyText, "[x]", false, document.bodyText.indexOf("two")),
+        taskAt(
+          document.bodyText,
+          "[x]",
+          false,
+          document.bodyText.indexOf("[x]", document.bodyText.indexOf("[x]") + 1),
+        ),
       ),
     ).toBe(true);
     expect(document.bodyText).toBe("- [x] one\n- [ ] two\n- [X] three");
 
     expect(
       document.toggleTaskMarker(
-        taskAt(document.bodyText, "[X]", false, document.bodyText.indexOf("three")),
+        taskAt(
+          document.bodyText,
+          "[X]",
+          false,
+          document.bodyText.indexOf("[X]"),
+        ),
       ),
     ).toBe(true);
     expect(document.bodyText).toBe("- [x] one\n- [ ] two\n- [ ] three");
 
     expect(
       document.toggleTaskMarker(
-        taskAt(document.bodyText, "[ ]", true, document.bodyText.indexOf("three")),
+        taskAt(
+          document.bodyText,
+          "[ ]",
+          true,
+          document.bodyText.lastIndexOf("[ ]"),
+        ),
       ),
     ).toBe(true);
     expect(document.bodyText).toBe("- [x] one\n- [ ] two\n- [x] three");
