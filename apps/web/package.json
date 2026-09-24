@@ -21,6 +21,7 @@
     "@floe-note/transport": "workspace:*",
     "@floe-note/vault": "workspace:*",
     "codemirror": "^6.0.2",
+    "dompurify": "^3.4.16",
     "loro-codemirror": "^0.3.3",
     "loro-crdt": "^1.16.1",
     "react": "^19.3.0",
