@@ -1,9 +1,15 @@
 import type { DocumentId } from "@floe-note/domain";
 import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
 
+const EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX = "floe:non-editor:";
+
 export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
+  undoExcludeOriginPrefixes: readonly string[];
+  beginEditorHistoryGroup: () => void;
+  endEditorHistoryGroup: () => void;
+  flushEditorHistoryBoundary: () => void;
 };
 
 export type NoteDocumentInitialState = {
@@ -19,25 +25,23 @@ export class NoteDocument {
   readonly #doc: LoroDoc;
   #suppressAutomaticTimestamp = false;
   #automaticTimestampPending = false;
+  #automaticTimestampScheduleId = 0;
+  #automaticTimestampDeferDepth = 0;
+  #automaticTimestampDirty = false;
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
     this.#doc = doc;
 
     this.#doc.subscribeLocalUpdates(() => {
-      if (this.#suppressAutomaticTimestamp || this.#automaticTimestampPending) {
+      if (this.#suppressAutomaticTimestamp) return;
+
+      if (this.#automaticTimestampDeferDepth > 0) {
+        this.#automaticTimestampDirty = true;
         return;
       }
 
-      this.#automaticTimestampPending = true;
-      void Promise.resolve().then(() => {
-        this.#automaticTimestampPending = false;
-
-        this.#withAutomaticTimestampSuppressed(() => {
-          this.#doc.getMap("meta").set("updatedAt", Date.now());
-          this.#doc.commit();
-        });
-      });
+      this.#scheduleAutomaticTimestamp();
     });
   }
 
@@ -187,7 +191,72 @@ export class NoteDocument {
     return {
       doc: this.#doc,
       getText: (doc) => doc.getText("body"),
+      undoExcludeOriginPrefixes: [EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX],
+      beginEditorHistoryGroup: () => {
+        this.#automaticTimestampDeferDepth += 1;
+      },
+      endEditorHistoryGroup: () => {
+        if (this.#automaticTimestampDeferDepth === 0) return;
+        this.#automaticTimestampDeferDepth -= 1;
+
+        if (
+          this.#automaticTimestampDeferDepth === 0 &&
+          this.#automaticTimestampDirty
+        ) {
+          this.#automaticTimestampDirty = false;
+          this.#scheduleAutomaticTimestamp();
+        }
+      },
+      flushEditorHistoryBoundary: () => {
+        this.#flushAutomaticTimestamp();
+      },
     };
+  }
+
+  #scheduleAutomaticTimestamp(): void {
+    if (this.#automaticTimestampPending) return;
+
+    this.#automaticTimestampPending = true;
+    const scheduleId = ++this.#automaticTimestampScheduleId;
+
+    void Promise.resolve().then(() => {
+      if (
+        !this.#automaticTimestampPending ||
+        scheduleId !== this.#automaticTimestampScheduleId
+      ) {
+        return;
+      }
+
+      this.#automaticTimestampPending = false;
+
+      if (this.#automaticTimestampDeferDepth > 0) {
+        this.#automaticTimestampDirty = true;
+        return;
+      }
+
+      this.#commitAutomaticTimestamp();
+    });
+  }
+
+  #flushAutomaticTimestamp(): void {
+    if (this.#automaticTimestampDeferDepth > 0) return;
+    if (!this.#automaticTimestampPending && !this.#automaticTimestampDirty) {
+      return;
+    }
+
+    this.#automaticTimestampPending = false;
+    this.#automaticTimestampDirty = false;
+    this.#automaticTimestampScheduleId += 1;
+    this.#commitAutomaticTimestamp();
+  }
+
+  #commitAutomaticTimestamp(): void {
+    this.#withAutomaticTimestampSuppressed(() => {
+      this.#doc.getMap("meta").set("updatedAt", Date.now());
+      this.#doc.commit({
+        origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
+      });
+    });
   }
 
   #getTimestamp(key: "createdAt" | "updatedAt"): number | null {
@@ -208,7 +277,9 @@ export class NoteDocument {
     this.#withAutomaticTimestampSuppressed(() => {
       mutate();
       this.#doc.getMap("meta").set("updatedAt", Date.now());
-      this.#doc.commit();
+      this.#doc.commit({
+        origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}metadata`,
+      });
     });
   }
 
