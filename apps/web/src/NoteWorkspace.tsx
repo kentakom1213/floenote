@@ -415,6 +415,15 @@ function DocumentPane({
   }, [document.id, document.title]);
 
   useEffect(() => {
+    const input = titleRef.current;
+    if (!input) return;
+
+    const resize = () => resizeTitleInput(input);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [document.id]);
+
+  useEffect(() => {
     if (!focusTitle) return;
     const input = titleRef.current;
     if (!input) return;
@@ -440,8 +449,11 @@ function DocumentPane({
           placeholder="Untitled"
           aria-label="Note title"
           onChange={(event) => {
-            resizeTitleInput(event.currentTarget);
-            onRename(event.target.value);
+            const title = event.currentTarget.value.replace(/[\r\n]+/g, " ");
+            onRename(title);
+            window.requestAnimationFrame(() => {
+              if (titleRef.current) resizeTitleInput(titleRef.current);
+            });
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") event.preventDefault();
