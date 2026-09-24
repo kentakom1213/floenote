@@ -53,8 +53,12 @@ The global-search surface returns at most 50 results.
 Each result shows:
 
 - title;
+- matching tags when one or more query terms match tags;
 - one body snippet when a body match exists;
 - best-effort highlighting of literal matches.
+
+The UI may cap visible matching-tag chips and summarize additional matches so a
+large tag set does not make one result disproportionately tall.
 
 The snippet is anchored near the first body match and is limited to a compact
 one- or two-line preview. The implementation does not need to include every
