@@ -190,6 +190,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
 
     expect(presence.sent).toHaveLength(1);
     expect(harness.FakeWebRtcTransport.instances).toHaveLength(1);
@@ -224,6 +225,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
 
     expect(presence.sent).toHaveLength(1);
     expect(harness.FakeWebRtcTransport.instances).toHaveLength(1);
@@ -250,6 +252,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     harness.FakeWebRtcTransport.instances[0]?.emit("connected");
     harness.FakeWebRtcTransport.instances[0]?.emit("disconnected");
 
@@ -273,6 +276,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     const transport = harness.FakeWebRtcTransport.instances[0];
     transport?.emit("connected");
     transport?.emit("disconnected");
@@ -295,6 +299,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     const transport = harness.FakeWebRtcTransport.instances[0];
     transport?.emit("connected");
     transport?.emitDataChannel("open");
@@ -317,6 +322,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     harness.FakeWebRtcTransport.instances[0]?.emit("failed");
     await flushConnectionCleanup();
 
@@ -333,6 +339,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
 
     harness.FakeWebRtcTransport.instances[0]?.emit("failed");
     await flushConnectionCleanup();
@@ -361,11 +368,14 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     const manager = createManager(presence);
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     harness.FakeWebRtcTransport.instances[0]?.emit("failed");
     await flushConnectionCleanup();
 
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
     manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
 
     expect(presence.sent).toHaveLength(1);
 

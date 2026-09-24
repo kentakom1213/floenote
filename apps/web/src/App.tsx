@@ -89,6 +89,12 @@ import {
 import { deriveSyncUiState } from "./sync-ui-state.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
+import { resolveRtcConfiguration } from "./turn-credentials.js";
+import {
+  clearTurnCredentialEndpoint,
+  readTurnCredentialEndpoint,
+  useTurnCredentialEndpoint,
+} from "./turn-preference.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
 import {
   reconcileVerifiedSecurityState,
@@ -150,6 +156,7 @@ export function App() {
         inviteId={invitationId}
         pairingSecret={pairingSecretFromFragment}
         storage={projectStorage}
+        turnCredentialEndpoint={readTurnCredentialEndpoint()}
       />
     );
   }
@@ -174,6 +181,8 @@ export function App() {
 
 function NoteApp() {
   const [themePreference, setThemePreference] = useThemePreference();
+  const [turnCredentialEndpoint, setTurnCredentialEndpoint] =
+    useTurnCredentialEndpoint();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
   const [projectSummaries, setProjectSummaries] = useState<
     readonly StoredProjectSummary[]
@@ -474,6 +483,7 @@ function NoteApp() {
     projectKeyReady: localProjectKeyReady,
     vaultSession: deviceVaultSessionRef.current,
     automaticReconnectEnabled,
+    turnCredentialEndpoint,
     onSecurityStateChanged: handleSecurityStateChanged,
   });
 
@@ -543,7 +553,7 @@ function NoteApp() {
 
           const transport = new WebRtcTransport(
             project.id,
-            undefined,
+            await resolveRtcConfiguration(turnCredentialEndpoint),
             createConsoleDebugLogger("invite-host-webrtc"),
           );
           setWebRtcTransport(transport);
@@ -666,7 +676,7 @@ function NoteApp() {
     setWebRtcTransport(null);
     setSignalingState("idle");
     return;
-  }, [project, signalSessionId]);
+  }, [project, signalSessionId, turnCredentialEndpoint]);
 
   useEffect(() => {
     if (!openedProject) return;
@@ -745,10 +755,12 @@ function NoteApp() {
         coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
+        turnCredentialEndpoint={turnCredentialEndpoint}
         onCreateWithExistingPasskey={createDeviceWithExistingPasskey}
         onCreateWithNewPasskey={createDeviceWithNewPasskey}
         onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
+        onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
         onCreateProject={createProject}
         onImportFloeExport={importFloeExport}
@@ -1060,6 +1072,7 @@ function NoteApp() {
       await projectStorage.eraseAllLocalData();
       await deviceVault.eraseVault();
       clearThemePreference();
+      clearTurnCredentialEndpoint();
       clearAllLastDocumentPreferences();
       clearSidebarPreference();
 
@@ -1628,8 +1641,10 @@ function NoteApp() {
         coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
+        turnCredentialEndpoint={turnCredentialEndpoint}
         onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
+        onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
       />
         ) : mainView === "project-settings" ? (

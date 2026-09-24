@@ -11,7 +11,9 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "version:web": "node scripts/bump-version.mjs web",
-    "version:coordinator": "node scripts/bump-version.mjs coordinator"
+    "version:coordinator": "node scripts/bump-version.mjs coordinator",
+    "dev:turn": "pnpm --filter @floe-note/turn dev",
+    "deploy:turn": "pnpm --filter @floe-note/turn run deploy"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

@@ -31,6 +31,15 @@ importers:
         specifier: 4.135.0
         version: 4.135.0(@cloudflare/workers-types@5.20260921.1)
 
+  apps/turn:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260921.1
+        version: 5.20260921.1
+      wrangler:
+        specifier: 4.135.0
+        version: 4.135.0(@cloudflare/workers-types@5.20260921.1)
+
   apps/web:
     dependencies:
       '@codemirror/lang-markdown':

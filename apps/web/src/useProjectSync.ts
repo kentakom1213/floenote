@@ -18,6 +18,7 @@ import {
   AutomaticPeerSyncManager,
   type AutomaticPeerSyncStatus,
 } from "./AutomaticPeerSyncManager.js";
+import { resolveRtcConfiguration } from "./turn-credentials.js";
 
 type AuthorizedProjectSyncOptions = {
   coordinatorBaseUrl: string;
@@ -27,6 +28,7 @@ type AuthorizedProjectSyncOptions = {
   projectKeyReady: boolean | null;
   vaultSession: DeviceVaultSession | null;
   automaticReconnectEnabled: boolean;
+  turnCredentialEndpoint: string | null;
   onSecurityStateChanged: () => void;
 };
 
@@ -51,6 +53,7 @@ export function useAuthorizedProjectSync({
   projectKeyReady,
   vaultSession,
   automaticReconnectEnabled,
+  turnCredentialEndpoint,
   onSecurityStateChanged,
 }: AuthorizedProjectSyncOptions): AuthorizedProjectSyncState {
   const [presenceState, setPresenceState] =
@@ -87,6 +90,8 @@ export function useAuthorizedProjectSync({
             securityState,
             vaultSession,
             presence,
+            rtcConfigurationProvider: () =>
+              resolveRtcConfiguration(turnCredentialEndpoint),
             onStatusChange: setAutomaticSyncStatus,
           })
         : null;
@@ -130,6 +135,7 @@ export function useAuthorizedProjectSync({
     project,
     projectKeyReady,
     securityState,
+    turnCredentialEndpoint,
     vaultSession,
   ]);
 
