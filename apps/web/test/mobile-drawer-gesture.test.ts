@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getMobileDrawerOpenRegionWidth,
   isHorizontalMobileDrawerSwipe,
   shouldCompleteMobileDrawerSwipe,
+  shouldStartMobileDrawerOpenSwipe,
   type MobileDrawerSwipe,
 } from "../src/mobile-drawer-gesture.js";
 
@@ -17,6 +19,20 @@ function swipe(
 }
 
 describe("mobile drawer swipe gesture", () => {
+  it("uses 15% of the viewport for the open gesture, capped at 64px", () => {
+    expect(getMobileDrawerOpenRegionWidth(360)).toBe(54);
+    expect(getMobileDrawerOpenRegionWidth(390)).toBe(58.5);
+    expect(getMobileDrawerOpenRegionWidth(412)).toBeCloseTo(61.8);
+    expect(getMobileDrawerOpenRegionWidth(600)).toBe(64);
+  });
+
+  it("starts an open swipe only inside the mobile left-edge region", () => {
+    expect(shouldStartMobileDrawerOpenSwipe(60, 412)).toBe(true);
+    expect(shouldStartMobileDrawerOpenSwipe(63, 412)).toBe(false);
+    expect(shouldStartMobileDrawerOpenSwipe(20, 1024)).toBe(false);
+    expect(shouldStartMobileDrawerOpenSwipe(-1, 412)).toBe(false);
+  });
+
   it("opens for a deliberate left-edge swipe to the right", () => {
     expect(
       shouldCompleteMobileDrawerSwipe(swipe("open"), 80, 208),
