@@ -12,12 +12,15 @@ import {
 } from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
 import {
+  deriveProjectTags,
   deriveVisibleNotes,
   readNoteSortPreference,
+  resolveSelectedTag,
   writeNoteSortPreference,
 } from "./sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
 import { SidebarNoteRow } from "./SidebarNoteRow.js";
+import { SidebarTagNavigation } from "./SidebarTagNavigation.js";
 import { SidebarTrashNoteRow } from "./SidebarTrashNoteRow.js";
 import {
   PermanentDeleteConfirmation,
@@ -73,6 +76,8 @@ export function NoteWorkspace({
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(readNoteSortPreference);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [tagsExpanded, setTagsExpanded] = useState(true);
   const [trashExpanded, setTrashExpanded] = useState(false);
   const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
     useState<DocumentId | null>(null);
@@ -83,6 +88,8 @@ export function NoteWorkspace({
   useEffect(() => {
     setSearchOpen(false);
     setQuery("");
+    setSelectedTag(null);
+    setTagsExpanded(true);
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
@@ -149,7 +156,18 @@ export function NoteWorkspace({
         ]
       : [];
   });
-  const visibleNotes = deriveVisibleNotes(navigationNotes, query, sort);
+  const projectTags = deriveProjectTags(navigationNotes);
+  const visibleNotes = deriveVisibleNotes(
+    navigationNotes,
+    query,
+    sort,
+    selectedTag,
+  );
+
+  useEffect(() => {
+    const resolved = resolveSelectedTag(selectedTag, projectTags);
+    if (resolved !== selectedTag) setSelectedTag(resolved);
+  }, [projectTags, selectedTag]);
 
   const sidebar = (
     <div className="sidebar-layout">
@@ -194,6 +212,15 @@ export function NoteWorkspace({
           }}
         />
 
+        <SidebarTagNavigation
+          tags={projectTags}
+          selectedTag={selectedTag}
+          expanded={tagsExpanded}
+          onExpandedChange={setTagsExpanded}
+          onSelectTag={setSelectedTag}
+        />
+
+        <p className="sidebar-section-label">Notes</p>
         <nav className="note-list" aria-label="Notes">
           {visibleNotes.length > 0 ? (
             visibleNotes.map((note) => (
@@ -210,7 +237,7 @@ export function NoteWorkspace({
                 onDelete={onDeleteDocument}
               />
             ))
-          ) : query.trim() ? (
+          ) : query.trim() || selectedTag !== null ? (
             <p className="note-filter-empty">No matching notes</p>
           ) : null}
         </nav>
@@ -324,6 +351,7 @@ export function NoteWorkspace({
         ) : selectedDocument ? (
           <DocumentPane
             document={selectedDocument}
+            availableTags={projectTags}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
             onTitleFocusHandled={onTitleFocusHandled}
             onRename={onRenameDocument}
@@ -358,6 +386,7 @@ export function NoteWorkspace({
 
 type DocumentPaneProps = {
   document: NoteDocument;
+  availableTags: readonly string[];
   focusTitle: boolean;
   onTitleFocusHandled: () => void;
   onRename: (title: string) => void;
@@ -366,6 +395,7 @@ type DocumentPaneProps = {
 
 function DocumentPane({
   document,
+  availableTags,
   focusTitle,
   onTitleFocusHandled,
   onRename,
@@ -421,7 +451,7 @@ function DocumentPane({
         </div>
       </header>
 
-      <NoteProperties document={document} />
+      <NoteProperties document={document} availableTags={availableTags} />
 
       <div className="editor-mode-row">
         <div className="editor-mode-switch" aria-label="Note view">
