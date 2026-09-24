@@ -9,6 +9,9 @@ import {
   addTagFromInput,
   formatNoteTimestamp,
   getNoteMetadataSnapshot,
+  getTagAssignmentOptions,
+  getTagInputCommand,
+  moveTagOptionIndex,
   removeTagFromProperties,
 } from "../src/NoteProperties.js";
 
@@ -67,6 +70,94 @@ describe("NoteProperties", () => {
 
     expect(addTagFromInput(document, "research")).toBe("added");
     expect(document.tags).toEqual(["research"]);
+  });
+
+
+  it("renders an accessible Add tag control", () => {
+    const document = NoteDocument.create(createDocumentId(), "Tags", 100);
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, {
+        document,
+        availableTags: ["research", "work"],
+      }),
+    );
+
+    expect(markup).toContain('aria-label="Add tag"');
+    expect(markup).toContain(">Add tag<");
+  });
+
+  it("suggests existing Project tags that are not on the current note", () => {
+    expect(
+      getTagAssignmentOptions(
+        ["graph", "ideas", "research", "work"],
+        ["research"],
+        "",
+      ),
+    ).toEqual([
+      { kind: "existing", tag: "graph" },
+      { kind: "existing", tag: "ideas" },
+      { kind: "existing", tag: "work" },
+    ]);
+  });
+
+  it("filters tag suggestions case-insensitively without changing tag identity", () => {
+    expect(
+      getTagAssignmentOptions(
+        ["Graph", "research", "work"],
+        [],
+        "GRA",
+      ),
+    ).toEqual([
+      { kind: "existing", tag: "Graph" },
+      { kind: "create", tag: "GRA" },
+    ]);
+  });
+
+  it("offers creation for a new exact tag string", () => {
+    expect(
+      getTagAssignmentOptions(["research", "work"], [], "distributed-systems"),
+    ).toEqual([
+      { kind: "create", tag: "distributed-systems" },
+    ]);
+  });
+
+  it("reuses the existing exact tag instead of offering duplicate creation", () => {
+    expect(
+      getTagAssignmentOptions(["research", "work"], [], "research"),
+    ).toEqual([
+      { kind: "existing", tag: "research" },
+    ]);
+  });
+
+  it("allows differently cased tags because domain identity remains exact", () => {
+    expect(
+      getTagAssignmentOptions(["research"], [], "Research"),
+    ).toEqual([
+      { kind: "existing", tag: "research" },
+      { kind: "create", tag: "Research" },
+    ]);
+  });
+
+
+  it("moves through tag suggestions with wrapping keyboard semantics", () => {
+    expect(moveTagOptionIndex(0, 3, "next")).toBe(1);
+    expect(moveTagOptionIndex(2, 3, "next")).toBe(0);
+    expect(moveTagOptionIndex(0, 3, "previous")).toBe(2);
+    expect(moveTagOptionIndex(0, 0, "next")).toBe(0);
+  });
+
+
+  it("maps Escape and arrow keys to tag assignment commands", () => {
+    expect(getTagInputCommand("Escape", 1, 3)).toEqual({ type: "close" });
+    expect(getTagInputCommand("ArrowDown", 2, 3)).toEqual({
+      type: "move",
+      index: 0,
+    });
+    expect(getTagInputCommand("ArrowUp", 0, 3)).toEqual({
+      type: "move",
+      index: 2,
+    });
+    expect(getTagInputCommand("Tab", 0, 3)).toBeNull();
   });
 
   it("trims whitespace before adding a tag", () => {

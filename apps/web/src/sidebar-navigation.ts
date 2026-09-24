@@ -4,6 +4,7 @@ const STORAGE_KEY = "floe-note-note-sort";
 
 export type NoteSortMode = "updated" | "created" | "title";
 export type NoteSortDirection = "asc" | "desc";
+export type TagFilterMode = "and" | "or";
 
 export type NoteSortPreference = {
   mode: NoteSortMode;
@@ -23,17 +24,61 @@ export const DEFAULT_NOTE_SORT: NoteSortPreference = {
   direction: "desc",
 };
 
+export const DEFAULT_TAG_FILTER_MODE: TagFilterMode = "and";
+
+export function deriveProjectTags(
+  notes: readonly Pick<SidebarNavigationNote, "tags">[],
+): string[] {
+  const tags = new Set<string>();
+  for (const note of notes) {
+    for (const tag of note.tags) tags.add(tag);
+  }
+
+  return [...tags].sort((left, right) =>
+    left.localeCompare(right, undefined, {
+      sensitivity: "variant",
+      numeric: true,
+    }),
+  );
+}
+
+export function resolveSelectedTags(
+  selectedTags: readonly string[],
+  projectTags: readonly string[],
+): string[] {
+  const selected = new Set(selectedTags);
+  return projectTags.filter((tag) => selected.has(tag));
+}
+
+export function matchesSelectedTags(
+  noteTags: readonly string[],
+  selectedTags: readonly string[],
+  mode: TagFilterMode,
+): boolean {
+  if (selectedTags.length === 0) return true;
+
+  return mode === "and"
+    ? selectedTags.every((tag) => noteTags.includes(tag))
+    : selectedTags.some((tag) => noteTags.includes(tag));
+}
+
 export function deriveVisibleNotes(
   notes: readonly SidebarNavigationNote[],
   query: string,
   preference: NoteSortPreference,
+  selectedTags: readonly string[] = [],
+  tagFilterMode: TagFilterMode = DEFAULT_TAG_FILTER_MODE,
 ): SidebarNavigationNote[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
+  const filteredByTag = notes.filter((note) =>
+    matchesSelectedTags(note.tags, selectedTags, tagFilterMode),
+  );
+
   const filtered =
     normalizedQuery.length === 0
-      ? [...notes]
-      : notes.filter((note) => {
+      ? filteredByTag
+      : filteredByTag.filter((note) => {
           const titleMatches = note.title
             .toLocaleLowerCase()
             .includes(normalizedQuery);

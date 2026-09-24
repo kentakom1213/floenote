@@ -1,6 +1,8 @@
 import type { NoteDocument } from "@floe-note/document";
 import {
   useCallback,
+  useEffect,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -10,6 +12,12 @@ import {
 
 type NotePropertiesProps = {
   document: NoteDocument;
+  availableTags?: readonly string[];
+};
+
+export type TagAssignmentOption = {
+  kind: "existing" | "create";
+  tag: string;
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -17,7 +25,10 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-export function NoteProperties({ document }: NotePropertiesProps) {
+export function NoteProperties({
+  document,
+  availableTags = [],
+}: NotePropertiesProps) {
   const subscribe = useCallback(
     (listener: () => void) => document.subscribe(listener),
     [document],
@@ -29,11 +40,34 @@ export function NoteProperties({ document }: NotePropertiesProps) {
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const addTagButtonRef = useRef<HTMLButtonElement>(null);
+  const tagFormRef = useRef<HTMLFormElement>(null);
+  const listboxId = useId();
   const [addingTag, setAddingTag] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [activeOptionIndex, setActiveOptionIndex] = useState(0);
+  const tagOptions = getTagAssignmentOptions(
+    availableTags,
+    document.tags,
+    tagInput,
+  );
+  const resolvedActiveOptionIndex =
+    tagOptions.length === 0
+      ? -1
+      : Math.min(activeOptionIndex, tagOptions.length - 1);
+  const activeOption =
+    resolvedActiveOptionIndex < 0
+      ? undefined
+      : tagOptions[resolvedActiveOptionIndex];
+
+  useEffect(() => {
+    if (tagOptions.length > 0 && activeOptionIndex >= tagOptions.length) {
+      setActiveOptionIndex(tagOptions.length - 1);
+    }
+  }, [activeOptionIndex, tagOptions.length]);
 
   function stopAddingTag(restoreFocus = false): void {
     setTagInput("");
+    setActiveOptionIndex(0);
     setAddingTag(false);
 
     if (restoreFocus) {
@@ -41,22 +75,43 @@ export function NoteProperties({ document }: NotePropertiesProps) {
     }
   }
 
+  function addTag(tag: string): void {
+    const result = addTagFromInput(document, tag);
+    if (result !== "empty") {
+      stopAddingTag(true);
+    }
+  }
+
   function submitTag(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
+    if (activeOption) {
+      addTag(activeOption.tag);
+      return;
+    }
 
     const result = addTagFromInput(document, tagInput);
     if (result !== "empty") {
-      stopAddingTag();
+      stopAddingTag(true);
     }
   }
 
   function handleTagInputKeyDown(
     event: KeyboardEvent<HTMLInputElement>,
   ): void {
-    if (event.key !== "Escape") return;
+    const command = getTagInputCommand(
+      event.key,
+      activeOptionIndex,
+      tagOptions.length,
+    );
+    if (!command) return;
 
     event.preventDefault();
-    stopAddingTag(true);
+    if (command.type === "close") {
+      stopAddingTag(true);
+      return;
+    }
+
+    setActiveOptionIndex(command.index);
   }
 
   return (
@@ -79,24 +134,86 @@ export function NoteProperties({ document }: NotePropertiesProps) {
           ))}
 
           {addingTag ? (
-            <form className="note-tag-form" onSubmit={submitTag}>
+            <form
+              ref={tagFormRef}
+              className="note-tag-form"
+              onSubmit={submitTag}
+            >
               <input
                 autoFocus
                 className="note-tag-input"
                 value={tagInput}
                 placeholder="Tag"
-                aria-label="New tag"
-                onChange={(event) => setTagInput(event.target.value)}
+                aria-label="Add tag"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={tagOptions.length > 0}
+                aria-controls={tagOptions.length > 0 ? listboxId : undefined}
+                aria-activedescendant={
+                  resolvedActiveOptionIndex >= 0
+                    ? `${listboxId}-option-${resolvedActiveOptionIndex}`
+                    : undefined
+                }
+                onChange={(event) => {
+                  setTagInput(event.target.value);
+                  setActiveOptionIndex(0);
+                }}
                 onKeyDown={handleTagInputKeyDown}
-                onBlur={() => stopAddingTag()}
+                onBlur={(event) => {
+                  const nextTarget = event.relatedTarget;
+                  if (
+                    nextTarget instanceof Node &&
+                    tagFormRef.current?.contains(nextTarget)
+                  ) {
+                    return;
+                  }
+                  stopAddingTag();
+                }}
               />
+
+              {tagOptions.length > 0 ? (
+                <div
+                  className="note-tag-suggestions"
+                  id={listboxId}
+                  role="listbox"
+                  aria-label="Tag suggestions"
+                >
+                  {tagOptions.map((option, index) => (
+                    <button
+                      className="note-tag-suggestion"
+                      id={`${listboxId}-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === resolvedActiveOptionIndex}
+                      tabIndex={-1}
+                      key={`${option.kind}:${option.tag}`}
+                      onPointerDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => setActiveOptionIndex(index)}
+                      onClick={() => addTag(option.tag)}
+                    >
+                      <span className="note-tag-suggestion-symbol" aria-hidden="true">
+                        {option.kind === "create" ? "+" : "#"}
+                      </span>
+                      <span>
+                        {option.kind === "create"
+                          ? `Create “${option.tag}”`
+                          : option.tag}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </form>
           ) : (
             <button
               ref={addTagButtonRef}
               className="note-tag-add"
               type="button"
-              onClick={() => setAddingTag(true)}
+              aria-label="Add tag"
+              onClick={() => {
+                setActiveOptionIndex(0);
+                setAddingTag(true);
+              }}
             >
               <span aria-hidden="true">＋</span>
               <span>Add tag</span>
@@ -117,6 +234,77 @@ export function NoteProperties({ document }: NotePropertiesProps) {
       </dl>
     </section>
   );
+}
+
+export type TagInputCommand =
+  | { type: "close" }
+  | { type: "move"; index: number }
+  | null;
+
+export function getTagInputCommand(
+  key: string,
+  currentIndex: number,
+  optionCount: number,
+): TagInputCommand {
+  if (key === "Escape") return { type: "close" };
+  if (key === "ArrowDown" && optionCount > 0) {
+    return {
+      type: "move",
+      index: moveTagOptionIndex(currentIndex, optionCount, "next"),
+    };
+  }
+  if (key === "ArrowUp" && optionCount > 0) {
+    return {
+      type: "move",
+      index: moveTagOptionIndex(currentIndex, optionCount, "previous"),
+    };
+  }
+  return null;
+}
+
+export function moveTagOptionIndex(
+  currentIndex: number,
+  optionCount: number,
+  direction: "next" | "previous",
+): number {
+  if (optionCount <= 0) return 0;
+  return direction === "next"
+    ? (currentIndex + 1) % optionCount
+    : (currentIndex - 1 + optionCount) % optionCount;
+}
+
+export function getTagAssignmentOptions(
+  projectTags: readonly string[],
+  currentTags: readonly string[],
+  query: string,
+): TagAssignmentOption[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const currentTagSet = new Set(currentTags);
+
+  const existing = projectTags
+    .filter((tag) => !currentTagSet.has(tag))
+    .filter(
+      (tag) =>
+        normalizedQuery.length === 0 ||
+        tag.toLocaleLowerCase().includes(normalizedQuery),
+    )
+    .map(
+      (tag): TagAssignmentOption => ({
+        kind: "existing",
+        tag,
+      }),
+    );
+
+  const newTag = query.trim();
+  if (
+    newTag.length > 0 &&
+    !currentTagSet.has(newTag) &&
+    !projectTags.includes(newTag)
+  ) {
+    existing.push({ kind: "create", tag: newTag });
+  }
+
+  return existing;
 }
 
 export function getNoteMetadataSnapshot(document: NoteDocument): string {

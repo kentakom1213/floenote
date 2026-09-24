@@ -425,6 +425,7 @@ input:focus-visible {
 }
 
 .sidebar-navigation {
+  position: relative;
   flex: 0 0 auto;
   margin-top: 10px;
 }
@@ -452,7 +453,8 @@ input:focus-visible {
 
 .sidebar-tool-button:hover,
 .sidebar-tool-button.active,
-.sidebar-sort[open] > .sidebar-tool-button {
+.sidebar-sort[open] > .sidebar-tool-button,
+.sidebar-tag-filter[open] > .sidebar-tool-button {
   color: var(--color-text);
   background: var(--color-surface-hover);
 }
@@ -476,25 +478,42 @@ input:focus-visible {
   position: relative;
 }
 
-.sidebar-sort > summary {
+.sidebar-tag-filter {
+  position: static;
+}
+
+.sidebar-sort > summary,
+.sidebar-tag-filter > summary {
   list-style: none;
 }
 
-.sidebar-sort > summary::-webkit-details-marker {
+.sidebar-sort > summary::-webkit-details-marker,
+.sidebar-tag-filter > summary::-webkit-details-marker {
   display: none;
 }
 
-.sidebar-sort-menu {
+.sidebar-sort-menu,
+.sidebar-tag-filter-menu {
   position: absolute;
   z-index: 30;
   top: calc(100% + 6px);
   left: 0;
-  width: 180px;
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: 11px;
   background: var(--color-surface);
   box-shadow: var(--shadow-popover);
+}
+
+.sidebar-sort-menu {
+  width: 180px;
+}
+
+.sidebar-tag-filter-menu {
+  left: 5px;
+  right: 5px;
+  width: auto;
+  box-sizing: border-box;
 }
 
 .sidebar-sort-label {
@@ -1141,7 +1160,7 @@ input:focus-visible {
 .document-header {
   width: min(820px, calc(100% - 64px));
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 18px;
   margin: 0 auto;
   padding: 52px 0 18px;
@@ -1149,15 +1168,24 @@ input:focus-visible {
 
 .title-input {
   min-width: 0;
+  width: 100%;
   flex: 1;
+  overflow: hidden;
+  box-sizing: border-box;
   border: 0;
   outline: none;
-  padding: 0;
+  resize: none;
+  margin-left: -1px;
+  padding: 2px 0 3px 1px;
   color: var(--color-text);
   background: transparent;
+  font-family: inherit;
   font-size: clamp(28px, 3.2vw, 38px);
   font-weight: 720;
   letter-spacing: -0.035em;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .title-input::placeholder {
@@ -1283,14 +1311,19 @@ input:focus-visible {
 }
 
 .note-properties-label {
-  padding-top: 5px;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0;
   color: var(--color-text-faint);
   font-size: 11px;
   font-weight: 650;
+  line-height: 1;
 }
 
 .note-tag-list {
   min-width: 0;
+  min-height: 26px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1298,21 +1331,24 @@ input:focus-visible {
 }
 
 .note-tag {
+  min-height: 26px;
   max-width: 220px;
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   gap: 3px;
   border-radius: 999px;
   padding: 3px 4px 3px 9px;
   color: var(--color-text-muted);
   background: var(--color-surface-selected);
-  line-height: 1.35;
+  line-height: 1;
 }
 
 .note-tag > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transform: translateY(1px);
 }
 
 .note-tag-remove,
@@ -1339,12 +1375,19 @@ input:focus-visible {
 }
 
 .note-tag-add {
+  min-height: 26px;
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   gap: 3px;
   border-radius: 7px;
-  padding: 5px 6px;
+  padding: 4px 6px;
   font-size: 11px;
+  line-height: 1;
+}
+
+.note-tag-add > span {
+  transform: translateY(1px);
 }
 
 .note-tag-add:hover {
@@ -1357,13 +1400,16 @@ input:focus-visible {
 }
 
 .note-tag-input {
+  min-height: 26px;
   width: 128px;
+  box-sizing: border-box;
   border: 1px solid var(--color-border);
   border-radius: 7px;
   padding: 4px 7px;
   color: var(--color-text);
   background: var(--color-surface);
   font-size: 11px;
+  line-height: 1.2;
 }
 
 .note-tag-input::placeholder {
@@ -3585,7 +3631,7 @@ h1 {
   }
 
   .document-header {
-    align-items: center;
+    align-items: flex-start;
     flex-direction: row;
     gap: 8px;
     padding-top: 24px;
@@ -3610,6 +3656,7 @@ h1 {
   .note-menu-popover,
   .note-row-menu-popover,
   .sidebar-sort-menu,
+  .sidebar-tag-filter-menu,
   .project-switcher-menu,
   .sync-status-popover {
     max-width: calc(100vw - 24px);
@@ -4350,5 +4397,226 @@ h1 {
 
   .onboarding-secure-screen .unlock-card {
     margin-block: auto;
+  }
+}
+
+
+/* Tag filter */
+.sidebar-tag-filter-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.sidebar-tag-filter-mode label,
+.sidebar-tag-filter-options label {
+  cursor: pointer;
+}
+
+.sidebar-tag-filter-mode label {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.sidebar-tag-filter-mode label:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-tag-filter-mode input,
+.sidebar-tag-filter-options input {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.sidebar-tag-filter-heading {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-tag-filter-heading .sidebar-sort-label {
+  margin-block: 2px;
+}
+
+.sidebar-tag-filter-heading button {
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 10px;
+}
+
+.sidebar-tag-filter-heading button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-tag-filter-options {
+  max-height: min(240px, 36vh);
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-tag-filter-options label {
+  min-width: 0;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 16px 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border-radius: 7px;
+  padding: 6px 7px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.sidebar-tag-filter-options label:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-tag-filter-options label:has(input:focus-visible),
+.sidebar-tag-filter-mode label:has(input:focus-visible),
+.note-tag-suggestion:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.sidebar-tag-filter-options label > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-tag-filter-hash {
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+.sidebar-tag-filter-options label:has(input:checked) .sidebar-tag-filter-hash {
+  color: var(--color-accent);
+}
+
+.sidebar-tag-filter-empty {
+  margin: 8px 7px;
+  color: var(--color-text-faint);
+  font-size: 11px;
+}
+
+/* Tag assignment */
+.note-tag-form {
+  position: relative;
+  width: min(220px, 100%);
+  display: inline-grid;
+  flex: 0 1 220px;
+}
+
+.note-tag-input {
+  width: 100%;
+}
+
+.note-tag-suggestions {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  width: 100%;
+  max-height: 196px;
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 4px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  overscroll-behavior: contain;
+}
+
+.note-tag-suggestion {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 7px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.note-tag-suggestion:hover,
+.note-tag-suggestion[aria-selected="true"] {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.note-tag-suggestion-symbol {
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+.note-tag-suggestion > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .sidebar-tag-filter-menu {
+    left: 5px;
+    right: 5px;
+    width: auto;
+  }
+
+  .sidebar-tag-filter-mode label,
+  .sidebar-tag-filter-options label {
+    min-height: 44px;
+  }
+
+  .sidebar-tag-filter-options {
+    max-height: min(300px, 42dvh);
+  }
+
+  .note-properties-label,
+  .note-tag-list,
+  .note-tag,
+  .note-tag-add,
+  .note-tag-input {
+    min-height: 32px;
+  }
+
+  .note-tag-form {
+    width: min(220px, 100%);
+    flex-basis: min(220px, 100%);
+  }
+
+  .note-tag-suggestion {
+    min-height: 40px;
   }
 }
