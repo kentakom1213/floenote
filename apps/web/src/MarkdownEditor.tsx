@@ -7,7 +7,11 @@ import { useEffect, useRef } from "react";
 import type { NoteDocument } from "@floe-note/document";
 
 import { floeCodeMirrorAppearance } from "./editor-appearance.js";
-import { synchronousLoroUndoKeymap } from "./loro-undo.js";
+import {
+  compositionUndoGrouping,
+  EDITOR_UNDO_MAX_STEPS,
+  synchronousLoroUndoKeymap,
+} from "./loro-undo.js";
 
 type MarkdownEditorProps = {
   document: NoteDocument;
@@ -22,6 +26,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
 
     const binding = document.getEditorBinding();
     const undoManager = new UndoManager(binding.doc, {
+      maxUndoSteps: EDITOR_UNDO_MAX_STEPS,
       excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
     });
     const view = new EditorView({
@@ -40,6 +45,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
         }),
         synchronousLoroUndoKeymap(undoManager),
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
+        compositionUndoGrouping(undoManager),
       ],
     });
 
@@ -89,6 +95,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     return () => {
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
+      undoManager.free();
     };
   }, [document]);
 
