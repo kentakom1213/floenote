@@ -3,7 +3,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import { marked } from "marked";
 import {
-  type ChangeEvent,
+  type MouseEvent,
   useCallback,
   useMemo,
   useState,
@@ -75,8 +75,8 @@ function DocumentMarkdownPreview({
     [interactive, loadExternalImages, markdown],
   );
 
-  const handleTaskChange = useCallback(
-    (event: ChangeEvent<HTMLDivElement>) => {
+  const handleTaskClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
       if (!interactive) return;
 
       const target = event.target;
@@ -138,7 +138,7 @@ function DocumentMarkdownPreview({
       ) : null}
       <div
         className="markdown-preview"
-        onChange={handleTaskChange}
+        onClick={handleTaskClick}
         dangerouslySetInnerHTML={{ __html: rendered.html }}
       />
     </>
