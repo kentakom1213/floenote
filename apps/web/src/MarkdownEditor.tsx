@@ -6,7 +6,8 @@ import { useEffect, useRef } from "react";
 
 import type { NoteDocument } from "@floe-note/document";
 
-import { fencedCodeHighlighting } from "./code-highlighting.js";\nimport { floeCodeMirrorAppearance } from "./editor-appearance.js";
+import { fencedCodeHighlighting } from "./code-highlighting.js";
+import { floeCodeMirrorAppearance } from "./editor-appearance.js";
 import {
   editorUndoGrouping,
   EDITOR_UNDO_MAX_STEPS,
