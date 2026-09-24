@@ -9,6 +9,7 @@ export type DocumentEditorBinding = {
   undoExcludeOriginPrefixes: readonly string[];
   beginEditorHistoryGroup: () => void;
   endEditorHistoryGroup: () => void;
+  flushEditorHistoryBoundary: () => void;
 };
 
 export type NoteDocumentInitialState = {
@@ -24,6 +25,7 @@ export class NoteDocument {
   readonly #doc: LoroDoc;
   #suppressAutomaticTimestamp = false;
   #automaticTimestampPending = false;
+  #automaticTimestampScheduleId = 0;
   #automaticTimestampDeferDepth = 0;
   #automaticTimestampDirty = false;
 
@@ -205,6 +207,9 @@ export class NoteDocument {
           this.#scheduleAutomaticTimestamp();
         }
       },
+      flushEditorHistoryBoundary: () => {
+        this.#flushAutomaticTimestamp();
+      },
     };
   }
 
@@ -212,7 +217,16 @@ export class NoteDocument {
     if (this.#automaticTimestampPending) return;
 
     this.#automaticTimestampPending = true;
+    const scheduleId = ++this.#automaticTimestampScheduleId;
+
     void Promise.resolve().then(() => {
+      if (
+        !this.#automaticTimestampPending ||
+        scheduleId !== this.#automaticTimestampScheduleId
+      ) {
+        return;
+      }
+
       this.#automaticTimestampPending = false;
 
       if (this.#automaticTimestampDeferDepth > 0) {
@@ -220,11 +234,27 @@ export class NoteDocument {
         return;
       }
 
-      this.#withAutomaticTimestampSuppressed(() => {
-        this.#doc.getMap("meta").set("updatedAt", Date.now());
-        this.#doc.commit({
-          origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
-        });
+      this.#commitAutomaticTimestamp();
+    });
+  }
+
+  #flushAutomaticTimestamp(): void {
+    if (this.#automaticTimestampDeferDepth > 0) return;
+    if (!this.#automaticTimestampPending && !this.#automaticTimestampDirty) {
+      return;
+    }
+
+    this.#automaticTimestampPending = false;
+    this.#automaticTimestampDirty = false;
+    this.#automaticTimestampScheduleId += 1;
+    this.#commitAutomaticTimestamp();
+  }
+
+  #commitAutomaticTimestamp(): void {
+    this.#withAutomaticTimestampSuppressed(() => {
+      this.#doc.getMap("meta").set("updatedAt", Date.now());
+      this.#doc.commit({
+        origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
       });
     });
   }
