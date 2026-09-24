@@ -6,19 +6,11 @@ import {
 import type { OpenProjectResult } from "@floe-note/storage";
 
 import {
-  commitNewProjectGenesis,
-  type ProjectGenesisCoordinator,
-  type ProjectGenesisRuntime,
-  type ProjectGenesisSession,
-  type ProjectGenesisStorage,
-} from "./project-genesis.js";
+  commitValidatedImportedProject,
+  type ProjectImportDependencies,
+} from "./project-import-genesis.js";
 
-export type PortableImportDependencies = {
-  session: ProjectGenesisSession;
-  coordinator: ProjectGenesisCoordinator;
-  storage: ProjectGenesisStorage;
-  runtime?: ProjectGenesisRuntime;
-};
+export type PortableImportDependencies = ProjectImportDependencies;
 
 export async function importPortableProjectArchive(
   archive: Uint8Array,
@@ -29,35 +21,11 @@ export async function importPortableProjectArchive(
   const imported = parsePortableProjectImport(archive);
   const project = prepareImportedProject(imported);
 
-  try {
-    return await commitNewProjectGenesis(
-      project,
-      dependencies.session,
-      dependencies.coordinator,
-      dependencies.storage,
-      dependencies.runtime,
-    );
-  } catch (error: unknown) {
-    if (isCoordinatorNetworkError(error)) {
-      throw new Error(
-        "The Floe export is valid, but the coordinator is unavailable. " +
-          "Connect to the coordinator and try the import again.",
-        { cause: error },
-      );
-    }
-    throw error;
-  }
-}
-
-function isCoordinatorNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  return [
-    "NetworkError when attempting to fetch resource",
-    "Failed to fetch",
-    "Load failed",
-    "fetch failed",
-  ].some((message) => error.message.includes(message));
+  return commitValidatedImportedProject(
+    project,
+    dependencies,
+    "Floe export",
+  );
 }
 
 export function prepareImportedProject(
