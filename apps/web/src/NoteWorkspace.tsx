@@ -5,12 +5,18 @@ import type { DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { EditorModeView } from "./EditorModeView.js";
+import { GlobalSearch } from "./GlobalSearch.js";
+import { GlobalSearchCache } from "./global-search.js";
 import {
   readEditorModePreference,
   writeEditorModePreference,
   type EditorMode,
 } from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
+import {
+  readNoteRecency,
+  recordNoteOpened,
+} from "./note-recency.js";
 import {
   DEFAULT_TAG_FILTER_MODE,
   deriveProjectTags,
@@ -74,6 +80,25 @@ export function NoteWorkspace({
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
   const [, setNavigationRevision] = useState(0);
+  const [, setRecencyRevision] = useState(0);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const searchCacheHolderRef = useRef<{
+    projectId: string;
+    cache: GlobalSearchCache;
+  } | null>(null);
+
+  if (searchCacheHolderRef.current?.projectId !== project.id) {
+    const cache = new GlobalSearchCache();
+    cache.syncProject(project);
+    searchCacheHolderRef.current = {
+      projectId: project.id,
+      cache,
+    };
+  }
+
+  const searchCache = searchCacheHolderRef.current!.cache;
+  searchCache.syncProject(project);
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(readNoteSortPreference);
@@ -89,6 +114,7 @@ export function NoteWorkspace({
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
+    setGlobalSearchOpen(false);
     setSearchOpen(false);
     setQuery("");
     setSelectedTags([]);
@@ -107,15 +133,43 @@ export function NoteWorkspace({
     const stopSubscriptions = project
       .getAllDocuments()
       .map((document) =>
-        document.subscribe(() =>
-          setNavigationRevision((value) => value + 1),
-        ),
+        document.subscribe(() => {
+          if (project.getDocument(document.id)) {
+            searchCache.updateDocument(document);
+          } else {
+            searchCache.removeDocument(document.id);
+          }
+          setNavigationRevision((value) => value + 1);
+        }),
       );
 
     return () => {
       stopSubscriptions.forEach((stop) => stop());
     };
-  }, [project, navigationDocumentIds]);
+  }, [project, navigationDocumentIds, searchCache]);
+
+  useEffect(() => {
+    if (trashActive || selectedId === null) return;
+
+    recordNoteOpened(project.id, selectedId);
+    setRecencyRevision((value) => value + 1);
+  }, [project.id, selectedId, trashActive]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() === "k" &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey
+      ) {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const deletedSummaries = project.listDeletedDocuments();
   const selectedTrashDocument =
@@ -186,6 +240,15 @@ export function NoteWorkspace({
             </span>
             <span className="brand-name">Floe Note</span>
           </div>
+          <button
+            className="global-search-trigger"
+            type="button"
+            aria-label="Search all notes"
+            title="Search all notes (Ctrl/Cmd + K)"
+            onClick={() => setGlobalSearchOpen(true)}
+          >
+            <GlobalSearchIcon />
+          </button>
         </header>
 
         <div
@@ -374,6 +437,21 @@ export function NoteWorkspace({
         ))}
       </AppShell>
 
+      {globalSearchOpen ? (
+        <GlobalSearch
+          cache={searchCache}
+          lastOpenedAt={readNoteRecency(project.id)}
+          onClose={() => setGlobalSearchOpen(false)}
+          onSelect={(documentId) => {
+            recordNoteOpened(project.id, documentId);
+            setRecencyRevision((value) => value + 1);
+            setSelectedTrashDocumentId(null);
+            onSelectDocument(documentId);
+            setMobileNavigationOpen(false);
+          }}
+        />
+      ) : null}
+
       {pendingPurgeDocument ? (
         <PermanentDeleteConfirmation
           onCancel={() => setPendingPurgeDocumentId(null)}
@@ -527,6 +605,15 @@ export function EditorModeSwitcher({
 function resizeTitleInput(input: HTMLTextAreaElement): void {
   input.style.height = "auto";
   input.style.height = `${input.scrollHeight + 2}px`;
+}
+
+function GlobalSearchIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="8.5" cy="8.5" r="5.25" />
+      <path d="m12.5 12.5 4 4" />
+    </svg>
+  );
 }
 
 function ChevronIcon() {

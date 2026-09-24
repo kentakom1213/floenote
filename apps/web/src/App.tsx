@@ -75,6 +75,7 @@ import {
   readLastDocumentId,
   writeLastDocumentId,
 } from "./note-preference.js";
+import { clearAllNoteRecency } from "./note-recency.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { deriveEntrySurface } from "./onboarding-state.js";
 import { exportProjectToBrowser } from "./portable-export-download.js";
@@ -1074,6 +1075,7 @@ function NoteApp() {
       clearThemePreference();
       clearTurnCredentialEndpoint();
       clearAllLastDocumentPreferences();
+      clearAllNoteRecency();
       clearSidebarPreference();
 
       window.location.replace("/");
