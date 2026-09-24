@@ -88,6 +88,41 @@ describe("NoteProject edit history", () => {
     expect(project.listEditHistoryCheckpoints(document.id)).toHaveLength(1);
   });
 
+  it("persists checkpoint metadata through a manifest snapshot round-trip", () => {
+    const project = NoteProject.create();
+    const document = project.createDocumentWithInitialState({
+      title: "Persisted",
+      body: "snapshot body",
+      createdAt: 100,
+      updatedAt: 100,
+      tags: ["history"],
+    });
+    const checkpoint = project.createEditHistoryCheckpoint(document.id, {
+      createdAt: 200,
+    });
+    expect(checkpoint).not.toBeNull();
+
+    const restoredDocument = NoteDocument.fromSnapshot(
+      document.id,
+      document.exportSnapshot(),
+    );
+    const restored = NoteProject.fromSnapshot(
+      project.id,
+      project.exportManifestSnapshot(),
+      [restoredDocument],
+    );
+
+    const checkpoints = restored.listEditHistoryCheckpoints(document.id);
+    expect(checkpoints).toHaveLength(1);
+    expect(checkpoints[0]?.id).toBe(checkpoint?.id);
+    expect(checkpoints[0]?.frontiers).toEqual(checkpoint?.frontiers);
+
+    const historical = checkpoint
+      ? restored.createHistoricalDocument(checkpoint.id)
+      : null;
+    expect(historical?.bodyText).toBe("snapshot body");
+  });
+
   it("synchronizes checkpoint metadata through manifest updates", () => {
     const source = NoteProject.create();
     const document = source.createDocumentWithInitialState({
