@@ -944,7 +944,15 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.trash-preview-restore-button {
+.trash-note-preview-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trash-preview-restore-button,
+.trash-preview-delete-button {
   flex: 0 0 auto;
   border: 1px solid var(--color-border);
   border-radius: 9px;
@@ -959,6 +967,16 @@ input:focus-visible {
   color: var(--color-text);
   border-color: var(--color-border-strong);
   background: var(--color-surface-hover);
+}
+
+.trash-preview-delete-button {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 38%, var(--color-border));
+}
+
+.trash-preview-delete-button:hover {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
 }
 
 .trash-note-properties {
@@ -3673,7 +3691,8 @@ h1 {
   }
 
   .trash-note-preview-header {
-    align-items: center;
+    align-items: stretch;
+    flex-direction: column;
     gap: 12px;
     padding-top: 28px;
   }
@@ -3682,7 +3701,14 @@ h1 {
     font-size: clamp(24px, 8vw, 32px);
   }
 
+  .trash-note-preview-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .trash-preview-restore-button,
+  .trash-preview-delete-button,
   .trash-restore-button,
   .settings-primary-action,
   .settings-danger-action,
