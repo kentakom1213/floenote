@@ -257,12 +257,18 @@ export class WebRtcSignalingSession {
     operation: () => Promise<void>,
   ): Promise<void> {
     this.#bufferOutgoingCandidates = true;
+    let descriptionSent = false;
 
     try {
       await operation();
+      descriptionSent = true;
     } finally {
       this.#bufferOutgoingCandidates = false;
-      this.#flushOutgoingCandidates();
+      if (descriptionSent) {
+        this.#flushOutgoingCandidates();
+      } else {
+        this.#pendingOutgoingCandidates.length = 0;
+      }
     }
   }
 
