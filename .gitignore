@@ -4,3 +4,7 @@ coverage/
 .vite/
 .wrangler/
 *.tsbuildinfo
+
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
