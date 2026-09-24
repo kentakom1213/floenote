@@ -8,8 +8,9 @@ import type { NoteDocument } from "@floe-note/document";
 
 import { floeCodeMirrorAppearance } from "./editor-appearance.js";
 import {
-  compositionUndoGrouping,
+  editorUndoGrouping,
   EDITOR_UNDO_MAX_STEPS,
+  EDITOR_UNDO_MERGE_INTERVAL_MS,
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
 
@@ -27,7 +28,12 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     const binding = document.getEditorBinding();
     const undoManager = new UndoManager(binding.doc, {
       maxUndoSteps: EDITOR_UNDO_MAX_STEPS,
+      mergeInterval: EDITOR_UNDO_MERGE_INTERVAL_MS,
       excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
+    });
+    const undoGrouping = editorUndoGrouping(undoManager, {
+      beginEditorHistoryGroup: binding.beginEditorHistoryGroup,
+      endEditorHistoryGroup: binding.endEditorHistoryGroup,
     });
     const view = new EditorView({
       parent: host,
@@ -44,11 +50,9 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
           autocapitalize: "sentences",
         }),
         synchronousLoroUndoKeymap(undoManager),
+        undoGrouping.before,
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
-        compositionUndoGrouping(undoManager, {
-          beginComposition: binding.beginComposition,
-          endComposition: binding.endComposition,
-        }),
+        undoGrouping.after,
       ],
     });
 
