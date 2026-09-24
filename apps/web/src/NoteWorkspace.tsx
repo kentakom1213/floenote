@@ -96,7 +96,7 @@ export function NoteWorkspace({
     };
   }
 
-  const searchCache = searchCacheHolderRef.current.cache;
+  const searchCache = searchCacheHolderRef.current!.cache;
   searchCache.syncProject(project);
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -443,6 +443,8 @@ export function NoteWorkspace({
           lastOpenedAt={readNoteRecency(project.id)}
           onClose={() => setGlobalSearchOpen(false)}
           onSelect={(documentId) => {
+            recordNoteOpened(project.id, documentId);
+            setRecencyRevision((value) => value + 1);
             setSelectedTrashDocumentId(null);
             onSelectDocument(documentId);
             setMobileNavigationOpen(false);
