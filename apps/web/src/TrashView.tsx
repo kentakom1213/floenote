@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
@@ -12,7 +10,7 @@ type TrashViewProps = {
   selectedDocumentId: DocumentId | null;
   onSelectDocument: (documentId: DocumentId) => void;
   onRestoreDocument: (documentId: DocumentId) => void;
-  onPurgeDocument: (documentId: DocumentId) => void;
+  onRequestPermanentDelete: (documentId: DocumentId) => void;
 };
 
 export function TrashView({
@@ -20,51 +18,21 @@ export function TrashView({
   selectedDocumentId,
   onSelectDocument,
   onRestoreDocument,
-  onPurgeDocument,
+  onRequestPermanentDelete,
 }: TrashViewProps) {
-  const [pendingPurgeDocumentId, setPendingPurgeDocumentId] =
-    useState<DocumentId | null>(null);
-
   const selectedDocument = selectedDocumentId
     ? project.getDeletedDocument(selectedDocumentId)
     : undefined;
-  const pendingPurgeDocument = pendingPurgeDocumentId
-    ? project.getDeletedDocument(pendingPurgeDocumentId)
-    : undefined;
-
-  useEffect(() => {
-    if (
-      pendingPurgeDocumentId !== null &&
-      pendingPurgeDocument === undefined
-    ) {
-      setPendingPurgeDocumentId(null);
-    }
-  }, [pendingPurgeDocument, pendingPurgeDocumentId]);
 
   if (selectedDocument) {
-    const confirmingSelectedDocument =
-      pendingPurgeDocument?.id === selectedDocument.id;
-
     return (
-      <>
-        <TrashNotePreview
-          document={selectedDocument}
-          onRestore={() => onRestoreDocument(selectedDocument.id)}
-          onRequestPermanentDelete={() =>
-            setPendingPurgeDocumentId(selectedDocument.id)
-          }
-        />
-
-        {confirmingSelectedDocument ? (
-          <PermanentDeleteConfirmation
-            onCancel={() => setPendingPurgeDocumentId(null)}
-            onConfirm={() => {
-              onPurgeDocument(selectedDocument.id);
-              setPendingPurgeDocumentId(null);
-            }}
-          />
-        ) : null}
-      </>
+      <TrashNotePreview
+        document={selectedDocument}
+        onRestore={() => onRestoreDocument(selectedDocument.id)}
+        onRequestPermanentDelete={() =>
+          onRequestPermanentDelete(selectedDocument.id)
+        }
+      />
     );
   }
 
