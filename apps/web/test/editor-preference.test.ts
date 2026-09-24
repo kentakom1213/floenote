@@ -88,16 +88,30 @@ describe("editor preference", () => {
     expect(readEditorPreference()).toEqual(preference);
   });
 
-  it("clears the persisted preference", () => {
-    writeEditorPreference({
+  it("clears persisted and applied editor preferences", () => {
+    const preference: EditorPreference = {
       textSize: "large",
       lineHeight: "relaxed",
       contentWidth: "wide",
-    });
+    };
+
+    writeEditorPreference(preference);
+    applyEditorPreference(preference);
+    document.documentElement.dataset.theme = "charcoal";
 
     clearEditorPreference();
 
     expect(readEditorPreference()).toEqual(DEFAULT_EDITOR_PREFERENCE);
+    expect(
+      document.documentElement.style.getPropertyValue("--editor-font-size"),
+    ).toBe("");
+    expect(
+      document.documentElement.style.getPropertyValue("--editor-line-height"),
+    ).toBe("");
+    expect(
+      document.documentElement.style.getPropertyValue("--editor-content-width"),
+    ).toBe("");
+    expect(document.documentElement.dataset.theme).toBe("charcoal");
   });
 
   it("applies typography through root CSS variables without changing theme", () => {
