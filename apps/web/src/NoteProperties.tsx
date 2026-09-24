@@ -98,26 +98,20 @@ export function NoteProperties({
   function handleTagInputKeyDown(
     event: KeyboardEvent<HTMLInputElement>,
   ): void {
-    if (event.key === "Escape") {
-      event.preventDefault();
+    const command = getTagInputCommand(
+      event.key,
+      activeOptionIndex,
+      tagOptions.length,
+    );
+    if (!command) return;
+
+    event.preventDefault();
+    if (command.type === "close") {
       stopAddingTag(true);
       return;
     }
 
-    if (event.key === "ArrowDown" && tagOptions.length > 0) {
-      event.preventDefault();
-      setActiveOptionIndex((index) =>
-        moveTagOptionIndex(index, tagOptions.length, "next"),
-      );
-      return;
-    }
-
-    if (event.key === "ArrowUp" && tagOptions.length > 0) {
-      event.preventDefault();
-      setActiveOptionIndex((index) =>
-        moveTagOptionIndex(index, tagOptions.length, "previous"),
-      );
-    }
+    setActiveOptionIndex(command.index);
   }
 
   return (
@@ -240,6 +234,32 @@ export function NoteProperties({
       </dl>
     </section>
   );
+}
+
+export type TagInputCommand =
+  | { type: "close" }
+  | { type: "move"; index: number }
+  | null;
+
+export function getTagInputCommand(
+  key: string,
+  currentIndex: number,
+  optionCount: number,
+): TagInputCommand {
+  if (key === "Escape") return { type: "close" };
+  if (key === "ArrowDown" && optionCount > 0) {
+    return {
+      type: "move",
+      index: moveTagOptionIndex(currentIndex, optionCount, "next"),
+    };
+  }
+  if (key === "ArrowUp" && optionCount > 0) {
+    return {
+      type: "move",
+      index: moveTagOptionIndex(currentIndex, optionCount, "previous"),
+    };
+  }
+  return null;
 }
 
 export function moveTagOptionIndex(
