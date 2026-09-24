@@ -130,6 +130,8 @@ describe("TrashView", () => {
     );
 
     expect(markup).toContain("Delete note");
+    expect(markup).toContain("<textarea");
+    expect(markup).toContain('aria-label="Note title"');
     expect(markup).not.toContain("Delete permanently");
   });
 
