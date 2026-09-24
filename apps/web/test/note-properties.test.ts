@@ -9,6 +9,7 @@ import {
   addTagFromInput,
   formatNoteTimestamp,
   getNoteMetadataSnapshot,
+  getTagAssignmentOptions,
   removeTagFromProperties,
 } from "../src/NoteProperties.js";
 
@@ -67,6 +68,72 @@ describe("NoteProperties", () => {
 
     expect(addTagFromInput(document, "research")).toBe("added");
     expect(document.tags).toEqual(["research"]);
+  });
+
+
+  it("renders an accessible Add tag control", () => {
+    const document = NoteDocument.create(createDocumentId(), "Tags", 100);
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, {
+        document,
+        availableTags: ["research", "work"],
+      }),
+    );
+
+    expect(markup).toContain('aria-label="Add tag"');
+    expect(markup).toContain(">Add tag<");
+  });
+
+  it("suggests existing Project tags that are not on the current note", () => {
+    expect(
+      getTagAssignmentOptions(
+        ["graph", "ideas", "research", "work"],
+        ["research"],
+        "",
+      ),
+    ).toEqual([
+      { kind: "existing", tag: "graph" },
+      { kind: "existing", tag: "ideas" },
+      { kind: "existing", tag: "work" },
+    ]);
+  });
+
+  it("filters tag suggestions case-insensitively without changing tag identity", () => {
+    expect(
+      getTagAssignmentOptions(
+        ["Graph", "research", "work"],
+        [],
+        "GRA",
+      ),
+    ).toEqual([
+      { kind: "existing", tag: "Graph" },
+      { kind: "create", tag: "GRA" },
+    ]);
+  });
+
+  it("offers creation for a new exact tag string", () => {
+    expect(
+      getTagAssignmentOptions(["research", "work"], [], "distributed-systems"),
+    ).toEqual([
+      { kind: "create", tag: "distributed-systems" },
+    ]);
+  });
+
+  it("reuses the existing exact tag instead of offering duplicate creation", () => {
+    expect(
+      getTagAssignmentOptions(["research", "work"], [], "research"),
+    ).toEqual([
+      { kind: "existing", tag: "research" },
+    ]);
+  });
+
+  it("allows differently cased tags because domain identity remains exact", () => {
+    expect(
+      getTagAssignmentOptions(["research"], [], "Research"),
+    ).toEqual([
+      { kind: "existing", tag: "research" },
+      { kind: "create", tag: "Research" },
+    ]);
   });
 
   it("trims whitespace before adding a tag", () => {
