@@ -478,32 +478,51 @@ function DocumentPane({
         </div>
       </header>
 
-      <NoteProperties document={document} availableTags={availableTags} />
-
-      <div className="editor-mode-row">
-        <div className="editor-mode-switch" aria-label="Note view">
-          {EDITOR_MODE_OPTIONS.map((option) => (
-            <button
-              className={mode === option.mode ? "active" : undefined}
-              key={option.mode}
-              type="button"
-              aria-pressed={mode === option.mode}
-              onClick={() => {
-                setMode(option.mode);
-                writeEditorModePreference(option.mode);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <NoteProperties
+        document={document}
+        availableTags={availableTags}
+        trailingControl={
+          <EditorModeSwitcher
+            mode={mode}
+            onModeChange={(nextMode) => {
+              setMode(nextMode);
+              writeEditorModePreference(nextMode);
+            }}
+          />
+        }
+      />
 
       <EditorModeView document={document} mode={mode} />
     </article>
   );
 }
 
+
+type EditorModeSwitcherProps = {
+  mode: EditorMode;
+  onModeChange: (mode: EditorMode) => void;
+};
+
+export function EditorModeSwitcher({
+  mode,
+  onModeChange,
+}: EditorModeSwitcherProps) {
+  return (
+    <div className="editor-mode-switch" aria-label="Note view">
+      {EDITOR_MODE_OPTIONS.map((option) => (
+        <button
+          className={mode === option.mode ? "active" : undefined}
+          key={option.mode}
+          type="button"
+          aria-pressed={mode === option.mode}
+          onClick={() => onModeChange(option.mode)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function resizeTitleInput(input: HTMLTextAreaElement): void {
   input.style.height = "auto";
