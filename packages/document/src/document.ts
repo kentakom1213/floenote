@@ -12,6 +12,16 @@ export type DocumentEditorBinding = {
   flushEditorHistoryBoundary: () => void;
 };
 
+export type TaskMarkerToggle = {
+  sourceStart: number;
+  sourceEnd: number;
+  lineStart: number;
+  lineEnd: number;
+  sourceLine: string;
+  sourceMarker: "[ ]" | "[x]" | "[X]";
+  checked: boolean;
+};
+
 export type NoteDocumentInitialState = {
   title: string;
   body: string;
@@ -163,6 +173,54 @@ export class NoteDocument {
 
   get bodyText(): string {
     return this.#doc.getText("body").toString();
+  }
+
+  toggleTaskMarker(toggle: TaskMarkerToggle): boolean {
+    const {
+      sourceStart,
+      sourceEnd,
+      lineStart,
+      lineEnd,
+      sourceLine,
+      sourceMarker,
+      checked,
+    } = toggle;
+
+    if (
+      !Number.isSafeInteger(sourceStart) ||
+      !Number.isSafeInteger(sourceEnd) ||
+      !Number.isSafeInteger(lineStart) ||
+      !Number.isSafeInteger(lineEnd) ||
+      sourceStart < lineStart ||
+      sourceEnd > lineEnd ||
+      sourceEnd - sourceStart !== 3 ||
+      lineStart < 0 ||
+      lineEnd < lineStart
+    ) {
+      return false;
+    }
+
+    const body = this.bodyText;
+    if (lineEnd > body.length) return false;
+    if (body.slice(lineStart, lineEnd) !== sourceLine) return false;
+    if (body.slice(sourceStart, sourceEnd) !== sourceMarker) return false;
+
+    const stateOffset = sourceStart + 1;
+    const currentState = body[stateOffset];
+    if (currentState !== " " && currentState !== "x" && currentState !== "X") {
+      return false;
+    }
+
+    const nextState = checked ? "x" : " ";
+    if (currentState === nextState) return false;
+
+    // LoroText's JavaScript API uses UTF-16 code-unit positions, the same
+    // indexing unit as JavaScript String offsets. This keeps source mappings
+    // correct even when emoji or other surrogate pairs precede the task.
+    const text = this.#doc.getText("body");
+    text.splice(stateOffset, 1, nextState);
+    this.#doc.commit();
+    return true;
   }
 
   exportSnapshot(): Uint8Array {
