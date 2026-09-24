@@ -18,26 +18,38 @@ export type WebRtcSignalingSessionOptions = {
   sessionId: SessionId;
   transport: WebRtcTransport;
   debugLogger?: SignalingDebugLogger;
+  iceRestartRetryDelaysMs?: readonly number[];
 };
 
 export class WebRtcSignalingSession {
   readonly #role: WebRtcSignalingRole;
   readonly #transport: WebRtcTransport;
   readonly #client: CoordinatorSignalingClient;
+  readonly #debugLogger: SignalingDebugLogger | null;
+  readonly #iceRestartRetryDelaysMs: readonly number[];
   #stopMessage: (() => void) | null = null;
   #stopCandidate: (() => void) | null = null;
+  #stopConnectionState: (() => void) | null = null;
   #incomingQueue: Promise<void> = Promise.resolve();
   #offerSent = false;
   #started = false;
+  #iceRestartAttempt = 0;
+  #iceRestartTimer: ReturnType<typeof setTimeout> | null = null;
+  #bufferOutgoingCandidates = false;
+  readonly #pendingOutgoingCandidates: Array<RTCIceCandidateInit | null> = [];
 
   constructor(options: WebRtcSignalingSessionOptions) {
     this.#role = options.role;
     this.#transport = options.transport;
+    this.#debugLogger = options.debugLogger ?? null;
+    this.#iceRestartRetryDelaysMs = [
+      ...(options.iceRestartRetryDelaysMs ?? []),
+    ];
     this.#client = new CoordinatorSignalingClient(
       options.coordinatorBaseUrl,
       options.projectId,
       options.sessionId,
-      options.debugLogger ?? null,
+      this.#debugLogger,
     );
   }
 
@@ -56,16 +68,32 @@ export class WebRtcSignalingSession {
     this.#started = true;
 
     this.#stopCandidate = this.#transport.onIceCandidate((candidate) => {
-      this.#client.sendSignal({
-        type: "ice-candidate",
-        candidate,
-      });
+      if (this.#bufferOutgoingCandidates) {
+        this.#pendingOutgoingCandidates.push(candidate);
+        return;
+      }
+
+      this.#sendIceCandidate(candidate);
     });
+
+    if (this.#role === "host" && this.#iceRestartRetryDelaysMs.length > 0) {
+      this.#stopConnectionState = this.#transport.onConnectionStateChange(
+        (state) => {
+          if (state === "connected" || state === "closed") {
+            this.#clearIceRestartTimer();
+          }
+        },
+      );
+    }
 
     this.#stopMessage = this.#client.onMessage((message) => {
       this.#incomingQueue = this.#incomingQueue
         .then(() => this.#handleMessage(message))
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.#debug("message.handle-error", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
     });
 
     this.#client.start();
@@ -75,10 +103,15 @@ export class WebRtcSignalingSession {
     if (!this.#started) return;
     this.#started = false;
 
+    this.#clearIceRestartTimer();
     this.#stopMessage?.();
     this.#stopCandidate?.();
+    this.#stopConnectionState?.();
     this.#stopMessage = null;
     this.#stopCandidate = null;
+    this.#stopConnectionState = null;
+    this.#bufferOutgoingCandidates = false;
+    this.#pendingOutgoingCandidates.length = 0;
     this.#client.close();
   }
 
@@ -86,16 +119,14 @@ export class WebRtcSignalingSession {
     if (message.type === "peer-ready") {
       if (this.#role === "host" && !this.#offerSent) {
         this.#offerSent = true;
-        const description = await this.#transport.createTrickleOffer();
-        this.#client.sendSignal({
-          type: "offer",
-          description,
-        });
+        await this.#sendHostOffer(false);
+        this.#scheduleIceRestart();
       }
       return;
     }
 
     if (message.type === "peer-left") {
+      this.#clearIceRestartTimer();
       return;
     }
 
@@ -107,12 +138,14 @@ export class WebRtcSignalingSession {
       case "offer": {
         if (this.#role !== "join") return;
 
-        const description = await this.#transport.acceptTrickleOffer(
-          signal.description,
-        );
-        this.#client.sendSignal({
-          type: "answer",
-          description,
+        await this.#withBufferedOutgoingCandidates(async () => {
+          const description = await this.#transport.acceptTrickleOffer(
+            signal.description,
+          );
+          this.#client.sendSignal({
+            type: "answer",
+            description,
+          });
         });
         return;
       }
@@ -127,5 +160,136 @@ export class WebRtcSignalingSession {
         await this.#transport.addIceCandidate(signal.candidate);
         return;
     }
+  }
+
+  async #sendHostOffer(iceRestart: boolean): Promise<void> {
+    await this.#withBufferedOutgoingCandidates(async () => {
+      const description = iceRestart
+        ? await this.#transport.createTrickleIceRestartOffer()
+        : await this.#transport.createTrickleOffer();
+
+      this.#client.sendSignal({
+        type: "offer",
+        description,
+      });
+    });
+  }
+
+  #scheduleIceRestart(): void {
+    this.#clearIceRestartTimer();
+
+    if (
+      !this.#started ||
+      this.#role !== "host" ||
+      this.#transport.connectionState === "connected" ||
+      this.#transport.connectionState === "closed"
+    ) {
+      return;
+    }
+
+    const delayMs =
+      this.#iceRestartRetryDelaysMs[this.#iceRestartAttempt];
+    if (delayMs === undefined) {
+      this.#debug("ice-restart.exhausted", {
+        attempts: this.#iceRestartAttempt,
+      });
+      return;
+    }
+
+    const attempt = this.#iceRestartAttempt + 1;
+    this.#debug("ice-restart.scheduled", {
+      attempt,
+      delayMs,
+    });
+
+    this.#iceRestartTimer = setTimeout(() => {
+      this.#iceRestartTimer = null;
+      this.#incomingQueue = this.#incomingQueue
+        .then(() => this.#performIceRestart())
+        .catch((error: unknown) => {
+          this.#debug("ice-restart.error", {
+            attempt,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          this.#scheduleIceRestart();
+        });
+    }, delayMs);
+  }
+
+  async #performIceRestart(): Promise<void> {
+    if (
+      !this.#started ||
+      this.#transport.connectionState === "connected" ||
+      this.#transport.connectionState === "closed"
+    ) {
+      return;
+    }
+
+    if (this.#transport.signalingState !== "stable") {
+      this.#debug("ice-restart.deferred", {
+        signalingState: this.#transport.signalingState,
+      });
+      this.#iceRestartTimer = setTimeout(() => {
+        this.#iceRestartTimer = null;
+        this.#incomingQueue = this.#incomingQueue
+          .then(() => this.#performIceRestart())
+          .catch((error: unknown) => {
+            this.#debug("ice-restart.error", {
+              attempt: this.#iceRestartAttempt + 1,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            this.#scheduleIceRestart();
+          });
+      }, 1_000);
+      return;
+    }
+
+    this.#iceRestartAttempt += 1;
+    const attempt = this.#iceRestartAttempt;
+
+    this.#debug("ice-restart.start", { attempt });
+    await this.#sendHostOffer(true);
+    this.#debug("ice-restart.offer-sent", { attempt });
+    this.#scheduleIceRestart();
+  }
+
+  async #withBufferedOutgoingCandidates(
+    operation: () => Promise<void>,
+  ): Promise<void> {
+    this.#bufferOutgoingCandidates = true;
+
+    try {
+      await operation();
+    } finally {
+      this.#bufferOutgoingCandidates = false;
+      this.#flushOutgoingCandidates();
+    }
+  }
+
+  #flushOutgoingCandidates(): void {
+    for (const candidate of this.#pendingOutgoingCandidates.splice(0)) {
+      this.#sendIceCandidate(candidate);
+    }
+  }
+
+  #sendIceCandidate(candidate: RTCIceCandidateInit | null): void {
+    this.#client.sendSignal({
+      type: "ice-candidate",
+      candidate,
+    });
+  }
+
+  #clearIceRestartTimer(): void {
+    if (!this.#iceRestartTimer) return;
+    clearTimeout(this.#iceRestartTimer);
+    this.#iceRestartTimer = null;
+  }
+
+  #debug(event: string, details: Record<string, unknown> = {}): void {
+    this.#debugLogger?.({
+      at: new Date().toISOString(),
+      event,
+      details,
+    });
   }
 }
