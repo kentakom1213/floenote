@@ -34,6 +34,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     const undoGrouping = editorUndoGrouping(undoManager, {
       beginEditorHistoryGroup: binding.beginEditorHistoryGroup,
       endEditorHistoryGroup: binding.endEditorHistoryGroup,
+      flushEditorHistoryBoundary: binding.flushEditorHistoryBoundary,
     });
     const view = new EditorView({
       parent: host,
