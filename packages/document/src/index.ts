@@ -16,6 +16,7 @@ export {
 } from "./portable-export.js";
 
 export type {
+  BodyRangeMutation,
   DocumentEditorBinding,
   NoteDocumentInitialState,
   TaskMarkerToggle,
