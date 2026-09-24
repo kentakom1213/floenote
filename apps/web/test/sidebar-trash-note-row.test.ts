@@ -1,3 +1,4 @@
+import { createDocumentId } from "@floe-note/domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ describe("SidebarTrashNoteRow", () => {
   it("matches the note-row action pattern with Restore and Delete permanently", () => {
     const markup = renderToStaticMarkup(
       createElement(SidebarTrashNoteRow, {
-        id: "0199f643-4d1e-7c9d-9ec1-bd63f086fb64",
+        id: createDocumentId(),
         title: "Deleted note",
         selected: true,
         onSelect: vi.fn(),
