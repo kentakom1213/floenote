@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import type { NoteDocument } from "@floe-note/document";
 
 import { floeCodeMirrorAppearance } from "./editor-appearance.js";
+import { synchronousLoroUndoKeymap } from "./loro-undo.js";
 
 type MarkdownEditorProps = {
   document: NoteDocument;
@@ -35,6 +36,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
           spellcheck: "true",
           autocapitalize: "sentences",
         }),
+        synchronousLoroUndoKeymap(undoManager),
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
       ],
     });
