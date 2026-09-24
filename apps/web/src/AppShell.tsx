@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -19,17 +20,48 @@ import {
 type AppShellProps = {
   sidebar: ReactNode;
   children: ReactNode;
+  mobileNavigationOpen: boolean;
+  mobileTitle: string;
+  onMobileNavigationOpenChange: (open: boolean) => void;
 };
 
 const KEYBOARD_RESIZE_STEP = 12;
 
-export function AppShell({ sidebar, children }: AppShellProps) {
+export function AppShell({
+  sidebar,
+  children,
+  mobileNavigationOpen,
+  mobileTitle,
+  onMobileNavigationOpenChange,
+}: AppShellProps) {
   const shellRef = useRef<HTMLElement>(null);
+  const mobileNavigationCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
   const pendingWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH);
   const [preference, setPreference] = useState(readSidebarPreference);
   const [resizing, setResizing] = useState(false);
 
   pendingWidthRef.current = preference.width;
+
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      mobileNavigationCloseRef.current?.focus();
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+
+      event.preventDefault();
+      closeMobileNavigation(true);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileNavigationOpen]);
 
   function setSidebarWidth(width: number, persist: boolean): void {
     const normalized = normalizeSidebarWidth(width);
@@ -49,6 +81,19 @@ export function AppShell({ sidebar, children }: AppShellProps) {
     const next = { ...preference, collapsed: false };
     setPreference(next);
     writeSidebarPreference(next);
+  }
+
+  function openMobileNavigation(): void {
+    onMobileNavigationOpenChange(true);
+  }
+
+  function closeMobileNavigation(restoreFocus = false): void {
+    onMobileNavigationOpenChange(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        mobileNavigationTriggerRef.current?.focus();
+      });
+    }
   }
 
   function handleResizeStart(
@@ -125,7 +170,32 @@ export function AppShell({ sidebar, children }: AppShellProps) {
       ref={shellRef}
       style={style}
     >
-      <aside className="sidebar">
+      <div
+        className="mobile-navigation-backdrop"
+        aria-hidden="true"
+        data-open={mobileNavigationOpen}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            closeMobileNavigation(true);
+          }
+        }}
+      />
+
+      <aside
+        id="primary-navigation"
+        className="sidebar"
+        aria-label="Primary navigation"
+        data-mobile-open={mobileNavigationOpen}
+      >
+        <button
+          ref={mobileNavigationCloseRef}
+          className="mobile-navigation-close-button"
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => closeMobileNavigation(true)}
+        >
+          ×
+        </button>
         {sidebar}
         <button
           className="sidebar-collapse-button"
@@ -158,6 +228,21 @@ export function AppShell({ sidebar, children }: AppShellProps) {
       ) : null}
 
       <section className="main-pane">
+        <header className="mobile-app-bar">
+          <button
+            ref={mobileNavigationTriggerRef}
+            className="mobile-navigation-button"
+            type="button"
+            aria-label="Open navigation"
+            aria-controls="primary-navigation"
+            aria-expanded={mobileNavigationOpen}
+            onClick={openMobileNavigation}
+          >
+            ☰
+          </button>
+          <span className="mobile-app-title">{mobileTitle}</span>
+        </header>
+
         {preference.collapsed ? (
           <button
             className="sidebar-restore-button"

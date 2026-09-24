@@ -70,12 +70,14 @@ export function NoteWorkspace({
   const [trashExpanded, setTrashExpanded] = useState(false);
   const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
     useState<DocumentId | null>(null);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
     setSearchOpen(false);
     setQuery("");
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
+    setMobileNavigationOpen(false);
   }, [project.id]);
 
   const navigationDocumentIds = project
@@ -139,7 +141,20 @@ export function NoteWorkspace({
           </div>
         </header>
 
-        <div className="project-slot">{projectControl}</div>
+        <div
+          className="project-slot"
+          onClickCapture={(event) => {
+            const target = event.target;
+            if (
+              target instanceof Element &&
+              target.closest(".project-switcher-item, .project-switcher-action")
+            ) {
+              setMobileNavigationOpen(false);
+            }
+          }}
+        >
+          {projectControl}
+        </div>
 
         <SidebarNavigationToolbar
           query={query}
@@ -151,7 +166,10 @@ export function NoteWorkspace({
             setSort(preference);
             writeNoteSortPreference(preference);
           }}
-          onCreateDocument={onCreateDocument}
+          onCreateDocument={() => {
+            onCreateDocument();
+            setMobileNavigationOpen(false);
+          }}
         />
 
         <nav className="note-list" aria-label="Notes">
@@ -165,6 +183,7 @@ export function NoteWorkspace({
                 onSelect={(documentId) => {
                   setSelectedTrashDocumentId(null);
                   onSelectDocument(documentId);
+                  setMobileNavigationOpen(false);
                 }}
                 onDelete={onDeleteDocument}
               />
@@ -192,6 +211,7 @@ export function NoteWorkspace({
               setSelectedTrashDocumentId(null);
               setTrashExpanded((expanded) => !expanded);
               onOpenTrash();
+              setMobileNavigationOpen(false);
             }}
           >
             <span
@@ -219,6 +239,7 @@ export function NoteWorkspace({
                   onClick={() => {
                     setSelectedTrashDocumentId(summary.id);
                     onOpenTrash();
+                    setMobileNavigationOpen(false);
                   }}
                 >
                   {summary.title || "Untitled"}
@@ -229,12 +250,36 @@ export function NoteWorkspace({
         </div>
       </div>
 
-      <footer className="sidebar-footer">{sidebarFooter}</footer>
+      <footer
+        className="sidebar-footer"
+        onClickCapture={(event) => {
+          const target = event.target;
+          if (
+            target instanceof Element &&
+            target.closest(".footer-action, .sync-manage-devices")
+          ) {
+            setMobileNavigationOpen(false);
+          }
+        }}
+      >
+        {sidebarFooter}
+      </footer>
     </div>
   );
 
+  const mobileTitle = mainContent
+    ? "Floe Note"
+    : trashActive
+      ? selectedTrashDocument?.title || "Trash"
+      : selectedDocument?.title || "Floe Note";
+
   return (
-    <AppShell sidebar={sidebar}>
+    <AppShell
+      sidebar={sidebar}
+      mobileNavigationOpen={mobileNavigationOpen}
+      mobileTitle={mobileTitle}
+      onMobileNavigationOpenChange={setMobileNavigationOpen}
+    >
       {mainContent ??
         (trashActive ? (
           <TrashView
@@ -243,6 +288,7 @@ export function NoteWorkspace({
             onSelectDocument={(documentId) => {
               setSelectedTrashDocumentId(documentId);
               setTrashExpanded(true);
+              setMobileNavigationOpen(false);
             }}
             onRestoreDocument={onRestoreDocument}
           />
