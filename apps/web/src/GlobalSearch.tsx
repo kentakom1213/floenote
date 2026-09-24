@@ -125,6 +125,24 @@ export function GlobalSearch({
                 <span className="global-search-result-title">
                   {highlightText(result.title, terms)}
                 </span>
+                {result.matchedTags.length > 0 ? (
+                  <span
+                    className="global-search-result-tags"
+                    aria-label="Matching tags"
+                  >
+                    {result.matchedTags.slice(0, 3).map((tag) => (
+                      <span className="global-search-result-tag" key={tag}>
+                        <span aria-hidden="true">#</span>
+                        {highlightText(tag, terms)}
+                      </span>
+                    ))}
+                    {result.matchedTags.length > 3 ? (
+                      <span className="global-search-result-tag-overflow">
+                        +{result.matchedTags.length - 3}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
                 {result.snippet ? (
                   <span className="global-search-result-snippet">
                     {highlightText(result.snippet, terms)}
