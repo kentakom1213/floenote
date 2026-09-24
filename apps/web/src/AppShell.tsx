@@ -16,6 +16,11 @@ import {
   readSidebarPreference,
   writeSidebarPreference,
 } from "./sidebar-preference.js";
+import {
+  isHorizontalMobileDrawerSwipe,
+  shouldCompleteMobileDrawerSwipe,
+  type MobileDrawerSwipe,
+} from "./mobile-drawer-gesture.js";
 
 type AppShellProps = {
   sidebar: ReactNode;
@@ -37,6 +42,9 @@ export function AppShell({
   const shellRef = useRef<HTMLElement>(null);
   const mobileNavigationCloseRef = useRef<HTMLButtonElement>(null);
   const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerSwipeRef = useRef<
+    (MobileDrawerSwipe & { pointerId: number }) | null
+  >(null);
   const pendingWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH);
   const [preference, setPreference] = useState(readSidebarPreference);
   const [resizing, setResizing] = useState(false);
@@ -93,6 +101,70 @@ export function AppShell({
       window.requestAnimationFrame(() => {
         mobileNavigationTriggerRef.current?.focus();
       });
+    }
+  }
+
+  function startMobileDrawerSwipe(
+    event: ReactPointerEvent<HTMLElement>,
+    direction: MobileDrawerSwipe["direction"],
+  ): void {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    mobileDrawerSwipeRef.current = {
+      direction,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveMobileDrawerSwipe(
+    event: ReactPointerEvent<HTMLElement>,
+  ): void {
+    const swipe = mobileDrawerSwipeRef.current;
+    if (!swipe || swipe.pointerId !== event.pointerId) return;
+
+    if (
+      isHorizontalMobileDrawerSwipe(swipe, event.clientX, event.clientY)
+    ) {
+      event.preventDefault();
+    }
+  }
+
+  function finishMobileDrawerSwipe(
+    event: ReactPointerEvent<HTMLElement>,
+  ): void {
+    const swipe = mobileDrawerSwipeRef.current;
+    if (!swipe || swipe.pointerId !== event.pointerId) return;
+
+    mobileDrawerSwipeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (
+      !shouldCompleteMobileDrawerSwipe(swipe, event.clientX, event.clientY)
+    ) {
+      return;
+    }
+
+    if (swipe.direction === "open") {
+      openMobileNavigation();
+    } else {
+      closeMobileNavigation(true);
+    }
+  }
+
+  function cancelMobileDrawerSwipe(
+    event: ReactPointerEvent<HTMLElement>,
+  ): void {
+    const swipe = mobileDrawerSwipeRef.current;
+    if (!swipe || swipe.pointerId !== event.pointerId) return;
+
+    mobileDrawerSwipeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
 
@@ -171,6 +243,16 @@ export function AppShell({
       style={style}
     >
       <div
+        className="mobile-navigation-edge"
+        aria-hidden="true"
+        data-open={mobileNavigationOpen}
+        onPointerDown={(event) => startMobileDrawerSwipe(event, "open")}
+        onPointerMove={moveMobileDrawerSwipe}
+        onPointerUp={finishMobileDrawerSwipe}
+        onPointerCancel={cancelMobileDrawerSwipe}
+      />
+
+      <div
         className="mobile-navigation-backdrop"
         aria-hidden="true"
         data-open={mobileNavigationOpen}
@@ -186,6 +268,14 @@ export function AppShell({
         className="sidebar"
         aria-label="Primary navigation"
         data-mobile-open={mobileNavigationOpen}
+        onPointerDown={(event) => {
+          if (mobileNavigationOpen) {
+            startMobileDrawerSwipe(event, "close");
+          }
+        }}
+        onPointerMove={moveMobileDrawerSwipe}
+        onPointerUp={finishMobileDrawerSwipe}
+        onPointerCancel={cancelMobileDrawerSwipe}
       >
         <button
           ref={mobileNavigationCloseRef}
