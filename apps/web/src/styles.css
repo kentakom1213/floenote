@@ -146,7 +146,8 @@ input:focus-visible {
 
 .mobile-app-bar,
 .mobile-navigation-backdrop,
-.mobile-navigation-close-button {
+.mobile-navigation-close-button,
+.mobile-navigation-edge {
   display: none;
 }
 
@@ -3460,6 +3461,7 @@ h1 {
       max(14px, env(safe-area-inset-left));
     background: var(--color-sidebar);
     box-shadow: 18px 0 48px rgb(25 37 42 / 0.18);
+    touch-action: pan-y;
     visibility: hidden;
     transform: translateX(calc(-100% - 24px));
     transition:
@@ -3473,6 +3475,19 @@ h1 {
     transition:
       transform 180ms ease,
       visibility 0s;
+  }
+
+  .mobile-navigation-edge {
+    position: fixed;
+    z-index: 65;
+    inset: 0 auto 0 0;
+    width: 24px;
+    display: block;
+    touch-action: pan-y;
+  }
+
+  .mobile-navigation-edge[data-open="true"] {
+    pointer-events: none;
   }
 
   .mobile-navigation-backdrop {
