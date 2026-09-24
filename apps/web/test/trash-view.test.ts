@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { TrashView } from "../src/TrashView.js";
 
+vi.mock("../src/MarkdownPreview.js", () => ({
+  MarkdownPreview: ({ document }: { document: NoteDocument }) =>
+    document.bodyText,
+}));
+
 describe("TrashView", () => {
   it("renders an empty Trash state", () => {
     const project = NoteProject.create();
