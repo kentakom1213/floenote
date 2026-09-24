@@ -38,7 +38,7 @@ describe("TrashView", () => {
     expect(markup).not.toContain("Delete permanently");
   });
 
-  it("renders Restore and Delete permanently only in a selected deleted-note preview", async () => {
+  it("renders Restore and Delete permanently in a selected deleted-note preview", async () => {
     const project = NoteProject.create();
     const document = project.createDocument("Deleted preview");
     document.setTags(["research", "draft"]);
@@ -65,6 +65,27 @@ describe("TrashView", () => {
     expect(markup).toContain(">Restore<");
     expect(markup).toContain(">Delete permanently<");
     expect(markup).not.toContain("Add tag");
+  });
+
+  it("renders Restore and Delete permanently in the Trash list", () => {
+    const project = NoteProject.create();
+    const document = project.createDocument("Deleted list item");
+    project.deleteDocument(document.id);
+
+    const requestPermanentDelete = vi.fn();
+    const markup = renderToStaticMarkup(
+      createElement(TrashView, {
+        project,
+        selectedDocumentId: null,
+        onSelectDocument: vi.fn(),
+        onRestoreDocument: vi.fn(),
+        onRequestPermanentDelete: requestPermanentDelete,
+      }),
+    );
+
+    expect(markup).toContain("Deleted list item");
+    expect(markup).toContain(">Restore<");
+    expect(markup).toContain(">Delete permanently<");
   });
 
   it("does not expose Permanent delete for an active document", () => {
@@ -278,7 +299,7 @@ describe("TrashView", () => {
 
     expect(markup).toContain("Remote deletion");
     expect(markup).toContain(">Restore<");
-    expect(markup).not.toContain("Delete permanently");
+    expect(markup).toContain(">Delete permanently<");
   });
 });
 
