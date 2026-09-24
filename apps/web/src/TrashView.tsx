@@ -156,7 +156,7 @@ export function TrashNotePreview({
       </section>
 
       <div className="trash-note-preview-body">
-        <MarkdownPreview document={document} />
+        <MarkdownPreview document={document} interactive={false} />
       </div>
     </article>
   );
