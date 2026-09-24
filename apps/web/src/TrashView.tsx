@@ -62,13 +62,24 @@ export function TrashView({
               >
                 {document.title || "Untitled"}
               </button>
-              <button
-                className="trash-restore-button"
-                type="button"
-                onClick={() => onRestoreDocument(document.id)}
-              >
-                Restore
-              </button>
+              <div className="trash-item-actions">
+                <button
+                  className="trash-restore-button"
+                  type="button"
+                  onClick={() => onRestoreDocument(document.id)}
+                >
+                  Restore
+                </button>
+                <button
+                  className="trash-delete-button"
+                  type="button"
+                  onClick={() =>
+                    onRequestPermanentDelete(document.id)
+                  }
+                >
+                  Delete permanently
+                </button>
+              </div>
             </div>
           ))}
         </div>
