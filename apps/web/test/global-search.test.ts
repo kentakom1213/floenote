@@ -163,13 +163,22 @@ describe("global search", () => {
     const cache = new GlobalSearchCache();
     cache.syncProject(project);
 
+    const neverOpened = project.createDocumentWithInitialState({
+      title: "Never opened",
+      body: "",
+      createdAt: 100,
+      updatedAt: 2000,
+      tags: [],
+    });
+    cache.syncProject(project);
+
     const recency = new Map<DocumentId, number>([
       [recentlyOpened.id, 1000],
       [recentlyUpdated.id, 500],
     ]);
 
     expect(cache.search("", recency).map((result) => result.id))
-      .toEqual([recentlyOpened.id, recentlyUpdated.id]);
+      .toEqual([recentlyOpened.id, recentlyUpdated.id, neverOpened.id]);
   });
 
   it("stores recent-open history as a device-local project preference", () => {
