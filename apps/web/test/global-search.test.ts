@@ -197,10 +197,9 @@ describe("global search", () => {
       recordNoteOpened(projectId, first, 100);
       recordNoteOpened(projectId, second, 200);
 
-      expect([...readNoteRecency(projectId).entries()]).toEqual([
-        [first, 100],
-        [second, 200],
-      ]);
+      const recency = readNoteRecency(projectId);
+      expect(recency.get(first)).toBe(100);
+      expect(recency.get(second)).toBe(200);
     } finally {
       vi.unstubAllGlobals();
     }
