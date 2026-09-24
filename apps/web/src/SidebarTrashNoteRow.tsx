@@ -164,28 +164,16 @@ export function SidebarTrashNoteRow({
               role="menu"
               style={menuStyle}
             >
-              <button
-                className="note-row-menu-item"
-                type="button"
-                role="menuitem"
-                onClick={() => {
+              <SidebarTrashNoteMenu
+                onRestore={() => {
                   closeMenu();
                   onRestore(id);
                 }}
-              >
-                Restore
-              </button>
-              <button
-                className="note-row-menu-item danger"
-                type="button"
-                role="menuitem"
-                onClick={() => {
+                onRequestPermanentDelete={() => {
                   closeMenu();
                   onRequestPermanentDelete(id);
                 }}
-              >
-                Delete permanently
-              </button>
+              />
             </div>,
             document.body,
           )
@@ -201,5 +189,36 @@ function EllipsisIcon() {
       <circle cx="10" cy="10" r="1.15" />
       <circle cx="15" cy="10" r="1.15" />
     </svg>
+  );
+}
+
+type SidebarTrashNoteMenuProps = {
+  onRestore: () => void;
+  onRequestPermanentDelete: () => void;
+};
+
+export function SidebarTrashNoteMenu({
+  onRestore,
+  onRequestPermanentDelete,
+}: SidebarTrashNoteMenuProps) {
+  return (
+    <>
+      <button
+        className="note-row-menu-item"
+        type="button"
+        role="menuitem"
+        onClick={onRestore}
+      >
+        Restore
+      </button>
+      <button
+        className="note-row-menu-item danger"
+        type="button"
+        role="menuitem"
+        onClick={onRequestPermanentDelete}
+      >
+        Delete permanently
+      </button>
+    </>
   );
 }
