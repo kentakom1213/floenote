@@ -816,6 +816,13 @@ input:focus-visible {
   padding-left: 46px;
 }
 
+.sidebar-trash-note-row > .note-row-menu-trigger {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .sidebar-trash-floating-menu {
   position: fixed;
   z-index: 80;
