@@ -3732,6 +3732,16 @@ h1 {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 
+  .trash-item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .trash-item-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .trash-note-preview-header {
     align-items: stretch;
     flex-direction: column;
