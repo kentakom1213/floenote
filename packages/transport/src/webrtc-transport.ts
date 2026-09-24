@@ -153,6 +153,10 @@ export class WebRtcTransport implements Transport {
     return this.#dataChannel?.readyState ?? "none";
   }
 
+  get signalingState(): RTCSignalingState {
+    return this.#peerConnection.signalingState;
+  }
+
   get status(): WebRtcStatus {
     return {
       connectionState: this.connectionState,
@@ -236,6 +240,29 @@ export class WebRtcTransport implements Transport {
     const offer = await this.#peerConnection.createOffer();
     await this.#peerConnection.setLocalDescription(offer);
     this.#debug("trickle.offer.local-description-set");
+
+    return descriptionToInit(this.#peerConnection.localDescription);
+  }
+
+  async createTrickleIceRestartOffer(): Promise<RTCSessionDescriptionInit> {
+    this.#clearDiagnostics();
+    this.#debug("trickle.ice-restart.create-start");
+
+    if (this.#peerConnection.signalingState !== "stable") {
+      throw new Error(
+        `Cannot restart ICE while signaling state is ${this.#peerConnection.signalingState}`,
+      );
+    }
+
+    if (!this.#dataChannel || this.#dataChannel.readyState === "closed") {
+      throw new Error("Cannot restart ICE without an active DataChannel");
+    }
+
+    const offer = await this.#peerConnection.createOffer({
+      iceRestart: true,
+    });
+    await this.#peerConnection.setLocalDescription(offer);
+    this.#debug("trickle.ice-restart.local-description-set");
 
     return descriptionToInit(this.#peerConnection.localDescription);
   }
