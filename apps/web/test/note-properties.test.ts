@@ -56,6 +56,26 @@ describe("NoteProperties", () => {
     expect(markup).toContain("Updated");
   });
 
+  it("renders a trailing control beside the metadata footer", () => {
+    const document = NoteDocument.create(createDocumentId(), "Metadata", 100);
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, {
+        document,
+        trailingControl: createElement(
+          "span",
+          { "data-testid": "trailing-control" },
+          "Control",
+        ),
+      }),
+    );
+
+    expect(markup).toContain('class="note-properties-footer"');
+    expect(markup).toContain('class="note-properties-trailing"');
+    expect(markup).toContain('data-testid="trailing-control"');
+    expect(markup).toContain("Created");
+    expect(markup).toContain("Updated");
+  });
+
   it("formats timestamps as compact local date/time strings", () => {
     const timestamp = Date.UTC(2026, 8, 23, 12, 14);
 
