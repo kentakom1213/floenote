@@ -6,10 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_NOTE_SORT,
+  DEFAULT_TAG_FILTER_MODE,
   deriveProjectTags,
   deriveVisibleNotes,
   normalizeNoteSortPreference,
-  resolveSelectedTag,
+  resolveSelectedTags,
   readNoteSortPreference,
   selectNextDocumentAfterDeletion,
   writeNoteSortPreference,
@@ -17,7 +18,6 @@ import {
 } from "../src/sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "../src/SidebarNavigationToolbar.js";
 import { SidebarNoteRow } from "../src/SidebarNoteRow.js";
-import { SidebarTagNavigation } from "../src/SidebarTagNavigation.js";
 
 function note(
   id: string,
@@ -48,9 +48,14 @@ describe("sidebar navigation", () => {
         query: "",
         searchOpen: false,
         sort: DEFAULT_NOTE_SORT,
+        tags: ["graph", "research"],
+        selectedTags: ["research"],
+        tagFilterMode: DEFAULT_TAG_FILTER_MODE,
         onQueryChange: vi.fn(),
         onSearchOpenChange: vi.fn(),
         onSortChange: vi.fn(),
+        onSelectedTagsChange: vi.fn(),
+        onTagFilterModeChange: vi.fn(),
         onCreateDocument: vi.fn(),
       }),
     );
@@ -58,6 +63,10 @@ describe("sidebar navigation", () => {
     expect(markup).toContain('role="toolbar"');
     expect(markup).toContain('aria-label="Search notes"');
     expect(markup).toContain('aria-label="Sort notes"');
+    expect(markup).toContain('aria-label="Filter notes by tags"');
+    expect(markup).toContain('aria-label="Tag filter mode"');
+    expect(markup).toContain('type="checkbox"');
+    expect(markup).toContain('checked=""');
     expect(markup).toContain('aria-label="New note"');
     expect(markup).toContain("<svg");
   });
@@ -79,24 +88,6 @@ describe("sidebar navigation", () => {
     expect(markup.match(/<circle/g)).toHaveLength(3);
   });
 
-
-  it("renders accessible single-select tag navigation", () => {
-    const markup = renderToStaticMarkup(
-      createElement(SidebarTagNavigation, {
-        tags: ["graph", "research", "work"],
-        selectedTag: "research",
-        expanded: true,
-        onExpandedChange: vi.fn(),
-        onSelectTag: vi.fn(),
-      }),
-    );
-
-    expect(markup).toContain('aria-label="Tags"');
-    expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain("All notes");
-    expect(markup).toContain("research");
-    expect(markup).toContain('aria-current="page"');
-  });
 
   it("derives unique Project tags from active notes in deterministic order", () => {
     expect(
@@ -190,13 +181,13 @@ describe("sidebar navigation", () => {
     ];
 
     expect(
-      deriveVisibleNotes(notes, "", DEFAULT_NOTE_SORT, "research").map(
+      deriveVisibleNotes(notes, "", DEFAULT_NOTE_SORT, ["research"], "and").map(
         (entry) => entry.id,
       ),
     ).toEqual(["research"]);
   });
 
-  it("combines selected tag and quick search with AND semantics", () => {
+  it("supports AND across multiple selected tags", () => {
     const notes = [
       note("a", "Graph paper", ["research", "graph"], 100, 300),
       note("b", "Research log", ["research"], 200, 200),
@@ -204,18 +195,59 @@ describe("sidebar navigation", () => {
     ];
 
     expect(
-      deriveVisibleNotes(notes, "graph", DEFAULT_NOTE_SORT, "research").map(
-        (entry) => entry.id,
-      ),
+      deriveVisibleNotes(
+        notes,
+        "",
+        DEFAULT_NOTE_SORT,
+        ["research", "graph"],
+        "and",
+      ).map((entry) => entry.id),
     ).toEqual(["a"]);
   });
 
-  it("clears a selected tag when it no longer exists", () => {
-    expect(resolveSelectedTag("research", ["research", "work"])).toBe(
-      "research",
-    );
-    expect(resolveSelectedTag("research", ["work"])).toBeNull();
-    expect(resolveSelectedTag(null, ["work"])).toBeNull();
+  it("supports OR across multiple selected tags", () => {
+    const notes = [
+      note("a", "Graph paper", ["research", "graph"], 100, 300),
+      note("b", "Research log", ["research"], 200, 200),
+      note("c", "Graph work", ["work", "graph"], 300, 100),
+      note("d", "Other", ["ideas"], 400, 50),
+    ];
+
+    expect(
+      deriveVisibleNotes(
+        notes,
+        "",
+        DEFAULT_NOTE_SORT,
+        ["research", "graph"],
+        "or",
+      ).map((entry) => entry.id),
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("combines the multi-tag filter with quick search using outer AND semantics", () => {
+    const notes = [
+      note("a", "Graph paper", ["research"], 100, 300),
+      note("b", "Research log", ["research"], 200, 200),
+      note("c", "Graph work", ["work"], 300, 100),
+    ];
+
+    expect(
+      deriveVisibleNotes(
+        notes,
+        "graph",
+        DEFAULT_NOTE_SORT,
+        ["research", "work"],
+        "or",
+      ).map((entry) => entry.id),
+    ).toEqual(["a", "c"]);
+  });
+
+  it("drops selected tags that no longer exist while preserving the rest", () => {
+    expect(
+      resolveSelectedTags(["research", "gone"], ["graph", "research", "work"]),
+    ).toEqual(["research"]);
+    expect(resolveSelectedTags(["gone"], ["work"])).toEqual([]);
+    expect(resolveSelectedTags([], ["work"])).toEqual([]);
   });
 
   it("returns every note for an empty query", () => {
