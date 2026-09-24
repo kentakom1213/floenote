@@ -213,6 +213,45 @@ describe("Markdown sanitizer", () => {
     expect(body.querySelector("table")).not.toBeNull();
   });
 
+  it("allows safe semantic HTML without presentation attributes", () => {
+    const html = renderMarkdown(
+      '<details open class="custom" style="color:red" id="section">' +
+        '<summary class="custom">More</summary>' +
+        '<div class="custom" style="color:blue">' +
+        '<kbd class="custom">Ctrl</kbd> <mark>marked</mark> ' +
+        'H<sub>2</sub>O x<sup>2</sup> ' +
+        '<ruby>漢<rt>かん</rt><rp>(</rp><rt>kan</rt><rp>)</rp></ruby> ' +
+        '<span class="custom" style="color:green">inline</span>' +
+        "</div></details>",
+    );
+    const body = parseHtml(html);
+    const details = body.querySelector("details");
+    const summary = body.querySelector("summary");
+    const div = body.querySelector("div");
+    const span = body.querySelector("span");
+
+    expect(details).not.toBeNull();
+    expect(details?.hasAttribute("open")).toBe(true);
+    expect(details?.hasAttribute("class")).toBe(false);
+    expect(details?.hasAttribute("style")).toBe(false);
+    expect(details?.hasAttribute("id")).toBe(false);
+    expect(summary).not.toBeNull();
+    expect(summary?.hasAttribute("class")).toBe(false);
+    expect(div).not.toBeNull();
+    expect(div?.hasAttribute("class")).toBe(false);
+    expect(div?.hasAttribute("style")).toBe(false);
+    expect(span).not.toBeNull();
+    expect(span?.hasAttribute("class")).toBe(false);
+    expect(span?.hasAttribute("style")).toBe(false);
+    expect(body.querySelector("kbd")?.textContent).toBe("Ctrl");
+    expect(body.querySelector("mark")?.textContent).toBe("marked");
+    expect(body.querySelector("sub")?.textContent).toBe("2");
+    expect(body.querySelector("sup")?.textContent).toBe("2");
+    expect(body.querySelector("ruby")).not.toBeNull();
+    expect(body.querySelector("rt")?.textContent).toBe("かん");
+    expect(body.querySelector("rp")).not.toBeNull();
+  });
+
   it("preserves safe links and removes unsafe href schemes", () => {
     const html = renderMarkdown(
       [
