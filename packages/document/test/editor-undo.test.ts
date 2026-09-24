@@ -136,6 +136,40 @@ describe("NoteDocument editor undo history", () => {
     expect(document.bodyText).toBe("");
   });
 
+  it("undoes and redoes a Preview task toggle as one body edit", async () => {
+    const document = NoteDocument.createWithInitialState(createDocumentId(), {
+      title: "Task undo",
+      body: "- [ ] task",
+      createdAt: 100,
+      updatedAt: 100,
+      tags: [],
+    });
+    const undoManager = createEditorUndoManager(document);
+
+    expect(
+      document.toggleTaskMarker({
+        sourceStart: 2,
+        sourceEnd: 5,
+        lineStart: 0,
+        lineEnd: document.bodyText.length,
+        sourceLine: document.bodyText,
+        sourceMarker: "[ ]",
+        checked: true,
+      }),
+    ).toBe(true);
+    await flushAutomaticTimestamp();
+
+    expect(document.bodyText).toBe("- [x] task");
+
+    expect(undoManager.undo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("- [ ] task");
+
+    expect(undoManager.redo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("- [x] task");
+  });
+
   it("does not undo title or tag metadata from the source editor", async () => {
     const document = NoteDocument.create(createDocumentId(), "Original", 100);
     const binding = document.getEditorBinding();
