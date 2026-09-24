@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  resolveRelayRtcConfiguration,
   resolveRtcConfiguration,
   testTurnCredentialEndpoint,
 } from "../src/turn-credentials.js";
@@ -37,6 +38,38 @@ describe("TURN credentials", () => {
         "https://turn.example/credentials/capability-token",
       ),
     ).resolves.toEqual({ iceServers });
+  });
+
+  it("returns relay-only configuration for an explicit relay attempt", async () => {
+    const iceServers = [
+      {
+        urls: ["turn:turn.cloudflare.com:3478?transport=udp"],
+        username: "temporary-user",
+        credential: "temporary-password",
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ iceServers }, { status: 200 }),
+      ),
+    );
+
+    await expect(
+      resolveRelayRtcConfiguration(
+        "https://turn.example/credentials/capability-token",
+      ),
+    ).resolves.toEqual({
+      iceServers,
+      iceTransportPolicy: "relay",
+    });
+  });
+
+  it("requires a configured endpoint for relay-only attempts", async () => {
+    await expect(resolveRelayRtcConfiguration(null)).rejects.toThrow(
+      "TURN credential endpoint is not configured",
+    );
   });
 
   it("rejects credential responses without a TURN server", async () => {

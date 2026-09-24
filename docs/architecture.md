@@ -470,10 +470,19 @@ authorization record and does not change SecurityState.
 After authentication, a presence socket may also request a reconnect rendezvous
 for another currently authorized device. The coordinator validates that both
 DeviceIds are still authorized under the same current SecurityState head and
-forwards only the random signaling SessionId and sender DeviceId to one matching
-authenticated presence socket. The signaling SessionId therefore remains an
+forwards the random signaling SessionId, sender DeviceId, and requested
+transport mode (`direct` or `relay`) to one matching authenticated presence
+socket. The mode is connection metadata only; it carries no key material or
+authorization authority. The signaling SessionId therefore remains an
 unguessable short-lived capability rather than a deterministic value derived
 from public Project/device metadata.
+
+Automatic sync starts with a direct STUN-only attempt. When a device has a TURN
+credential endpoint configured and the initiating side has not connected within
+six seconds, it abandons that PeerConnection, creates a fresh signaling
+SessionId, and requests `relay` mode. Both peers then create fresh
+relay-only PeerConnections. A failed relay attempt returns to the normal
+reconnect backoff and the next attempt starts direct again.
 
 Project-scoped signaling remains in `ProjectCoordinatorDO(ProjectId)`. Because a
 join URL intentionally does not expose `ProjectId`, short-lived invitation

@@ -21,6 +21,8 @@ export type AuthorizedPresenceConnectionState =
   | "closed"
   | "error";
 
+export type ReconnectTransportMode = "direct" | "relay";
+
 export type AuthorizedPresenceClientOptions = {
   coordinatorBaseUrl: string;
   projectId: ProjectId;
@@ -43,7 +45,11 @@ export class AuthorizedPresenceClient {
   >();
   readonly #errorHandlers = new Set<(error: Error) => void>();
   readonly #reconnectHandlers = new Set<
-    (fromDeviceId: DeviceId, sessionId: SessionId) => void
+    (
+      fromDeviceId: DeviceId,
+      sessionId: SessionId,
+      transportMode: ReconnectTransportMode,
+    ) => void
   >();
   #socket: WebSocket | null = null;
   #state: AuthorizedPresenceConnectionState = "idle";
@@ -124,13 +130,21 @@ export class AuthorizedPresenceClient {
   }
 
   onReconnectSession(
-    handler: (fromDeviceId: DeviceId, sessionId: SessionId) => void,
+    handler: (
+      fromDeviceId: DeviceId,
+      sessionId: SessionId,
+      transportMode: ReconnectTransportMode,
+    ) => void,
   ): () => void {
     this.#reconnectHandlers.add(handler);
     return () => this.#reconnectHandlers.delete(handler);
   }
 
-  sendReconnectSession(peerDeviceId: DeviceId, sessionId: SessionId): void {
+  sendReconnectSession(
+    peerDeviceId: DeviceId,
+    sessionId: SessionId,
+    transportMode: ReconnectTransportMode = "direct",
+  ): void {
     if (
       this.#socket?.readyState !== WebSocket.OPEN ||
       this.#state !== "open"
@@ -143,6 +157,7 @@ export class AuthorizedPresenceClient {
         type: "reconnect-session",
         peerDeviceId,
         sessionId,
+        transportMode,
       }),
     );
   }
@@ -182,8 +197,9 @@ export class AuthorizedPresenceClient {
       if (isReconnectSessionMessage(parsed)) {
         const fromDeviceId = parseDeviceId(parsed.fromDeviceId);
         const sessionId = parseSessionId(parsed.sessionId);
+        const transportMode = parsed.transportMode ?? "direct";
         for (const handler of this.#reconnectHandlers) {
-          handler(fromDeviceId, sessionId);
+          handler(fromDeviceId, sessionId, transportMode);
         }
         return;
       }
@@ -281,6 +297,7 @@ type ReconnectSessionMessage = {
   type: "reconnect-session";
   fromDeviceId: string;
   sessionId: string;
+  transportMode?: ReconnectTransportMode;
 };
 
 function isChallengeMessage(value: unknown): value is PresenceChallengeMessage {
@@ -321,7 +338,11 @@ function isReconnectSessionMessage(
     "fromDeviceId" in value &&
     typeof value.fromDeviceId === "string" &&
     "sessionId" in value &&
-    typeof value.sessionId === "string"
+    typeof value.sessionId === "string" &&
+    (!("transportMode" in value) ||
+      value.transportMode === undefined ||
+      value.transportMode === "direct" ||
+      value.transportMode === "relay")
   );
 }
 

@@ -1655,6 +1655,7 @@ function NoteApp() {
         authorizedDevices={localSecurityState?.devices ?? null}
         onlineDeviceIds={authorizedSync.onlineDeviceIds}
         connectedDeviceIds={authorizedSync.connectedDeviceIds}
+        connectionAttempts={authorizedSync.connectionAttempts}
         securityState={
           localSecurityBootstrapState === "error"
             ? "error"

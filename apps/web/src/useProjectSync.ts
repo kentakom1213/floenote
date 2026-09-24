@@ -18,7 +18,7 @@ import {
   AutomaticPeerSyncManager,
   type AutomaticPeerSyncStatus,
 } from "./AutomaticPeerSyncManager.js";
-import { resolveRtcConfiguration } from "./turn-credentials.js";
+import { resolveRelayRtcConfiguration } from "./turn-credentials.js";
 
 type AuthorizedProjectSyncOptions = {
   coordinatorBaseUrl: string;
@@ -36,12 +36,14 @@ export type AuthorizedProjectSyncState = {
   presenceState: AuthorizedPresenceConnectionState;
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  connectionAttempts: AutomaticPeerSyncStatus["connectionAttempts"];
   coordinationError: string | null;
   error: string | null;
 };
 
 const IDLE_AUTOMATIC_SYNC_STATUS: AutomaticPeerSyncStatus = {
   connectedDeviceIds: [],
+  connectionAttempts: [],
   error: null,
 };
 
@@ -90,8 +92,11 @@ export function useAuthorizedProjectSync({
             securityState,
             vaultSession,
             presence,
-            rtcConfigurationProvider: () =>
-              resolveRtcConfiguration(turnCredentialEndpoint),
+            relayFallbackEnabled: turnCredentialEndpoint !== null,
+            rtcConfigurationProvider: (mode) =>
+              mode === "relay"
+                ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
+                : Promise.resolve(undefined),
             onStatusChange: setAutomaticSyncStatus,
           })
         : null;
@@ -102,8 +107,12 @@ export function useAuthorizedProjectSync({
       automaticPeerSync?.updateOnlineDevices(deviceIds);
     });
     const stopReconnect = presence.onReconnectSession(
-      (fromDeviceId, sessionId) => {
-        automaticPeerSync?.acceptReconnectSession(fromDeviceId, sessionId);
+      (fromDeviceId, sessionId, transportMode) => {
+        automaticPeerSync?.acceptReconnectSession(
+          fromDeviceId,
+          sessionId,
+          transportMode,
+        );
       },
     );
     const stopErrors = presence.onError((error) => {
@@ -143,6 +152,7 @@ export function useAuthorizedProjectSync({
     presenceState,
     onlineDeviceIds: presenceState === "open" ? onlineDeviceIds : [],
     connectedDeviceIds: automaticSyncStatus.connectedDeviceIds,
+    connectionAttempts: automaticSyncStatus.connectionAttempts,
     coordinationError: presenceError,
     error: automaticSyncStatus.error,
   };
