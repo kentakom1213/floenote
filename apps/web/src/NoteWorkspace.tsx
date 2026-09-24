@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
-import type { DocumentId } from "@floe-note/domain";
+import type { CheckpointId, DocumentId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { EditorModeView } from "./EditorModeView.js";
+import {
+  EditHistoryPanel,
+  HistoricalVersionView,
+} from "./EditHistory.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { GlobalSearchCache } from "./global-search.js";
 import {
@@ -33,6 +37,7 @@ import {
   PermanentDeleteConfirmation,
   TrashView,
 } from "./TrashView.js";
+import { useAutomaticEditHistory } from "./useAutomaticEditHistory.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
@@ -416,6 +421,7 @@ export function NoteWorkspace({
           />
         ) : selectedDocument ? (
           <DocumentPane
+            project={project}
             document={selectedDocument}
             availableTags={projectTags}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
@@ -466,6 +472,7 @@ export function NoteWorkspace({
 }
 
 type DocumentPaneProps = {
+  project: NoteProject;
   document: NoteDocument;
   availableTags: readonly string[];
   focusTitle: boolean;
@@ -475,6 +482,7 @@ type DocumentPaneProps = {
 };
 
 function DocumentPane({
+  project,
   document,
   availableTags,
   focusTitle,
@@ -485,7 +493,26 @@ function DocumentPane({
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedCheckpointId, setSelectedCheckpointId] =
+    useState<CheckpointId | null>(null);
+  const [, setHistoryRevision] = useState(0);
+
   useDismissibleDetails(noteMenuRef);
+  useAutomaticEditHistory(project, document);
+
+  useEffect(
+    () =>
+      project.subscribe(() => {
+        setHistoryRevision((value) => value + 1);
+      }),
+    [project],
+  );
+
+  useEffect(() => {
+    setHistoryOpen(false);
+    setSelectedCheckpointId(null);
+  }, [document.id]);
 
   useEffect(() => {
     const input = titleRef.current;
@@ -516,61 +543,143 @@ function DocumentPane({
     onDelete(document.id);
   }
 
+  const checkpoints = project.listEditHistoryCheckpoints(document.id);
+  const selectedCheckpoint =
+    selectedCheckpointId === null
+      ? null
+      : project.getEditHistoryCheckpoint(selectedCheckpointId);
+
+  let historicalDocument: NoteDocument | null = null;
+  if (
+    selectedCheckpoint &&
+    selectedCheckpoint.documentId === document.id
+  ) {
+    try {
+      historicalDocument = project.createHistoricalDocument(
+        selectedCheckpoint.id,
+      );
+    } catch {
+      historicalDocument = null;
+    }
+  }
+
+  function openHistory(): void {
+    noteMenuRef.current?.removeAttribute("open");
+    setHistoryOpen(true);
+  }
+
+  function restoreHistoricalVersion(): void {
+    if (!selectedCheckpoint) return;
+
+    project.restoreEditHistoryCheckpoint(selectedCheckpoint.id);
+    setSelectedCheckpointId(null);
+  }
+
   return (
-    <article className="document-pane">
-      <header className="document-header">
-        <textarea
-          ref={titleRef}
-          className="title-input"
-          rows={1}
-          value={document.title}
-          placeholder="Untitled"
-          aria-label="Note title"
-          onChange={(event) => {
-            const title = event.currentTarget.value.replace(/[\r\n]+/g, " ");
-            onRename(title);
-            window.requestAnimationFrame(() => {
-              if (titleRef.current) resizeTitleInput(titleRef.current);
-            });
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") event.preventDefault();
-          }}
-        />
+    <article
+      className={
+        historyOpen
+          ? "document-pane document-pane-with-history"
+          : "document-pane"
+      }
+    >
+      <div className="document-history-content">
+        <div
+          className={
+            historicalDocument
+              ? "document-current-view document-current-view-hidden"
+              : "document-current-view"
+          }
+          aria-hidden={historicalDocument ? "true" : undefined}
+        >
+          <header className="document-header">
+            <textarea
+              ref={titleRef}
+              className="title-input"
+              rows={1}
+              value={document.title}
+              placeholder="Untitled"
+              aria-label="Note title"
+              onChange={(event) => {
+                const title = event.currentTarget.value.replace(/[\r\n]+/g, " ");
+                onRename(title);
+                window.requestAnimationFrame(() => {
+                  if (titleRef.current) resizeTitleInput(titleRef.current);
+                });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.preventDefault();
+              }}
+            />
 
-        <div className="document-header-actions">
-          <details className="note-menu" ref={noteMenuRef}>
-            <summary className="note-menu-trigger" aria-label="Note actions">
-              •••
-            </summary>
-            <div className="note-menu-popover">
-              <button
-                className="danger-menu-item"
-                type="button"
-                onClick={deleteNote}
-              >
-                Delete note
-              </button>
+            <div className="document-header-actions">
+              <details className="note-menu" ref={noteMenuRef}>
+                <summary className="note-menu-trigger" aria-label="Note actions">
+                  •••
+                </summary>
+                <div className="note-menu-popover">
+                  <button
+                    className="note-menu-item"
+                    type="button"
+                    onClick={openHistory}
+                  >
+                    History
+                  </button>
+                  <button
+                    className="danger-menu-item"
+                    type="button"
+                    onClick={deleteNote}
+                  >
+                    Delete note
+                  </button>
+                </div>
+              </details>
             </div>
-          </details>
-        </div>
-      </header>
+          </header>
 
-      <NoteProperties
-        document={document}
-        availableTags={availableTags}
-        trailingControl={
-          <EditorModeSwitcher
-            mode={mode}
-            onModeChange={(nextMode) => {
-              setMode(nextMode);
-              writeEditorModePreference(nextMode);
-            }}
+          <NoteProperties
+            document={document}
+            availableTags={availableTags}
+            trailingControl={
+              <EditorModeSwitcher
+                mode={mode}
+                onModeChange={(nextMode) => {
+                  setMode(nextMode);
+                  writeEditorModePreference(nextMode);
+                }}
+              />
+            }
           />
-        }
-      />
 
-      <EditorModeView document={document} mode={mode} />
+          <EditorModeView document={document} mode={mode} />
+        </div>
+
+        {selectedCheckpoint && historicalDocument ? (
+          <HistoricalVersionView
+            checkpoint={selectedCheckpoint}
+            document={historicalDocument}
+            onBackToCurrent={() => setSelectedCheckpointId(null)}
+            onRestore={restoreHistoricalVersion}
+          />
+        ) : selectedCheckpointId !== null ? (
+          <div className="historical-version-unavailable">
+            <p>This historical version is not available on this device yet.</p>
+            <button type="button" onClick={() => setSelectedCheckpointId(null)}>
+              Back to current
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {historyOpen ? (
+        <EditHistoryPanel
+          checkpoints={checkpoints}
+          selectedCheckpointId={selectedCheckpointId}
+          onSelectCheckpoint={setSelectedCheckpointId}
+          onSelectCurrent={() => setSelectedCheckpointId(null)}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
     </article>
   );
 }
