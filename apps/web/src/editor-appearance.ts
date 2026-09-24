@@ -163,6 +163,30 @@ const floeEditorChrome = EditorView.theme({
     outline: "1px solid var(--color-focus)",
     backgroundColor: "var(--editor-search-match-current)",
   },
+  ".cm-floe-code-keyword": {
+    color: "var(--editor-syntax-heading)",
+    fontWeight: "650",
+  },
+  ".cm-floe-code-string": {
+    color: "var(--editor-syntax-code)",
+  },
+  ".cm-floe-code-comment": {
+    color: "var(--editor-syntax-quote)",
+    fontStyle: "italic",
+  },
+  ".cm-floe-code-number, .cm-floe-code-literal": {
+    color: "var(--editor-syntax-meta)",
+  },
+  ".cm-floe-code-type, .cm-floe-code-attribute": {
+    color: "var(--editor-syntax-link)",
+  },
+  ".cm-floe-code-property, .cm-floe-code-tag": {
+    color: "var(--editor-syntax-strong)",
+    fontWeight: "650",
+  },
+  ".cm-floe-code-variable": {
+    color: "var(--editor-syntax-emphasis)",
+  },
 });
 
 export const floeCodeMirrorAppearance = [
