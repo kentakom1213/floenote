@@ -109,6 +109,7 @@ const useManualWebRtc =
 const useSignaledWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "signal";
 const useInvitationWebRtc = searchParams.get("transport") === "invite";
+const INVITATION_ICE_RESTART_RETRY_DELAYS_MS = [5_000, 5_000] as const;
 const useAutomaticReconnect =
   !useManualWebRtc && !useSignaledWebRtc && !useInvitationWebRtc;
 const useManualWebRtcJoin =
@@ -553,6 +554,7 @@ function NoteApp() {
             sessionId: invitation.sessionId,
             transport,
             debugLogger: createConsoleDebugLogger("invite-host-signal"),
+            iceRestartRetryDelaysMs: INVITATION_ICE_RESTART_RETRY_DELAYS_MS,
           });
           const stopSignalingState =
             signaling.onConnectionStateChange(setSignalingState);
