@@ -172,7 +172,6 @@ export function InvitationJoinPage({
         });
         const stopSignalingState =
           signaling.onConnectionStateChange(setSignalingState);
-        signaling.start();
 
         cleanup = () => {
           abortPairing.abort();
@@ -181,6 +180,8 @@ export function InvitationJoinPage({
           stopTransportStatus();
           transport.close();
         };
+
+        signaling.start();
 
         await authenticatePairingChannel({
           role: "join",
