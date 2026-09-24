@@ -43,7 +43,7 @@ export function useAutomaticEditHistory(
       }
     };
 
-    const unsubscribe = document.subscribeLocalUpdates(scheduleAfterLocalEdit);
+    const unsubscribe = document.subscribeLocalUserEdits(scheduleAfterLocalEdit);
 
     return () => {
       unsubscribe();
