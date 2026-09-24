@@ -18,7 +18,11 @@ import {
 } from "./sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
 import { SidebarNoteRow } from "./SidebarNoteRow.js";
-import { TrashView } from "./TrashView.js";
+import { SidebarTrashNoteRow } from "./SidebarTrashNoteRow.js";
+import {
+  PermanentDeleteConfirmation,
+  TrashView,
+} from "./TrashView.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 const EDITOR_MODE_OPTIONS = [
@@ -72,6 +76,8 @@ export function NoteWorkspace({
   const [trashExpanded, setTrashExpanded] = useState(false);
   const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
     useState<DocumentId | null>(null);
+  const [pendingPurgeDocumentId, setPendingPurgeDocumentId] =
+    useState<DocumentId | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
@@ -79,6 +85,7 @@ export function NoteWorkspace({
     setQuery("");
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
+    setPendingPurgeDocumentId(null);
     setMobileNavigationOpen(false);
   }, [project.id]);
 
@@ -105,6 +112,10 @@ export function NoteWorkspace({
     selectedTrashDocumentId === null
       ? undefined
       : project.getDeletedDocument(selectedTrashDocumentId);
+  const pendingPurgeDocument =
+    pendingPurgeDocumentId === null
+      ? undefined
+      : project.getDeletedDocument(pendingPurgeDocumentId);
 
   useEffect(() => {
     if (
@@ -114,6 +125,15 @@ export function NoteWorkspace({
       setSelectedTrashDocumentId(null);
     }
   }, [selectedTrashDocument, selectedTrashDocumentId]);
+
+  useEffect(() => {
+    if (
+      pendingPurgeDocumentId !== null &&
+      pendingPurgeDocument === undefined
+    ) {
+      setPendingPurgeDocumentId(null);
+    }
+  }, [pendingPurgeDocument, pendingPurgeDocumentId]);
 
   const navigationNotes = summaries.flatMap((summary) => {
     const document = project.getDocument(summary.id);
@@ -229,23 +249,28 @@ export function NoteWorkspace({
           {trashExpanded && deletedSummaries.length > 0 ? (
             <div className="sidebar-trash-list" aria-label="Deleted notes">
               {deletedSummaries.map((summary) => (
-                <button
-                  className={
+                <SidebarTrashNoteRow
+                  key={summary.id}
+                  id={summary.id}
+                  title={summary.title}
+                  selected={
                     trashActive &&
                     selectedTrashDocumentId === summary.id
-                      ? "sidebar-trash-note selected"
-                      : "sidebar-trash-note"
                   }
-                  key={summary.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTrashDocumentId(summary.id);
+                  onSelect={(documentId) => {
+                    setSelectedTrashDocumentId(documentId);
                     onOpenTrash();
                     setMobileNavigationOpen(false);
                   }}
-                >
-                  {summary.title || "Untitled"}
-                </button>
+                  onRestore={(documentId) => {
+                    onRestoreDocument(documentId);
+                    setMobileNavigationOpen(false);
+                  }}
+                  onRequestPermanentDelete={(documentId) => {
+                    setPendingPurgeDocumentId(documentId);
+                    setMobileNavigationOpen(false);
+                  }}
+                />
               ))}
             </div>
           ) : null}
@@ -276,7 +301,8 @@ export function NoteWorkspace({
       : selectedDocument?.title || "Floe Note";
 
   return (
-    <AppShell
+    <>
+      <AppShell
       sidebar={sidebar}
       mobileNavigationOpen={mobileNavigationOpen}
       mobileTitle={mobileTitle}
@@ -293,7 +319,7 @@ export function NoteWorkspace({
               setMobileNavigationOpen(false);
             }}
             onRestoreDocument={onRestoreDocument}
-            onPurgeDocument={onPurgeDocument}
+            onRequestPermanentDelete={setPendingPurgeDocumentId}
           />
         ) : selectedDocument ? (
           <DocumentPane
@@ -315,7 +341,18 @@ export function NoteWorkspace({
             </button>
           </div>
         ))}
-    </AppShell>
+      </AppShell>
+
+      {pendingPurgeDocument ? (
+        <PermanentDeleteConfirmation
+          onCancel={() => setPendingPurgeDocumentId(null)}
+          onConfirm={() => {
+            onPurgeDocument(pendingPurgeDocument.id);
+            setPendingPurgeDocumentId(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
