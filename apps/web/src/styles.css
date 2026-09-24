@@ -1701,6 +1701,40 @@ input:focus-visible {
   font-size: 13px;
 }
 
+.markdown-preview .floe-code-keyword {
+  color: var(--editor-syntax-heading);
+  font-weight: 650;
+}
+
+.markdown-preview .floe-code-string {
+  color: var(--editor-syntax-code);
+}
+
+.markdown-preview .floe-code-comment {
+  color: var(--editor-syntax-quote);
+  font-style: italic;
+}
+
+.markdown-preview .floe-code-number,
+.markdown-preview .floe-code-literal {
+  color: var(--editor-syntax-meta);
+}
+
+.markdown-preview .floe-code-type,
+.markdown-preview .floe-code-attribute {
+  color: var(--editor-syntax-link);
+}
+
+.markdown-preview .floe-code-property,
+.markdown-preview .floe-code-tag {
+  color: var(--editor-syntax-strong);
+  font-weight: 650;
+}
+
+.markdown-preview .floe-code-variable {
+  color: var(--editor-syntax-emphasis);
+}
+
 .markdown-preview a {
   color: var(--color-accent);
   text-decoration: underline;
