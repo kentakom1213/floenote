@@ -55,6 +55,43 @@ describe("NoteDocument editor undo history", () => {
     expect(document.bodyText).toBe("ab");
   });
 
+
+  it("groups IME composition commits into one body undo step", async () => {
+    const document = NoteDocument.create(createDocumentId(), "IME", 100);
+    const binding = document.getEditorBinding();
+    const undoManager = createEditorUndoManager(document);
+    const text = binding.getText(binding.doc);
+
+    const replaceBody = async (value: string) => {
+      const current = text.toString();
+      if (current.length > 0) text.delete(0, current.length);
+      if (value.length > 0) text.insert(0, value);
+      binding.doc.commit();
+      await flushAutomaticTimestamp();
+    };
+
+    await replaceBody("に");
+
+    // Floe opens the Loro group after CodeMirror's first composition
+    // transaction has already been committed, so the composition does not
+    // merge with the edit immediately before it.
+    undoManager.groupStart();
+    await replaceBody("にほ");
+    await replaceBody("にほん");
+    await replaceBody("日本");
+    undoManager.groupEnd();
+
+    expect(document.bodyText).toBe("日本");
+
+    expect(undoManager.undo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("");
+
+    expect(undoManager.redo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("日本");
+  });
+
   it("does not undo title or tag metadata from the source editor", async () => {
     const document = NoteDocument.create(createDocumentId(), "Original", 100);
     const binding = document.getEditorBinding();
