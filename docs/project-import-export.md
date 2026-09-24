@@ -179,6 +179,7 @@ IndexedDB schema.
 
 A portable export must not contain:
 
+- edit-history checkpoints or historical note versions;
 - original ProjectId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
