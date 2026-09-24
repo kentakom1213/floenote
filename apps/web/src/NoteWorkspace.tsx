@@ -12,15 +12,16 @@ import {
 } from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
 import {
+  DEFAULT_TAG_FILTER_MODE,
   deriveProjectTags,
   deriveVisibleNotes,
   readNoteSortPreference,
-  resolveSelectedTag,
+  resolveSelectedTags,
   writeNoteSortPreference,
+  type TagFilterMode,
 } from "./sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "./SidebarNavigationToolbar.js";
 import { SidebarNoteRow } from "./SidebarNoteRow.js";
-import { SidebarTagNavigation } from "./SidebarTagNavigation.js";
 import { SidebarTrashNoteRow } from "./SidebarTrashNoteRow.js";
 import {
   PermanentDeleteConfirmation,
@@ -76,8 +77,10 @@ export function NoteWorkspace({
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState(readNoteSortPreference);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [tagsExpanded, setTagsExpanded] = useState(true);
+  const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
+  const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>(
+    DEFAULT_TAG_FILTER_MODE,
+  );
   const [trashExpanded, setTrashExpanded] = useState(false);
   const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
     useState<DocumentId | null>(null);
@@ -88,8 +91,8 @@ export function NoteWorkspace({
   useEffect(() => {
     setSearchOpen(false);
     setQuery("");
-    setSelectedTag(null);
-    setTagsExpanded(true);
+    setSelectedTags([]);
+    setTagFilterMode(DEFAULT_TAG_FILTER_MODE);
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
@@ -161,13 +164,17 @@ export function NoteWorkspace({
     navigationNotes,
     query,
     sort,
-    selectedTag,
+    selectedTags,
+    tagFilterMode,
   );
 
   useEffect(() => {
-    const resolved = resolveSelectedTag(selectedTag, projectTags);
-    if (resolved !== selectedTag) setSelectedTag(resolved);
-  }, [projectTags, selectedTag]);
+    const resolved = resolveSelectedTags(selectedTags, projectTags);
+    const changed =
+      resolved.length !== selectedTags.length ||
+      resolved.some((tag, index) => tag !== selectedTags[index]);
+    if (changed) setSelectedTags(resolved);
+  }, [projectTags, selectedTags]);
 
   const sidebar = (
     <div className="sidebar-layout">
@@ -200,27 +207,23 @@ export function NoteWorkspace({
           query={query}
           searchOpen={searchOpen}
           sort={sort}
+          tags={projectTags}
+          selectedTags={selectedTags}
+          tagFilterMode={tagFilterMode}
           onQueryChange={setQuery}
           onSearchOpenChange={setSearchOpen}
           onSortChange={(preference) => {
             setSort(preference);
             writeNoteSortPreference(preference);
           }}
+          onSelectedTagsChange={setSelectedTags}
+          onTagFilterModeChange={setTagFilterMode}
           onCreateDocument={() => {
             onCreateDocument();
             setMobileNavigationOpen(false);
           }}
         />
 
-        <SidebarTagNavigation
-          tags={projectTags}
-          selectedTag={selectedTag}
-          expanded={tagsExpanded}
-          onExpandedChange={setTagsExpanded}
-          onSelectTag={setSelectedTag}
-        />
-
-        <p className="sidebar-section-label">Notes</p>
         <nav className="note-list" aria-label="Notes">
           {visibleNotes.length > 0 ? (
             visibleNotes.map((note) => (
@@ -237,7 +240,7 @@ export function NoteWorkspace({
                 onDelete={onDeleteDocument}
               />
             ))
-          ) : query.trim() || selectedTag !== null ? (
+          ) : query.trim() || selectedTags.length > 0 ? (
             <p className="note-filter-empty">No matching notes</p>
           ) : null}
         </nav>
@@ -402,9 +405,14 @@ function DocumentPane({
   onDelete,
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
   useDismissibleDetails(noteMenuRef);
+
+  useEffect(() => {
+    const input = titleRef.current;
+    if (input) resizeTitleInput(input);
+  }, [document.id, document.title]);
 
   useEffect(() => {
     if (!focusTitle) return;
@@ -424,13 +432,20 @@ function DocumentPane({
   return (
     <article className="document-pane">
       <header className="document-header">
-        <input
+        <textarea
           ref={titleRef}
           className="title-input"
+          rows={1}
           value={document.title}
           placeholder="Untitled"
-          onChange={(event) => onRename(event.target.value)}
           aria-label="Note title"
+          onChange={(event) => {
+            resizeTitleInput(event.currentTarget);
+            onRename(event.target.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.preventDefault();
+          }}
         />
 
         <div className="document-header-actions">
@@ -477,6 +492,11 @@ function DocumentPane({
   );
 }
 
+
+function resizeTitleInput(input: HTMLTextAreaElement): void {
+  input.style.height = "auto";
+  input.style.height = `${input.scrollHeight}px`;
+}
 
 function ChevronIcon() {
   return (
