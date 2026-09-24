@@ -1,6 +1,10 @@
 import {
+  createCheckpointId,
   createDocumentId,
   createProjectId,
+  parseCheckpointId,
+  parseDocumentId,
+  type CheckpointId,
   type DocumentId,
   type ProjectId,
 } from "@floe-note/domain";
@@ -11,6 +15,19 @@ import { NoteDocument, type NoteDocumentInitialState } from "./document.js";
 export type DocumentSummary = {
   id: DocumentId;
   title: string;
+};
+
+export type EditHistoryCheckpoint = {
+  id: CheckpointId;
+  documentId: DocumentId;
+  frontiers: Uint8Array;
+  createdAt: number;
+  restoreSourceCheckpointId: CheckpointId | null;
+};
+
+type CreateEditHistoryCheckpointOptions = {
+  createdAt?: number;
+  restoreSourceCheckpointId?: CheckpointId | null;
 };
 
 const DEFAULT_PROJECT_NAME = "Personal";
@@ -46,6 +63,7 @@ export class NoteProject {
     manifest.getMap("purgedDocuments");
     manifest.getMap("metadata");
     manifest.getMap("deviceDisplayNames");
+    manifest.getMap("editHistoryCheckpoints");
 
     return new NoteProject(id, manifest, []);
   }
@@ -119,6 +137,113 @@ export class NoteProject {
     return [...this.#documents.values()];
   }
 
+  listEditHistoryCheckpoints(
+    documentId: DocumentId,
+  ): EditHistoryCheckpoint[] {
+    if (this.isDocumentPurged(documentId)) return [];
+
+    return this.#manifest
+      .getMap("editHistoryCheckpoints")
+      .entries()
+      .flatMap(([id, value]) => {
+        const checkpoint = parseEditHistoryCheckpoint(id, value);
+        return checkpoint?.documentId === documentId ? [checkpoint] : [];
+      })
+      .sort(
+        (left, right) =>
+          right.createdAt - left.createdAt ||
+          right.id.localeCompare(left.id),
+      );
+  }
+
+  getEditHistoryCheckpoint(
+    checkpointId: CheckpointId,
+  ): EditHistoryCheckpoint | null {
+    const value = this.#manifest
+      .getMap("editHistoryCheckpoints")
+      .get(checkpointId);
+    const checkpoint = parseEditHistoryCheckpoint(checkpointId, value);
+    if (!checkpoint || this.isDocumentPurged(checkpoint.documentId)) {
+      return null;
+    }
+    return checkpoint;
+  }
+
+  createEditHistoryCheckpoint(
+    documentId: DocumentId,
+    options: CreateEditHistoryCheckpointOptions = {},
+  ): EditHistoryCheckpoint | null {
+    if (this.isDocumentPurged(documentId)) return null;
+
+    const document = this.#documents.get(documentId);
+    if (!document) return null;
+
+    const existing = this.listEditHistoryCheckpoints(documentId);
+    const frontiers = document.captureHistoryFrontiers();
+    if (
+      existing.some((checkpoint) =>
+        document.matchesHistoryFrontiers(checkpoint.frontiers),
+      )
+    ) {
+      return null;
+    }
+
+    const createdAt = options.createdAt ?? Date.now();
+    if (!Number.isFinite(createdAt)) {
+      throw new TypeError("Checkpoint createdAt must be a finite timestamp");
+    }
+
+    const checkpoint: EditHistoryCheckpoint = {
+      id: createCheckpointId(),
+      documentId,
+      frontiers,
+      createdAt,
+      restoreSourceCheckpointId:
+        options.restoreSourceCheckpointId ?? null,
+    };
+
+    this.#manifest.getMap("editHistoryCheckpoints").set(checkpoint.id, {
+      documentId: checkpoint.documentId,
+      frontiers: checkpoint.frontiers,
+      createdAt: checkpoint.createdAt,
+      restoreSourceCheckpointId: checkpoint.restoreSourceCheckpointId,
+    });
+    this.#manifest.commit();
+    this.#emit();
+    return cloneEditHistoryCheckpoint(checkpoint);
+  }
+
+  createHistoricalDocument(
+    checkpointId: CheckpointId,
+  ): NoteDocument | null {
+    const checkpoint = this.getEditHistoryCheckpoint(checkpointId);
+    if (!checkpoint) return null;
+
+    const document = this.#documents.get(checkpoint.documentId);
+    if (!document) return null;
+
+    return document.createHistoricalView(checkpoint.frontiers);
+  }
+
+  restoreEditHistoryCheckpoint(
+    checkpointId: CheckpointId,
+  ): EditHistoryCheckpoint | null {
+    const checkpoint = this.getEditHistoryCheckpoint(checkpointId);
+    if (!checkpoint) return null;
+
+    const document = this.getDocument(checkpoint.documentId);
+    if (!document) return null;
+
+    this.createEditHistoryCheckpoint(document.id);
+    if (!document.restoreFromHistoryFrontiers(checkpoint.frontiers)) {
+      return null;
+    }
+
+    return this.createEditHistoryCheckpoint(document.id, {
+      restoreSourceCheckpointId: checkpoint.id,
+    });
+  }
+
   exportManifestSnapshot(): Uint8Array {
     this.#manifest.commit();
     return this.#manifest.export({ mode: "snapshot" });
@@ -132,6 +257,9 @@ export class NoteProject {
   importManifestUpdate(update: Uint8Array): void {
     this.#manifest.import(update);
     this.#prunePurgedDocuments();
+    if (this.#prunePurgedEditHistory()) {
+      this.#manifest.commit();
+    }
     this.#emit();
   }
 
@@ -210,6 +338,7 @@ export class NoteProject {
     if (documents.get(id) !== "deleted") return;
 
     this.#manifest.getMap("purgedDocuments").set(id, true);
+    this.#removeEditHistoryForDocument(id);
     this.#documents.delete(id);
     this.#manifest.commit();
     this.#emit();
@@ -262,6 +391,36 @@ export class NoteProject {
     }
   }
 
+  #removeEditHistoryForDocument(documentId: DocumentId): boolean {
+    let changed = false;
+    const checkpoints = this.#manifest.getMap("editHistoryCheckpoints");
+
+    for (const [id, value] of checkpoints.entries()) {
+      const checkpoint = parseEditHistoryCheckpoint(id, value);
+      if (checkpoint?.documentId !== documentId) continue;
+      checkpoints.delete(id);
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  #prunePurgedEditHistory(): boolean {
+    let changed = false;
+    const checkpoints = this.#manifest.getMap("editHistoryCheckpoints");
+
+    for (const [id, value] of checkpoints.entries()) {
+      const checkpoint = parseEditHistoryCheckpoint(id, value);
+      if (!checkpoint || !this.isDocumentPurged(checkpoint.documentId)) {
+        continue;
+      }
+      checkpoints.delete(id);
+      changed = true;
+    }
+
+    return changed;
+  }
+
   #emit(): void {
     for (const listener of this.#listeners) listener();
   }
@@ -272,4 +431,64 @@ function normalizeDisplayName(displayName: string): string {
   if (!normalized) throw new TypeError("Device name must not be empty");
   if (normalized.length > 80) throw new TypeError("Device name must be 80 characters or fewer");
   return normalized;
+}
+
+
+function parseEditHistoryCheckpoint(
+  id: string,
+  value: unknown,
+): EditHistoryCheckpoint | null {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    value instanceof Uint8Array
+  ) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.documentId !== "string" ||
+    !(record.frontiers instanceof Uint8Array) ||
+    typeof record.createdAt !== "number" ||
+    !Number.isFinite(record.createdAt)
+  ) {
+    return null;
+  }
+
+  let checkpointId: CheckpointId;
+  let documentId: DocumentId;
+  let restoreSourceCheckpointId: CheckpointId | null = null;
+
+  try {
+    checkpointId = parseCheckpointId(id);
+    documentId = parseDocumentId(record.documentId);
+
+    if (record.restoreSourceCheckpointId !== null) {
+      if (typeof record.restoreSourceCheckpointId !== "string") return null;
+      restoreSourceCheckpointId = parseCheckpointId(
+        record.restoreSourceCheckpointId,
+      );
+    }
+  } catch {
+    return null;
+  }
+
+  return {
+    id: checkpointId,
+    documentId,
+    frontiers: record.frontiers.slice(),
+    createdAt: record.createdAt,
+    restoreSourceCheckpointId,
+  };
+}
+
+function cloneEditHistoryCheckpoint(
+  checkpoint: EditHistoryCheckpoint,
+): EditHistoryCheckpoint {
+  return {
+    ...checkpoint,
+    frontiers: checkpoint.frontiers.slice(),
+  };
 }

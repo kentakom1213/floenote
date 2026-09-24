@@ -1,5 +1,11 @@
 import type { DocumentId } from "@floe-note/domain";
-import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
+import {
+  decodeFrontiers,
+  encodeFrontiers,
+  LoroDoc,
+  LoroList,
+  type LoroText,
+} from "loro-crdt";
 
 const EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX = "floe:non-editor:";
 
@@ -188,6 +194,66 @@ export class NoteDocument {
     return this.#doc.getText("body").toString();
   }
 
+  captureHistoryFrontiers(): Uint8Array {
+    return encodeFrontiers(this.#doc.frontiers());
+  }
+
+  matchesHistoryFrontiers(encodedFrontiers: Uint8Array): boolean {
+    try {
+      const frontiers = decodeFrontiers(encodedFrontiers);
+      return this.#doc.cmpFrontiers(this.#doc.frontiers(), frontiers) === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  createHistoricalView(encodedFrontiers: Uint8Array): NoteDocument | null {
+    try {
+      const historicalDoc = this.#doc.forkAt(
+        decodeFrontiers(encodedFrontiers),
+      );
+      historicalDoc.detach();
+      return new NoteDocument(this.id, historicalDoc);
+    } catch {
+      return null;
+    }
+  }
+
+  restoreFromHistoryFrontiers(encodedFrontiers: Uint8Array): boolean {
+    const historical = this.createHistoricalView(encodedFrontiers);
+    if (!historical) return false;
+
+    const nextTitle = historical.title;
+    const nextTags = [...historical.tags];
+    const nextBody = historical.bodyText;
+
+    if (
+      nextTitle === this.title &&
+      sameStrings(nextTags, this.tags) &&
+      nextBody === this.bodyText
+    ) {
+      return false;
+    }
+
+    this.#withAutomaticTimestampSuppressed(() => {
+      const meta = this.#doc.getMap("meta");
+      meta.set("title", nextTitle);
+
+      const tags = this.#ensureTagsList();
+      if (tags.length > 0) tags.delete(0, tags.length);
+      nextTags.forEach((tag, index) => {
+        tags.insert(index, tag);
+      });
+
+      this.#doc.getText("body").update(nextBody);
+
+      meta.set("updatedAt", Date.now());
+      this.#doc.commit({ origin: "floe:history-restore" });
+    });
+
+    return true;
+  }
+
   toggleTaskMarker(toggle: TaskMarkerToggle): boolean {
     const {
       sourceStart,
@@ -271,6 +337,19 @@ export class NoteDocument {
 
   subscribeLocalUpdates(listener: (update: Uint8Array) => void): () => void {
     return this.#doc.subscribeLocalUpdates(listener);
+  }
+
+  subscribeLocalUserEdits(listener: () => void): () => void {
+    return this.#doc.subscribe((event) => {
+      if (event.by !== "local") return;
+      if (
+        event.origin ===
+        `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`
+      ) {
+        return;
+      }
+      listener();
+    });
   }
 
   getEditorBinding(): DocumentEditorBinding {

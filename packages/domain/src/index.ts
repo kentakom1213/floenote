@@ -1,9 +1,11 @@
 export {
   createAttachmentId,
+  createCheckpointId,
   createDeviceId,
   createDocumentId,
   createProjectId,
   parseAttachmentId,
+  parseCheckpointId,
   parseDeviceId,
   parseDocumentId,
   parseProjectId,
@@ -11,6 +13,7 @@ export {
 
 export type {
   AttachmentId,
+  CheckpointId,
   DeviceId,
   DocumentId,
   ProjectId,

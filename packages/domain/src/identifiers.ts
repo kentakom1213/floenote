@@ -10,6 +10,7 @@ export type ProjectId = Identifier<"ProjectId">;
 export type DocumentId = Identifier<"DocumentId">;
 export type DeviceId = Identifier<"DeviceId">;
 export type AttachmentId = Identifier<"AttachmentId">;
+export type CheckpointId = Identifier<"CheckpointId">;
 
 const UUID_V7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,6 +46,10 @@ export function createAttachmentId(): AttachmentId {
   return createUuidV7();
 }
 
+export function createCheckpointId(): CheckpointId {
+  return createUuidV7();
+}
+
 export function parseProjectId(value: string): ProjectId {
   return parseUuidV7(value, "ProjectId");
 }
@@ -59,4 +64,8 @@ export function parseDeviceId(value: string): DeviceId {
 
 export function parseAttachmentId(value: string): AttachmentId {
   return parseUuidV7(value, "AttachmentId");
+}
+
+export function parseCheckpointId(value: string): CheckpointId {
+  return parseUuidV7(value, "CheckpointId");
 }

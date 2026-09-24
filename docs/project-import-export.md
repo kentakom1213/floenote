@@ -179,6 +179,7 @@ IndexedDB schema.
 
 A portable export must not contain:
 
+- edit-history checkpoints or historical note versions;
 - original ProjectId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
@@ -189,13 +190,15 @@ A portable export must not contain:
 - coordinator URL/state;
 - presence or signaling state;
 - Loro peer/synchronization history;
+- edit-history checkpoints and historical versions;
 - IndexedDB records or schema details.
 
 These values belong to the original Project's cryptographic and synchronization
 identity.
 
 Consequently, importing an export does not resume synchronization with the
-original Project.
+original Project. Imported notes also start with fresh edit history; portable
+v1 export carries only the current logical note state.
 
 ## 8. Export consistency
 
