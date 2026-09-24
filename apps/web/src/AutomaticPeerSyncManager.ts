@@ -189,7 +189,18 @@ export class AutomaticPeerSyncManager {
     }
 
     const sessionId = createSessionId();
-    const started = await this.#startPeer(peerDeviceId, "host", sessionId);
+    let started: boolean;
+    try {
+      started = await this.#startPeer(peerDeviceId, "host", sessionId);
+    } catch (error: unknown) {
+      this.#setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to prepare automatic peer connection",
+      );
+      this.#scheduleRetry(peerDeviceId);
+      return;
+    }
     if (!started) return;
 
     try {
@@ -223,7 +234,13 @@ export class AutomaticPeerSyncManager {
       this.#pendingPeerIds.delete(peerDeviceId);
     }
 
-    if (this.#stopped) return false;
+    if (
+      this.#stopped ||
+      !this.#onlineDeviceIds.includes(this.#localDeviceId) ||
+      !this.#onlineDeviceIds.includes(peerDeviceId)
+    ) {
+      return false;
+    }
 
     const latest = this.#connections.get(peerDeviceId);
     if (latest?.sessionId === sessionId) return false;
