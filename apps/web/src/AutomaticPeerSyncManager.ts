@@ -56,6 +56,7 @@ export type AutomaticPeerSyncManagerOptions = {
   securityState: SecurityState;
   vaultSession: DeviceVaultSession;
   presence: AuthorizedPresenceClient;
+  rtcConfigurationProvider?: () => Promise<RTCConfiguration | undefined>;
   onStatusChange: (status: AutomaticPeerSyncStatus) => void;
 };
 
@@ -66,10 +67,12 @@ export class AutomaticPeerSyncManager {
   readonly #securityState: SecurityState;
   readonly #vaultSession: DeviceVaultSession;
   readonly #presence: AuthorizedPresenceClient;
+  readonly #rtcConfigurationProvider: () => Promise<RTCConfiguration | undefined>;
   readonly #onStatusChange: (status: AutomaticPeerSyncStatus) => void;
   readonly #connections = new Map<DeviceId, AutomaticPeerConnection>();
   readonly #connectedDeviceIds = new Set<DeviceId>();
   readonly #retryStates = new Map<DeviceId, PeerRetryState>();
+  readonly #pendingPeerIds = new Set<DeviceId>();
   #onlineDeviceIds: readonly DeviceId[] = [];
   #error: string | null = null;
   #stopped = false;
@@ -81,6 +84,8 @@ export class AutomaticPeerSyncManager {
     this.#securityState = options.securityState;
     this.#vaultSession = options.vaultSession;
     this.#presence = options.presence;
+    this.#rtcConfigurationProvider =
+      options.rtcConfigurationProvider ?? (async () => undefined);
     this.#onStatusChange = options.onStatusChange;
   }
 
@@ -110,7 +115,15 @@ export class AutomaticPeerSyncManager {
 
     if (fromDeviceId >= this.#localDeviceId) return;
 
-    this.#startPeer(fromDeviceId, "join", sessionId);
+    void this.#startPeer(fromDeviceId, "join", sessionId).catch(
+      (error: unknown) => {
+        this.#setError(
+          error instanceof Error
+            ? error.message
+            : "Failed to prepare automatic peer connection",
+        );
+      },
+    );
   }
 
   stop(): void {
@@ -156,22 +169,28 @@ export class AutomaticPeerSyncManager {
       if (
         this.#localDeviceId >= peerDeviceId ||
         this.#connections.has(peerDeviceId) ||
+        this.#pendingPeerIds.has(peerDeviceId) ||
         this.#retryStates.has(peerDeviceId)
       ) {
         continue;
       }
 
-      this.#startHostReconnect(peerDeviceId);
+      void this.#startHostReconnect(peerDeviceId);
     }
   }
 
-  #startHostReconnect(peerDeviceId: DeviceId): void {
-    if (!this.#shouldInitiate(peerDeviceId) || this.#connections.has(peerDeviceId)) {
+  async #startHostReconnect(peerDeviceId: DeviceId): Promise<void> {
+    if (
+      !this.#shouldInitiate(peerDeviceId) ||
+      this.#connections.has(peerDeviceId) ||
+      this.#pendingPeerIds.has(peerDeviceId)
+    ) {
       return;
     }
 
     const sessionId = createSessionId();
-    this.#startPeer(peerDeviceId, "host", sessionId);
+    const started = await this.#startPeer(peerDeviceId, "host", sessionId);
+    if (!started) return;
 
     try {
       this.#presence.sendReconnectSession(peerDeviceId, sessionId);
@@ -186,20 +205,33 @@ export class AutomaticPeerSyncManager {
     }
   }
 
-  #startPeer(
+  async #startPeer(
     peerDeviceId: DeviceId,
     role: WebRtcSignalingRole,
     sessionId: SessionId,
-  ): void {
-    if (this.#stopped) return;
+  ): Promise<boolean> {
+    if (this.#stopped || this.#pendingPeerIds.has(peerDeviceId)) return false;
 
     const existing = this.#connections.get(peerDeviceId);
-    if (existing?.sessionId === sessionId) return;
-    if (existing) this.#stopPeer(peerDeviceId);
+    if (existing?.sessionId === sessionId) return false;
+
+    this.#pendingPeerIds.add(peerDeviceId);
+    let configuration: RTCConfiguration | undefined;
+    try {
+      configuration = await this.#rtcConfigurationProvider();
+    } finally {
+      this.#pendingPeerIds.delete(peerDeviceId);
+    }
+
+    if (this.#stopped) return false;
+
+    const latest = this.#connections.get(peerDeviceId);
+    if (latest?.sessionId === sessionId) return false;
+    if (latest) this.#stopPeer(peerDeviceId);
 
     const transport = new WebRtcTransport(
       this.#project.id,
-      undefined,
+      configuration,
       createConsoleDebugLogger(`auto-${role}-webrtc`),
     );
     const encryptedTransport = new EncryptedSyncTransport(
@@ -322,6 +354,7 @@ export class AutomaticPeerSyncManager {
 
     syncEngine.start();
     signaling.start();
+    return true;
   }
 
   #stopPeer(peerDeviceId: DeviceId): void {
