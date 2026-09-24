@@ -72,7 +72,14 @@ credentials can be fetched, then save it.
 The endpoint is stored only on that browser/device and is shared by all Floe
 Projects on the device. It is not synchronized to other devices.
 
-If the setting is absent, or if credential retrieval fails, Floe continues with
-its default STUN-only WebRTC configuration. When TURN credentials are
-available, both direct and relay ICE candidates are supplied to WebRTC; ICE
-still prefers a working direct path and uses the relay only when necessary.
+If the setting is absent, Floe uses its default STUN-only WebRTC
+configuration. When a TURN endpoint is configured, automatic device sync first
+tries a direct STUN connection. If that attempt has not connected within six
+seconds, Floe starts a new signaling session in relay-only mode. Both devices
+then fetch their own short-lived TURN credentials and create new peer
+connections with `iceTransportPolicy: "relay"`.
+
+If relay credential retrieval fails, that relay attempt fails rather than
+silently becoming another direct attempt. Automatic reconnect will retry from
+the direct stage after its normal backoff. Invitation bootstrap continues to
+use the regular ICE configuration with direct and relay candidates available.
