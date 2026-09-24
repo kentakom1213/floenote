@@ -4,6 +4,7 @@ const STORAGE_KEY = "floe-note-note-sort";
 
 export type NoteSortMode = "updated" | "created" | "title";
 export type NoteSortDirection = "asc" | "desc";
+export type TagFilterMode = "and" | "or";
 
 export type NoteSortPreference = {
   mode: NoteSortMode;
@@ -23,6 +24,8 @@ export const DEFAULT_NOTE_SORT: NoteSortPreference = {
   direction: "desc",
 };
 
+export const DEFAULT_TAG_FILTER_MODE: TagFilterMode = "and";
+
 export function deriveProjectTags(
   notes: readonly Pick<SidebarNavigationNote, "tags">[],
 ): string[] {
@@ -39,26 +42,38 @@ export function deriveProjectTags(
   );
 }
 
-export function resolveSelectedTag(
-  selectedTag: string | null,
+export function resolveSelectedTags(
+  selectedTags: readonly string[],
   projectTags: readonly string[],
-): string | null {
-  if (selectedTag === null) return null;
-  return projectTags.includes(selectedTag) ? selectedTag : null;
+): string[] {
+  const selected = new Set(selectedTags);
+  return projectTags.filter((tag) => selected.has(tag));
+}
+
+export function matchesSelectedTags(
+  noteTags: readonly string[],
+  selectedTags: readonly string[],
+  mode: TagFilterMode,
+): boolean {
+  if (selectedTags.length === 0) return true;
+
+  return mode === "and"
+    ? selectedTags.every((tag) => noteTags.includes(tag))
+    : selectedTags.some((tag) => noteTags.includes(tag));
 }
 
 export function deriveVisibleNotes(
   notes: readonly SidebarNavigationNote[],
   query: string,
   preference: NoteSortPreference,
-  selectedTag: string | null = null,
+  selectedTags: readonly string[] = [],
+  tagFilterMode: TagFilterMode = DEFAULT_TAG_FILTER_MODE,
 ): SidebarNavigationNote[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
 
-  const filteredByTag =
-    selectedTag === null
-      ? [...notes]
-      : notes.filter((note) => note.tags.includes(selectedTag));
+  const filteredByTag = notes.filter((note) =>
+    matchesSelectedTags(note.tags, selectedTags, tagFilterMode),
+  );
 
   const filtered =
     normalizedQuery.length === 0
