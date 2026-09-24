@@ -2,7 +2,19 @@ import type { NoteDocument } from "@floe-note/document";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { marked } from "marked";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+
+import {
+  classifyMarkdownImageSource,
+  extractMarkdownImages,
+  type MarkdownImageDescriptor,
+} from "./markdown-images.js";
+import { sanitizeMarkdownHtml } from "./markdown-sanitizer.js";
 
 type MarkdownPreviewProps = {
   document: NoteDocument;
@@ -14,42 +26,30 @@ type MathSnippet = {
   display: boolean;
 };
 
-const ALLOWED_TAGS = new Set([
-  "a",
-  "blockquote",
-  "br",
-  "code",
-  "del",
-  "em",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "hr",
-  "li",
-  "ol",
-  "p",
-  "pre",
-  "strong",
-  "table",
-  "tbody",
-  "td",
-  "th",
-  "thead",
-  "tr",
-  "ul",
-]);
+export type MarkdownRenderResult = {
+  html: string;
+  hasExternalImages: boolean;
+};
 
 export function MarkdownPreview({ document }: MarkdownPreviewProps) {
+  return <DocumentMarkdownPreview key={document.id} document={document} />;
+}
+
+function DocumentMarkdownPreview({ document }: MarkdownPreviewProps) {
+  const [loadExternalImages, setLoadExternalImages] = useState(false);
   const subscribe = useCallback(
     (listener: () => void) => subscribeMarkdownPreview(document, listener),
     [document],
   );
-  const getSnapshot = useCallback(() => getMarkdownPreviewSource(document), [document]);
+  const getSnapshot = useCallback(
+    () => getMarkdownPreviewSource(document),
+    [document],
+  );
   const markdown = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const html = useMemo(() => renderMarkdown(markdown), [markdown]);
+  const rendered = useMemo(
+    () => renderMarkdownWithImagePolicy(markdown, { loadExternalImages }),
+    [loadExternalImages, markdown],
+  );
 
   if (!markdown.trim()) {
     return (
@@ -60,10 +60,26 @@ export function MarkdownPreview({ document }: MarkdownPreviewProps) {
   }
 
   return (
-    <div
-      className="markdown-preview"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <>
+      {rendered.hasExternalImages && !loadExternalImages ? (
+        <aside className="external-image-warning" aria-label="External images">
+          <div className="external-image-warning-copy">
+            <strong>External images are blocked</strong>
+            <p>
+              Loading them may reveal your IP address to the sites hosting
+              them.
+            </p>
+          </div>
+          <button type="button" onClick={() => setLoadExternalImages(true)}>
+            Load external images
+          </button>
+        </aside>
+      ) : null}
+      <div
+        className="markdown-preview"
+        dangerouslySetInnerHTML={{ __html: rendered.html }}
+      />
+    </>
   );
 }
 
@@ -87,85 +103,134 @@ export function getMarkdownPreviewSource(document: NoteDocument): string {
 }
 
 export function renderMarkdown(source: string): string {
-  const extracted = extractMath(source);
-  const rendered = marked.parse(extracted.markdown, {
+  return renderMarkdownWithImagePolicy(source, {
+    loadExternalImages: false,
+  }).html;
+}
+
+export function renderMarkdownWithImagePolicy(
+  source: string,
+  options: { loadExternalImages: boolean },
+): MarkdownRenderResult {
+  const extractedMath = extractMath(source);
+  const rendered = marked.parse(extractedMath.markdown, {
     async: false,
     gfm: true,
   }) as string;
 
-  const parsed = new DOMParser().parseFromString(rendered, "text/html");
-  sanitizeMarkdown(parsed.body);
-  hydrateMath(parsed, extracted.math);
+  // Image-bearing elements are removed before DOMPurify/DOMParser sees their
+  // resource URLs. The HTML passed onward contains only inert text markers.
+  const extractedImages = extractMarkdownImages(rendered);
+  const sanitized = sanitizeMarkdownHtml(extractedImages.html);
+  const parsed = new DOMParser().parseFromString(sanitized, "text/html");
 
-  return parsed.body.innerHTML;
+  hydrateMath(parsed, extractedMath.math);
+  hydrateImages(parsed, extractedImages.images, options.loadExternalImages);
+
+  return {
+    html: parsed.body.innerHTML,
+    hasExternalImages: extractedImages.images.some(
+      (image) =>
+        classifyMarkdownImageSource(image.source) === "external-https",
+    ),
+  };
 }
 
-function sanitizeMarkdown(root: HTMLElement): void {
-  const elements = Array.from(root.querySelectorAll("*"));
+function hydrateImages(
+  document: Document,
+  images: readonly MarkdownImageDescriptor[],
+  loadExternalImages: boolean,
+): void {
+  if (images.length === 0) return;
 
-  for (const element of elements) {
-    const tag = element.tagName.toLowerCase();
+  const byMarker = new Map(images.map((image) => [image.marker, image]));
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+  );
+  const textNodes: Text[] = [];
 
-    if (tag === "img") {
-      const replacement = root.ownerDocument.createElement("span");
-      replacement.className = "markdown-image-placeholder";
-      const alt = element.getAttribute("alt")?.trim();
-      replacement.textContent = alt ? `[Image: ${alt}]` : "[Image]";
-      element.replaceWith(replacement);
-      continue;
-    }
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
 
-    if (!ALLOWED_TAGS.has(tag)) {
-      element.replaceWith(
-        root.ownerDocument.createTextNode(element.textContent ?? ""),
-      );
-      continue;
-    }
+  for (const textNode of textNodes) {
+    const value = textNode.nodeValue ?? "";
+    if (!images.some((image) => value.includes(image.marker))) continue;
 
-    for (const attribute of Array.from(element.attributes)) {
-      const keepHref = tag === "a" && attribute.name === "href";
-      const keepTitle = tag === "a" && attribute.name === "title";
-      const keepCodeClass =
-        tag === "code" &&
-        attribute.name === "class" &&
-        /^language-[a-z0-9_+-]+$/iu.test(attribute.value);
+    const fragment = document.createDocumentFragment();
+    let remaining = value;
 
-      if (!keepHref && !keepTitle && !keepCodeClass) {
-        element.removeAttribute(attribute.name);
+    while (remaining.length > 0) {
+      let next: MarkdownImageDescriptor | null = null;
+      let nextIndex = Number.POSITIVE_INFINITY;
+
+      for (const image of images) {
+        const index = remaining.indexOf(image.marker);
+        if (index >= 0 && index < nextIndex) {
+          next = byMarker.get(image.marker) ?? null;
+          nextIndex = index;
+        }
       }
+
+      if (!next) {
+        fragment.append(remaining);
+        break;
+      }
+
+      if (nextIndex > 0) {
+        fragment.append(remaining.slice(0, nextIndex));
+      }
+
+      fragment.append(renderImageNode(document, next, loadExternalImages));
+      remaining = remaining.slice(nextIndex + next.marker.length);
     }
 
-    if (tag === "a") {
-      const href = element.getAttribute("href");
-      if (!href || !isSafeHref(href)) {
-        element.removeAttribute("href");
-      } else {
-        element.setAttribute("rel", "noreferrer noopener");
-      }
-    }
+    textNode.replaceWith(fragment);
   }
 }
 
-function isSafeHref(href: string): boolean {
-  if (
-    href.startsWith("#") ||
-    href.startsWith("/") ||
-    href.startsWith("./") ||
-    href.startsWith("../")
-  ) {
-    return true;
+function renderImageNode(
+  document: Document,
+  image: MarkdownImageDescriptor,
+  loadExternalImages: boolean,
+): HTMLElement {
+  const kind = classifyMarkdownImageSource(image.source);
+
+  if (kind === "external-https" && loadExternalImages) {
+    const element = document.createElement("img");
+    element.alt = image.alt;
+    element.loading = "lazy";
+    element.referrerPolicy = "no-referrer";
+    if (image.title !== null) {
+      element.title = image.title;
+    }
+
+    // src is set last, and only after explicit note-scoped permission.
+    element.src = image.source;
+    return element;
   }
 
-  try {
-    const url = new URL(href, window.location.origin);
-    return (
-      url.protocol === "http:" ||
-      url.protocol === "https:" ||
-      url.protocol === "mailto:"
-    );
-  } catch {
-    return false;
+  const placeholder = document.createElement("span");
+  placeholder.className = "markdown-image-placeholder";
+
+  if (kind === "external-https") {
+    placeholder.textContent = image.alt ? `[Image: ${image.alt}]` : "[Image]";
+  } else if (kind === "insecure-http") {
+    placeholder.textContent = image.alt
+      ? `[Image blocked: insecure source — ${image.alt}]`
+      : "[Image blocked: insecure source]";
+  } else if (kind === "relative") {
+    placeholder.textContent = image.alt
+      ? `[Image unavailable: ${image.alt}]`
+      : "[Image unavailable]";
+  } else {
+    placeholder.textContent = image.alt
+      ? `[Image blocked: unsafe source — ${image.alt}]`
+      : "[Image blocked: unsafe source]";
   }
+
+  return placeholder;
 }
 
 function hydrateMath(document: Document, snippets: readonly MathSnippet[]): void {
@@ -365,7 +430,11 @@ function findClosingDollar(
 
 function isEscaped(value: string, index: number): boolean {
   let slashes = 0;
-  for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) {
+  for (
+    let cursor = index - 1;
+    cursor >= 0 && value[cursor] === "\\";
+    cursor -= 1
+  ) {
     slashes += 1;
   }
   return slashes % 2 === 1;
