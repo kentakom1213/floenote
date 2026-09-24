@@ -8,7 +8,7 @@ export function reconcileDocumentSubscriptions(
   subscriptions: DocumentSubscriptionSet,
   attach: (document: NoteDocument) => void,
 ): void {
-  const currentDocuments = new Map(
+  const currentDocuments = new Map<string, NoteDocument>(
     documents.map((document) => [document.id, document] as const),
   );
 
