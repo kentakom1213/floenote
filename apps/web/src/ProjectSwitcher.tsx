@@ -12,7 +12,11 @@ export type ProjectSwitcherItem = {
   isCurrent: boolean;
 };
 
-type NewProjectSource = "blank" | "invitation" | "floe-import";
+type NewProjectSource =
+  | "blank"
+  | "invitation"
+  | "floe-import"
+  | "markdown-import";
 
 type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
@@ -20,6 +24,7 @@ type ProjectSwitcherProps = {
   onSelectProject: (projectId: ProjectId) => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
+  onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
   onOpenProjectSettings: () => void;
 };
 
@@ -29,6 +34,7 @@ export function ProjectSwitcher({
   onSelectProject,
   onCreateProject,
   onImportFloeExport,
+  onImportMarkdownDirectory,
   onOpenProjectSettings,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
@@ -113,6 +119,28 @@ export function ProjectSwitcher({
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Could not import Floe export",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importMarkdownDirectory(
+    files: readonly File[],
+  ): Promise<void> {
+    if (busy || files.length === 0) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      await onImportMarkdownDirectory(files);
+      setNewProjectSource(null);
+      setNewProjectOpen(false);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not import Markdown directory",
       );
     } finally {
       setBusy(false);
@@ -270,6 +298,17 @@ export function ProjectSwitcher({
                     export and preserve note metadata.
                   </span>
                 </button>
+                <button
+                  className="new-project-source-option"
+                  type="button"
+                  onClick={() => setNewProjectSource("markdown-import")}
+                >
+                  <strong>Import Markdown directory</strong>
+                  <span>
+                    Create a new independent Project from ordinary Markdown
+                    files. Nested directories are flattened.
+                  </span>
+                </button>
               </div>
 
               <div className="dialog-actions">
@@ -391,7 +430,7 @@ export function ProjectSwitcher({
                 </div>
               </form>
             </>
-          ) : (
+          ) : newProjectSource === "floe-import" ? (
             <>
               <p className="dialog-description">
                 Choose a portable Floe export. The archive is fully validated
@@ -426,6 +465,61 @@ export function ProjectSwitcher({
                 {busy
                   ? "Validating and creating a new Project…"
                   : "Select a .floe.zip file exported by Floe Note."}
+              </p>
+
+              {error ? <p className="dialog-error">{error}</p> : null}
+
+              <div className="dialog-actions">
+                <button
+                  className="dialog-secondary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={closeNewProject}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="dialog-description">
+                Choose a directory containing Markdown files. Floe Note reads
+                and validates all importable files before creating a new
+                independent Project. Nested directories are flattened.
+              </p>
+
+              <button
+                className="new-project-source-back"
+                type="button"
+                disabled={busy}
+                onClick={returnToSourceSelection}
+              >
+                ← Choose another source
+              </button>
+
+              <label className="dialog-field">
+                <span>Markdown directory</span>
+                <input
+                  autoFocus
+                  type="file"
+                  multiple
+                  disabled={busy}
+                  ref={(input) => {
+                    input?.setAttribute("webkitdirectory", "");
+                  }}
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = "";
+                    if (files.length > 0) {
+                      void importMarkdownDirectory(files);
+                    }
+                  }}
+                />
+              </label>
+              <p className="settings-field-hint">
+                {busy
+                  ? "Reading, validating, and creating a new Project…"
+                  : "Imports .md and .markdown files recursively. Hidden files and directories are ignored."}
               </p>
 
               {error ? <p className="dialog-error">{error}</p> : null}
