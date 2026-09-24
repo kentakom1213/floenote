@@ -94,6 +94,7 @@ ProjectId     -> UUIDv7
 DocumentId    -> UUIDv7
 DeviceId      -> UUIDv7
 AttachmentId  -> UUIDv7
+CheckpointId  -> UUIDv7
 ```
 
 UUIDv7 is used because devices can generate identifiers independently while retaining useful creation-order locality.
