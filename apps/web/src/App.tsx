@@ -87,7 +87,6 @@ import {
 import { deriveSyncUiState } from "./sync-ui-state.js";
 import { clearThemePreference, useThemePreference } from "./theme.js";
 import { SignaledJoinPage } from "./SignaledJoinPage.js";
-import { TrashView } from "./TrashView.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
 import {
   reconcileVerifiedSecurityState,
@@ -1541,14 +1540,7 @@ function NoteApp() {
         onThemeChange={setThemePreference}
         onEraseDevice={eraseFloeFromThisDevice}
       />
-    ) : mainView === "trash" ? (
-      <TrashView
-        project={activeProject}
-        onRestoreDocument={(documentId) =>
-          activeProject.restoreDocument(documentId)
-        }
-      />
-    ) : mainView === "project-settings" ? (
+        ) : mainView === "project-settings" ? (
       <ProjectSettingsView
         projectId={activeProject.id}
         projectName={activeProject.name}
@@ -1659,6 +1651,16 @@ function NoteApp() {
         }
       }}
       onDeleteDocument={deleteDocument}
+      onRestoreDocument={(documentId) => {
+        const document = activeProject.getDeletedDocument(documentId);
+        if (!document) return;
+
+        activeProject.restoreDocument(documentId);
+        setSelectedId(documentId);
+        setFocusTitleDocumentId(null);
+        writeLastDocumentId(activeProject.id, documentId);
+        setMainView("note");
+      }}
       onOpenTrash={() => {
         setFocusTitleDocumentId(null);
         setMainView("trash");
