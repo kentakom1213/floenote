@@ -199,18 +199,30 @@ export class NoteDocument {
   }
 
   matchesHistoryFrontiers(encodedFrontiers: Uint8Array): boolean {
-    const frontiers = decodeFrontiers(encodedFrontiers);
-    return this.#doc.cmpFrontiers(this.#doc.frontiers(), frontiers) === 0;
+    try {
+      const frontiers = decodeFrontiers(encodedFrontiers);
+      return this.#doc.cmpFrontiers(this.#doc.frontiers(), frontiers) === 0;
+    } catch {
+      return false;
+    }
   }
 
-  createHistoricalView(encodedFrontiers: Uint8Array): NoteDocument {
-    const historicalDoc = this.#doc.forkAt(decodeFrontiers(encodedFrontiers));
-    historicalDoc.detach();
-    return new NoteDocument(this.id, historicalDoc);
+  createHistoricalView(encodedFrontiers: Uint8Array): NoteDocument | null {
+    try {
+      const historicalDoc = this.#doc.forkAt(
+        decodeFrontiers(encodedFrontiers),
+      );
+      historicalDoc.detach();
+      return new NoteDocument(this.id, historicalDoc);
+    } catch {
+      return null;
+    }
   }
 
   restoreFromHistoryFrontiers(encodedFrontiers: Uint8Array): boolean {
     const historical = this.createHistoricalView(encodedFrontiers);
+    if (!historical) return false;
+
     const nextTitle = historical.title;
     const nextTags = [...historical.tags];
     const nextBody = historical.bodyText;
