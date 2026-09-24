@@ -6,15 +6,18 @@ import { Modal } from "./Modal.js";
 type ProjectEmptyStateProps = {
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
+  onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
 };
 
 export function ProjectEmptyState({
   onCreateProject,
   onImportFloeExport,
+  onImportMarkdownDirectory,
 }: ProjectEmptyStateProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [markdownImportOpen, setMarkdownImportOpen] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,9 +65,31 @@ export function ProjectEmptyState({
       const archive = new Uint8Array(await file.arrayBuffer());
       await onImportFloeExport(archive);
       setImportOpen(false);
+    setMarkdownImportOpen(false);
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Could not import Floe export",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importMarkdownDirectory(
+    files: readonly File[],
+  ): Promise<void> {
+    if (busy || files.length === 0) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      await onImportMarkdownDirectory(files);
+      setMarkdownImportOpen(false);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not import Markdown directory",
       );
     } finally {
       setBusy(false);
@@ -91,7 +116,7 @@ export function ProjectEmptyState({
         <h1>No Projects on this device</h1>
         <p>
           Create a new Project, join one from another authorized device, or
-          import a portable Floe export.
+          import existing notes.
         </p>
 
         <div className="project-empty-actions">
@@ -124,6 +149,16 @@ export function ProjectEmptyState({
             }}
           >
             Import Floe export
+          </button>
+          <button
+            className="dialog-secondary-button"
+            type="button"
+            onClick={() => {
+              setError(null);
+              setMarkdownImportOpen(true);
+            }}
+          >
+            Import Markdown directory
           </button>
         </div>
       </section>
@@ -254,6 +289,56 @@ export function ProjectEmptyState({
             {busy
               ? "Validating and creating a new Project…"
               : "The source Project identity, devices, and keys are not restored."}
+          </p>
+          {error ? <p className="dialog-error">{error}</p> : null}
+          <div className="dialog-actions">
+            <button
+              className="dialog-secondary-button"
+              type="button"
+              disabled={busy}
+              onClick={closeDialogs}
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {markdownImportOpen ? (
+        <Modal
+          labelledBy="empty-import-markdown-title"
+          onClose={closeDialogs}
+          disabled={busy}
+        >
+          <h2 id="empty-import-markdown-title">Import Markdown directory</h2>
+          <p className="dialog-description">
+            Select a directory of Markdown files. Floe Note reads and validates
+            all importable files before creating a new independent Project.
+            Nested directories are flattened.
+          </p>
+          <label className="dialog-field">
+            <span>Markdown directory</span>
+            <input
+              autoFocus
+              type="file"
+              multiple
+              disabled={busy}
+              ref={(input) => {
+                input?.setAttribute("webkitdirectory", "");
+              }}
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                if (files.length > 0) {
+                  void importMarkdownDirectory(files);
+                }
+              }}
+            />
+          </label>
+          <p className="settings-field-hint">
+            {busy
+              ? "Reading, validating, and creating a new Project…"
+              : "Imports .md and .markdown files recursively. Hidden files and directories are ignored."}
           </p>
           {error ? <p className="dialog-error">{error}</p> : null}
           <div className="dialog-actions">
