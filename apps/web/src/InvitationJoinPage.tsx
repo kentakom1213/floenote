@@ -24,6 +24,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import {
+  closeOwnedDeviceVaultSession,
+  handoffDeviceVaultSession,
+} from "./device-vault-session-owner.js";
 import { generateDeviceDisplayName } from "./device-name.js";
 import { clearAllLastDocumentPreferences } from "./note-preference.js";
 import { resolveRtcConfiguration } from "./turn-credentials.js";
@@ -46,6 +50,7 @@ type InvitationJoinPageProps = {
   pairingSecret: string | null;
   storage: ProjectStorage;
   turnCredentialEndpoint: string | null;
+  onSessionHandoff: (session: DeviceVaultSession) => void;
 };
 
 type JoinVaultState =
@@ -69,6 +74,7 @@ export function InvitationJoinPage({
   pairingSecret,
   storage,
   turnCredentialEndpoint,
+  onSessionHandoff,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
@@ -113,9 +119,7 @@ export function InvitationJoinPage({
 
     return () => {
       cancelled = true;
-      const session = vaultSessionRef.current;
-      vaultSessionRef.current = null;
-      if (session) void session.close();
+      void closeOwnedDeviceVaultSession(vaultSessionRef);
     };
   }, []);
 
@@ -175,6 +179,7 @@ export function InvitationJoinPage({
           stopSignalingState();
           signaling.stop();
           stopTransportStatus();
+          transport.close();
         };
 
         await authenticatePairingChannel({
@@ -234,9 +239,7 @@ export function InvitationJoinPage({
         cleanup?.();
         cleanup = null;
 
-        window.setTimeout(() => {
-          if (!disposed) window.location.replace("/");
-        }, 0);
+        handoffDeviceVaultSession(vaultSessionRef, onSessionHandoff);
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -258,6 +261,7 @@ export function InvitationJoinPage({
     coordinatorBaseUrl,
     deviceId,
     inviteId,
+    onSessionHandoff,
     pairingSecret,
     storage,
     turnCredentialEndpoint,
@@ -323,9 +327,7 @@ export function InvitationJoinPage({
     setVaultError(null);
 
     try {
-      const session = vaultSessionRef.current;
-      vaultSessionRef.current = null;
-      if (session) await session.close();
+      await closeOwnedDeviceVaultSession(vaultSessionRef);
 
       await storage.eraseAllLocalData();
       await joinDeviceVault.eraseVault();
