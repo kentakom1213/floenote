@@ -1809,7 +1809,7 @@ function NoteApp({
   const sidebarFooter = (
     <>
       {debugSidebarControls}
-      {coordinationError && !useInvitationWebRtc ? (
+      {coordinationError && !invitationHostActive ? (
         <p className="webrtc-error">{coordinationError}</p>
       ) : null}
       <div className="sidebar-footer-row">
