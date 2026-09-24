@@ -45,7 +45,10 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
         }),
         synchronousLoroUndoKeymap(undoManager),
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
-        compositionUndoGrouping(undoManager),
+        compositionUndoGrouping(undoManager, {
+          beginComposition: binding.beginComposition,
+          endComposition: binding.endComposition,
+        }),
       ],
     });
 
