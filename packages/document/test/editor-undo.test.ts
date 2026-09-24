@@ -77,7 +77,7 @@ describe("NoteDocument editor undo history", () => {
     await flushAutomaticTimestamp();
 
     now.mockReturnValue(300);
-    binding.beginComposition();
+    binding.beginEditorHistoryGroup();
     undoManager.groupStart();
 
     replaceBody("prefix に");
@@ -86,7 +86,7 @@ describe("NoteDocument editor undo history", () => {
     replaceBody("prefix 日本");
 
     undoManager.groupEnd();
-    binding.endComposition();
+    binding.endEditorHistoryGroup();
     await flushAutomaticTimestamp();
 
     expect(document.bodyText).toBe("prefix 日本");
@@ -99,6 +99,40 @@ describe("NoteDocument editor undo history", () => {
     expect(undoManager.redo()).toBe(true);
     await flushAutomaticTimestamp();
     expect(document.bodyText).toBe("prefix 日本");
+  });
+
+  it("keeps a typing burst together and Enter as its own undo step", async () => {
+    const document = NoteDocument.create(createDocumentId(), "Events", 100);
+    const binding = document.getEditorBinding();
+    const undoManager = createEditorUndoManager(document);
+    const text = binding.getText(binding.doc);
+
+    binding.beginEditorHistoryGroup();
+    text.insert(0, "a");
+    binding.doc.commit();
+
+    undoManager.groupStart();
+    text.insert(1, "b");
+    binding.doc.commit();
+    text.insert(2, "c");
+    binding.doc.commit();
+    undoManager.groupEnd();
+    binding.endEditorHistoryGroup();
+    await flushAutomaticTimestamp();
+
+    text.insert(3, "\n");
+    binding.doc.commit();
+    await flushAutomaticTimestamp();
+
+    expect(document.bodyText).toBe("abc\n");
+
+    expect(undoManager.undo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("abc");
+
+    expect(undoManager.undo()).toBe(true);
+    await flushAutomaticTimestamp();
+    expect(document.bodyText).toBe("");
   });
 
   it("does not undo title or tag metadata from the source editor", async () => {
