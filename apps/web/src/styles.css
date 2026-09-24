@@ -3800,15 +3800,6 @@ h1 {
     padding: 18px;
   }
 
-  .pwa-update-banner {
-    right: max(10px, env(safe-area-inset-right));
-    bottom: max(10px, env(safe-area-inset-bottom));
-    left: max(10px, env(safe-area-inset-left));
-    max-width: none;
-    gap: 10px;
-    padding: 10px 10px 10px 12px;
-  }
-
   .pwa-update-banner button {
     min-height: 40px;
   }
@@ -3818,9 +3809,14 @@ h1 {
 .pwa-update-banner {
   position: fixed;
   z-index: 100;
-  right: 18px;
-  bottom: 18px;
-  max-width: min(380px, calc(100vw - 36px));
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  max-width: min(
+    380px,
+    calc(
+      100vw - 36px - env(safe-area-inset-left) - env(safe-area-inset-right)
+    )
+  );
   display: flex;
   align-items: center;
   gap: 14px;
