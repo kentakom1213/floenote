@@ -100,8 +100,8 @@ conditions is met:
 Only local edits start checkpoint timers. Receiving a remote P2P update alone
 must not create a checkpoint on the receiving device.
 
-Checkpoint creation is a no-op if the current Document `Frontiers` are equal
-to the most recent checkpoint for that Document.
+Checkpoint creation is a no-op if the current Document `Frontiers` are already
+represented by an existing checkpoint for that Document.
 
 Automatic checkpoint creation is silent. It does not show a save toast or
 otherwise imply that ordinary note persistence depends on edit history.
