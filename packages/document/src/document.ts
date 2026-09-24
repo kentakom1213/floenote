@@ -245,9 +245,7 @@ export class NoteDocument {
         tags.insert(index, tag);
       });
 
-      const body = this.#doc.getText("body");
-      const currentBodyLength = body.toString().length;
-      body.splice(0, currentBodyLength, nextBody);
+      this.#doc.getText("body").update(nextBody);
 
       meta.set("updatedAt", Date.now());
       this.#doc.commit({ origin: "floe:history-restore" });
