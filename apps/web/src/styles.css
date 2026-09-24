@@ -4352,3 +4352,222 @@ h1 {
     margin-block: auto;
   }
 }
+
+
+/* Tag navigation */
+.sidebar-tag-section {
+  min-width: 0;
+  flex: 0 0 auto;
+  margin-top: 12px;
+}
+
+.sidebar-section-toggle {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 9px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.sidebar-section-toggle:hover {
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-section-toggle:focus-visible,
+.sidebar-tag-row:focus-visible,
+.note-tag-suggestion:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.sidebar-section-chevron {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  transition: transform 120ms ease;
+}
+
+.sidebar-section-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.sidebar-section-chevron svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar-tag-list {
+  max-height: min(176px, 26vh);
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  margin-top: 2px;
+  padding-right: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.sidebar-tag-row {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 9px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.sidebar-tag-row:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-tag-row.selected {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
+.sidebar-tag-symbol {
+  color: var(--color-text-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+.sidebar-tag-row.selected .sidebar-tag-symbol {
+  color: var(--color-accent);
+}
+
+.sidebar-tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-section-label {
+  margin: 10px 9px 2px;
+  color: var(--color-text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Tag assignment */
+.note-tag-form {
+  position: relative;
+  width: min(220px, 100%);
+  display: inline-grid;
+  flex: 0 1 220px;
+}
+
+.note-tag-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.note-tag-suggestions {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 5px);
+  left: 0;
+  width: 100%;
+  max-height: 196px;
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  padding: 4px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  overscroll-behavior: contain;
+}
+
+.note-tag-suggestion {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 7px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.note-tag-suggestion:hover,
+.note-tag-suggestion[aria-selected="true"] {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.note-tag-suggestion-symbol {
+  color: var(--color-text-faint);
+  text-align: center;
+}
+
+.note-tag-suggestion > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .sidebar-section-toggle,
+  .sidebar-tag-row {
+    min-height: 44px;
+  }
+
+  .sidebar-tag-list {
+    max-height: min(220px, 28dvh);
+  }
+
+  .sidebar-section-label {
+    margin-top: 8px;
+  }
+
+  .note-tag-form {
+    width: min(220px, 100%);
+    flex-basis: min(220px, 100%);
+  }
+
+  .note-tag-suggestion {
+    min-height: 40px;
+  }
+}
