@@ -238,7 +238,8 @@ export class NoteDocument {
       // In Split mode the mounted source editor owns the CodeMirror view.
       // Route the edit through it so CodeMirror updates immediately and the
       // existing loro-codemirror transaction path performs the Loro commit.
-      return this.#externalBodyMutationHandler(mutation);
+      const handled = this.#externalBodyMutationHandler(mutation);
+      return handled && this.bodyText[stateOffset] === nextState;
     }
 
     // LoroText's JavaScript API uses UTF-16 code-unit positions, the same
