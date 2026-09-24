@@ -40,4 +40,5 @@ export { AuthorizedPresenceClient } from "./authorized-presence-client.js";
 export type {
   AuthorizedPresenceClientOptions,
   AuthorizedPresenceConnectionState,
+  ReconnectTransportMode,
 } from "./authorized-presence-client.js";
