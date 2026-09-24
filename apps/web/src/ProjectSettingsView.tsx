@@ -11,6 +11,10 @@ type ProjectSettingsViewProps = {
   authorizedDevices: readonly AuthorizedDevice[] | null;
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
+  connectionAttempts: readonly {
+    deviceId: DeviceId;
+    mode: "direct" | "relay";
+  }[];
   securityState: "loading" | "ready" | "error";
   securityError: string | null;
   coordinationState: "checking" | "ready" | "error";
@@ -35,6 +39,7 @@ export function ProjectSettingsView({
   authorizedDevices,
   onlineDeviceIds,
   connectedDeviceIds,
+  connectionAttempts,
   securityState,
   securityError,
   coordinationState,
@@ -49,6 +54,9 @@ export function ProjectSettingsView({
 }: ProjectSettingsViewProps) {
   const online = new Set(onlineDeviceIds);
   const connected = new Set(connectedDeviceIds);
+  const attempts = new Map(
+    connectionAttempts.map((attempt) => [attempt.deviceId, attempt.mode]),
+  );
   const [nameDraft, setNameDraft] = useState(projectName);
   const [removeProjectOpen, setRemoveProjectOpen] = useState(false);
   const [exportState, setExportState] = useState<
@@ -170,6 +178,7 @@ export function ProjectSettingsView({
               const isCurrent = device.deviceId === localDeviceId;
               const isOnline = online.has(device.deviceId);
               const isConnected = connected.has(device.deviceId);
+              const connectionMode = attempts.get(device.deviceId);
               const displayName =
                 getDeviceDisplayName(device.deviceId) ??
                 (isCurrent ? "This device" : "Unnamed device");
@@ -202,9 +211,11 @@ export function ProjectSettingsView({
                             : "Offline"
                           : isConnected
                             ? "Connected"
-                            : isOnline
-                              ? "Online"
-                              : "Offline"}
+                            : connectionMode
+                              ? `Connecting · ${connectionMode === "relay" ? "Relay" : "Direct"}`
+                              : isOnline
+                                ? "Online"
+                                : "Offline"}
                       </span>
                     </div>
                     <p>{shortDeviceId(device.deviceId)}</p>
