@@ -98,7 +98,7 @@ export function useAuthorizedProjectSync({
 
     const stopState = presence.onStateChange((state) => {
       setPresenceState(state);
-      if (state === "open") {
+      if (state === "connecting" || state === "open") {
         setPresenceError(null);
       }
     });
