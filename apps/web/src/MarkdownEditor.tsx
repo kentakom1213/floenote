@@ -99,8 +99,13 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     };
 
     host.addEventListener("pointerdown", handlePointerDown);
+    const unsubscribeExternalBodyMutation =
+      binding.subscribeExternalBodyMutation(() => {
+        undoGrouping.closeCurrentGroup();
+      });
 
     return () => {
+      unsubscribeExternalBodyMutation();
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
       undoManager.free();
