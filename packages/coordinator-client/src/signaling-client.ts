@@ -75,7 +75,6 @@ export class CoordinatorSignalingClient {
 
     this.#debug("signal.send", {
       type: signal.type,
-      generation: this.#generation,
     });
     this.#socket.send(encodeSignal(signal));
   }
@@ -98,10 +97,7 @@ export class CoordinatorSignalingClient {
   close(): void {
     if (!this.#started && !this.#socket && !this.#reconnectTimer) return;
 
-    this.#debug("socket.close-requested", {
-      generation: this.#generation,
-      reconnectAttempt: this.#reconnectAttempt,
-    });
+    this.#debug("socket.close-requested");
 
     this.#started = false;
     this.#generation += 1;
@@ -119,13 +115,9 @@ export class CoordinatorSignalingClient {
 
     this.#generation += 1;
     const generation = this.#generation;
-    const reconnectAttempt = this.#reconnectAttempt;
-
     this.#setState("connecting");
     this.#debug("socket.connect", {
       origin: this.#url.origin,
-      generation,
-      reconnectAttempt,
     });
 
     const socket = new WebSocket(this.#url);
@@ -134,10 +126,7 @@ export class CoordinatorSignalingClient {
     socket.addEventListener("open", () => {
       if (generation !== this.#generation || socket !== this.#socket) return;
 
-      this.#debug("socket.open", {
-        generation,
-        reconnectAttempt,
-      });
+      this.#debug("socket.open");
       this.#reconnectAttempt = 0;
       this.#setState("open");
     });
@@ -147,7 +136,6 @@ export class CoordinatorSignalingClient {
 
       if (typeof event.data !== "string") {
         this.#debug("socket.message-ignored", {
-          generation,
           dataType: typeof event.data,
         });
         return;
@@ -156,7 +144,6 @@ export class CoordinatorSignalingClient {
       try {
         const message = decodeServerMessage(event.data);
         this.#debug("socket.message", {
-          generation,
           type: message.type,
           signalType: message.type === "signal" ? message.signal.type : null,
         });
@@ -166,7 +153,6 @@ export class CoordinatorSignalingClient {
         }
       } catch (error) {
         this.#debug("socket.message-error", {
-          generation,
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -176,11 +162,9 @@ export class CoordinatorSignalingClient {
       if (generation !== this.#generation || socket !== this.#socket) return;
 
       this.#debug("socket.close", {
-        generation,
         code: event.code,
         reason: event.reason,
         wasClean: event.wasClean,
-        retryable: isRetryableCloseCode(event.code),
       });
       this.#socket = null;
 
@@ -201,9 +185,7 @@ export class CoordinatorSignalingClient {
     socket.addEventListener("error", () => {
       if (generation !== this.#generation || socket !== this.#socket) return;
 
-      this.#debug("socket.error", {
-        generation,
-      });
+      this.#debug("socket.error");
       this.#setState("error");
     });
   }
@@ -219,23 +201,15 @@ export class CoordinatorSignalingClient {
     const attempt = this.#reconnectAttempt + 1;
     this.#reconnectAttempt = attempt;
 
-    // Temporary diagnostic logging for the signaling reconnect investigation.
-    // Remove the extra reconnect detail before merging once behavior is verified.
     this.#debug("socket.reconnect-scheduled", {
-      attempt,
       delayMs,
-      closeCode,
-      generation: this.#generation,
     });
 
     this.#reconnectTimer = setTimeout(() => {
       this.#reconnectTimer = null;
       if (!this.#started || this.#socket) return;
 
-      this.#debug("socket.reconnect-start", {
-        attempt,
-        generation: this.#generation,
-      });
+      this.#debug("socket.reconnect-start");
       this.#connect();
     }, delayMs);
   }
