@@ -24,3 +24,10 @@ export function parseInvitationUrl(
 
   return url;
 }
+
+
+export function clearInvitationUrl(
+  history: Pick<History, "replaceState">,
+): void {
+  history.replaceState(null, "", "/");
+}
