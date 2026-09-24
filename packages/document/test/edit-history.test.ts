@@ -180,6 +180,10 @@ describe("NoteProject edit history", () => {
       : null;
 
     expect(restored?.restoreSourceCheckpointId).toBe(oldCheckpoint?.id);
+    expect(restored?.createdAt).toBe(201);
+    expect(
+      project.listEditHistoryCheckpoints(document.id)[0]?.id,
+    ).toBe(restored?.id);
     expect(project.getDocument(document.id)).toBe(document);
     expect(document.title).toBe("Old title");
     expect(document.tags).toEqual(["old"]);
