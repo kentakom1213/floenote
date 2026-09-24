@@ -29,6 +29,15 @@ export type AuthorizedPresenceClientOptions = {
   sign: (message: Uint8Array) => Promise<Uint8Array>;
 };
 
+export const AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS = [
+  1_000,
+  2_000,
+  4_000,
+  8_000,
+  16_000,
+  30_000,
+] as const;
+
 export class AuthorizedPresenceClient {
   readonly #url: URL;
   readonly #projectId: ProjectId;
@@ -47,7 +56,10 @@ export class AuthorizedPresenceClient {
   >();
   #socket: WebSocket | null = null;
   #state: AuthorizedPresenceConnectionState = "idle";
+  #started = false;
   #generation = 0;
+  #reconnectAttempt = 0;
+  #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: AuthorizedPresenceClientOptions) {
     this.#url = createPresenceWebSocketUrl(
@@ -65,7 +77,19 @@ export class AuthorizedPresenceClient {
   }
 
   start(): void {
-    if (this.#socket) return;
+    if (this.#started) return;
+    this.#started = true;
+    this.#connect();
+  }
+
+  retryNow(): void {
+    if (!this.#started || this.#socket) return;
+    this.#clearReconnectTimer();
+    this.#connect();
+  }
+
+  #connect(): void {
+    if (!this.#started || this.#socket) return;
 
     this.#generation += 1;
     const generation = this.#generation;
@@ -83,22 +107,38 @@ export class AuthorizedPresenceClient {
     });
 
     socket.addEventListener("close", (event) => {
-      if (generation !== this.#generation) return;
+      if (generation !== this.#generation || socket !== this.#socket) return;
       this.#socket = null;
+
+      if (!this.#started) {
+        this.#setState("closed");
+        return;
+      }
+
       if (
         event.code === 1008 &&
         event.reason === "SecurityState changed"
       ) {
+        this.#started = false;
+        this.#clearReconnectTimer();
         this.#fail(new Error("SecurityState changed"));
         return;
       }
-      if (this.#state !== "error") {
-        this.#setState("closed");
+
+      if (!isRetryablePresenceCloseCode(event.code)) {
+        this.#started = false;
+        this.#clearReconnectTimer();
+        if (this.#state !== "error") {
+          this.#setState("closed");
+        }
+        return;
       }
+
+      this.#scheduleReconnect();
     });
 
     socket.addEventListener("error", () => {
-      if (generation !== this.#generation) return;
+      if (generation !== this.#generation || socket !== this.#socket) return;
       this.#fail(new Error("Authorized presence WebSocket failed"));
     });
   }
@@ -148,9 +188,14 @@ export class AuthorizedPresenceClient {
   }
 
   close(): void {
+    if (!this.#started && !this.#socket && !this.#reconnectTimer) return;
+
+    this.#started = false;
     this.#generation += 1;
+    this.#clearReconnectTimer();
     this.#socket?.close(1000, "Authorized presence ended");
     this.#socket = null;
+    this.#reconnectAttempt = 0;
     this.#setState("closed");
     this.#deviceHandlers.clear();
     this.#stateHandlers.clear();
@@ -172,6 +217,8 @@ export class AuthorizedPresenceClient {
 
       if (isPresenceStateMessage(parsed)) {
         const deviceIds = parsed.deviceIds.map(parseDeviceId);
+        this.#reconnectAttempt = 0;
+        this.#clearReconnectTimer();
         this.#setState("open");
         for (const handler of this.#deviceHandlers) {
           handler(deviceIds);
@@ -250,6 +297,29 @@ export class AuthorizedPresenceClient {
     );
   }
 
+  #scheduleReconnect(): void {
+    if (!this.#started || this.#reconnectTimer) return;
+
+    const delayIndex = Math.min(
+      this.#reconnectAttempt,
+      AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS.length - 1,
+    );
+    const delayMs = AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS[delayIndex];
+    this.#reconnectAttempt += 1;
+    this.#setState("connecting");
+
+    this.#reconnectTimer = setTimeout(() => {
+      this.#reconnectTimer = null;
+      this.#connect();
+    }, delayMs);
+  }
+
+  #clearReconnectTimer(): void {
+    if (!this.#reconnectTimer) return;
+    clearTimeout(this.#reconnectTimer);
+    this.#reconnectTimer = null;
+  }
+
   #fail(error: Error): void {
     this.#setState("error");
     for (const handler of this.#errorHandlers) {
@@ -322,6 +392,17 @@ function isReconnectSessionMessage(
     typeof value.fromDeviceId === "string" &&
     "sessionId" in value &&
     typeof value.sessionId === "string"
+  );
+}
+
+function isRetryablePresenceCloseCode(code: number): boolean {
+  return (
+    code === 1000 ||
+    code === 1001 ||
+    code === 1006 ||
+    code === 1011 ||
+    code === 1012 ||
+    code === 1013
   );
 }
 
