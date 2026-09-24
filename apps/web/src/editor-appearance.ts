@@ -123,6 +123,15 @@ const floeEditorChrome = EditorView.theme({
     borderColor: "var(--color-border-strong)",
     backgroundColor: "var(--color-surface-hover)",
   },
+  ".cm-panel.cm-search .cm-button:active": {
+    borderColor: "var(--color-accent)",
+    backgroundColor: "var(--color-accent-soft)",
+  },
+  ".cm-panel.cm-search .cm-button:focus-visible, .cm-panel.cm-search [name=close]:focus-visible, .cm-panel.cm-search input[type=checkbox]:focus-visible":
+    {
+      outline: "2px solid var(--color-focus)",
+      outlineOffset: "2px",
+    },
   ".cm-panel.cm-search input[type=checkbox]": {
     accentColor: "var(--color-accent)",
   },
