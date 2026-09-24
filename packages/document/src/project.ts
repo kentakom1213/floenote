@@ -239,12 +239,7 @@ export class NoteProject {
       return null;
     }
 
-    const latestCreatedAt =
-      this.listEditHistoryCheckpoints(document.id)[0]?.createdAt ??
-      Number.NEGATIVE_INFINITY;
-
     return this.createEditHistoryCheckpoint(document.id, {
-      createdAt: Math.max(Date.now(), latestCreatedAt + 1),
       restoreSourceCheckpointId: checkpoint.id,
     });
   }
