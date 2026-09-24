@@ -37,6 +37,9 @@ export type {
 export { SecurityCoordinatorClient } from "./security-client.js";
 
 export { AuthorizedPresenceClient } from "./authorized-presence-client.js";
+export {
+  AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS,
+} from "./authorized-presence-client.js";
 export type {
   AuthorizedPresenceClientOptions,
   AuthorizedPresenceConnectionState,
