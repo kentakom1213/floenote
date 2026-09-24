@@ -66,6 +66,7 @@ export function ConfirmDialog({
         <button
           className="dialog-secondary-button"
           type="button"
+          autoFocus={!confirmationPhrase}
           disabled={busy}
           onClick={onClose}
         >
