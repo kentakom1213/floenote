@@ -10,6 +10,7 @@ export type DocumentEditorBinding = {
   beginEditorHistoryGroup: () => void;
   endEditorHistoryGroup: () => void;
   flushEditorHistoryBoundary: () => void;
+  subscribeExternalBodyMutation: (listener: () => void) => () => void;
 };
 
 export type TaskMarkerToggle = {
@@ -38,6 +39,7 @@ export class NoteDocument {
   #automaticTimestampScheduleId = 0;
   #automaticTimestampDeferDepth = 0;
   #automaticTimestampDirty = false;
+  readonly #externalBodyMutationListeners = new Set<() => void>();
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
@@ -214,6 +216,10 @@ export class NoteDocument {
     const nextState = checked ? "x" : " ";
     if (currentState === nextState) return false;
 
+    for (const listener of this.#externalBodyMutationListeners) {
+      listener();
+    }
+
     // LoroText's JavaScript API uses UTF-16 code-unit positions, the same
     // indexing unit as JavaScript String offsets. This keeps source mappings
     // correct even when emoji or other surrogate pairs precede the task.
@@ -267,6 +273,10 @@ export class NoteDocument {
       },
       flushEditorHistoryBoundary: () => {
         this.#flushAutomaticTimestamp();
+      },
+      subscribeExternalBodyMutation: (listener) => {
+        this.#externalBodyMutationListeners.add(listener);
+        return () => this.#externalBodyMutationListeners.delete(listener);
       },
     };
   }
