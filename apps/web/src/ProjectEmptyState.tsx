@@ -10,14 +10,12 @@ import {
   type OnboardingAction,
 } from "./onboarding-state.js";
 import { SecureDeviceStep } from "./SecureDeviceStep.js";
-import type { EditorPreference } from "./editor-preference.js";
 import type { ThemePreference } from "./theme.js";
 
 type ProjectEmptyStateProps = {
   vaultState: DeviceVaultUiState;
   vaultError: string | null;
   theme: ThemePreference;
-  editorPreference: EditorPreference;
   coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
@@ -26,7 +24,6 @@ type ProjectEmptyStateProps = {
   onCreateWithNewPasskey: (displayName: string) => Promise<void>;
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
-  onEditorPreferenceChange: (preference: EditorPreference) => void;
   onTurnCredentialEndpointChange: (endpoint: string | null) => void;
   onEraseDevice: () => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
@@ -40,7 +37,6 @@ export function ProjectEmptyState({
   vaultState,
   vaultError,
   theme,
-  editorPreference,
   coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
@@ -49,7 +45,6 @@ export function ProjectEmptyState({
   onCreateWithNewPasskey,
   onRenameDevice,
   onThemeChange,
-  onEditorPreferenceChange,
   onTurnCredentialEndpointChange,
   onEraseDevice,
   onCreateProject,
@@ -197,14 +192,12 @@ export function ProjectEmptyState({
       <main className="project-empty-screen onboarding-settings-screen">
         <AppSettingsView
           theme={theme}
-          editorPreference={editorPreference}
           coordinatorBaseUrl={coordinatorBaseUrl}
           localDeviceId={localDeviceId}
           localDeviceName={localDeviceName}
           turnCredentialEndpoint={turnCredentialEndpoint}
           onRenameDevice={onRenameDevice}
           onThemeChange={onThemeChange}
-          onEditorPreferenceChange={onEditorPreferenceChange}
           onTurnCredentialEndpointChange={onTurnCredentialEndpointChange}
           onEraseDevice={onEraseDevice}
           onBack={() => setView("entry")}
