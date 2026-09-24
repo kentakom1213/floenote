@@ -21,7 +21,9 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     if (!host) return;
 
     const binding = document.getEditorBinding();
-    const undoManager = new UndoManager(binding.doc, {});
+    const undoManager = new UndoManager(binding.doc, {
+      excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
+    });
     const view = new EditorView({
       parent: host,
       extensions: [
