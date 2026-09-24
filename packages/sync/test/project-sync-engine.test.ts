@@ -57,6 +57,37 @@ function cloneProject(source: NoteProject): NoteProject {
 }
 
 describe("ProjectSyncEngine", () => {
+  it("synchronizes delete and restore as manifest updates", () => {
+    const base = NoteProject.create();
+    const document = base.createDocument("Trash sync");
+
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new ProjectSyncEngine(left, leftTransport);
+    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+
+    leftEngine.start();
+    rightEngine.start();
+
+    left.deleteDocument(document.id);
+
+    expect(left.getDocument(document.id)).toBeUndefined();
+    expect(right.getDocument(document.id)).toBeUndefined();
+    expect(right.listDeletedDocuments()).toEqual([
+      { id: document.id, title: "Trash sync" },
+    ]);
+
+    right.restoreDocument(document.id);
+
+    expect(right.getDocument(document.id)?.id).toBe(document.id);
+    expect(left.getDocument(document.id)?.id).toBe(document.id);
+    expect(left.listDeletedDocuments()).toEqual([]);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
   it("converges projects after independent offline edits", () => {
     const base = NoteProject.create();
     const baseDocument = base.createDocument("Base");
