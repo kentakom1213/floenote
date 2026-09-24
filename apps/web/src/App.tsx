@@ -77,6 +77,7 @@ import {
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { exportProjectToBrowser } from "./portable-export-download.js";
 import { importPortableProjectArchive } from "./portable-import-integration.js";
+import { importMarkdownDirectory } from "./markdown-directory-import-integration.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
@@ -725,6 +726,7 @@ function NoteApp() {
       <ProjectEmptyState
         onCreateProject={createProject}
         onImportFloeExport={importFloeExport}
+        onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       />
     );
   }
@@ -882,6 +884,39 @@ function NoteApp() {
 
     try {
       const result = await importPortableProjectArchive(archive, {
+        session,
+        coordinator: securityCoordinator,
+        storage: projectStorage,
+      });
+      const summaries = await projectStorage.listProjects(session);
+      resetProjectSecurityUiState();
+      setMainView("note");
+      setOpenedProject(result);
+      setProjectSummaries(
+        withActiveProjectSummary(summaries, result.project),
+      );
+      setProjectCatalogReady(true);
+    } finally {
+      setProjectSwitching(false);
+    }
+  }
+
+  async function importMarkdownDirectoryFiles(
+    files: readonly File[],
+  ): Promise<void> {
+    if (projectSwitching) {
+      throw new Error("Another Project operation is already in progress");
+    }
+
+    const session = deviceVaultSessionRef.current;
+    if (!session) {
+      throw new Error("Device Vault must be unlocked before importing a Project");
+    }
+
+    setProjectSwitching(true);
+
+    try {
+      const result = await importMarkdownDirectory(files, {
         session,
         coordinator: securityCoordinator,
         storage: projectStorage,
@@ -1474,6 +1509,7 @@ function NoteApp() {
       onSelectProject={selectProject}
       onCreateProject={createProject}
       onImportFloeExport={importFloeExport}
+      onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       onOpenProjectSettings={() => setMainView("project-settings")}
     />
   );
