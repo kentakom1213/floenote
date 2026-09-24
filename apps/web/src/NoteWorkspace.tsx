@@ -507,7 +507,7 @@ function DocumentPane({
 
 function resizeTitleInput(input: HTMLTextAreaElement): void {
   input.style.height = "auto";
-  input.style.height = `${input.scrollHeight}px`;
+  input.style.height = `${input.scrollHeight + 2}px`;
 }
 
 function ChevronIcon() {
