@@ -50,6 +50,22 @@ describe("createPortableProjectSnapshot", () => {
     expect(snapshot.documents.map(({ title }) => title)).toEqual([active.title]);
   });
 
+  it("omits permanently deleted documents and purge tombstones", () => {
+    vi.spyOn(Date, "now").mockReturnValue(100);
+    const project = NoteProject.create();
+    project.createDocument("Active");
+    const purged = project.createDocument("Purged");
+
+    project.deleteDocument(purged.id);
+    project.purgeDocument(purged.id);
+
+    const snapshot = createPortableProjectSnapshot(project);
+
+    expect(snapshot.documents.map(({ title }) => title)).toEqual(["Active"]);
+    expect(JSON.stringify(snapshot)).not.toContain(purged.id);
+    expect(JSON.stringify(snapshot)).not.toContain("purgedDocuments");
+  });
+
   it("does not expose Project or Document identity", () => {
     vi.spyOn(Date, "now").mockReturnValue(100);
     const project = NoteProject.create();
