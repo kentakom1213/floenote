@@ -8,11 +8,13 @@ import {
   useSyncExternalStore,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 
 type NotePropertiesProps = {
   document: NoteDocument;
   availableTags?: readonly string[];
+  trailingControl?: ReactNode;
 };
 
 export type TagAssignmentOption = {
@@ -28,6 +30,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 export function NoteProperties({
   document,
   availableTags = [],
+  trailingControl,
 }: NotePropertiesProps) {
   const subscribe = useCallback(
     (listener: () => void) => document.subscribe(listener),
@@ -222,16 +225,21 @@ export function NoteProperties({
         </div>
       </div>
 
-      <dl className="note-properties-grid">
-        <div>
-          <dt>Created</dt>
-          <dd>{renderTimestamp(document.createdAt)}</dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>{renderTimestamp(document.updatedAt)}</dd>
-        </div>
-      </dl>
+      <div className="note-properties-footer">
+        <dl className="note-properties-grid">
+          <div>
+            <dt>Created</dt>
+            <dd>{renderTimestamp(document.createdAt)}</dd>
+          </div>
+          <div>
+            <dt>Updated</dt>
+            <dd>{renderTimestamp(document.updatedAt)}</dd>
+          </div>
+        </dl>
+        {trailingControl ? (
+          <div className="note-properties-trailing">{trailingControl}</div>
+        ) : null}
+      </div>
     </section>
   );
 }
