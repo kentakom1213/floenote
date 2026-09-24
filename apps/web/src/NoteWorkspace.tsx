@@ -42,6 +42,7 @@ type NoteWorkspaceProps = {
   onRenameDocument: (title: string) => void;
   onDeleteDocument: (documentId: DocumentId) => void;
   onRestoreDocument: (documentId: DocumentId) => void;
+  onPurgeDocument: (documentId: DocumentId) => void;
   onOpenTrash: () => void;
 };
 
@@ -60,6 +61,7 @@ export function NoteWorkspace({
   onRenameDocument,
   onDeleteDocument,
   onRestoreDocument,
+  onPurgeDocument,
   onOpenTrash,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
@@ -291,6 +293,7 @@ export function NoteWorkspace({
               setMobileNavigationOpen(false);
             }}
             onRestoreDocument={onRestoreDocument}
+            onPurgeDocument={onPurgeDocument}
           />
         ) : selectedDocument ? (
           <DocumentPane
