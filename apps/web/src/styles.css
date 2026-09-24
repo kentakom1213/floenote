@@ -3603,6 +3603,7 @@ h1 {
       max(14px, env(safe-area-inset-left));
     background: var(--color-sidebar);
     box-shadow: 18px 0 48px rgb(25 37 42 / 0.18);
+    touch-action: pan-y;
     visibility: hidden;
     transform: translateX(calc(-100% - 24px));
     transition:
