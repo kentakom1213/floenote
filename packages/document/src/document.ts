@@ -341,6 +341,19 @@ export class NoteDocument {
     return this.#doc.subscribeLocalUpdates(listener);
   }
 
+  subscribeLocalUserEdits(listener: () => void): () => void {
+    return this.#doc.subscribe((event) => {
+      if (event.by !== "local") return;
+      if (
+        event.origin ===
+        `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`
+      ) {
+        return;
+      }
+      listener();
+    });
+  }
+
   getEditorBinding(): DocumentEditorBinding {
     return {
       doc: this.#doc,
