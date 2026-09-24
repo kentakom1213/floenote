@@ -32,7 +32,6 @@ export class WebRtcSignalingSession {
   #stopConnectionState: (() => void) | null = null;
   #incomingQueue: Promise<void> = Promise.resolve();
   #offerSent = false;
-  #peerReadyCount = 0;
   #started = false;
   #iceRestartAttempt = 0;
   #iceRestartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,15 +117,6 @@ export class WebRtcSignalingSession {
 
   async #handleMessage(message: CoordinatorServerMessage): Promise<void> {
     if (message.type === "peer-ready") {
-      this.#peerReadyCount += 1;
-      this.#debug("peer-ready.received", {
-        count: this.#peerReadyCount,
-        role: this.#role,
-        offerSent: this.#offerSent,
-        signalingState: this.#transport.signalingState,
-        connectionState: this.#transport.connectionState,
-      });
-
       if (this.#role !== "host") return;
 
       if (
@@ -142,10 +132,6 @@ export class WebRtcSignalingSession {
         this.#offerSent = true;
         await this.#sendHostOffer(false);
       } else {
-        this.#debug("peer-ready.recover-with-ice-restart", {
-          signalingState: this.#transport.signalingState,
-          connectionState: this.#transport.connectionState,
-        });
         await this.#sendHostOffer(true);
       }
 
@@ -154,10 +140,6 @@ export class WebRtcSignalingSession {
     }
 
     if (message.type === "peer-left") {
-      this.#debug("peer-left.received", {
-        signalingState: this.#transport.signalingState,
-        connectionState: this.#transport.connectionState,
-      });
       this.#clearIceRestartTimer();
       return;
     }
@@ -312,13 +294,7 @@ export class WebRtcSignalingSession {
   }
 
   #sendIceCandidate(candidate: RTCIceCandidateInit | null): void {
-    if (this.#client.state !== "open") {
-      this.#debug("ice-candidate.dropped-signaling-unavailable", {
-        signalingConnectionState: this.#client.state,
-        endOfCandidates: candidate === null,
-      });
-      return;
-    }
+    if (this.#client.state !== "open") return;
 
     this.#client.sendSignal({
       type: "ice-candidate",
