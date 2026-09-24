@@ -65,7 +65,6 @@ export function ProjectEmptyState({
       const archive = new Uint8Array(await file.arrayBuffer());
       await onImportFloeExport(archive);
       setImportOpen(false);
-    setMarkdownImportOpen(false);
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Could not import Floe export",
@@ -101,6 +100,7 @@ export function ProjectEmptyState({
     setCreateOpen(false);
     setJoinOpen(false);
     setImportOpen(false);
+    setMarkdownImportOpen(false);
     setProjectName("");
     setInviteUrl("");
     setError(null);
