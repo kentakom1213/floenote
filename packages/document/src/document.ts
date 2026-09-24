@@ -3,6 +3,13 @@ import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
 
 const EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX = "floe:non-editor:";
 
+export type BodyRangeMutation = {
+  from: number;
+  to: number;
+  insert: string;
+  expected: string;
+};
+
 export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
@@ -10,7 +17,9 @@ export type DocumentEditorBinding = {
   beginEditorHistoryGroup: () => void;
   endEditorHistoryGroup: () => void;
   flushEditorHistoryBoundary: () => void;
-  subscribeExternalBodyMutation: (listener: () => void) => () => void;
+  registerExternalBodyMutationHandler: (
+    handler: (mutation: BodyRangeMutation) => boolean,
+  ) => () => void;
 };
 
 export type TaskMarkerToggle = {
@@ -39,7 +48,9 @@ export class NoteDocument {
   #automaticTimestampScheduleId = 0;
   #automaticTimestampDeferDepth = 0;
   #automaticTimestampDirty = false;
-  readonly #externalBodyMutationListeners = new Set<() => void>();
+  #externalBodyMutationHandler:
+    | ((mutation: BodyRangeMutation) => boolean)
+    | null = null;
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
@@ -216,8 +227,18 @@ export class NoteDocument {
     const nextState = checked ? "x" : " ";
     if (currentState === nextState) return false;
 
-    for (const listener of this.#externalBodyMutationListeners) {
-      listener();
+    const mutation: BodyRangeMutation = {
+      from: stateOffset,
+      to: stateOffset + 1,
+      insert: nextState,
+      expected: currentState,
+    };
+
+    if (this.#externalBodyMutationHandler) {
+      // In Split mode the mounted source editor owns the CodeMirror view.
+      // Route the edit through it so CodeMirror updates immediately and the
+      // existing loro-codemirror transaction path performs the Loro commit.
+      return this.#externalBodyMutationHandler(mutation);
     }
 
     // LoroText's JavaScript API uses UTF-16 code-unit positions, the same
@@ -274,9 +295,13 @@ export class NoteDocument {
       flushEditorHistoryBoundary: () => {
         this.#flushAutomaticTimestamp();
       },
-      subscribeExternalBodyMutation: (listener) => {
-        this.#externalBodyMutationListeners.add(listener);
-        return () => this.#externalBodyMutationListeners.delete(listener);
+      registerExternalBodyMutationHandler: (handler) => {
+        this.#externalBodyMutationHandler = handler;
+        return () => {
+          if (this.#externalBodyMutationHandler === handler) {
+            this.#externalBodyMutationHandler = null;
+          }
+        };
       },
     };
   }
