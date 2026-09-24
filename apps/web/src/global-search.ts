@@ -10,6 +10,7 @@ export type GlobalSearchMatchField = "title" | "tag" | "body";
 export type GlobalSearchResult = {
   id: DocumentId;
   title: string;
+  matchedTags: readonly string[];
   snippet: string | null;
   matchField: GlobalSearchMatchField | null;
   updatedAt: number | null;
@@ -110,6 +111,7 @@ export class GlobalSearchCache {
         .map((document) => ({
           id: document.id,
           title: document.title,
+          matchedTags: [],
           snippet: null,
           matchField: null,
           updatedAt: document.updatedAt,
@@ -157,6 +159,7 @@ export class GlobalSearchCache {
       .map(({ document, rank, bodyMatched }) => ({
         id: document.id,
         title: document.title,
+        matchedTags: findMatchingTags(document, terms),
         snippet: bodyMatched
           ? createBodySnippet(document.body, document.normalizedBody, terms)
           : null,
@@ -176,6 +179,19 @@ export function splitSearchTerms(query: string): string[] {
     .trim()
     .split(/\s+/u)
     .filter(Boolean);
+}
+
+function findMatchingTags(
+  document: SearchDocument,
+  terms: readonly string[],
+): string[] {
+  return document.tags.filter((_, index) => {
+    const normalizedTag = document.normalizedTags[index];
+    return (
+      normalizedTag !== undefined &&
+      terms.some((term) => normalizedTag.includes(term))
+    );
+  });
 }
 
 function rankTerm(document: SearchDocument, term: string): number {
