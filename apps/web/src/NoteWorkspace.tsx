@@ -33,12 +33,14 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
+  trashActive: boolean;
   focusTitleDocumentId?: DocumentId | null;
   onTitleFocusHandled: () => void;
   onCreateDocument: () => void;
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
   onDeleteDocument: (documentId: DocumentId) => void;
+  onOpenTrash: () => void;
 };
 
 export function NoteWorkspace({
@@ -48,12 +50,14 @@ export function NoteWorkspace({
   projectControl,
   sidebarFooter,
   mainContent,
+  trashActive,
   focusTitleDocumentId,
   onTitleFocusHandled,
   onCreateDocument,
   onSelectDocument,
   onRenameDocument,
   onDeleteDocument,
+  onOpenTrash,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
   const [, setNavigationRevision] = useState(0);
@@ -132,7 +136,7 @@ export function NoteWorkspace({
                 key={note.id}
                 id={note.id}
                 title={note.title}
-                selected={note.id === selectedId}
+                selected={!trashActive && note.id === selectedId}
                 onSelect={onSelectDocument}
                 onDelete={onDeleteDocument}
               />
@@ -141,6 +145,16 @@ export function NoteWorkspace({
             <p className="note-filter-empty">No matching notes</p>
           ) : null}
         </nav>
+
+        <button
+          className={trashActive ? "sidebar-trash-entry selected" : "sidebar-trash-entry"}
+          type="button"
+          aria-current={trashActive ? "page" : undefined}
+          onClick={onOpenTrash}
+        >
+          <TrashIcon />
+          <span>Trash</span>
+        </button>
       </div>
 
       <footer className="sidebar-footer">{sidebarFooter}</footer>
@@ -262,5 +276,15 @@ function DocumentPane({
 
       <EditorModeView document={document} mode={mode} />
     </article>
+  );
+}
+
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M4.5 6h11M8 3.5h4M6 6l.7 10h6.6L14 6" />
+      <path d="M8.5 8.5v5M11.5 8.5v5" />
+    </svg>
   );
 }
