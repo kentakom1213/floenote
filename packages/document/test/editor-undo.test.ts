@@ -107,11 +107,12 @@ describe("NoteDocument editor undo history", () => {
     const undoManager = createEditorUndoManager(document);
     const text = binding.getText(binding.doc);
 
+    binding.flushEditorHistoryBoundary();
     binding.beginEditorHistoryGroup();
+    undoManager.groupStart();
+
     text.insert(0, "a");
     binding.doc.commit();
-
-    undoManager.groupStart();
     text.insert(1, "b");
     binding.doc.commit();
     text.insert(2, "c");
