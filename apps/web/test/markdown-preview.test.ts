@@ -301,6 +301,58 @@ describe("Markdown sanitizer", () => {
   });
 });
 
+
+describe("Fenced code preview highlighting", () => {
+  it("highlights supported language identifiers after sanitization", () => {
+    const html = renderMarkdown(
+      ["```ts", "const value: number = 42;", "```"].join("\n"),
+    );
+    const body = parseHtml(html);
+    const code = body.querySelector("code.language-ts");
+
+    expect(code?.querySelector(".floe-code-keyword")?.textContent).toBe(
+      "const",
+    );
+    expect(code?.querySelector(".floe-code-type")?.textContent).toBe("number");
+    expect(code?.querySelector(".floe-code-number")?.textContent).toBe("42");
+    expect(code?.textContent).toBe("const value: number = 42;\n");
+  });
+
+  it("keeps code without an identifier as plain code", () => {
+    const html = renderMarkdown(
+      ["```", "const value = 42;", "```"].join("\n"),
+    );
+    const code = parseHtml(html).querySelector("code");
+
+    expect(code?.querySelector(".floe-code-token")).toBeNull();
+    expect(code?.textContent).toBe("const value = 42;\n");
+  });
+
+  it("keeps unsupported identifiers as plain code", () => {
+    const html = renderMarkdown(
+      ["```rust", "let value = 42;", "```"].join("\n"),
+    );
+    const code = parseHtml(html).querySelector("code.language-rust");
+
+    expect(code?.querySelector(".floe-code-token")).toBeNull();
+    expect(code?.textContent).toBe("let value = 42;\n");
+  });
+
+  it("does not let raw HTML smuggle trusted highlighting classes", () => {
+    const html = renderMarkdown(
+      '<pre><code class="language-unknown">' +
+        '<span class="floe-code-keyword" onclick="alert(1)">fake</span>' +
+        "</code></pre>",
+    );
+    const body = parseHtml(html);
+    const span = body.querySelector("code span");
+
+    expect(span?.textContent).toBe("fake");
+    expect(span?.hasAttribute("class")).toBe(false);
+    expect(span?.hasAttribute("onclick")).toBe(false);
+  });
+});
+
 describe("GFM task-list preview", () => {
   it("hydrates unchecked and checked GFM task markers after sanitization", () => {
     const unchecked = renderMarkdownWithImagePolicy("- [ ] task", {
