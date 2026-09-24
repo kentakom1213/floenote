@@ -187,11 +187,21 @@ describe("NoteDocument editor undo history", () => {
     text.insert(text.length, "a");
     binding.doc.commit();
 
-    const unsubscribe = binding.subscribeExternalBodyMutation(() => {
-      undoManager.groupEnd();
-      binding.endEditorHistoryGroup();
-      binding.flushEditorHistoryBoundary();
-    });
+    const unregister = binding.registerExternalBodyMutationHandler(
+      (mutation) => {
+        undoManager.groupEnd();
+        binding.endEditorHistoryGroup();
+        binding.flushEditorHistoryBoundary();
+
+        text.splice(
+          mutation.from,
+          mutation.to - mutation.from,
+          mutation.insert,
+        );
+        binding.doc.commit();
+        return true;
+      },
+    );
 
     expect(
       document.toggleTaskMarker({
@@ -204,7 +214,7 @@ describe("NoteDocument editor undo history", () => {
         checked: true,
       }),
     ).toBe(true);
-    unsubscribe();
+    unregister();
     await flushAutomaticTimestamp();
 
     expect(document.bodyText).toBe("- [x] taska");
