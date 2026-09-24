@@ -10,6 +10,7 @@ import {
   formatNoteTimestamp,
   getNoteMetadataSnapshot,
   getTagAssignmentOptions,
+  getTagInputCommand,
   moveTagOptionIndex,
   removeTagFromProperties,
 } from "../src/NoteProperties.js";
@@ -143,6 +144,20 @@ describe("NoteProperties", () => {
     expect(moveTagOptionIndex(2, 3, "next")).toBe(0);
     expect(moveTagOptionIndex(0, 3, "previous")).toBe(2);
     expect(moveTagOptionIndex(0, 0, "next")).toBe(0);
+  });
+
+
+  it("maps Escape and arrow keys to tag assignment commands", () => {
+    expect(getTagInputCommand("Escape", 1, 3)).toEqual({ type: "close" });
+    expect(getTagInputCommand("ArrowDown", 2, 3)).toEqual({
+      type: "move",
+      index: 0,
+    });
+    expect(getTagInputCommand("ArrowUp", 0, 3)).toEqual({
+      type: "move",
+      index: 2,
+    });
+    expect(getTagInputCommand("Tab", 0, 3)).toBeNull();
   });
 
   it("trims whitespace before adding a tag", () => {
