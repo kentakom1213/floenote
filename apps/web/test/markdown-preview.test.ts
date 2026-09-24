@@ -540,9 +540,11 @@ function parseHtml(html: string): HTMLElement {
 }
 
 function noteWithBody(title: string, body: string): NoteDocument {
-  const note = NoteDocument.create(createDocumentId(), title, 100);
-  const binding = note.getEditorBinding();
-  binding.getText(binding.doc).insert(0, body);
-  binding.doc.commit();
-  return note;
+  return NoteDocument.createWithInitialState(createDocumentId(), {
+    title,
+    body,
+    createdAt: 100,
+    updatedAt: 100,
+    tags: [],
+  });
 }
