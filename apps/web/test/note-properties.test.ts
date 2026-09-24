@@ -10,6 +10,7 @@ import {
   formatNoteTimestamp,
   getNoteMetadataSnapshot,
   getTagAssignmentOptions,
+  moveTagOptionIndex,
   removeTagFromProperties,
 } from "../src/NoteProperties.js";
 
@@ -134,6 +135,14 @@ describe("NoteProperties", () => {
       { kind: "existing", tag: "research" },
       { kind: "create", tag: "Research" },
     ]);
+  });
+
+
+  it("moves through tag suggestions with wrapping keyboard semantics", () => {
+    expect(moveTagOptionIndex(0, 3, "next")).toBe(1);
+    expect(moveTagOptionIndex(2, 3, "next")).toBe(0);
+    expect(moveTagOptionIndex(0, 3, "previous")).toBe(2);
+    expect(moveTagOptionIndex(0, 0, "next")).toBe(0);
   });
 
   it("trims whitespace before adding a tag", () => {
