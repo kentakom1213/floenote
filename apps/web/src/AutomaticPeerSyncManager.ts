@@ -1,6 +1,7 @@
 import {
   createSessionId,
   type AuthorizedPresenceClient,
+  type ReconnectTransportMode,
   type SessionId,
   WebRtcSignalingSession,
   type WebRtcSignalingRole,
@@ -19,6 +20,7 @@ import { createConsoleDebugLogger } from "./debug.js";
 
 type AutomaticPeerConnection = {
   sessionId: SessionId;
+  mode: ReconnectTransportMode;
   signaling: WebRtcSignalingSession;
   syncEngine: ProjectSyncEngine;
   stopConnectionState: () => void;
@@ -41,11 +43,18 @@ export const AUTOMATIC_RECONNECT_RETRY_DELAYS_MS = [
   30_000,
 ] as const;
 
+export const AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS = 6_000;
 export const AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS = 15_000;
 export const AUTOMATIC_RECONNECT_DISCONNECTED_GRACE_MS = 5_000;
 
+export type AutomaticPeerConnectionAttempt = {
+  deviceId: DeviceId;
+  mode: ReconnectTransportMode;
+};
+
 export type AutomaticPeerSyncStatus = {
   connectedDeviceIds: readonly DeviceId[];
+  connectionAttempts: readonly AutomaticPeerConnectionAttempt[];
   error: string | null;
 };
 
@@ -56,7 +65,10 @@ export type AutomaticPeerSyncManagerOptions = {
   securityState: SecurityState;
   vaultSession: DeviceVaultSession;
   presence: AuthorizedPresenceClient;
-  rtcConfigurationProvider?: () => Promise<RTCConfiguration | undefined>;
+  relayFallbackEnabled?: boolean;
+  rtcConfigurationProvider?: (
+    mode: ReconnectTransportMode,
+  ) => Promise<RTCConfiguration | undefined>;
   onStatusChange: (status: AutomaticPeerSyncStatus) => void;
 };
 
@@ -67,7 +79,10 @@ export class AutomaticPeerSyncManager {
   readonly #securityState: SecurityState;
   readonly #vaultSession: DeviceVaultSession;
   readonly #presence: AuthorizedPresenceClient;
-  readonly #rtcConfigurationProvider: () => Promise<RTCConfiguration | undefined>;
+  readonly #relayFallbackEnabled: boolean;
+  readonly #rtcConfigurationProvider: (
+    mode: ReconnectTransportMode,
+  ) => Promise<RTCConfiguration | undefined>;
   readonly #onStatusChange: (status: AutomaticPeerSyncStatus) => void;
   readonly #connections = new Map<DeviceId, AutomaticPeerConnection>();
   readonly #connectedDeviceIds = new Set<DeviceId>();
@@ -84,6 +99,7 @@ export class AutomaticPeerSyncManager {
     this.#securityState = options.securityState;
     this.#vaultSession = options.vaultSession;
     this.#presence = options.presence;
+    this.#relayFallbackEnabled = options.relayFallbackEnabled ?? false;
     this.#rtcConfigurationProvider =
       options.rtcConfigurationProvider ?? (async () => undefined);
     this.#onStatusChange = options.onStatusChange;
@@ -105,6 +121,7 @@ export class AutomaticPeerSyncManager {
   acceptReconnectSession(
     fromDeviceId: DeviceId,
     sessionId: SessionId,
+    transportMode: ReconnectTransportMode = "direct",
   ): void {
     if (this.#stopped || fromDeviceId === this.#localDeviceId) return;
 
@@ -115,7 +132,12 @@ export class AutomaticPeerSyncManager {
 
     if (fromDeviceId >= this.#localDeviceId) return;
 
-    void this.#startPeer(fromDeviceId, "join", sessionId).catch(
+    void this.#startPeer(
+      fromDeviceId,
+      "join",
+      sessionId,
+      transportMode,
+    ).catch(
       (error: unknown) => {
         this.#setError(
           error instanceof Error
@@ -175,11 +197,14 @@ export class AutomaticPeerSyncManager {
         continue;
       }
 
-      void this.#startHostReconnect(peerDeviceId);
+      void this.#startHostReconnect(peerDeviceId, "direct");
     }
   }
 
-  async #startHostReconnect(peerDeviceId: DeviceId): Promise<void> {
+  async #startHostReconnect(
+    peerDeviceId: DeviceId,
+    mode: ReconnectTransportMode,
+  ): Promise<void> {
     if (
       !this.#shouldInitiate(peerDeviceId) ||
       this.#connections.has(peerDeviceId) ||
@@ -191,7 +216,12 @@ export class AutomaticPeerSyncManager {
     const sessionId = createSessionId();
     let started: boolean;
     try {
-      started = await this.#startPeer(peerDeviceId, "host", sessionId);
+      started = await this.#startPeer(
+        peerDeviceId,
+        "host",
+        sessionId,
+        mode,
+      );
     } catch (error: unknown) {
       this.#setError(
         error instanceof Error
@@ -204,7 +234,7 @@ export class AutomaticPeerSyncManager {
     if (!started) return;
 
     try {
-      this.#presence.sendReconnectSession(peerDeviceId, sessionId);
+      this.#presence.sendReconnectSession(peerDeviceId, sessionId, mode);
     } catch (error: unknown) {
       this.#stopPeer(peerDeviceId);
       this.#setError(
@@ -220,6 +250,7 @@ export class AutomaticPeerSyncManager {
     peerDeviceId: DeviceId,
     role: WebRtcSignalingRole,
     sessionId: SessionId,
+    mode: ReconnectTransportMode,
   ): Promise<boolean> {
     if (this.#stopped || this.#pendingPeerIds.has(peerDeviceId)) return false;
 
@@ -229,7 +260,7 @@ export class AutomaticPeerSyncManager {
     this.#pendingPeerIds.add(peerDeviceId);
     let configuration: RTCConfiguration | undefined;
     try {
-      configuration = await this.#rtcConfigurationProvider();
+      configuration = await this.#rtcConfigurationProvider(mode);
     } finally {
       this.#pendingPeerIds.delete(peerDeviceId);
     }
@@ -245,6 +276,16 @@ export class AutomaticPeerSyncManager {
     const latest = this.#connections.get(peerDeviceId);
     if (latest?.sessionId === sessionId) return false;
     if (latest) this.#stopPeer(peerDeviceId);
+
+    if (mode === "relay") {
+      if (!hasTurnServer(configuration)) {
+        throw new Error("TURN relay configuration is unavailable on this device");
+      }
+      configuration = {
+        ...configuration,
+        iceTransportPolicy: "relay",
+      };
+    }
 
     const transport = new WebRtcTransport(
       this.#project.id,
@@ -350,6 +391,7 @@ export class AutomaticPeerSyncManager {
 
     const connection: AutomaticPeerConnection = {
       sessionId,
+      mode,
       signaling,
       syncEngine,
       stopConnectionState,
@@ -358,6 +400,14 @@ export class AutomaticPeerSyncManager {
       disconnectedTimer: null,
     };
     this.#connections.set(peerDeviceId, connection);
+    this.#emitStatus();
+
+    const connectionTimeoutMs =
+      role === "host" &&
+      mode === "direct" &&
+      this.#relayFallbackEnabled
+        ? AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS
+        : AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS;
 
     connection.connectionTimer = setTimeout(() => {
       const current = this.#connections.get(peerDeviceId);
@@ -367,7 +417,7 @@ export class AutomaticPeerSyncManager {
       ) {
         this.#restartPeer(peerDeviceId, sessionId);
       }
-    }, AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS);
+    }, connectionTimeoutMs);
 
     syncEngine.start();
     signaling.start();
@@ -386,16 +436,26 @@ export class AutomaticPeerSyncManager {
     connection.signaling.stop();
     connection.syncEngine.stop();
 
-    if (this.#connectedDeviceIds.delete(peerDeviceId)) {
-      this.#emitStatus();
-    }
+    this.#connectedDeviceIds.delete(peerDeviceId);
+    this.#emitStatus();
   }
 
   #restartPeer(peerDeviceId: DeviceId, sessionId: SessionId): void {
     const current = this.#connections.get(peerDeviceId);
     if (current?.sessionId !== sessionId) return;
 
+    const shouldFallBackToRelay =
+      current.mode === "direct" &&
+      this.#relayFallbackEnabled &&
+      this.#shouldInitiate(peerDeviceId);
+
     this.#stopPeer(peerDeviceId);
+
+    if (shouldFallBackToRelay) {
+      void this.#startHostReconnect(peerDeviceId, "relay");
+      return;
+    }
+
     this.#scheduleRetry(peerDeviceId);
   }
 
@@ -429,7 +489,7 @@ export class AutomaticPeerSyncManager {
       if (!current || current.timer !== timer) return;
 
       current.timer = null;
-      this.#startHostReconnect(peerDeviceId);
+      this.#startHostReconnect(peerDeviceId, "direct");
     }, delayMs);
 
     this.#retryStates.set(peerDeviceId, {
@@ -463,7 +523,25 @@ export class AutomaticPeerSyncManager {
   #emitStatus(): void {
     this.#onStatusChange({
       connectedDeviceIds: [...this.#connectedDeviceIds].sort(),
+      connectionAttempts: [...this.#connections.entries()]
+        .map(([deviceId, connection]) => ({
+          deviceId,
+          mode: connection.mode,
+        }))
+        .sort((left, right) => left.deviceId.localeCompare(right.deviceId)),
       error: this.#error,
     });
   }
+}
+
+function hasTurnServer(configuration: RTCConfiguration | undefined): boolean {
+  return (
+    configuration?.iceServers?.some((server) => {
+      const urls =
+        typeof server.urls === "string" ? [server.urls] : server.urls;
+      return urls.some(
+        (url) => url.startsWith("turn:") || url.startsWith("turns:"),
+      );
+    }) ?? false
+  );
 }
