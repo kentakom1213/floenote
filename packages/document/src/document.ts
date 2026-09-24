@@ -1,9 +1,12 @@
 import type { DocumentId } from "@floe-note/domain";
 import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
 
+const EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX = "floe:non-editor:";
+
 export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
+  undoExcludeOriginPrefixes: readonly string[];
 };
 
 export type NoteDocumentInitialState = {
@@ -35,7 +38,9 @@ export class NoteDocument {
 
         this.#withAutomaticTimestampSuppressed(() => {
           this.#doc.getMap("meta").set("updatedAt", Date.now());
-          this.#doc.commit();
+          this.#doc.commit({
+            origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}updated-at`,
+          });
         });
       });
     });
@@ -187,6 +192,7 @@ export class NoteDocument {
     return {
       doc: this.#doc,
       getText: (doc) => doc.getText("body"),
+      undoExcludeOriginPrefixes: [EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX],
     };
   }
 
@@ -208,7 +214,9 @@ export class NoteDocument {
     this.#withAutomaticTimestampSuppressed(() => {
       mutate();
       this.#doc.getMap("meta").set("updatedAt", Date.now());
-      this.#doc.commit();
+      this.#doc.commit({
+        origin: `${EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX}metadata`,
+      });
     });
   }
 
