@@ -47,6 +47,8 @@ export default defineConfig({
       workbox: {
         cacheId: "floe-note",
         cleanupOutdatedCaches: true,
+        clientsClaim: false,
+        skipWaiting: false,
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         globPatterns: [
           "**/*.{js,css,html,ico,png,svg,webmanifest,woff,woff2}",
