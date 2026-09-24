@@ -425,6 +425,7 @@ input:focus-visible {
 }
 
 .sidebar-navigation {
+  position: relative;
   flex: 0 0 auto;
   margin-top: 10px;
 }
@@ -473,9 +474,12 @@ input:focus-visible {
   stroke-linejoin: round;
 }
 
-.sidebar-sort,
-.sidebar-tag-filter {
+.sidebar-sort {
   position: relative;
+}
+
+.sidebar-tag-filter {
+  position: static;
 }
 
 .sidebar-sort > summary,
@@ -506,7 +510,10 @@ input:focus-visible {
 }
 
 .sidebar-tag-filter-menu {
-  width: 220px;
+  left: 5px;
+  right: 5px;
+  width: auto;
+  box-sizing: border-box;
 }
 
 .sidebar-sort-label {
@@ -1341,6 +1348,7 @@ input:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transform: translateY(1px);
 }
 
 .note-tag-remove,
@@ -1376,6 +1384,10 @@ input:focus-visible {
   padding: 4px 6px;
   font-size: 11px;
   line-height: 1;
+}
+
+.note-tag-add > span {
+  transform: translateY(1px);
 }
 
 .note-tag-add:hover {
@@ -4577,7 +4589,9 @@ h1 {
 
 @media (max-width: 760px) {
   .sidebar-tag-filter-menu {
-    width: min(260px, calc(88vw - 28px));
+    left: 5px;
+    right: 5px;
+    width: auto;
   }
 
   .sidebar-tag-filter-mode label,
