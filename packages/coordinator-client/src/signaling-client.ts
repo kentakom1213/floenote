@@ -179,7 +179,7 @@ export class CoordinatorSignalingClient {
       }
 
       this.#setState("closed");
-      this.#scheduleReconnect(event.code);
+      this.#scheduleReconnect();
     });
 
     socket.addEventListener("error", () => {
@@ -190,7 +190,7 @@ export class CoordinatorSignalingClient {
     });
   }
 
-  #scheduleReconnect(closeCode: number): void {
+  #scheduleReconnect(): void {
     if (!this.#started || this.#reconnectTimer) return;
 
     const delayIndex = Math.min(
@@ -198,8 +198,7 @@ export class CoordinatorSignalingClient {
       SIGNALING_RECONNECT_DELAYS_MS.length - 1,
     );
     const delayMs = SIGNALING_RECONNECT_DELAYS_MS[delayIndex];
-    const attempt = this.#reconnectAttempt + 1;
-    this.#reconnectAttempt = attempt;
+    this.#reconnectAttempt += 1;
 
     this.#debug("socket.reconnect-scheduled", {
       delayMs,
