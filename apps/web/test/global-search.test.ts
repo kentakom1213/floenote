@@ -42,6 +42,25 @@ describe("global search", () => {
       .toEqual([mixed.id]);
   });
 
+  it("returns the matching tags for tag hits", () => {
+    const project = NoteProject.create();
+    const document = project.createDocumentWithInitialState({
+      title: "Tagged note",
+      body: "",
+      createdAt: 100,
+      updatedAt: 100,
+      tags: ["algorithms", "comparison", "unrelated"],
+    });
+
+    const cache = new GlobalSearchCache();
+    cache.syncProject(project);
+
+    const [result] = cache.search("algo comp", new Map());
+
+    expect(result?.id).toBe(document.id);
+    expect(result?.matchedTags).toEqual(["algorithms", "comparison"]);
+  });
+
   it("ranks title hits before tag hits before body hits", () => {
     const project = NoteProject.create();
     const title = project.createDocumentWithInitialState({
