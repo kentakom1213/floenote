@@ -193,6 +193,11 @@ class EditorUndoGroupController {
     this.#closeGroup();
   }
 
+  closeForExternalBodyMutation(): void {
+    this.#closeGroup();
+    this.lifecycle.flushEditorHistoryBoundary();
+  }
+
   #openGroup(kind: GroupedEditorUndoEventKind): void {
     this.lifecycle.beginEditorHistoryGroup();
     this.undoManager.groupStart();
@@ -271,8 +276,13 @@ class AfterUndoGroupingPlugin implements PluginValue {
 export function editorUndoGrouping(
   undoManager: UndoManager,
   lifecycle: EditorHistoryLifecycle,
-): { before: Extension; after: Extension } {
+): {
+  before: Extension;
+  after: Extension;
+  closeCurrentGroup: () => void;
+} {
   const controllers = new WeakMap<EditorView, EditorUndoGroupController>();
+  let currentController: EditorUndoGroupController | null = null;
 
   const getController = (view: EditorView): EditorUndoGroupController => {
     const existing = controllers.get(view);
@@ -284,6 +294,7 @@ export function editorUndoGrouping(
       lifecycle,
     );
     controllers.set(view, controller);
+    currentController = controller;
     return controller;
   };
 
@@ -307,7 +318,11 @@ export function editorUndoGrouping(
     (view) => new AfterUndoGroupingPlugin(getController(view)),
   );
 
-  return { before, after };
+  return {
+    before,
+    after,
+    closeCurrentGroup: () => currentController?.closeForExternalBodyMutation(),
+  };
 }
 
 export function synchronousLoroUndoKeymap(

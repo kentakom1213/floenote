@@ -301,6 +301,179 @@ describe("Markdown sanitizer", () => {
   });
 });
 
+describe("GFM task-list preview", () => {
+  it("hydrates unchecked and checked GFM task markers after sanitization", () => {
+    const unchecked = renderMarkdownWithImagePolicy("- [ ] task", {
+      loadExternalImages: false,
+      interactiveTasks: true,
+    });
+    const checkedLower = renderMarkdownWithImagePolicy("- [x] task", {
+      loadExternalImages: false,
+      interactiveTasks: true,
+    });
+    const checkedUpper = renderMarkdownWithImagePolicy("- [X] task", {
+      loadExternalImages: false,
+      interactiveTasks: true,
+    });
+
+    const uncheckedBox = parseHtml(unchecked.html).querySelector(
+      ".markdown-task-checkbox",
+    ) as HTMLInputElement | null;
+    const checkedLowerBox = parseHtml(checkedLower.html).querySelector(
+      ".markdown-task-checkbox",
+    ) as HTMLInputElement | null;
+    const checkedUpperBox = parseHtml(checkedUpper.html).querySelector(
+      ".markdown-task-checkbox",
+    ) as HTMLInputElement | null;
+
+    expect(uncheckedBox?.checked).toBe(false);
+    expect(uncheckedBox?.disabled).toBe(false);
+    expect(checkedLowerBox?.checked).toBe(true);
+    expect(checkedUpperBox?.checked).toBe(true);
+    expect(unchecked.tasks).toHaveLength(1);
+    expect(unchecked.tasks[0]?.sourceMarker).toBe("[ ]");
+    expect(checkedUpper.tasks[0]?.sourceMarker).toBe("[X]");
+  });
+
+  it("keeps ordinary lists ordinary and fenced task-looking text as code", () => {
+    const ordinary = renderMarkdown("- ordinary item");
+    const fenced = renderMarkdown(
+      ["```md", "- [ ] not a task here", "```"].join("\n"),
+    );
+
+    expect(parseHtml(ordinary).querySelector("input")).toBeNull();
+    expect(parseHtml(fenced).querySelector("input")).toBeNull();
+    expect(parseHtml(fenced).querySelector("code")?.textContent).toContain(
+      "- [ ] not a task here",
+    );
+  });
+
+  it("maps multiple, nested, Japanese, and emoji-prefixed tasks independently", () => {
+    const source = [
+      "😀 introduction",
+      "- [ ] 日本語 task",
+      "  * [x] nested task",
+      "+ [X] third task",
+    ].join("\n");
+    const rendered = renderMarkdownWithImagePolicy(source, {
+      loadExternalImages: false,
+      interactiveTasks: true,
+    });
+    const body = parseHtml(rendered.html);
+    const boxes = Array.from(
+      body.querySelectorAll<HTMLInputElement>(".markdown-task-checkbox"),
+    );
+
+    expect(boxes).toHaveLength(3);
+    expect(boxes.map((box) => box.checked)).toEqual([false, true, true]);
+    expect(rendered.tasks.map((task) => task.label)).toEqual([
+      "日本語 task",
+      "nested task",
+      "third task",
+    ]);
+    expect(rendered.tasks[0]?.sourceStart).toBe(source.indexOf("[ ]"));
+    expect(body.querySelectorAll(".markdown-task-item")).toHaveLength(3);
+  });
+
+  it("does not revive raw input HTML as a trusted task checkbox", () => {
+    const rendered = renderMarkdownWithImagePolicy(
+      '<input type="checkbox" data-floe-task-id="0" checked> raw',
+      {
+        loadExternalImages: false,
+        interactiveTasks: true,
+      },
+    );
+    const body = parseHtml(rendered.html);
+
+    expect(body.querySelector("input")).toBeNull();
+    expect(rendered.tasks).toHaveLength(0);
+  });
+
+  it("toggles source Markdown from an interactive Preview", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const note = noteWithBody(
+      "Tasks",
+      ["- [ ] Buy milk", "- [x] Write paper"].join("\n"),
+    );
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(MarkdownPreview, {
+            document: note,
+            interactive: true,
+          }),
+        );
+      });
+
+      const boxes = container.querySelectorAll<HTMLInputElement>(
+        ".markdown-task-checkbox",
+      );
+      expect(boxes).toHaveLength(2);
+
+      await act(async () => {
+        boxes[0]?.click();
+        await Promise.resolve();
+      });
+
+      expect(note.bodyText).toBe(
+        ["- [x] Buy milk", "- [x] Write paper"].join("\n"),
+      );
+      expect(
+        container.querySelectorAll<HTMLInputElement>(
+          ".markdown-task-checkbox",
+        )[0]?.checked,
+      ).toBe(true);
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders read-only task checkboxes without mutating the note", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const note = noteWithBody("Trash task", "- [ ] Cannot edit here");
+    const updatedAt = note.updatedAt;
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(MarkdownPreview, {
+            document: note,
+            interactive: false,
+          }),
+        );
+      });
+
+      const checkbox = container.querySelector<HTMLInputElement>(
+        ".markdown-task-checkbox",
+      );
+      expect(checkbox?.disabled).toBe(true);
+      expect(checkbox?.getAttribute("aria-label")).toBe("Cannot edit here");
+
+      await act(async () => {
+        checkbox?.click();
+        await Promise.resolve();
+      });
+
+      expect(note.bodyText).toBe("- [ ] Cannot edit here");
+      expect(note.updatedAt).toBe(updatedAt);
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      vi.unstubAllGlobals();
+    }
+  });
+});
 describe("MarkdownPreview external-image permission", () => {
   it("is note-scoped, explicit, and resets when switching notes", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -318,7 +491,7 @@ describe("MarkdownPreview external-image permission", () => {
 
     try {
       await act(async () => {
-        root.render(createElement(MarkdownPreview, { document: first }));
+        root.render(createElement(MarkdownPreview, { document: first, interactive: true }));
       });
 
       expect(container.querySelector("img")).toBeNull();
@@ -336,7 +509,7 @@ describe("MarkdownPreview external-image permission", () => {
       );
 
       await act(async () => {
-        root.render(createElement(MarkdownPreview, { document: second }));
+        root.render(createElement(MarkdownPreview, { document: second, interactive: true }));
       });
 
       expect(container.querySelector("img")).toBeNull();
@@ -358,7 +531,7 @@ describe("MarkdownPreview external-image permission", () => {
 
     try {
       await act(async () => {
-        root.render(createElement(MarkdownPreview, { document: note }));
+        root.render(createElement(MarkdownPreview, { document: note, interactive: true }));
       });
       expect(container.textContent).toContain("Nothing to preview yet.");
     } finally {
@@ -375,9 +548,11 @@ function parseHtml(html: string): HTMLElement {
 }
 
 function noteWithBody(title: string, body: string): NoteDocument {
-  const note = NoteDocument.create(createDocumentId(), title, 100);
-  const binding = note.getEditorBinding();
-  binding.getText(binding.doc).insert(0, body);
-  binding.doc.commit();
-  return note;
+  return NoteDocument.createWithInitialState(createDocumentId(), {
+    title,
+    body,
+    createdAt: 100,
+    updatedAt: 100,
+    tags: [],
+  });
 }

@@ -3,6 +3,13 @@ import { LoroDoc, LoroList, type LoroText } from "loro-crdt";
 
 const EDITOR_UNDO_EXCLUDE_ORIGIN_PREFIX = "floe:non-editor:";
 
+export type BodyRangeMutation = {
+  from: number;
+  to: number;
+  insert: string;
+  expected: string;
+};
+
 export type DocumentEditorBinding = {
   doc: LoroDoc;
   getText: (doc: LoroDoc) => LoroText;
@@ -10,6 +17,19 @@ export type DocumentEditorBinding = {
   beginEditorHistoryGroup: () => void;
   endEditorHistoryGroup: () => void;
   flushEditorHistoryBoundary: () => void;
+  registerExternalBodyMutationHandler: (
+    handler: (mutation: BodyRangeMutation) => boolean,
+  ) => () => void;
+};
+
+export type TaskMarkerToggle = {
+  sourceStart: number;
+  sourceEnd: number;
+  lineStart: number;
+  lineEnd: number;
+  sourceLine: string;
+  sourceMarker: "[ ]" | "[x]" | "[X]";
+  checked: boolean;
 };
 
 export type NoteDocumentInitialState = {
@@ -28,6 +48,9 @@ export class NoteDocument {
   #automaticTimestampScheduleId = 0;
   #automaticTimestampDeferDepth = 0;
   #automaticTimestampDirty = false;
+  #externalBodyMutationHandler:
+    | ((mutation: BodyRangeMutation) => boolean)
+    | null = null;
 
   private constructor(id: DocumentId, doc: LoroDoc) {
     this.id = id;
@@ -165,6 +188,69 @@ export class NoteDocument {
     return this.#doc.getText("body").toString();
   }
 
+  toggleTaskMarker(toggle: TaskMarkerToggle): boolean {
+    const {
+      sourceStart,
+      sourceEnd,
+      lineStart,
+      lineEnd,
+      sourceLine,
+      sourceMarker,
+      checked,
+    } = toggle;
+
+    if (
+      !Number.isSafeInteger(sourceStart) ||
+      !Number.isSafeInteger(sourceEnd) ||
+      !Number.isSafeInteger(lineStart) ||
+      !Number.isSafeInteger(lineEnd) ||
+      sourceStart < lineStart ||
+      sourceEnd > lineEnd ||
+      sourceEnd - sourceStart !== 3 ||
+      lineStart < 0 ||
+      lineEnd < lineStart
+    ) {
+      return false;
+    }
+
+    const body = this.bodyText;
+    if (lineEnd > body.length) return false;
+    if (body.slice(lineStart, lineEnd) !== sourceLine) return false;
+    if (body.slice(sourceStart, sourceEnd) !== sourceMarker) return false;
+
+    const stateOffset = sourceStart + 1;
+    const currentState = body[stateOffset];
+    if (currentState !== " " && currentState !== "x" && currentState !== "X") {
+      return false;
+    }
+
+    const nextState = checked ? "x" : " ";
+    if (currentState === nextState) return false;
+
+    const mutation: BodyRangeMutation = {
+      from: stateOffset,
+      to: stateOffset + 1,
+      insert: nextState,
+      expected: currentState,
+    };
+
+    if (this.#externalBodyMutationHandler) {
+      // In Split mode the mounted source editor owns the CodeMirror view.
+      // Route the edit through it so CodeMirror updates immediately and the
+      // existing loro-codemirror transaction path performs the Loro commit.
+      const handled = this.#externalBodyMutationHandler(mutation);
+      return handled && this.bodyText[stateOffset] === nextState;
+    }
+
+    // LoroText's JavaScript API uses UTF-16 code-unit positions, the same
+    // indexing unit as JavaScript String offsets. This keeps source mappings
+    // correct even when emoji or other surrogate pairs precede the task.
+    const text = this.#doc.getText("body");
+    text.splice(stateOffset, 1, nextState);
+    this.#doc.commit();
+    return true;
+  }
+
   exportSnapshot(): Uint8Array {
     this.#doc.commit();
     return this.#doc.export({ mode: "snapshot" });
@@ -209,6 +295,14 @@ export class NoteDocument {
       },
       flushEditorHistoryBoundary: () => {
         this.#flushAutomaticTimestamp();
+      },
+      registerExternalBodyMutationHandler: (handler) => {
+        this.#externalBodyMutationHandler = handler;
+        return () => {
+          if (this.#externalBodyMutationHandler === handler) {
+            this.#externalBodyMutationHandler = null;
+          }
+        };
       },
     };
   }

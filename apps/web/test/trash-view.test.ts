@@ -11,8 +11,18 @@ import {
 } from "../src/TrashView.js";
 
 vi.mock("../src/MarkdownPreview.js", () => ({
-  MarkdownPreview: ({ document }: { document: NoteDocument }) =>
-    document.bodyText,
+  MarkdownPreview: ({
+    document,
+    interactive,
+  }: {
+    document: NoteDocument;
+    interactive: boolean;
+  }) =>
+    createElement(
+      "div",
+      { "data-preview-interactive": String(interactive) },
+      document.bodyText,
+    ),
 }));
 
 vi.mock("../src/EditorModeView.js", () => ({
@@ -62,6 +72,7 @@ describe("TrashView", () => {
     expect(markup).toContain("research");
     expect(markup).toContain("draft");
     expect(markup).toContain("Preview body");
+    expect(markup).toContain('data-preview-interactive="false"');
     expect(markup).toContain(">Restore<");
     expect(markup).toContain(">Delete permanently<");
     expect(markup).not.toContain("Add tag");

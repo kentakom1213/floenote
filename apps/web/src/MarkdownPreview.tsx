@@ -3,6 +3,7 @@ import katex from "katex";
 import "katex/dist/katex.min.css";
 import { marked } from "marked";
 import {
+  type MouseEvent,
   useCallback,
   useMemo,
   useState,
@@ -15,9 +16,14 @@ import {
   type MarkdownImageDescriptor,
 } from "./markdown-images.js";
 import { sanitizeMarkdownHtml } from "./markdown-sanitizer.js";
+import {
+  extractMarkdownTasks,
+  type MarkdownTaskDescriptor,
+} from "./markdown-tasks.js";
 
 type MarkdownPreviewProps = {
   document: NoteDocument;
+  interactive: boolean;
 };
 
 type MathSnippet = {
@@ -29,13 +35,27 @@ type MathSnippet = {
 export type MarkdownRenderResult = {
   html: string;
   hasExternalImages: boolean;
+  source: string;
+  tasks: readonly MarkdownTaskDescriptor[];
 };
 
-export function MarkdownPreview({ document }: MarkdownPreviewProps) {
-  return <DocumentMarkdownPreview key={document.id} document={document} />;
+export function MarkdownPreview({
+  document,
+  interactive,
+}: MarkdownPreviewProps) {
+  return (
+    <DocumentMarkdownPreview
+      key={document.id}
+      document={document}
+      interactive={interactive}
+    />
+  );
 }
 
-function DocumentMarkdownPreview({ document }: MarkdownPreviewProps) {
+function DocumentMarkdownPreview({
+  document,
+  interactive,
+}: MarkdownPreviewProps) {
   const [loadExternalImages, setLoadExternalImages] = useState(false);
   const subscribe = useCallback(
     (listener: () => void) => subscribeMarkdownPreview(document, listener),
@@ -47,8 +67,49 @@ function DocumentMarkdownPreview({ document }: MarkdownPreviewProps) {
   );
   const markdown = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const rendered = useMemo(
-    () => renderMarkdownWithImagePolicy(markdown, { loadExternalImages }),
-    [loadExternalImages, markdown],
+    () =>
+      renderMarkdownWithImagePolicy(markdown, {
+        loadExternalImages,
+        interactiveTasks: interactive,
+      }),
+    [interactive, loadExternalImages, markdown],
+  );
+
+  const handleTaskClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!interactive) return;
+
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.classList.contains("markdown-task-checkbox")) return;
+
+      const taskId = target.dataset.floeTaskId;
+      const task = rendered.tasks.find((candidate) => candidate.id === taskId);
+      if (!task) return;
+
+      // Any document change since this render invalidates all source offsets.
+      // Prefer a safe no-op until React rerenders rather than risk toggling a
+      // different task after a local or remote concurrent edit.
+      if (document.bodyText !== rendered.source) {
+        target.checked = task.checked;
+        return;
+      }
+
+      const changed = document.toggleTaskMarker({
+        sourceStart: task.sourceStart,
+        sourceEnd: task.sourceEnd,
+        lineStart: task.lineStart,
+        lineEnd: task.lineEnd,
+        sourceLine: task.sourceLine,
+        sourceMarker: task.sourceMarker,
+        checked: target.checked,
+      });
+
+      if (!changed) {
+        target.checked = task.checked;
+      }
+    },
+    [document, interactive, rendered],
   );
 
   if (!markdown.trim()) {
@@ -77,6 +138,7 @@ function DocumentMarkdownPreview({ document }: MarkdownPreviewProps) {
       ) : null}
       <div
         className="markdown-preview"
+        onClick={handleTaskClick}
         dangerouslySetInnerHTML={{ __html: rendered.html }}
       />
     </>
@@ -105,14 +167,19 @@ export function getMarkdownPreviewSource(document: NoteDocument): string {
 export function renderMarkdown(source: string): string {
   return renderMarkdownWithImagePolicy(source, {
     loadExternalImages: false,
+    interactiveTasks: false,
   }).html;
 }
 
 export function renderMarkdownWithImagePolicy(
   source: string,
-  options: { loadExternalImages: boolean },
+  options: {
+    loadExternalImages: boolean;
+    interactiveTasks?: boolean;
+  },
 ): MarkdownRenderResult {
-  const extractedMath = extractMath(source);
+  const extractedTasks = extractMarkdownTasks(source);
+  const extractedMath = extractMath(extractedTasks.markdown);
   const rendered = marked.parse(extractedMath.markdown, {
     async: false,
     gfm: true,
@@ -124,16 +191,89 @@ export function renderMarkdownWithImagePolicy(
   const sanitized = sanitizeMarkdownHtml(extractedImages.html);
   const parsed = new DOMParser().parseFromString(sanitized, "text/html");
 
+  hydrateTasks(
+    parsed,
+    extractedTasks.tasks,
+    options.interactiveTasks ?? false,
+  );
   hydrateMath(parsed, extractedMath.math);
   hydrateImages(parsed, extractedImages.images, options.loadExternalImages);
 
   return {
     html: parsed.body.innerHTML,
+    source,
+    tasks: extractedTasks.tasks,
     hasExternalImages: extractedImages.images.some(
       (image) =>
         classifyMarkdownImageSource(image.source) === "external-https",
     ),
   };
+}
+
+function hydrateTasks(
+  document: Document,
+  tasks: readonly MarkdownTaskDescriptor[],
+  interactive: boolean,
+): void {
+  if (tasks.length === 0) return;
+
+  const byMarker = new Map(tasks.map((task) => [task.marker, task]));
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+  );
+  const textNodes: Text[] = [];
+
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+  }
+
+  for (const textNode of textNodes) {
+    const value = textNode.nodeValue ?? "";
+    if (!tasks.some((task) => value.includes(task.marker))) continue;
+
+    const fragment = document.createDocumentFragment();
+    let remaining = value;
+
+    while (remaining.length > 0) {
+      let next: MarkdownTaskDescriptor | null = null;
+      let nextIndex = Number.POSITIVE_INFINITY;
+
+      for (const task of tasks) {
+        const index = remaining.indexOf(task.marker);
+        if (index >= 0 && index < nextIndex) {
+          next = byMarker.get(task.marker) ?? null;
+          nextIndex = index;
+        }
+      }
+
+      if (!next) {
+        fragment.append(remaining);
+        break;
+      }
+
+      if (nextIndex > 0) {
+        fragment.append(remaining.slice(0, nextIndex));
+      }
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "markdown-task-checkbox";
+      checkbox.checked = next.checked;
+      if (next.checked) checkbox.setAttribute("checked", "");
+      checkbox.disabled = !interactive;
+      checkbox.dataset.floeTaskId = next.id;
+      checkbox.setAttribute("aria-label", next.label || "Task");
+      fragment.append(checkbox);
+
+      const item = textNode.parentElement?.closest("li");
+      item?.classList.add("markdown-task-item");
+
+      remaining = remaining.slice(nextIndex + next.marker.length);
+    }
+
+    textNode.replaceWith(fragment);
+  }
 }
 
 function hydrateImages(

@@ -1637,6 +1637,29 @@ input:focus-visible {
   margin-top: 0.28em;
 }
 
+.markdown-preview .markdown-task-item {
+  list-style: none;
+}
+
+.markdown-task-checkbox {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.55em 0 -1.45em;
+  vertical-align: -0.1em;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.markdown-task-checkbox:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.markdown-task-checkbox:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
 .markdown-preview blockquote {
   border-left: 3px solid var(--color-border-strong);
   padding-left: 16px;

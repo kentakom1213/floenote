@@ -99,8 +99,32 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     };
 
     host.addEventListener("pointerdown", handlePointerDown);
+    const unregisterExternalBodyMutationHandler =
+      binding.registerExternalBodyMutationHandler((mutation) => {
+        if (view.state.doc.toString() !== document.bodyText) {
+          return false;
+        }
+        if (
+          view.state.doc.sliceString(mutation.from, mutation.to) !==
+          mutation.expected
+        ) {
+          return false;
+        }
+
+        view.dispatch({
+          changes: {
+            from: mutation.from,
+            to: mutation.to,
+            insert: mutation.insert,
+          },
+          userEvent: "input",
+        });
+
+        return view.state.doc.toString() === document.bodyText;
+      });
 
     return () => {
+      unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
       undoManager.free();
