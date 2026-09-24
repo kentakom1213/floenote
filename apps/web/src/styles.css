@@ -1990,111 +1990,6 @@ input:focus-visible {
   gap: 14px;
 }
 
-.appearance-editor-settings {
-  margin-top: 24px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 20px;
-}
-
-.settings-subsection-heading {
-  margin-bottom: 14px;
-}
-
-.settings-subsection-heading h3 {
-  margin: 0;
-  font-size: 13px;
-  letter-spacing: -0.005em;
-}
-
-.settings-subsection-heading p {
-  margin: 4px 0 0;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.editor-preference-controls {
-  display: grid;
-  gap: 18px;
-}
-
-.editor-preference-fieldset {
-  min-width: 0;
-  margin: 0;
-  border: 0;
-  padding: 0;
-}
-
-.editor-preference-fieldset legend {
-  margin-bottom: 8px;
-  padding: 0;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.editor-preference-options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
-}
-
-.editor-preference-options-four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.editor-preference-option {
-  position: relative;
-  min-width: 0;
-  min-height: 50px;
-  display: grid;
-  align-content: center;
-  gap: 2px;
-  border: 1px solid var(--color-border);
-  border-radius: 9px;
-  padding: 8px 10px;
-  color: var(--color-text-muted);
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-.editor-preference-option:hover {
-  border-color: var(--color-border-strong);
-  color: var(--color-text);
-  background: var(--color-surface-hover);
-}
-
-.editor-preference-option:has(input:checked) {
-  border-color: var(--color-accent);
-  color: var(--color-text);
-  background: var(--color-accent-soft);
-}
-
-.editor-preference-option:has(input:focus-visible) {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.editor-preference-option input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.editor-preference-option span {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editor-preference-option small {
-  color: var(--color-text-faint);
-  font-size: 10px;
-}
 
 .theme-preview-grid {
   display: grid;
@@ -2103,7 +1998,7 @@ input:focus-visible {
 }
 
 .theme-preview-card,
-.system-theme-option {
+.theme-mode-option {
   border: 1px solid var(--color-border);
   color: var(--color-text);
   background: var(--color-surface);
@@ -2119,14 +2014,25 @@ input:focus-visible {
 }
 
 .theme-preview-card:hover,
-.system-theme-option:hover {
+.theme-mode-option:hover {
   border-color: var(--color-border-strong);
 }
 
 .theme-preview-card[data-selected="true"],
-.system-theme-option[data-selected="true"] {
+.theme-mode-option[data-selected="true"] {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.theme-pair-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border-radius: 9px;
+}
+
+.theme-pair-preview .theme-preview-surface {
+  border-radius: 0;
 }
 
 .theme-preview-surface {
@@ -2240,12 +2146,12 @@ input:focus-visible {
 }
 
 .theme-preview-copy strong,
-.system-theme-option strong {
+.theme-mode-option strong {
   font-size: 12px;
 }
 
 .theme-preview-copy small,
-.system-theme-option small {
+.theme-mode-option small {
   color: var(--color-text-muted);
   font-size: 11px;
   line-height: 1.4;
@@ -2263,19 +2169,23 @@ input:focus-visible {
   bottom: 23px;
 }
 
-.system-theme-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border-radius: 11px;
-  padding: 11px 13px;
-  text-align: left;
+.theme-mode-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
 }
 
-.system-theme-option > span:first-child {
-  display: grid;
-  gap: 3px;
+.theme-mode-option {
+  border-radius: 9px;
+  padding: 9px 12px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.theme-mode-option[data-selected="true"] {
+  color: var(--color-text);
+  background: var(--color-accent-soft);
 }
 
 .dialog-backdrop {
@@ -2628,6 +2538,21 @@ input:focus-visible {
   color: var(--color-text-faint);
   font-size: 11px;
   line-height: 1.5;
+}
+
+.turn-test-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.turn-test-status[data-state="success"] {
+  color: var(--color-active);
+}
+
+.turn-test-status[data-state="error"] {
+  color: var(--color-danger);
 }
 
 .settings-badge {

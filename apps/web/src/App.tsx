@@ -67,10 +67,6 @@ import {
   type DeviceAuthorizationUiState,
 } from "./InvitationHostPanel.js";
 import { AppSettingsView } from "./AppSettingsView.js";
-import {
-  clearEditorPreference,
-  useEditorPreference,
-} from "./editor-preference.js";
 import { InvitationJoinPage } from "./InvitationJoinPage.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
 import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
@@ -185,7 +181,6 @@ export function App() {
 
 function NoteApp() {
   const [themePreference, setThemePreference] = useThemePreference();
-  const [editorPreference, setEditorPreference] = useEditorPreference();
   const [turnCredentialEndpoint, setTurnCredentialEndpoint] =
     useTurnCredentialEndpoint();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
@@ -757,7 +752,6 @@ function NoteApp() {
         vaultState={deviceVaultState}
         vaultError={deviceVaultError}
         theme={themePreference}
-        editorPreference={editorPreference}
         coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
@@ -766,7 +760,6 @@ function NoteApp() {
         onCreateWithNewPasskey={createDeviceWithNewPasskey}
         onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
-        onEditorPreferenceChange={setEditorPreference}
         onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
         onCreateProject={createProject}
@@ -1079,7 +1072,6 @@ function NoteApp() {
       await projectStorage.eraseAllLocalData();
       await deviceVault.eraseVault();
       clearThemePreference();
-      clearEditorPreference();
       clearTurnCredentialEndpoint();
       clearAllLastDocumentPreferences();
       clearSidebarPreference();
@@ -1646,14 +1638,12 @@ function NoteApp() {
     invitationContent ?? (mainView === "app-settings" ? (
       <AppSettingsView
         theme={themePreference}
-        editorPreference={editorPreference}
         coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
         turnCredentialEndpoint={turnCredentialEndpoint}
         onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
-        onEditorPreferenceChange={setEditorPreference}
         onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
       />

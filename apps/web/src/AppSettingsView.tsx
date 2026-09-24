@@ -6,22 +6,18 @@ import {
   webBuildInfo,
 } from "./build-info.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
-import { EditorPreferenceControls } from "./EditorPreferenceControls.js";
-import type { EditorPreference } from "./editor-preference.js";
 import { ThemePicker } from "./ThemePicker.js";
 import type { ThemePreference } from "./theme.js";
 import { testTurnCredentialEndpoint } from "./turn-credentials.js";
 
 type AppSettingsViewProps = {
   theme: ThemePreference;
-  editorPreference: EditorPreference;
   coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
   turnCredentialEndpoint: string | null;
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
-  onEditorPreferenceChange: (preference: EditorPreference) => void;
   onTurnCredentialEndpointChange: (endpoint: string | null) => void;
   onEraseDevice: () => Promise<void>;
   onBack?: () => void;
@@ -36,14 +32,12 @@ function shortDeviceId(deviceId: DeviceId): string {
 
 export function AppSettingsView({
   theme,
-  editorPreference,
   coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
   turnCredentialEndpoint,
   onRenameDevice,
   onThemeChange,
-  onEditorPreferenceChange,
   onTurnCredentialEndpointChange,
   onEraseDevice,
   onBack,
@@ -146,17 +140,6 @@ export function AppSettingsView({
           </div>
         </div>
         <ThemePicker value={theme} onChange={onThemeChange} />
-
-        <div className="appearance-editor-settings">
-          <div className="settings-subsection-heading">
-            <h3>Editor</h3>
-            <p>Adjust Markdown source editing on this device.</p>
-          </div>
-          <EditorPreferenceControls
-            value={editorPreference}
-            onChange={onEditorPreferenceChange}
-          />
-        </div>
       </div>
 
       <div className="settings-section">
@@ -267,9 +250,9 @@ export function AppSettingsView({
           unavailable. Treat the endpoint URL as a secret.
         </p>
         {turnTestMessage ? (
-          <p className="settings-field-hint">{turnTestMessage}</p>
+          <p className="turn-test-status" data-state="success">✓ {turnTestMessage}</p>
         ) : null}
-        {turnError ? <p className="dialog-error">{turnError}</p> : null}
+        {turnError ? <p className="turn-test-status" data-state="error">× {turnError}</p> : null}
       </div>
 
       <div className="settings-section">
@@ -283,7 +266,8 @@ export function AppSettingsView({
           <p>Each Project has its own access boundary and encryption key.</p>
         </div>
 
-        <div className="technical-details technical-details-static">
+        <details className="technical-details">
+          <summary>Technical details</summary>
           <dl>
             <div>
               <dt>Web version</dt>
@@ -293,40 +277,36 @@ export function AppSettingsView({
               <dt>Web build</dt>
               <dd>{webBuildInfo.build}</dd>
             </div>
+            {emphasizeCoordinatorDetails ? (
+              <>
+                <div>
+                  <dt>Coordinator version</dt>
+                  <dd>
+                    {coordinatorBuildInfo.status === "checking"
+                      ? "Checking…"
+                      : coordinatorBuildInfo.status === "available"
+                        ? coordinatorBuildInfo.info.version
+                        : "Unavailable"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Coordinator build</dt>
+                  <dd>
+                    {coordinatorBuildInfo.status === "checking"
+                      ? "Checking…"
+                      : coordinatorBuildInfo.status === "available"
+                        ? coordinatorBuildInfo.info.build
+                        : "Unavailable"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Coordinator URL</dt>
+                  <dd>{coordinatorBaseUrl}</dd>
+                </div>
+              </>
+            ) : null}
           </dl>
-        </div>
-
-        {emphasizeCoordinatorDetails ? (
-          <details className="technical-details">
-            <summary>Coordinator technical details</summary>
-            <dl>
-              <div>
-                <dt>Coordinator version</dt>
-                <dd>
-                  {coordinatorBuildInfo.status === "checking"
-                    ? "Checking…"
-                    : coordinatorBuildInfo.status === "available"
-                      ? coordinatorBuildInfo.info.version
-                      : "Unavailable"}
-                </dd>
-              </div>
-              <div>
-                <dt>Coordinator build</dt>
-                <dd>
-                  {coordinatorBuildInfo.status === "checking"
-                    ? "Checking…"
-                    : coordinatorBuildInfo.status === "available"
-                      ? coordinatorBuildInfo.info.build
-                      : "Unavailable"}
-                </dd>
-              </div>
-              <div>
-                <dt>Coordinator URL</dt>
-                <dd>{coordinatorBaseUrl}</dd>
-              </div>
-            </dl>
-          </details>
-        ) : null}
+        </details>
       </div>
 
       {showDangerZone ? (
