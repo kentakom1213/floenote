@@ -6,6 +6,8 @@ const ALLOWED_MARKDOWN_TAGS = [
   "br",
   "code",
   "del",
+  "details",
+  "div",
   "em",
   "h1",
   "h2",
@@ -14,11 +16,20 @@ const ALLOWED_MARKDOWN_TAGS = [
   "h5",
   "h6",
   "hr",
+  "kbd",
   "li",
+  "mark",
   "ol",
   "p",
   "pre",
+  "rp",
+  "rt",
+  "ruby",
+  "span",
   "strong",
+  "sub",
+  "summary",
+  "sup",
   "table",
   "tbody",
   "td",
@@ -34,7 +45,7 @@ export function sanitizeMarkdownHtml(html: string): string {
   const sanitized = String(
     DOMPurify.sanitize(html, {
       ALLOWED_TAGS: [...ALLOWED_MARKDOWN_TAGS],
-      ALLOWED_ATTR: ["href", "title", "class"],
+      ALLOWED_ATTR: ["href", "title", "class", "open"],
       ALLOW_ARIA_ATTR: false,
       ALLOW_DATA_ATTR: false,
       FORBID_TAGS: [
@@ -93,8 +104,10 @@ function normalizeMarkdownAttributes(root: HTMLElement): void {
         tag === "code" &&
         attribute.name === "class" &&
         CODE_LANGUAGE_CLASS.test(attribute.value);
+      const keepDetailsOpen =
+        tag === "details" && attribute.name === "open";
 
-      if (!keepHref && !keepTitle && !keepCodeClass) {
+      if (!keepHref && !keepTitle && !keepCodeClass && !keepDetailsOpen) {
         element.removeAttribute(attribute.name);
       }
     }
