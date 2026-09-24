@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { hydrateCodeHighlighting } from "./code-highlighting.js";
 import {
   classifyMarkdownImageSource,
   extractMarkdownImages,
@@ -198,6 +199,7 @@ export function renderMarkdownWithImagePolicy(
   );
   hydrateMath(parsed, extractedMath.math);
   hydrateImages(parsed, extractedImages.images, options.loadExternalImages);
+  hydrateCodeHighlighting(parsed);
 
   return {
     html: parsed.body.innerHTML,
