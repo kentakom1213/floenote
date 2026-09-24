@@ -41,6 +41,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       extensions: [
         basicSetup,
         markdown(),
+        fencedCodeHighlighting(),
         ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({
