@@ -677,7 +677,10 @@ function DocumentPane({
           selectedCheckpointId={selectedCheckpointId}
           onSelectCheckpoint={setSelectedCheckpointId}
           onSelectCurrent={() => setSelectedCheckpointId(null)}
-          onClose={() => setHistoryOpen(false)}
+          onClose={() => {
+            setSelectedCheckpointId(null);
+            setHistoryOpen(false);
+          }}
         />
       ) : null}
     </article>
