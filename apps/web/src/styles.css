@@ -1675,13 +1675,74 @@ input:focus-visible {
   margin: 0;
 }
 
+.external-image-warning {
+  width: min(820px, calc(100% - 64px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 4px auto 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+}
+
+.external-image-warning-copy {
+  min-width: 0;
+}
+
+.external-image-warning-copy strong {
+  display: block;
+  font-size: 13px;
+}
+
+.external-image-warning-copy p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.external-image-warning button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.external-image-warning button:hover {
+  background: var(--color-surface-hover);
+}
+
+.editor-view-split .external-image-warning {
+  width: auto;
+  margin: 12px 28px 0;
+}
+
+.trash-note-preview-body .external-image-warning {
+  width: auto;
+  margin-inline: 0;
+}
+
+.markdown-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 .markdown-image-placeholder {
   display: inline-block;
+  max-width: 100%;
   border-radius: 6px;
   padding: 2px 6px;
   color: var(--color-text-faint);
   background: var(--color-surface-selected);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .markdown-preview-empty {
@@ -3628,6 +3689,7 @@ h1 {
   .note-properties,
   .editor-mode-row,
   .markdown-preview,
+  .external-image-warning,
   .trash-view,
   .trash-note-preview-header,
   .trash-note-properties,
@@ -3765,6 +3827,21 @@ h1 {
     min-height: 0;
     margin-inline: auto;
     padding: 18px 0 calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .external-image-warning {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .external-image-warning button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .editor-view-split .external-image-warning {
+    width: calc(100% - 32px);
+    margin: 12px auto 0;
   }
 
   .markdown-preview {
