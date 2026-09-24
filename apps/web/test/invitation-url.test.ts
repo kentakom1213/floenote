@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseInvitationUrl } from "../src/invitation-url.js";
+import { clearInvitationUrl, parseInvitationUrl } from "../src/invitation-url.js";
 
 const ORIGIN = "https://floe.pwll.dev";
 const INVITE_ID = "0123456789abcdef0123456789abcdef";
@@ -40,5 +40,21 @@ describe("parseInvitationUrl", () => {
     expect(() => parseInvitationUrl(value, ORIGIN)).toThrow(
       "Paste a valid Floe Note invitation link.",
     );
+  });
+});
+
+
+describe("clearInvitationUrl", () => {
+  it("replaces the current history entry without preserving secret state", () => {
+    const calls: unknown[][] = [];
+    const history = {
+      replaceState: (...args: unknown[]) => {
+        calls.push(args);
+      },
+    } as unknown as Pick<History, "replaceState">;
+
+    clearInvitationUrl(history);
+
+    expect(calls).toEqual([[null, "", "/"]]);
   });
 });
