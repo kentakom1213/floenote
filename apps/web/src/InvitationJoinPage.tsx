@@ -26,6 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { createConsoleDebugLogger } from "./debug.js";
 import { generateDeviceDisplayName } from "./device-name.js";
 import { clearAllLastDocumentPreferences } from "./note-preference.js";
+import { resolveRtcConfiguration } from "./turn-credentials.js";
 
 const joinDeviceVault = new WebAuthnPrfDeviceVault();
 
@@ -44,6 +45,7 @@ type InvitationJoinPageProps = {
   inviteId: string;
   pairingSecret: string | null;
   storage: ProjectStorage;
+  turnCredentialEndpoint: string | null;
 };
 
 type JoinVaultState =
@@ -66,6 +68,7 @@ export function InvitationJoinPage({
   inviteId,
   pairingSecret,
   storage,
+  turnCredentialEndpoint,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
@@ -149,7 +152,7 @@ export function InvitationJoinPage({
 
         const transport = new WebRtcTransport(
           claimed.projectId,
-          undefined,
+          await resolveRtcConfiguration(turnCredentialEndpoint),
           createConsoleDebugLogger("invite-join-webrtc"),
         );
         const stopTransportStatus = transport.onStatusChange(setWebRtcStatus);
@@ -257,6 +260,7 @@ export function InvitationJoinPage({
     inviteId,
     pairingSecret,
     storage,
+    turnCredentialEndpoint,
     vaultState,
   ]);
 
