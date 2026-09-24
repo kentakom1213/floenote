@@ -1,0 +1,240 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component
+        required: true
+        type: choice
+        options:
+          - web
+          - coordinator
+      bump:
+        description: Version bump
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      release_sha: ${{ steps.publish.outputs.release_sha }}
+    steps:
+      - name: Require main dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Production releases must be dispatched from main." >&2
+            exit 1
+          fi
+
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Pin release base
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git checkout --detach origin/main
+          echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bump component version
+        id: bump
+        shell: bash
+        env:
+          COMPONENT: ${{ inputs.component }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          case "$COMPONENT" in
+            web)
+              pnpm version:web "$BUMP"
+              package_path="apps/web/package.json"
+              tag_prefix="web-v"
+              ;;
+            coordinator)
+              pnpm version:coordinator "$BUMP"
+              package_path="apps/coordinator/package.json"
+              tag_prefix="coordinator-v"
+              ;;
+            *)
+              echo "Unsupported component: $COMPONENT" >&2
+              exit 1
+              ;;
+          esac
+
+          version="$(node -p "require('./${package_path}').version")"
+          tag="${tag_prefix}${version}"
+
+          echo "package_path=$package_path" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify release diff
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_files < <(git diff --name-only)
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$PACKAGE_PATH" ]]; then
+            echo "Expected only $PACKAGE_PATH to be modified after verification." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+          if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+            echo "Unexpected untracked files exist after verification." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+      - name: Publish release commit and tag
+        id: publish
+        shell: bash
+        env:
+          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+          COMPONENT: ${{ inputs.component }}
+          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main="$(git rev-parse origin/main)"
+          if [[ "$current_main" != "$BASE_SHA" ]]; then
+            echo "main advanced during release preparation." >&2
+            echo "Release base: $BASE_SHA" >&2
+            echo "Current main: $current_main" >&2
+            echo "Rerun the workflow from the latest main." >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- "$PACKAGE_PATH"
+          staged_files="$(git diff --cached --name-only)"
+          if [[ "$staged_files" != "$PACKAGE_PATH" ]]; then
+            echo "Release commit must contain only $PACKAGE_PATH." >&2
+            git diff --cached --name-only >&2
+            exit 1
+          fi
+
+          git commit -m "release $COMPONENT v$VERSION"
+          release_sha="$(git rev-parse HEAD)"
+          git tag "$TAG"
+
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG:refs/tags/$TAG"
+
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout released commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.release_sha }}
+          fetch-depth: 1
+
+      - name: Verify released commit
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ needs.prepare-release.outputs.release_sha }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "Checked out commit does not match the prepared release SHA." >&2
+            exit 1
+          fi
+
+          remote_tag_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
+            echo "Release tag does not point to the prepared release SHA." >&2
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy Web
+        if: ${{ inputs.component == 'web' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm deploy:web
+
+      - name: Deploy Coordinator
+        if: ${{ inputs.component == 'coordinator' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm deploy:coordinator

@@ -1,6 +1,8 @@
 # Releases and versioning
 
-Floe Note releases the Web client and coordinator independently.
+Floe Note releases the Web client and coordinator independently. Production
+releases are normally created from GitHub Actions. TURN is separate optional
+infrastructure and is not part of this release workflow.
 
 ## Version policy
 
@@ -9,27 +11,158 @@ The release versions are stored in:
 - Web: `apps/web/package.json`
 - Coordinator: `apps/coordinator/package.json`
 
-Both components use SemVer independently. Internal workspace packages are not
+Both components use independent SemVer. Internal workspace packages are not
 versioned for release and are not published to npm.
 
-The intended bump rules are:
+Use these bump categories consistently:
 
-- `patch`: bug fixes, small polish, and behavior-preserving fixes;
-- `minor`: new features and backward-compatible protocol or UI capabilities;
-- `major`: breaking changes once a component moves to v1.
+- `patch`: bug fixes, small polish, and behavior-preserving fixes
+- `minor`: new features and backward-compatible protocol or UI capabilities
+- `major`: breaking changes once a component moves to v1
 
-During the 0.x series, use the same categories consistently even though strict
-SemVer treats 0.x compatibility differently.
+During the 0.x series, keep using the same categories even though strict SemVer
+treats 0.x compatibility differently.
 
-A development build does not require a version bump. Its release version may
-stay unchanged while the embedded Git build identifier changes.
+Development builds do not require a version bump. The release version may stay
+unchanged while the embedded Git build identifier changes. A production
+release always bumps the component being deployed.
 
-A production release must explicitly bump the component being deployed.
+## Production release with GitHub Actions
 
-## Bumping a component
+The primary release path is:
 
-Start from a clean working tree. The bump helper intentionally refuses to run
-when tracked or untracked changes are present.
+1. Open the repository on GitHub.
+2. Go to **Actions → Release → Run workflow**.
+3. Select the `main` branch.
+4. Select the component:
+   - `web`
+   - `coordinator`
+5. Select the version bump:
+   - `patch`
+   - `minor`
+   - `major`
+6. Run the workflow.
+
+The workflow refuses to release from any ref other than `main`.
+
+### What the Release workflow does
+
+The `prepare-release` job:
+
+1. verifies that the dispatch ref is `main`
+2. checks out the latest `origin/main`
+3. installs dependencies with `pnpm install --frozen-lockfile`
+4. reuses the existing version helper:
+   - Web: `pnpm version:web <bump>`
+   - Coordinator: `pnpm version:coordinator <bump>`
+5. runs `pnpm test`
+6. runs `pnpm typecheck`
+7. runs `pnpm build`
+8. verifies that only the selected component's `package.json` changed
+9. fetches `origin/main` again and fails if main advanced during preparation
+10. verifies that the release tag does not already exist
+11. creates a release commit with the GitHub Actions bot identity
+12. creates the component-specific release tag
+13. pushes the main commit and tag together with an atomic Git push
+
+The release commit format is:
+
+- `release web v<version>`
+- `release coordinator v<version>`
+
+Tags are:
+
+- Web: `web-v<version>`
+- Coordinator: `coordinator-v<version>`
+
+Existing tags are never overwritten or force-updated.
+
+The `deploy` job starts only after `prepare-release` succeeds. It checks out
+the exact release commit SHA produced by `prepare-release`, verifies that the
+remote tag points to that SHA, installs dependencies, and deploys only the
+selected component:
+
+- Web: `pnpm deploy:web`
+- Coordinator: `pnpm deploy:coordinator`
+
+This keeps the package version, embedded build SHA, release tag, and deployed
+source tied to the same release commit.
+
+## Safety and failure behavior
+
+Release operations are serialized with one `production-release` concurrency
+group across both Web and Coordinator. A running release is not cancelled when
+another release is requested.
+
+Before the release commit/tag push, any failure leaves `main` unchanged, does
+not create a remote release tag, and does not deploy.
+
+If `main` advances while verification is running, the release fails instead
+of merging, rebasing, or force-pushing. Run the workflow again from the latest
+`main`.
+
+The commit and tag are pushed atomically. If either ref cannot be updated, the
+push fails rather than intentionally leaving a release commit without its tag
+or a tag without its release commit.
+
+If the release commit/tag push succeeds but production deployment fails, the
+release commit and tag remain valid. Do not bump the version again just to
+retry deployment. Retry the failed `deploy` job from the same workflow run so
+it deploys the same release SHA.
+
+The Release workflow performs its own install, test, typecheck, and build before
+pushing the release. Correctness does not depend on the release commit push
+starting `ci.yml`; pushes made with the built-in `GITHUB_TOKEN` should not be
+treated as a mechanism for recursively triggering the verification workflow.
+
+## GitHub Environment and Cloudflare credentials
+
+The production deploy job uses the GitHub Environment named `production`.
+
+Before the first release, configure the repository:
+
+1. Go to **Settings → Environments**.
+2. Create or open **production**.
+3. Add these Environment secrets:
+   - `CLOUDFLARE_API_TOKEN`
+   - `CLOUDFLARE_ACCOUNT_ID`
+
+The values are Cloudflare deployment credentials used by Wrangler. Do not put
+their values in the repository, workflow YAML, logs, or artifacts.
+
+The Cloudflare deployment credentials are unrelated to the optional TURN Worker
+runtime secrets such as `TURN_KEY_ID`, `TURN_KEY_API_TOKEN`, and
+`TURN_ACCESS_TOKEN`. Those TURN secrets are not passed to the Release
+workflow.
+
+The `prepare-release` job uses the built-in `GITHUB_TOKEN` with only
+`contents: write` so it can update `main` and create the tag. The deploy job
+has only `contents: read`; Cloudflare secrets are referenced only by its
+deployment steps.
+
+If repository branch protection or a ruleset prevents the built-in
+`GITHUB_TOKEN` from updating `main`, adjust the repository policy so the
+intended Release workflow can perform this release commit. Do not add a
+Personal Access Token merely to bypass that policy.
+
+Environment reviewer approval, if desired, is configured in the
+`production` Environment settings. The workflow itself does not add a second
+confirmation prompt.
+
+## Verification after deployment
+
+After the workflow succeeds:
+
+- confirm the Web / Coordinator version and build identifier in Floe Note's
+  technical details
+- for Coordinator releases, also confirm the production `/health` response
+
+The build identifier should correspond to the release commit deployed by the
+workflow.
+
+## Developer version helper
+
+The existing helpers remain available for local development or manual recovery:
 
 ```sh
 pnpm version:web patch
@@ -41,92 +174,23 @@ pnpm version:coordinator minor
 pnpm version:coordinator major
 ```
 
-The command updates only the selected component's `package.json`. The pnpm
-lockfile does not record workspace package versions here, so a version-only
-bump does not require a lockfile change.
+They update only the selected component's `package.json` and require a clean
+working tree. They do not commit, tag, push, deploy, or publish.
 
-The helper validates the component, bump kind, current plain SemVer version,
-and clean Git working tree. It does not commit, tag, push, deploy, or publish.
+A package version change does not currently require a pnpm lockfile update
+because the workspace lockfile does not record these app package versions.
 
-## Tags
+## Scope
 
-Tags are component-specific and must exactly match the version in the
-corresponding `package.json`:
+The Release workflow intentionally does not:
 
-- Web: `web-v<version>`, for example `web-v0.1.0`
-- Coordinator: `coordinator-v<version>`, for example
-  `coordinator-v0.1.0`
+- create GitHub Release objects or release assets
+- generate release notes or a changelog
+- publish packages to npm
+- version internal workspace packages
+- create release PRs
+- automatically release or deploy the TURN Worker
+- bump, tag, or version TURN
 
-Do not reuse a tag for another commit or component.
-
-## Release workflow
-
-Release only from the latest `main`, or from a short-lived release branch
-created from it.
-
-1. Update local `main` and confirm the working tree is clean.
-2. Bump only the component being released.
-3. Run tests, typecheck, and build.
-4. Commit the version bump.
-5. Ensure the release commit is on `main` (merge a release PR first when
-   branch protection requires it).
-6. Tag that exact `main` commit with the component-specific tag.
-7. Push the tag.
-8. Deploy only that component.
-9. Verify the running version and build identifier in Floe Note. For the
-   coordinator, also verify `/health`.
-
-Example Web patch release from a repository where direct release commits to
-`main` are allowed:
-
-```sh
-git switch main
-git pull --ff-only
-git status --short
-
-pnpm version:web patch
-pnpm test
-pnpm typecheck
-pnpm build
-
-WEB_VERSION=$(node -p "require('./apps/web/package.json').version")
-git add apps/web/package.json
-git commit -m "Release web v$WEB_VERSION"
-git tag "web-v$WEB_VERSION"
-git push origin main
-git push origin "web-v$WEB_VERSION"
-
-pnpm deploy:web
-```
-
-Example coordinator minor release:
-
-```sh
-git switch main
-git pull --ff-only
-git status --short
-
-pnpm version:coordinator minor
-pnpm test
-pnpm typecheck
-pnpm build
-
-COORDINATOR_VERSION=$(node -p "require('./apps/coordinator/package.json').version")
-git add apps/coordinator/package.json
-git commit -m "Release coordinator v$COORDINATOR_VERSION"
-git tag "coordinator-v$COORDINATOR_VERSION"
-git push origin main
-git push origin "coordinator-v$COORDINATOR_VERSION"
-
-pnpm deploy:coordinator
-```
-
-If `main` requires pull requests, perform the bump and verification on a
-release branch, merge that release-only PR, then update local `main` and tag
-the merged commit. The tag must point to the exact commit whose component
-version is deployed.
-
-The existing build observability remains the final release check: the Web
-Settings technical details show Web and coordinator release versions and Git
-build identifiers, while the coordinator `/health` endpoint reports its own
-`version` and `build`.
+TURN remains manually deployable through the existing `pnpm deploy:turn`
+command when needed.
