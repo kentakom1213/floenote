@@ -100,7 +100,7 @@ export class ProjectSyncEngine {
   }
 
   #reconcileDocumentSubscriptions(announceNew: boolean): void {
-    const currentDocuments = new Map(
+    const currentDocuments = new Map<string, NoteDocument>(
       this.#project
         .getAllDocuments()
         .map((document) => [document.id, document] as const),
