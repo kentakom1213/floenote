@@ -21,7 +21,7 @@ export type {
   NoteDocumentInitialState,
   TaskMarkerToggle,
 } from "./document.js";
-export type { DocumentSummary } from "./project.js";
+export type { DocumentSummary, EditHistoryCheckpoint } from "./project.js";
 export type {
   FloeExportManifestV1,
   PortableDocument,
