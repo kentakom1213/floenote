@@ -8,14 +8,17 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { ThemePicker } from "./ThemePicker.js";
 import type { ThemePreference } from "./theme.js";
+import { testTurnCredentialEndpoint } from "./turn-credentials.js";
 
 type AppSettingsViewProps = {
   theme: ThemePreference;
   coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
+  turnCredentialEndpoint: string | null;
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
+  onTurnCredentialEndpointChange: (endpoint: string | null) => void;
   onEraseDevice: () => Promise<void>;
   onBack?: () => void;
   showDeviceControls?: boolean;
@@ -32,8 +35,10 @@ export function AppSettingsView({
   coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
+  turnCredentialEndpoint,
   onRenameDevice,
   onThemeChange,
+  onTurnCredentialEndpointChange,
   onEraseDevice,
   onBack,
   showDeviceControls = true,
@@ -45,13 +50,26 @@ export function AppSettingsView({
   const [nameDraft, setNameDraft] = useState(localDeviceName ?? "");
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [turnDraft, setTurnDraft] = useState(turnCredentialEndpoint ?? "");
+  const [turnTesting, setTurnTesting] = useState(false);
+  const [turnTestMessage, setTurnTestMessage] = useState<string | null>(null);
+  const [turnError, setTurnError] = useState<string | null>(null);
   const normalizedName = nameDraft.trim();
   const nameChanged =
     normalizedName.length > 0 && normalizedName !== localDeviceName;
+  const normalizedTurnEndpoint = turnDraft.trim();
+  const turnEndpointChanged =
+    normalizedTurnEndpoint !== (turnCredentialEndpoint ?? "");
 
   useEffect(() => {
     setNameDraft(localDeviceName ?? "");
   }, [localDeviceName]);
+
+  useEffect(() => {
+    setTurnDraft(turnCredentialEndpoint ?? "");
+    setTurnTestMessage(null);
+    setTurnError(null);
+  }, [turnCredentialEndpoint]);
 
   async function saveDeviceName(): Promise<void> {
     if (!nameChanged || savingName) return;
@@ -66,6 +84,35 @@ export function AppSettingsView({
       );
     } finally {
       setSavingName(false);
+    }
+  }
+
+  function saveTurnEndpoint(): void {
+    if (!turnEndpointChanged || turnTesting) return;
+    onTurnCredentialEndpointChange(
+      normalizedTurnEndpoint.length > 0 ? normalizedTurnEndpoint : null,
+    );
+    setTurnTestMessage(null);
+    setTurnError(null);
+  }
+
+  async function testTurnEndpoint(): Promise<void> {
+    if (!normalizedTurnEndpoint || turnTesting) return;
+
+    setTurnTesting(true);
+    setTurnTestMessage(null);
+    setTurnError(null);
+    try {
+      await testTurnCredentialEndpoint(normalizedTurnEndpoint);
+      setTurnTestMessage("TURN credentials are available.");
+    } catch (caught: unknown) {
+      setTurnError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not fetch TURN credentials",
+      );
+    } finally {
+      setTurnTesting(false);
     }
   }
 
@@ -152,6 +199,60 @@ export function AppSettingsView({
             Project.
           </p>
         )}
+      </div>
+
+      <div className="settings-section">
+        <div className="settings-section-heading">
+          <div>
+            <h2>Network</h2>
+            <p>Configure optional relay connectivity for this device.</p>
+          </div>
+        </div>
+        <div className="settings-form-row">
+          <label className="settings-field">
+            <span>TURN credential endpoint</span>
+            <input
+              type="url"
+              value={turnDraft}
+              disabled={turnTesting}
+              placeholder="https://floe-note-turn.example.workers.dev/credentials/…"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => {
+                setTurnDraft(event.target.value);
+                setTurnTestMessage(null);
+                setTurnError(null);
+              }}
+            />
+          </label>
+          <div className="settings-form-actions">
+            <button
+              className="settings-primary-action"
+              type="button"
+              disabled={!normalizedTurnEndpoint || turnTesting}
+              onClick={() => void testTurnEndpoint()}
+            >
+              {turnTesting ? "Testing…" : "Test"}
+            </button>
+            <button
+              className="settings-primary-action"
+              type="button"
+              disabled={!turnEndpointChanged || turnTesting}
+              onClick={saveTurnEndpoint}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+        <p className="settings-field-hint">
+          Optional and stored only on this device. All Projects on this device
+          use it as an ICE relay fallback when direct WebRTC connectivity is
+          unavailable. Treat the endpoint URL as a secret.
+        </p>
+        {turnTestMessage ? (
+          <p className="settings-field-hint">{turnTestMessage}</p>
+        ) : null}
+        {turnError ? <p className="dialog-error">{turnError}</p> : null}
       </div>
 
       <div className="settings-section">
