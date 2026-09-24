@@ -817,6 +817,8 @@ input:focus-visible {
 }
 
 .sidebar-trash-note-row .note-row-menu-popover {
+  top: auto;
+  bottom: calc(100% + 5px);
   min-width: 170px;
 }
 
