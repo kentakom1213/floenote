@@ -1693,10 +1693,19 @@ function NoteApp({
           onConfirm={authorizeJoiningDevice}
           onRetryProjectKeyDelivery={retryProjectKeyDelivery}
           onCancel={async () => {
-            await new InvitationClient(coordinatorBaseUrl).cancelInvite(
-              invitationHost.inviteId,
-            );
-            exitInvitationHost();
+            try {
+              await new InvitationClient(coordinatorBaseUrl).cancelInvite(
+                invitationHost.inviteId,
+              );
+            } catch (error: unknown) {
+              console.warn(
+                error instanceof Error
+                  ? `Invitation cancel failed: ${error.message}`
+                  : "Invitation cancel failed",
+              );
+            } finally {
+              exitInvitationHost();
+            }
           }}
         />
       ) : coordinationError ? (
