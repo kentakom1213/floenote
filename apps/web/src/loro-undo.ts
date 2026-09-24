@@ -31,6 +31,7 @@ export type UndoGroupingManager = {
 export type EditorHistoryLifecycle = {
   beginEditorHistoryGroup: () => void;
   endEditorHistoryGroup: () => void;
+  flushEditorHistoryBoundary: () => void;
 };
 
 export type EditorUndoEventKind =
@@ -113,7 +114,6 @@ export function classifyEditorUndoEvent(
 
 class EditorUndoGroupController {
   #activeKind: GroupedEditorUndoEventKind | null = null;
-  #groupStarted = false;
   #idleTimer: number | null = null;
   #compositionEndFrame: number | null = null;
 
@@ -130,26 +130,20 @@ class EditorUndoGroupController {
 
     if (kind === "selection" || kind === "atomic") {
       this.#closeGroup();
+      this.lifecycle.flushEditorHistoryBoundary();
       return;
     }
 
     if (this.#activeKind !== kind) {
       this.#closeGroup();
-      this.#openPendingGroup(kind);
+      this.lifecycle.flushEditorHistoryBoundary();
+      this.#openGroup(kind);
     }
   }
 
   afterUpdate(update: ViewUpdate): void {
     const kind = classifyEditorUndoEvent(update.transactions);
     if (!isGroupedKind(kind) || this.#activeKind !== kind) return;
-
-    if (!this.#groupStarted) {
-      // This runs after LoroExtensions, so the first operation in a semantic
-      // group is already an independent undo item (mergeInterval is zero).
-      // Starting the group now makes following operations merge into it.
-      this.undoManager.groupStart();
-      this.#groupStarted = true;
-    }
 
     if (kind === "composition") {
       if (!this.view.compositionStarted) {
@@ -165,7 +159,8 @@ class EditorUndoGroupController {
   onCompositionStart(): void {
     this.#cancelCompositionEndFrame();
     this.#closeGroup();
-    this.#openPendingGroup("composition");
+    this.lifecycle.flushEditorHistoryBoundary();
+    this.#openGroup("composition");
   }
 
   onCompositionEnd(): void {
@@ -198,10 +193,10 @@ class EditorUndoGroupController {
     this.#closeGroup();
   }
 
-  #openPendingGroup(kind: GroupedEditorUndoEventKind): void {
+  #openGroup(kind: GroupedEditorUndoEventKind): void {
     this.lifecycle.beginEditorHistoryGroup();
+    this.undoManager.groupStart();
     this.#activeKind = kind;
-    this.#groupStarted = false;
   }
 
   #closeGroup(): void {
@@ -210,12 +205,9 @@ class EditorUndoGroupController {
 
     if (this.#activeKind === null) return;
 
-    if (this.#groupStarted) {
-      this.undoManager.groupEnd();
-    }
+    this.undoManager.groupEnd();
     this.lifecycle.endEditorHistoryGroup();
     this.#activeKind = null;
-    this.#groupStarted = false;
   }
 
   #scheduleIdleClose(): void {
