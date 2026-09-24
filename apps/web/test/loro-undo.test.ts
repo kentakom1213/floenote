@@ -1,15 +1,18 @@
+import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
 import {
-  CompositionUndoGroup,
+  classifyEditorUndoEvent,
   EDITOR_UNDO_MAX_STEPS,
+  EDITOR_UNDO_MERGE_INTERVAL_MS,
   runLoroRedo,
   runLoroUndo,
 } from "../src/loro-undo.js";
 
 describe("Loro undo commands", () => {
-  it("uses a larger editor undo stack", () => {
+  it("uses an explicit semantic undo configuration", () => {
     expect(EDITOR_UNDO_MAX_STEPS).toBe(500);
+    expect(EDITOR_UNDO_MERGE_INTERVAL_MS).toBe(0);
   });
 
   it("runs undo synchronously when available", () => {
@@ -83,30 +86,53 @@ describe("Loro undo commands", () => {
   });
 });
 
-describe("CompositionUndoGroup", () => {
-  it("opens once after the first composition change and closes once", () => {
-    const events: string[] = [];
-    const group = new CompositionUndoGroup(
-      {
-        groupStart: () => events.push("start"),
-        groupEnd: () => events.push("end"),
-      },
-      {
-        beginComposition: () => events.push("begin"),
-        endComposition: () => events.push("finish"),
-      },
-    );
+describe("CodeMirror undo event classification", () => {
+  const state = EditorState.create({ doc: "abc" });
 
-    expect(group.active).toBe(false);
+  it("groups ordinary typing separately from IME composition", () => {
+    const typing = state.update({
+      changes: { from: 3, insert: "d" },
+      userEvent: "input.type",
+    });
+    const composition = state.update({
+      changes: { from: 3, insert: "に" },
+      userEvent: "input.type.compose.start",
+    });
 
-    group.begin();
-    group.begin();
-    expect(group.active).toBe(true);
+    expect(classifyEditorUndoEvent([typing])).toBe("typing");
+    expect(classifyEditorUndoEvent([composition])).toBe("composition");
+  });
 
-    group.end();
-    group.end();
+  it("treats consecutive delete commands as their own group kind", () => {
+    const deletion = state.update({
+      changes: { from: 2, to: 3 },
+      userEvent: "delete.backward",
+    });
 
-    expect(group.active).toBe(false);
-    expect(events).toEqual(["begin", "start", "end", "finish"]);
+    expect(classifyEditorUndoEvent([deletion])).toBe("deleting");
+  });
+
+  it("treats Enter and paste as atomic undo actions", () => {
+    const enter = state.update({
+      changes: { from: 3, insert: "\n" },
+      userEvent: "input",
+    });
+    const paste = state.update({
+      changes: { from: 3, insert: "pasted" },
+      userEvent: "input.paste",
+    });
+
+    expect(classifyEditorUndoEvent([enter])).toBe("atomic");
+    expect(classifyEditorUndoEvent([paste])).toBe("atomic");
+  });
+
+  it("uses explicit selection changes as undo-group boundaries", () => {
+    const selection = state.update({
+      selection: { anchor: 1 },
+      userEvent: "select",
+    });
+
+    expect(classifyEditorUndoEvent([selection])).toBe("selection");
+    expect(classifyEditorUndoEvent([state.update({})])).toBe("none");
   });
 });
