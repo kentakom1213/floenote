@@ -1638,14 +1638,12 @@ function NoteApp() {
     invitationContent ?? (mainView === "app-settings" ? (
       <AppSettingsView
         theme={themePreference}
-        editorPreference={editorPreference}
         coordinatorBaseUrl={coordinatorBaseUrl}
         localDeviceId={localDeviceId}
         localDeviceName={localDeviceName}
         turnCredentialEndpoint={turnCredentialEndpoint}
         onRenameDevice={renameLocalDevice}
         onThemeChange={setThemePreference}
-        onEditorPreferenceChange={setEditorPreference}
         onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
       />
