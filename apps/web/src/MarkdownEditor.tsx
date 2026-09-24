@@ -6,6 +6,14 @@ import { useEffect, useRef } from "react";
 
 import type { NoteDocument } from "@floe-note/document";
 
+import { floeCodeMirrorAppearance } from "./editor-appearance.js";
+import {
+  editorUndoGrouping,
+  EDITOR_UNDO_MAX_STEPS,
+  EDITOR_UNDO_MERGE_INTERVAL_MS,
+  synchronousLoroUndoKeymap,
+} from "./loro-undo.js";
+
 type MarkdownEditorProps = {
   document: NoteDocument;
 };
@@ -18,12 +26,22 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     if (!host) return;
 
     const binding = document.getEditorBinding();
-    const undoManager = new UndoManager(binding.doc, {});
+    const undoManager = new UndoManager(binding.doc, {
+      maxUndoSteps: EDITOR_UNDO_MAX_STEPS,
+      mergeInterval: EDITOR_UNDO_MERGE_INTERVAL_MS,
+      excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
+    });
+    const undoGrouping = editorUndoGrouping(undoManager, {
+      beginEditorHistoryGroup: binding.beginEditorHistoryGroup,
+      endEditorHistoryGroup: binding.endEditorHistoryGroup,
+      flushEditorHistoryBoundary: binding.flushEditorHistoryBoundary,
+    });
     const view = new EditorView({
       parent: host,
       extensions: [
         basicSetup,
         markdown(),
+        ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
         EditorView.editorAttributes.of({
           "aria-label": "Markdown editor",
@@ -32,7 +50,10 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
           spellcheck: "true",
           autocapitalize: "sentences",
         }),
+        synchronousLoroUndoKeymap(undoManager),
+        undoGrouping.before,
         LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
+        undoGrouping.after,
       ],
     });
 
@@ -82,6 +103,7 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     return () => {
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
+      undoManager.free();
     };
   }, [document]);
 

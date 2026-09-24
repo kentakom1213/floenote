@@ -6,18 +6,22 @@ import {
   webBuildInfo,
 } from "./build-info.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
+import { EditorPreferenceControls } from "./EditorPreferenceControls.js";
+import type { EditorPreference } from "./editor-preference.js";
 import { ThemePicker } from "./ThemePicker.js";
 import type { ThemePreference } from "./theme.js";
 import { testTurnCredentialEndpoint } from "./turn-credentials.js";
 
 type AppSettingsViewProps = {
   theme: ThemePreference;
+  editorPreference: EditorPreference;
   coordinatorBaseUrl: string;
   localDeviceId: DeviceId | null;
   localDeviceName: string | null;
   turnCredentialEndpoint: string | null;
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
+  onEditorPreferenceChange: (preference: EditorPreference) => void;
   onTurnCredentialEndpointChange: (endpoint: string | null) => void;
   onEraseDevice: () => Promise<void>;
   onBack?: () => void;
@@ -32,12 +36,14 @@ function shortDeviceId(deviceId: DeviceId): string {
 
 export function AppSettingsView({
   theme,
+  editorPreference,
   coordinatorBaseUrl,
   localDeviceId,
   localDeviceName,
   turnCredentialEndpoint,
   onRenameDevice,
   onThemeChange,
+  onEditorPreferenceChange,
   onTurnCredentialEndpointChange,
   onEraseDevice,
   onBack,
@@ -140,6 +146,17 @@ export function AppSettingsView({
           </div>
         </div>
         <ThemePicker value={theme} onChange={onThemeChange} />
+
+        <div className="appearance-editor-settings">
+          <div className="settings-subsection-heading">
+            <h3>Editor</h3>
+            <p>Adjust Markdown source editing on this device.</p>
+          </div>
+          <EditorPreferenceControls
+            value={editorPreference}
+            onChange={onEditorPreferenceChange}
+          />
+        </div>
       </div>
 
       <div className="settings-section">
