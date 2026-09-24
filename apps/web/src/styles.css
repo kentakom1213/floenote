@@ -3870,15 +3870,25 @@ h1 {
   }
 
   .note-properties-footer {
+    align-items: center;
     gap: 6px 12px;
   }
 
   .note-properties-grid {
-    flex-basis: 100%;
+    flex: 1 1 140px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .note-properties-grid > div {
+    max-width: 100%;
   }
 
   .note-properties-trailing {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
     justify-content: flex-end;
   }
 
