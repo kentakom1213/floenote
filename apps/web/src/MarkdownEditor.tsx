@@ -1,4 +1,5 @@
 import { markdown } from "@codemirror/lang-markdown";
+import { EditorState } from "@codemirror/state";
 import { basicSetup, EditorView } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
 import { UndoManager } from "loro-crdt";
@@ -16,9 +17,13 @@ import {
 
 type MarkdownEditorProps = {
   document: NoteDocument;
+  readOnly?: boolean;
 };
 
-export function MarkdownEditor({ document }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  document,
+  readOnly = false,
+}: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,16 +31,20 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     if (!host) return;
 
     const binding = document.getEditorBinding();
-    const undoManager = new UndoManager(binding.doc, {
-      maxUndoSteps: EDITOR_UNDO_MAX_STEPS,
-      mergeInterval: EDITOR_UNDO_MERGE_INTERVAL_MS,
-      excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
-    });
-    const undoGrouping = editorUndoGrouping(undoManager, {
-      beginEditorHistoryGroup: binding.beginEditorHistoryGroup,
-      endEditorHistoryGroup: binding.endEditorHistoryGroup,
-      flushEditorHistoryBoundary: binding.flushEditorHistoryBoundary,
-    });
+    const undoManager = readOnly
+      ? null
+      : new UndoManager(binding.doc, {
+          maxUndoSteps: EDITOR_UNDO_MAX_STEPS,
+          mergeInterval: EDITOR_UNDO_MERGE_INTERVAL_MS,
+          excludeOriginPrefixes: [...binding.undoExcludeOriginPrefixes],
+        });
+    const undoGrouping = undoManager
+      ? editorUndoGrouping(undoManager, {
+          beginEditorHistoryGroup: binding.beginEditorHistoryGroup,
+          endEditorHistoryGroup: binding.endEditorHistoryGroup,
+          flushEditorHistoryBoundary: binding.flushEditorHistoryBoundary,
+        })
+      : null;
     const view = new EditorView({
       parent: host,
       extensions: [
@@ -43,6 +52,8 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
         markdown(),
         ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
+        EditorState.readOnly.of(readOnly),
+        EditorView.editable.of(!readOnly),
         EditorView.editorAttributes.of({
           "aria-label": "Markdown editor",
         }),
@@ -50,10 +61,16 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
           spellcheck: "true",
           autocapitalize: "sentences",
         }),
-        synchronousLoroUndoKeymap(undoManager),
-        undoGrouping.before,
-        LoroExtensions(binding.doc, undefined, undoManager, binding.getText),
-        undoGrouping.after,
+        ...(undoManager && undoGrouping
+          ? [synchronousLoroUndoKeymap(undoManager), undoGrouping.before]
+          : []),
+        LoroExtensions(
+          binding.doc,
+          undefined,
+          undoManager ?? undefined,
+          binding.getText,
+        ),
+        ...(undoGrouping ? [undoGrouping.after] : []),
       ],
     });
 
@@ -99,8 +116,9 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
     };
 
     host.addEventListener("pointerdown", handlePointerDown);
-    const unregisterExternalBodyMutationHandler =
-      binding.registerExternalBodyMutationHandler((mutation) => {
+    const unregisterExternalBodyMutationHandler = readOnly
+      ? () => {}
+      : binding.registerExternalBodyMutationHandler((mutation) => {
         if (view.state.doc.toString() !== document.bodyText) {
           return false;
         }
@@ -127,9 +145,9 @@ export function MarkdownEditor({ document }: MarkdownEditorProps) {
       unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
-      undoManager.free();
+      undoManager?.free();
     };
-  }, [document]);
+  }, [document, readOnly]);
 
   return <div className="editor" ref={hostRef} />;
 }
