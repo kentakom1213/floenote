@@ -187,6 +187,62 @@ describe("ProjectSyncEngine", () => {
     staleEngine.stop();
   });
 
+  it("synchronizes a task checkbox toggle as an ordinary document update", async () => {
+    const base = NoteProject.create();
+    const document = base.createDocument("Shared tasks");
+    const binding = document.getEditorBinding();
+    binding.getText(binding.doc).insert(0, "- [ ] synced task");
+    binding.doc.commit();
+    await Promise.resolve();
+
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new ProjectSyncEngine(left, leftTransport);
+    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+
+    leftEngine.start();
+    rightEngine.start();
+
+    const leftDocument = left.getDocument(document.id);
+    const rightDocument = right.getDocument(document.id);
+    expect(leftDocument).toBeDefined();
+    expect(rightDocument).toBeDefined();
+
+    const source = leftDocument?.bodyText ?? "";
+    const sourceStart = source.indexOf("[ ]");
+    const lineEnd = source.length;
+
+    expect(
+      leftDocument?.toggleTaskMarker({
+        sourceStart,
+        sourceEnd: sourceStart + 3,
+        lineStart: 0,
+        lineEnd,
+        sourceLine: source,
+        sourceMarker: "[ ]",
+        checked: true,
+      }),
+    ).toBe(true);
+
+    await Promise.resolve();
+
+    expect(leftDocument?.bodyText).toBe("- [x] synced task");
+    expect(rightDocument?.bodyText).toBe("- [x] synced task");
+
+    const taskMessages = leftTransport.sent
+      .map((data) => decodeSyncMessage(data))
+      .filter(
+        (message) =>
+          message.type === "document-update" &&
+          message.documentId === document.id,
+      );
+    expect(taskMessages.length).toBeGreaterThan(0);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
   it("converges projects after independent offline edits", () => {
     const base = NoteProject.create();
     const baseDocument = base.createDocument("Base");
