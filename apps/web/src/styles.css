@@ -799,29 +799,25 @@ input:focus-visible {
   overscroll-behavior: contain;
 }
 
-.sidebar-trash-note {
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  border: 0;
-  border-radius: 8px;
-  padding: 7px 9px 7px 46px;
+.sidebar-trash-note-row {
   color: var(--color-text-faint);
-  background: transparent;
   font-size: 12px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.sidebar-trash-note:hover {
+.sidebar-trash-note-row:hover {
   color: var(--color-text-muted);
-  background: var(--color-surface-hover);
 }
 
-.sidebar-trash-note.selected {
+.sidebar-trash-note-row.selected {
   color: var(--color-text);
-  background: var(--color-surface-selected);
+}
+
+.sidebar-trash-note-item {
+  padding-left: 46px;
+}
+
+.sidebar-trash-note-row .note-row-menu-popover {
+  min-width: 170px;
 }
 
 .trash-view {
@@ -3442,7 +3438,7 @@ h1 {
   }
 
   .sidebar-trash-entry,
-  .sidebar-trash-note {
+  .sidebar-trash-note-row {
     min-height: 44px;
   }
 
