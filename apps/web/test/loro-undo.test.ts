@@ -86,21 +86,27 @@ describe("Loro undo commands", () => {
 describe("CompositionUndoGroup", () => {
   it("opens once after the first composition change and closes once", () => {
     const events: string[] = [];
-    const group = new CompositionUndoGroup({
-      groupStart: () => events.push("start"),
-      groupEnd: () => events.push("end"),
-    });
+    const group = new CompositionUndoGroup(
+      {
+        groupStart: () => events.push("start"),
+        groupEnd: () => events.push("end"),
+      },
+      {
+        beginComposition: () => events.push("begin"),
+        endComposition: () => events.push("finish"),
+      },
+    );
 
     expect(group.active).toBe(false);
 
-    group.startAfterFirstChange();
-    group.startAfterFirstChange();
+    group.begin();
+    group.begin();
     expect(group.active).toBe(true);
 
     group.end();
     group.end();
 
     expect(group.active).toBe(false);
-    expect(events).toEqual(["start", "end"]);
+    expect(events).toEqual(["begin", "start", "end", "finish"]);
   });
 });
