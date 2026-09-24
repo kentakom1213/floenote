@@ -14,7 +14,7 @@ describe("Loro undo commands", () => {
       redo: () => undefined,
     };
 
-    expect(runLoroUndo(manager as never)).toBe(true);
+    expect(runLoroUndo(manager)).toBe(true);
     expect(events).toEqual(["undo"]);
   });
 
@@ -29,7 +29,7 @@ describe("Loro undo commands", () => {
       },
     };
 
-    expect(runLoroRedo(manager as never)).toBe(true);
+    expect(runLoroRedo(manager)).toBe(true);
     expect(events).toEqual(["redo"]);
   });
 
@@ -46,8 +46,8 @@ describe("Loro undo commands", () => {
       },
     };
 
-    expect(runLoroUndo(manager as never)).toBe(true);
-    expect(runLoroRedo(manager as never)).toBe(true);
+    expect(runLoroUndo(manager)).toBe(true);
+    expect(runLoroRedo(manager)).toBe(true);
     expect(mutations).toBe(0);
   });
 });
