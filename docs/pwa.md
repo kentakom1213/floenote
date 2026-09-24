@@ -48,11 +48,14 @@ offline because its coordinator calls are intentionally not cached.
 
 Floe Note uses prompt-based service-worker updates.
 
-1. The browser downloads a changed service worker and its precached application
+1. The browser checks for updates during normal service-worker lifecycle
+   checks; while Floe Note stays open, it also requests a service-worker update
+   check about once per hour when online.
+2. The browser downloads a changed service worker and its precached application
    assets.
-2. The new worker waits instead of taking over the current editing session.
-3. Floe Note shows `A new version of Floe Note is available. [Reload]`.
-4. Only when the user chooses **Reload** does the waiting worker activate and
+3. The new worker waits instead of taking over the current editing session.
+4. Floe Note shows `A new version of Floe Note is available. [Reload]`.
+5. Only when the user chooses **Reload** does the waiting worker activate and
    the page reload into the new application version.
 
 Old Workbox precaches are cleaned up when the new worker activates. This
