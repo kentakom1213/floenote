@@ -356,21 +356,46 @@ export class DexieProjectStorage implements ProjectStorage {
       if (documentSubscriptions.has(document.id)) return;
 
       const unsubscribe = document.subscribe(() => {
-        this.#enqueue(() =>
-          this.#saveDocument(project.id, document, crypto, keyEpoch),
-        );
+        this.#enqueue(async () => {
+          const current = project
+            .getAllDocuments()
+            .find((candidate) => candidate.id === document.id);
+          if (current !== document) return;
+
+          await this.#saveDocument(
+            project.id,
+            document,
+            crypto,
+            keyEpoch,
+          );
+        });
       });
       documentSubscriptions.set(document.id, unsubscribe);
     };
 
-    for (const document of project.getAllDocuments()) {
-      attachDocument(document);
-    }
+    const reconcileDocumentSubscriptions = () => {
+      const currentDocuments = new Map(
+        project
+          .getAllDocuments()
+          .map((document) => [document.id, document] as const),
+      );
 
-    const unsubscribeProject = project.subscribe(() => {
-      for (const document of project.getAllDocuments()) {
+      for (const [documentId, unsubscribe] of documentSubscriptions) {
+        if (currentDocuments.has(documentId)) continue;
+
+        unsubscribe();
+        documentSubscriptions.delete(documentId);
+      }
+
+      for (const document of currentDocuments.values()) {
         attachDocument(document);
       }
+    };
+
+    reconcileDocumentSubscriptions();
+
+    const unsubscribeProject = project.subscribe(() => {
+      reconcileDocumentSubscriptions();
 
       this.#enqueue(() =>
         this.#saveProjectState(project, crypto, keyEpoch),
@@ -464,21 +489,31 @@ export class DexieProjectStorage implements ProjectStorage {
       crypto,
     );
 
+    const manifestProject = NoteProject.fromSnapshot(
+      projectId,
+      manifestSnapshot,
+      [],
+    );
     const documentRows = await this.#db.documents
       .where("projectId")
       .equals(projectId)
       .toArray();
 
     const documents = await Promise.all(
-      documentRows.map(async (record) => {
+      documentRows.flatMap((record) => {
         const documentId = parseDocumentId(record.documentId);
-        const snapshot = await this.#readSnapshot(
-          projectId,
-          documentContext(documentId),
-          record,
-          crypto,
-        );
-        return NoteDocument.fromSnapshot(documentId, snapshot);
+        if (manifestProject.isDocumentPurged(documentId)) return [];
+
+        return [
+          this.#readSnapshot(
+            projectId,
+            documentContext(documentId),
+            record,
+            crypto,
+          ).then((snapshot) =>
+            NoteDocument.fromSnapshot(documentId, snapshot),
+          ),
+        ];
       }),
     );
 
