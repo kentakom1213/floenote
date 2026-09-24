@@ -96,7 +96,12 @@ export function useAuthorizedProjectSync({
           })
         : null;
 
-    const stopState = presence.onStateChange(setPresenceState);
+    const stopState = presence.onStateChange((state) => {
+      setPresenceState(state);
+      if (state === "open") {
+        setPresenceError(null);
+      }
+    });
     const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
       setOnlineDeviceIds(deviceIds);
       automaticPeerSync?.updateOnlineDevices(deviceIds);
@@ -113,11 +118,26 @@ export function useAuthorizedProjectSync({
       }
     });
 
+    const retryPresenceNow = () => presence.retryNow();
+    const retryPresenceWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        presence.retryNow();
+      }
+    };
+
+    window.addEventListener("online", retryPresenceNow);
+    document.addEventListener("visibilitychange", retryPresenceWhenVisible);
+
     setPresenceError(null);
     setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
     presence.start();
 
     return () => {
+      window.removeEventListener("online", retryPresenceNow);
+      document.removeEventListener(
+        "visibilitychange",
+        retryPresenceWhenVisible,
+      );
       stopState();
       stopDevices();
       stopReconnect();
