@@ -28,7 +28,7 @@ describe("TrashView", () => {
         selectedDocumentId: null,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
@@ -54,7 +54,7 @@ describe("TrashView", () => {
         selectedDocumentId: document.id,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
@@ -77,7 +77,7 @@ describe("TrashView", () => {
         selectedDocumentId: document.id,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
@@ -206,7 +206,7 @@ describe("TrashView", () => {
         selectedDocumentId: document.id,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
@@ -240,7 +240,7 @@ describe("TrashView", () => {
         selectedDocumentId: document.id,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
@@ -272,7 +272,7 @@ describe("TrashView", () => {
         selectedDocumentId: null,
         onSelectDocument: vi.fn(),
         onRestoreDocument: vi.fn(),
-        onPurgeDocument: vi.fn(),
+        onRequestPermanentDelete: vi.fn(),
       }),
     );
 
