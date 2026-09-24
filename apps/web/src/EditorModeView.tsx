@@ -25,7 +25,7 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
       ) : null}
       {layout.showPreview ? (
         <div className="editor-view-pane editor-view-preview">
-          <MarkdownPreview document={document} />
+          <MarkdownPreview document={document} interactive={true} />
         </div>
       ) : null}
     </div>
