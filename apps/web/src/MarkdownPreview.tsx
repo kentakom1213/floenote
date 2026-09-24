@@ -199,15 +199,15 @@ function renderImageNode(
 
   if (kind === "external-https" && loadExternalImages) {
     const element = document.createElement("img");
-    element.alt = image.alt;
-    element.loading = "lazy";
-    element.referrerPolicy = "no-referrer";
+    element.setAttribute("alt", image.alt);
+    element.setAttribute("loading", "lazy");
+    element.setAttribute("referrerpolicy", "no-referrer");
     if (image.title !== null) {
-      element.title = image.title;
+      element.setAttribute("title", image.title);
     }
 
     // src is set last, and only after explicit note-scoped permission.
-    element.src = image.source;
+    element.setAttribute("src", image.source);
     return element;
   }
 
