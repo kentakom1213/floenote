@@ -724,6 +724,125 @@ input:focus-visible {
   color: var(--color-danger);
 }
 
+.sidebar-trash-entry {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: var(--color-text-faint);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
+}
+
+.sidebar-trash-entry:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sidebar-trash-entry.selected {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
+.sidebar-trash-entry svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trash-view {
+  width: min(820px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 52px 0 96px;
+}
+
+.trash-view-header {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trash-view-header h1 {
+  margin: 4px 0 8px;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+}
+
+.trash-view-header > p:last-child {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.trash-list {
+  display: grid;
+  gap: 1px;
+  margin-top: 16px;
+}
+
+.trash-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 4px;
+}
+
+.trash-item-title {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-restore-button {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.trash-restore-button:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+}
+
+.trash-empty-state {
+  margin-top: 40px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.trash-empty-state h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+}
+
+.trash-empty-state p {
+  margin: 7px 0 0;
+  font-size: 12px;
+}
+
 .sidebar-footer {
   position: relative;
   flex: 0 0 auto;
