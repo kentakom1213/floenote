@@ -31,13 +31,19 @@ export class NoteProject {
     this.id = id;
     this.#manifest = manifest;
     this.#documents = new Map(
-      documents.map((document) => [document.id, document]),
+      documents
+        .filter(
+          (document) =>
+            manifest.getMap("purgedDocuments").get(document.id) !== true,
+        )
+        .map((document) => [document.id, document]),
     );
   }
 
   static create(id: ProjectId = createProjectId()): NoteProject {
     const manifest = new LoroDoc();
     manifest.getMap("documents");
+    manifest.getMap("purgedDocuments");
     manifest.getMap("metadata");
     manifest.getMap("deviceDisplayNames");
 
@@ -125,10 +131,16 @@ export class NoteProject {
 
   importManifestUpdate(update: Uint8Array): void {
     this.#manifest.import(update);
+    this.#prunePurgedDocuments();
     this.#emit();
   }
 
-  importDocumentUpdate(id: DocumentId, update: Uint8Array): NoteDocument {
+  importDocumentUpdate(
+    id: DocumentId,
+    update: Uint8Array,
+  ): NoteDocument | undefined {
+    if (this.isDocumentPurged(id)) return undefined;
+
     let document = this.#documents.get(id);
 
     if (!document) {
@@ -158,13 +170,21 @@ export class NoteProject {
   }
 
   getDocument(id: DocumentId): NoteDocument | undefined {
+    if (this.isDocumentPurged(id)) return undefined;
+
     const status = this.#manifest.getMap("documents").get(id);
     return status === "active" ? this.#documents.get(id) : undefined;
   }
 
   getDeletedDocument(id: DocumentId): NoteDocument | undefined {
+    if (this.isDocumentPurged(id)) return undefined;
+
     const status = this.#manifest.getMap("documents").get(id);
     return status === "deleted" ? this.#documents.get(id) : undefined;
+  }
+
+  isDocumentPurged(id: DocumentId): boolean {
+    return this.#manifest.getMap("purgedDocuments").get(id) === true;
   }
 
   renameDocument(id: DocumentId, title: string): void {
@@ -183,6 +203,18 @@ export class NoteProject {
     this.#setDocumentStatus(id, "deleted", "active");
   }
 
+  purgeDocument(id: DocumentId): void {
+    if (this.isDocumentPurged(id)) return;
+
+    const documents = this.#manifest.getMap("documents");
+    if (documents.get(id) !== "deleted") return;
+
+    this.#manifest.getMap("purgedDocuments").set(id, true);
+    this.#documents.delete(id);
+    this.#manifest.commit();
+    this.#emit();
+  }
+
   #addDocument(document: NoteDocument): void {
     this.#documents.set(document.id, document);
     this.#manifest.getMap("documents").set(document.id, "active");
@@ -197,7 +229,10 @@ export class NoteProject {
 
     return manifest
       .entries()
-      .filter(([, value]) => value === status)
+      .filter(
+        ([id, value]) =>
+          value === status && !this.isDocumentPurged(id as DocumentId),
+      )
       .flatMap(([id]) => {
         const document = this.#documents.get(id as DocumentId);
         return document ? [{ id: document.id, title: document.title }] : [];
@@ -209,12 +244,22 @@ export class NoteProject {
     expected: "active" | "deleted",
     next: "active" | "deleted",
   ): void {
+    if (this.isDocumentPurged(id)) return;
+
     const manifest = this.#manifest.getMap("documents");
     if (manifest.get(id) !== expected) return;
 
     manifest.set(id, next);
     this.#manifest.commit();
     this.#emit();
+  }
+
+  #prunePurgedDocuments(): void {
+    for (const documentId of this.#documents.keys()) {
+      if (this.isDocumentPurged(documentId)) {
+        this.#documents.delete(documentId);
+      }
+    }
   }
 
   #emit(): void {
