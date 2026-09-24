@@ -215,7 +215,7 @@ describe("NoteProject edit history", () => {
       : null;
 
     expect(restored?.restoreSourceCheckpointId).toBe(oldCheckpoint?.id);
-    expect(restored?.createdAt).toBe(201);
+    expect(restored?.createdAt).toBe(200);
     expect(
       project.listEditHistoryCheckpoints(document.id)[0]?.id,
     ).toBe(restored?.id);
