@@ -142,9 +142,9 @@ export class GlobalSearchCache {
       .sort((left, right) => {
         if (left.rank !== right.rank) return right.rank - left.rank;
 
-        const updated = compareNullableTimestamp(
-          right.document.updatedAt,
+        const updated = compareTimestampDescending(
           left.document.updatedAt,
+          right.document.updatedAt,
         );
         if (updated !== 0) return updated;
 
@@ -217,10 +217,10 @@ function compareRecent(
   const leftOpened = lastOpenedAt.get(left.id) ?? null;
   const rightOpened = lastOpenedAt.get(right.id) ?? null;
 
-  const opened = compareNullableTimestamp(rightOpened, leftOpened);
+  const opened = compareTimestampDescending(leftOpened, rightOpened);
   if (opened !== 0) return opened;
 
-  const updated = compareNullableTimestamp(right.updatedAt, left.updatedAt);
+  const updated = compareTimestampDescending(left.updatedAt, right.updatedAt);
   if (updated !== 0) return updated;
 
   return left.title.localeCompare(right.title, undefined, {
@@ -229,14 +229,14 @@ function compareRecent(
   });
 }
 
-function compareNullableTimestamp(
+function compareTimestampDescending(
   left: number | null,
   right: number | null,
 ): number {
   if (left === right) return 0;
   if (left === null) return 1;
   if (right === null) return -1;
-  return left < right ? -1 : 1;
+  return left > right ? -1 : 1;
 }
 
 function sameStrings(
