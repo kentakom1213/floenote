@@ -117,11 +117,25 @@ export class WebRtcSignalingSession {
 
   async #handleMessage(message: CoordinatorServerMessage): Promise<void> {
     if (message.type === "peer-ready") {
-      if (this.#role === "host" && !this.#offerSent) {
+      if (this.#role !== "host") return;
+
+      if (
+        this.#transport.connectionState === "connected" ||
+        this.#transport.connectionState === "closed"
+      ) {
+        return;
+      }
+
+      this.#clearIceRestartTimer();
+
+      if (!this.#offerSent) {
         this.#offerSent = true;
         await this.#sendHostOffer(false);
-        this.#scheduleIceRestart();
+      } else {
+        await this.#sendHostOffer(true);
       }
+
+      this.#scheduleIceRestart();
       return;
     }
 
@@ -225,8 +239,9 @@ export class WebRtcSignalingSession {
       return;
     }
 
-    if (this.#transport.signalingState !== "stable") {
-      this.#debug("ice-restart.deferred", {
+    if (this.#client.state !== "open") {
+      this.#debug("ice-restart.wait-for-signaling", {
+        signalingConnectionState: this.#client.state,
         signalingState: this.#transport.signalingState,
       });
       this.#iceRestartTimer = setTimeout(() => {
@@ -279,6 +294,8 @@ export class WebRtcSignalingSession {
   }
 
   #sendIceCandidate(candidate: RTCIceCandidateInit | null): void {
+    if (this.#client.state !== "open") return;
+
     this.#client.sendSignal({
       type: "ice-candidate",
       candidate,
