@@ -17,6 +17,10 @@ type AppSettingsViewProps = {
   onRenameDevice: (displayName: string) => Promise<void>;
   onThemeChange: (theme: ThemePreference) => void;
   onEraseDevice: () => Promise<void>;
+  onBack?: () => void;
+  showDeviceControls?: boolean;
+  showDangerZone?: boolean;
+  emphasizeCoordinatorDetails?: boolean;
 };
 
 function shortDeviceId(deviceId: DeviceId): string {
@@ -31,6 +35,10 @@ export function AppSettingsView({
   onRenameDevice,
   onThemeChange,
   onEraseDevice,
+  onBack,
+  showDeviceControls = true,
+  showDangerZone = true,
+  emphasizeCoordinatorDetails = true,
 }: AppSettingsViewProps) {
   const coordinatorBuildInfo = useCoordinatorBuildInfo(coordinatorBaseUrl);
   const [eraseOpen, setEraseOpen] = useState(false);
@@ -62,8 +70,17 @@ export function AppSettingsView({
   }
 
   return (
-    <section className="settings-view">
+    <section className="settings-view onboarding-settings-view">
       <header className="settings-header">
+        {onBack ? (
+          <button
+            className="onboarding-back-button"
+            type="button"
+            onClick={onBack}
+          >
+            ← Back
+          </button>
+        ) : null}
         <p className="settings-eyebrow">Floe Note</p>
         <h1>Settings</h1>
       </header>
@@ -79,53 +96,62 @@ export function AppSettingsView({
       </div>
 
       <div className="settings-section">
-        <h2>Current device</h2>
-        <form
-          className="settings-form-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void saveDeviceName();
-          }}
-        >
-          <label className="settings-field">
-            <span>Device name</span>
-            <input
-              value={nameDraft}
-              maxLength={80}
-              disabled={savingName}
-              placeholder="Kenta's MacBook"
-              onChange={(event) => setNameDraft(event.target.value)}
-            />
-          </label>
-          <button
-            className="settings-primary-action"
-            type="submit"
-            disabled={!nameChanged || savingName}
-          >
-            {savingName ? "Saving…" : "Save"}
-          </button>
-        </form>
-        <p className="settings-field-hint">
-          This name is stored in the Device Vault and shared only inside
-          Projects you use.
-        </p>
-        {nameError ? <p className="dialog-error">{nameError}</p> : null}
+        <h2>This device</h2>
+        {showDeviceControls ? (
+          <>
+            <form
+              className="settings-form-row"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveDeviceName();
+              }}
+            >
+              <label className="settings-field">
+                <span>Device name</span>
+                <input
+                  value={nameDraft}
+                  maxLength={80}
+                  disabled={savingName}
+                  placeholder="Kenta's MacBook"
+                  onChange={(event) => setNameDraft(event.target.value)}
+                />
+              </label>
+              <button
+                className="settings-primary-action"
+                type="submit"
+                disabled={!nameChanged || savingName}
+              >
+                {savingName ? "Saving…" : "Save"}
+              </button>
+            </form>
+            <p className="settings-field-hint">
+              This name is stored in the Device Vault and shared only inside
+              Projects you use.
+            </p>
+            {nameError ? <p className="dialog-error">{nameError}</p> : null}
 
-        {localDeviceId ? (
-          <details className="technical-details">
-            <summary>Technical details</summary>
-            <dl>
-              <div>
-                <dt>Device ID</dt>
-                <dd>{localDeviceId}</dd>
-              </div>
-              <div>
-                <dt>Short ID</dt>
-                <dd>{shortDeviceId(localDeviceId)}</dd>
-              </div>
-            </dl>
-          </details>
-        ) : null}
+            {localDeviceId ? (
+              <details className="technical-details">
+                <summary>Technical details</summary>
+                <dl>
+                  <div>
+                    <dt>Device ID</dt>
+                    <dd>{localDeviceId}</dd>
+                  </div>
+                  <div>
+                    <dt>Short ID</dt>
+                    <dd>{shortDeviceId(localDeviceId)}</dd>
+                  </div>
+                </dl>
+              </details>
+            ) : null}
+          </>
+        ) : (
+          <p className="settings-device-placeholder">
+            Security will be configured when you create, join, or import a
+            Project.
+          </p>
+        )}
       </div>
 
       <div className="settings-section">
@@ -136,13 +162,10 @@ export function AppSettingsView({
             devices and synchronizes directly between authorized devices when
             they are online.
           </p>
-          <p>
-            Each Project has its own access boundary and encryption key.
-          </p>
+          <p>Each Project has its own access boundary and encryption key.</p>
         </div>
 
-        <details className="technical-details">
-          <summary>Technical details</summary>
+        <div className="technical-details technical-details-static">
           <dl>
             <div>
               <dt>Web version</dt>
@@ -152,63 +175,73 @@ export function AppSettingsView({
               <dt>Web build</dt>
               <dd>{webBuildInfo.build}</dd>
             </div>
-            <div>
-              <dt>Coordinator version</dt>
-              <dd>
-                {coordinatorBuildInfo.status === "checking"
-                  ? "Checking…"
-                  : coordinatorBuildInfo.status === "available"
-                    ? coordinatorBuildInfo.info.version
-                    : "Unavailable"}
-              </dd>
-            </div>
-            <div>
-              <dt>Coordinator build</dt>
-              <dd>
-                {coordinatorBuildInfo.status === "checking"
-                  ? "Checking…"
-                  : coordinatorBuildInfo.status === "available"
-                    ? coordinatorBuildInfo.info.build
-                    : "Unavailable"}
-              </dd>
-            </div>
-            <div>
-              <dt>Coordinator URL</dt>
-              <dd>{coordinatorBaseUrl}</dd>
-            </div>
           </dl>
-        </details>
+        </div>
+
+        {emphasizeCoordinatorDetails ? (
+          <details className="technical-details">
+            <summary>Coordinator technical details</summary>
+            <dl>
+              <div>
+                <dt>Coordinator version</dt>
+                <dd>
+                  {coordinatorBuildInfo.status === "checking"
+                    ? "Checking…"
+                    : coordinatorBuildInfo.status === "available"
+                      ? coordinatorBuildInfo.info.version
+                      : "Unavailable"}
+                </dd>
+              </div>
+              <div>
+                <dt>Coordinator build</dt>
+                <dd>
+                  {coordinatorBuildInfo.status === "checking"
+                    ? "Checking…"
+                    : coordinatorBuildInfo.status === "available"
+                      ? coordinatorBuildInfo.info.build
+                      : "Unavailable"}
+                </dd>
+              </div>
+              <div>
+                <dt>Coordinator URL</dt>
+                <dd>{coordinatorBaseUrl}</dd>
+              </div>
+            </dl>
+          </details>
+        ) : null}
       </div>
 
-      <div className="settings-section danger-zone">
-        <div className="settings-section-heading">
-          <div>
-            <h2>Danger zone</h2>
-            <p>Remove all Floe Note data stored by this app on this device.</p>
+      {showDangerZone ? (
+        <div className="settings-section danger-zone">
+          <div className="settings-section-heading">
+            <div>
+              <h2>Danger zone</h2>
+              <p>Remove all Floe Note data stored by this app on this device.</p>
+            </div>
           </div>
-        </div>
-        <div className="danger-zone-row">
-          <div>
-            <strong>Erase Floe Note from this device</strong>
-            <p>
-              Removes local Projects, notes, SecurityState, Device Vault keys,
-              Project keys, and Floe Note preferences. Other devices are not
-              changed.
-            </p>
+          <div className="danger-zone-row">
+            <div>
+              <strong>Erase Floe Note from this device</strong>
+              <p>
+                Removes local Projects, notes, SecurityState, Device Vault keys,
+                Project keys, and Floe Note preferences. Other devices are not
+                changed.
+              </p>
+            </div>
+            <button
+              className="settings-danger-outline-action"
+              type="button"
+              onClick={() => setEraseOpen(true)}
+            >
+              Erase local data
+            </button>
           </div>
-          <button
-            className="settings-danger-outline-action"
-            type="button"
-            onClick={() => setEraseOpen(true)}
-          >
-            Erase local data
-          </button>
+          <p className="danger-zone-note">
+            A WebAuthn credential may remain in your browser or password manager
+            and can be removed there separately.
+          </p>
         </div>
-        <p className="danger-zone-note">
-          A WebAuthn credential may remain in your browser or password manager
-          and can be removed there separately.
-        </p>
-      </div>
+      ) : null}
 
       {eraseOpen ? (
         <ConfirmDialog

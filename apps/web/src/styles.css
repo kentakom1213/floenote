@@ -3939,3 +3939,416 @@ h1 {
     padding-top: env(safe-area-inset-top);
   }
 }
+
+
+/* First-run onboarding */
+.onboarding-loading-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.onboarding-loading-screen img {
+  width: 34px;
+  height: 34px;
+}
+
+.onboarding-entry-screen {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding:
+    max(56px, env(safe-area-inset-top))
+    max(28px, env(safe-area-inset-right))
+    max(56px, env(safe-area-inset-bottom))
+    max(28px, env(safe-area-inset-left));
+  background: var(--color-bg);
+}
+
+.onboarding-entry {
+  width: min(900px, 100%);
+}
+
+.onboarding-entry-header {
+  max-width: 650px;
+  margin: 0 auto 38px;
+  text-align: center;
+}
+
+.onboarding-entry-header .empty-floe {
+  margin-bottom: 8px;
+  color: var(--color-accent);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.onboarding-entry-header .settings-eyebrow {
+  margin: 0;
+  letter-spacing: 0.16em;
+}
+
+.onboarding-entry-header h1 {
+  margin: 10px 0 12px;
+  color: var(--color-text);
+  font-size: clamp(34px, 4.2vw, 48px);
+  font-weight: 730;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.onboarding-entry-header > p:last-child {
+  max-width: 590px;
+  margin: 0 auto;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.onboarding-settings-button {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  line-height: 0;
+}
+
+.onboarding-settings-button:hover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.onboarding-settings-button:focus-visible,
+.onboarding-action-card:focus-visible,
+.onboarding-back-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.onboarding-settings-button svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.onboarding-primary-actions,
+.onboarding-import-actions {
+  display: grid;
+  gap: 14px;
+}
+
+.onboarding-primary-actions {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+}
+
+.onboarding-import-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.onboarding-action-card {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  background: var(--color-surface);
+  text-align: left;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.onboarding-action-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-accent) 32%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 96%, var(--color-accent) 4%);
+}
+
+.onboarding-action-primary,
+.onboarding-action-secondary {
+  min-height: 178px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  gap: 18px 20px;
+  align-items: start;
+  border-radius: 18px;
+  padding: 26px 28px;
+}
+
+.onboarding-action-primary {
+  border-color: color-mix(in srgb, var(--color-accent) 76%, var(--color-border));
+  color: #fff;
+  background: color-mix(in srgb, var(--color-accent) 88%, #264f54);
+}
+
+.onboarding-action-primary:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 72%, white 28%);
+  background: color-mix(in srgb, var(--color-accent) 94%, #264f54);
+}
+
+.onboarding-action-secondary {
+  background: var(--color-surface);
+}
+
+.onboarding-action-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  grid-column: 1;
+  grid-row: 1;
+  border-radius: 13px;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
+.onboarding-action-primary .onboarding-action-icon {
+  color: #fff;
+  background: rgb(255 255 255 / 0.13);
+}
+
+.onboarding-action-icon svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.onboarding-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.onboarding-action-primary .onboarding-action-copy,
+.onboarding-action-secondary .onboarding-action-copy {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+}
+
+.onboarding-action-card strong {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.onboarding-action-card small {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.onboarding-action-primary small {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.onboarding-action-arrow {
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.onboarding-action-primary > .onboarding-action-arrow,
+.onboarding-action-secondary > .onboarding-action-arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.onboarding-action-arrow-circle {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg));
+}
+
+.onboarding-action-primary .onboarding-action-arrow-circle {
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.onboarding-action-compact {
+  min-height: 94px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.onboarding-action-compact strong {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.onboarding-action-compact small {
+  font-size: 11px;
+}
+
+.onboarding-action-icon-compact {
+  width: 42px;
+  height: 42px;
+  grid-column: auto;
+  grid-row: auto;
+  border-radius: 12px;
+}
+
+.onboarding-action-icon-compact svg {
+  width: 23px;
+  height: 23px;
+}
+
+.onboarding-settings-screen {
+  min-height: 100dvh;
+  display: block;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.onboarding-settings-view {
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding-top: 52px;
+  padding-bottom: 72px;
+}
+
+.onboarding-back-button {
+  width: fit-content;
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  margin: 0 0 18px;
+  padding: 7px 10px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: 12px;
+}
+
+.onboarding-back-button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.onboarding-secure-screen .unlock-card {
+  max-width: 500px;
+}
+
+.settings-device-placeholder {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.technical-details-static {
+  margin-top: 18px;
+}
+
+.technical-details-static dl {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .onboarding-entry-screen {
+    place-items: start center;
+    padding:
+      calc(72px + env(safe-area-inset-top))
+      max(18px, env(safe-area-inset-right))
+      calc(32px + env(safe-area-inset-bottom))
+      max(18px, env(safe-area-inset-left));
+  }
+
+  .onboarding-entry-header {
+    margin-bottom: 26px;
+  }
+
+  .onboarding-entry-header h1 {
+    font-size: clamp(30px, 9vw, 38px);
+  }
+
+  .onboarding-entry-header > p:last-child {
+    font-size: 13px;
+  }
+
+  .onboarding-primary-actions,
+  .onboarding-import-actions {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .onboarding-import-actions {
+    margin-top: 10px;
+  }
+
+  .onboarding-action-primary,
+  .onboarding-action-secondary {
+    min-height: 138px;
+    padding: 20px;
+  }
+
+  .onboarding-action-card strong {
+    font-size: 17px;
+  }
+
+  .onboarding-action-compact {
+    min-height: 84px;
+    padding: 14px 16px;
+  }
+
+  .onboarding-action-compact strong {
+    font-size: 14px;
+  }
+
+  .onboarding-settings-button {
+    width: 44px;
+    height: 44px;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+  }
+
+  .onboarding-settings-view {
+    width: calc(100% - 32px);
+    padding-top: calc(24px + env(safe-area-inset-top));
+    padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+
+  .onboarding-secure-screen {
+    align-items: start;
+    overflow-y: auto;
+  }
+
+  .onboarding-secure-screen .unlock-card {
+    margin-block: auto;
+  }
+}

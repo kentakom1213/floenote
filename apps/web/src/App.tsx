@@ -76,6 +76,7 @@ import {
   writeLastDocumentId,
 } from "./note-preference.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
+import { deriveEntrySurface } from "./onboarding-state.js";
 import { exportProjectToBrowser } from "./portable-export-download.js";
 import { importPortableProjectArchive } from "./portable-import-integration.js";
 import { importMarkdownDirectory } from "./markdown-directory-import-integration.js";
@@ -701,30 +702,54 @@ function NoteApp() {
     );
   }
 
-  if (deviceVaultState !== "unlocked") {
+  const entrySurface = deriveEntrySurface(
+    deviceVaultState,
+    project !== null,
+  );
+
+  if (entrySurface === "checking") {
+    return (
+      <main className="onboarding-loading-screen" aria-live="polite">
+        <img src="/favicon.svg" alt="" aria-hidden="true" />
+        <span>Floe Note</span>
+      </main>
+    );
+  }
+
+  if (entrySurface === "unlock") {
     return (
       <UnlockScreen
         state={deviceVaultState}
         error={deviceVaultError}
         onUnlock={unlockDevice}
-        onCreateWithExistingPasskey={createDeviceWithExistingPasskey}
-        onCreateWithNewPasskey={createDeviceWithNewPasskey}
         onResetDevice={resetLockedDevice}
       />
     );
   }
 
-  if (!project) {
-    if (!projectCatalogReady) {
+  if (entrySurface === "onboarding") {
+    if (deviceVaultState === "unlocked" && !projectCatalogReady) {
       return (
-        <main className="empty-state">
-          <p>Loading local Projects…</p>
+        <main className="onboarding-loading-screen" aria-live="polite">
+          <img src="/favicon.svg" alt="" aria-hidden="true" />
+          <span>Loading local Projects…</span>
         </main>
       );
     }
 
     return (
       <ProjectEmptyState
+        vaultState={deviceVaultState}
+        vaultError={deviceVaultError}
+        theme={themePreference}
+        coordinatorBaseUrl={coordinatorBaseUrl}
+        localDeviceId={localDeviceId}
+        localDeviceName={localDeviceName}
+        onCreateWithExistingPasskey={createDeviceWithExistingPasskey}
+        onCreateWithNewPasskey={createDeviceWithNewPasskey}
+        onRenameDevice={renameLocalDevice}
+        onThemeChange={setThemePreference}
+        onEraseDevice={eraseFloeFromThisDevice}
         onCreateProject={createProject}
         onImportFloeExport={importFloeExport}
         onImportMarkdownDirectory={importMarkdownDirectoryFiles}
@@ -732,10 +757,36 @@ function NoteApp() {
     );
   }
 
+  if (!project) {
+    return null;
+  }
+
   const activeProject = project;
   const selectedDocument = selectedId
     ? activeProject.getDocument(selectedId)
     : undefined;
+
+  async function adoptDeviceVaultSession(
+    session: DeviceVaultSession,
+  ): Promise<void> {
+    const previous = deviceVaultSessionRef.current;
+    deviceVaultSessionRef.current = session;
+    if (previous) await previous.close();
+
+    const result = await projectStorage.openLastProject(session);
+    const summaries = await projectStorage.listProjects(session);
+    if (result) {
+      syncLocalDeviceName(result.project, session);
+    }
+    setOpenedProject(result);
+    setProjectSummaries(
+      result ? withActiveProjectSummary(summaries, result.project) : summaries,
+    );
+    setProjectCatalogReady(true);
+    setLocalDeviceId(session.publicIdentity.deviceId);
+    setLocalDeviceName(session.displayName);
+    setDeviceVaultState("unlocked");
+  }
 
   async function openDeviceVault(
     open: () => Promise<DeviceVaultSession>,
@@ -748,42 +799,47 @@ function NoteApp() {
     setDeviceVaultError(null);
 
     try {
-      const session = await open();
-      const previous = deviceVaultSessionRef.current;
-      deviceVaultSessionRef.current = session;
-      if (previous) await previous.close();
-
-      const result = await projectStorage.openLastProject(session);
-      const summaries = await projectStorage.listProjects(session);
-      if (result) {
-        syncLocalDeviceName(result.project, session);
-      }
-      setOpenedProject(result);
-      setProjectSummaries(
-        result
-          ? withActiveProjectSummary(summaries, result.project)
-          : summaries,
-      );
-      setProjectCatalogReady(true);
-      setLocalDeviceId(session.publicIdentity.deviceId);
-      setLocalDeviceName(session.displayName);
-      setDeviceVaultState("unlocked");
+      await adoptDeviceVaultSession(await open());
     } catch (error: unknown) {
       setDeviceVaultState("error");
       setDeviceVaultError(
         error instanceof Error ? error.message : "Failed to unlock Device Vault",
       );
+      throw error;
     }
   }
 
   async function unlockDevice(): Promise<void> {
-    await openDeviceVault(() => deviceVault.unlock());
+    try {
+      await openDeviceVault(() => deviceVault.unlock());
+    } catch {
+      // UnlockScreen renders the recoverable error state.
+    }
+  }
+
+  async function createFirstTimeDevice(
+    create: () => Promise<DeviceVaultSession>,
+  ): Promise<void> {
+    if (deviceVaultState !== "missing") return;
+
+    setDeviceVaultError(null);
+    try {
+      await adoptDeviceVaultSession(await create());
+    } catch (error: unknown) {
+      setDeviceVaultState("missing");
+      setDeviceVaultError(
+        error instanceof Error
+          ? error.message
+          : "Failed to secure this device",
+      );
+      throw error;
+    }
   }
 
   async function createDeviceWithExistingPasskey(
     displayName: string,
   ): Promise<void> {
-    await openDeviceVault(() =>
+    await createFirstTimeDevice(() =>
       deviceVault.createWithExistingPasskey(displayName),
     );
   }
@@ -791,7 +847,7 @@ function NoteApp() {
   async function createDeviceWithNewPasskey(
     displayName: string,
   ): Promise<void> {
-    await openDeviceVault(() =>
+    await createFirstTimeDevice(() =>
       deviceVault.createWithNewPasskey(displayName),
     );
   }
