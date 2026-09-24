@@ -2323,6 +2323,12 @@ input:focus-visible {
   gap: 10px;
 }
 
+.settings-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .settings-field {
   display: grid;
   gap: 7px;
