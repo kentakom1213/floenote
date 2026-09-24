@@ -58,8 +58,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          git checkout --detach origin/main
           echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up pnpm
@@ -275,6 +273,7 @@ jobs:
       - name: Verify released commit
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.publish-release.outputs.release_sha }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
@@ -285,7 +284,7 @@ jobs:
             exit 1
           fi
 
-          remote_tag_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          remote_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
           if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
             echo "Release tag does not point to the published release SHA." >&2
             exit 1
