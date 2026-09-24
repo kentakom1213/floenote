@@ -19,6 +19,7 @@ import {
 import {
   isHorizontalMobileDrawerSwipe,
   shouldCompleteMobileDrawerSwipe,
+  shouldStartMobileDrawerOpenSwipe,
   type MobileDrawerSwipe,
 } from "./mobile-drawer-gesture.js";
 
@@ -109,6 +110,12 @@ export function AppShell({
     direction: MobileDrawerSwipe["direction"],
   ): void {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (
+      direction === "open" &&
+      !shouldStartMobileDrawerOpenSwipe(event.clientX, window.innerWidth)
+    ) {
+      return;
+    }
 
     mobileDrawerSwipeRef.current = {
       direction,
@@ -116,7 +123,6 @@ export function AppShell({
       startX: event.clientX,
       startY: event.clientY,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function moveMobileDrawerSwipe(
@@ -128,6 +134,9 @@ export function AppShell({
     if (
       isHorizontalMobileDrawerSwipe(swipe, event.clientX, event.clientY)
     ) {
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
       event.preventDefault();
     }
   }
@@ -243,16 +252,6 @@ export function AppShell({
       style={style}
     >
       <div
-        className="mobile-navigation-edge"
-        aria-hidden="true"
-        data-open={mobileNavigationOpen}
-        onPointerDown={(event) => startMobileDrawerSwipe(event, "open")}
-        onPointerMove={moveMobileDrawerSwipe}
-        onPointerUp={finishMobileDrawerSwipe}
-        onPointerCancel={cancelMobileDrawerSwipe}
-      />
-
-      <div
         className="mobile-navigation-backdrop"
         aria-hidden="true"
         data-open={mobileNavigationOpen}
@@ -317,7 +316,17 @@ export function AppShell({
         />
       ) : null}
 
-      <section className="main-pane">
+      <section
+        className="main-pane"
+        onPointerDown={(event) => {
+          if (!mobileNavigationOpen) {
+            startMobileDrawerSwipe(event, "open");
+          }
+        }}
+        onPointerMove={moveMobileDrawerSwipe}
+        onPointerUp={finishMobileDrawerSwipe}
+        onPointerCancel={cancelMobileDrawerSwipe}
+      >
         <header className="mobile-app-bar">
           <button
             ref={mobileNavigationTriggerRef}
