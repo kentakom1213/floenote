@@ -67,7 +67,7 @@ const PROJECT_ID = parseProjectId(
   "00000000-0000-7000-8000-000000000010",
 );
 const SESSION_ID = parseSessionId(
-  "00000000-0000-7000-8000-000000000020",
+  "00000000000070008000000000000020",
 );
 
 describe("CoordinatorSignalingClient reconnect", () => {
