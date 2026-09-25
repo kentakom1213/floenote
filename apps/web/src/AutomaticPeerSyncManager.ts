@@ -337,13 +337,12 @@ export class AutomaticPeerSyncManager {
 
       if (state === "connected") {
         if (current?.sessionId === sessionId) {
-          this.#clearConnectionTimer(current);
           this.#clearDisconnectedTimer(current);
+
+          if (transport.dataChannelState === "open") {
+            this.#markPeerConnected(peerDeviceId, current);
+          }
         }
-        this.#connectedDeviceIds.add(peerDeviceId);
-        this.#clearRetry(peerDeviceId);
-        this.#error = null;
-        this.#emitStatus();
         return;
       }
 
@@ -378,10 +377,15 @@ export class AutomaticPeerSyncManager {
     });
 
     const stopTransportStatus = transport.onStatusChange((status) => {
-      if (status.dataChannelState !== "closed") return;
-
       const current = this.#connections.get(peerDeviceId);
       if (current?.sessionId !== sessionId) return;
+
+      if (status.dataChannelState === "open") {
+        this.#markPeerConnected(peerDeviceId, current);
+        return;
+      }
+
+      if (status.dataChannelState !== "closed") return;
 
       this.#connectedDeviceIds.delete(peerDeviceId);
       this.#emitStatus();
@@ -457,6 +461,18 @@ export class AutomaticPeerSyncManager {
     }
 
     this.#scheduleRetry(peerDeviceId);
+  }
+
+  #markPeerConnected(
+    peerDeviceId: DeviceId,
+    connection: AutomaticPeerConnection,
+  ): void {
+    this.#clearConnectionTimer(connection);
+    this.#clearDisconnectedTimer(connection);
+    this.#connectedDeviceIds.add(peerDeviceId);
+    this.#clearRetry(peerDeviceId);
+    this.#error = null;
+    this.#emitStatus();
   }
 
   #clearConnectionTimer(connection: AutomaticPeerConnection): void {
