@@ -364,6 +364,46 @@ export class WebRtcTransport implements Transport {
     return () => this.#statusHandlers.delete(handler);
   }
 
+  async waitForPendingSends(timeoutMs = 1_000): Promise<void> {
+    const channel = this.#dataChannel;
+    if (
+      !channel ||
+      channel.readyState !== "open" ||
+      channel.bufferedAmount === 0
+    ) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      let finished = false;
+      const previousThreshold = channel.bufferedAmountLowThreshold;
+      channel.bufferedAmountLowThreshold = 0;
+
+      const timeout = setTimeout(finish, timeoutMs);
+      const onBufferedAmountLow = () => finish();
+      const onClose = () => finish();
+
+      channel.addEventListener("bufferedamountlow", onBufferedAmountLow);
+      channel.addEventListener("close", onClose);
+
+      if (channel.bufferedAmount === 0) {
+        finish();
+      }
+
+      function finish(): void {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        channel.removeEventListener("bufferedamountlow", onBufferedAmountLow);
+        channel.removeEventListener("close", onClose);
+        if (channel.readyState !== "closed") {
+          channel.bufferedAmountLowThreshold = previousThreshold;
+        }
+        resolve();
+      }
+    });
+  }
+
   close(): void {
     this.#debug("transport.close", {
       connectionState: this.connectionState,
