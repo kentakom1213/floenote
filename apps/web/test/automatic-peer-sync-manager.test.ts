@@ -19,6 +19,7 @@ const harness = vi.hoisted(() => {
       (status: { dataChannelState: "none" | "open" | "closed" }) => void
     >();
     readonly messageHandlers = new Set<(data: Uint8Array) => void>();
+    dataChannelState: "none" | "open" | "closed" = "none";
 
     constructor(_projectId?: unknown, configuration?: RTCConfiguration) {
       this.configuration = configuration;
@@ -46,7 +47,7 @@ const harness = vi.hoisted(() => {
       ) => void,
     ): () => void {
       this.statusHandlers.add(handler);
-      handler({ dataChannelState: "none" });
+      handler({ dataChannelState: this.dataChannelState });
       return () => this.statusHandlers.delete(handler);
     }
 
@@ -60,6 +61,7 @@ const harness = vi.hoisted(() => {
     }
 
     emitDataChannel(dataChannelState: "open" | "closed"): void {
+      this.dataChannelState = dataChannelState;
       for (const handler of this.statusHandlers) {
         handler({ dataChannelState });
       }
@@ -239,6 +241,51 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
 
     await vi.advanceTimersByTimeAsync(1);
     expect(presence.sent).toHaveLength(3);
+
+    manager.stop();
+  });
+
+  it("does not report a peer as connected until its data channel opens", async () => {
+    const presence = createPresence();
+    const statuses: AutomaticPeerSyncStatus[] = [];
+    const manager = createManager(presence, {
+      onStatusChange: (status) => statuses.push(status),
+    });
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
+
+    const transport = harness.FakeWebRtcTransport.instances[0];
+    transport?.emit("connected");
+
+    expect(statuses.at(-1)?.connectedDeviceIds).toEqual([]);
+
+    transport?.emitDataChannel("open");
+
+    expect(statuses.at(-1)?.connectedDeviceIds).toEqual([PEER_DEVICE_ID]);
+
+    manager.stop();
+  });
+
+  it("retries when the peer connection connects but the data channel never opens", async () => {
+    const presence = createPresence();
+    const manager = createManager(presence);
+
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
+
+    harness.FakeWebRtcTransport.instances[0]?.emit("connected");
+
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_CONNECTION_TIMEOUT_MS,
+    );
+    await flushConnectionCleanup();
+    await vi.advanceTimersByTimeAsync(
+      AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[0],
+    );
+
+    expect(presence.sent).toHaveLength(2);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
 
     manager.stop();
   });
