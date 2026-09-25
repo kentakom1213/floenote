@@ -1,0 +1,273 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component
+        required: true
+        type: choice
+        options:
+          - web
+          - coordinator
+      bump:
+        description: Version bump
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions: {}
+
+concurrency:
+  group: prepare-release-${{ inputs.component }}
+  cancel-in-progress: false
+
+jobs:
+  verify-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      base_sha: ${{ steps.base.outputs.base_sha }}
+      version: ${{ steps.bump.outputs.version }}
+      tag: ${{ steps.bump.outputs.tag }}
+      branch: ${{ steps.bump.outputs.branch }}
+      package_path: ${{ steps.bump.outputs.package_path }}
+      package_sha256: ${{ steps.release-file.outputs.package_sha256 }}
+    steps:
+      - name: Require main dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Release preparation must be dispatched from main." >&2
+            exit 1
+          fi
+
+      - name: Checkout latest main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pin release base
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bump component version
+        id: bump
+        shell: bash
+        env:
+          COMPONENT: ${{ inputs.component }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+
+          case "$COMPONENT" in
+            web)
+              pnpm version:web "$BUMP"
+              package_path="apps/web/package.json"
+              tag_prefix="web-v"
+              ;;
+            coordinator)
+              pnpm version:coordinator "$BUMP"
+              package_path="apps/coordinator/package.json"
+              tag_prefix="coordinator-v"
+              ;;
+            *)
+              echo "Unsupported component: $COMPONENT" >&2
+              exit 1
+              ;;
+          esac
+
+          version="$(node -p "require('./${package_path}').version")"
+          tag="${tag_prefix}${version}"
+          branch="release/${tag}"
+
+          echo "package_path=$package_path" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Record expected release file
+        id: release-file
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+        run: |
+          set -euo pipefail
+          package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          echo "package_sha256=$package_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify release diff
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+          EXPECTED_PACKAGE_SHA256: ${{ steps.release-file.outputs.package_sha256 }}
+        run: |
+          set -euo pipefail
+
+          actual_package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          if [[ "$actual_package_sha256" != "$EXPECTED_PACKAGE_SHA256" ]]; then
+            echo "Release package changed during dependency install, test, typecheck, or build." >&2
+            exit 1
+          fi
+
+          mapfile -t changed_files < <(git diff --name-only)
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$PACKAGE_PATH" ]]; then
+            echo "Expected only $PACKAGE_PATH to be modified after verification." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+          if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+            echo "Unexpected untracked files exist after verification." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+  create-release-pr:
+    needs: verify-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout verified release base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-release.outputs.base_sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Recreate verified release file
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ needs.verify-release.outputs.package_path }}
+          VERSION: ${{ needs.verify-release.outputs.version }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.verify-release.outputs.package_sha256 }}
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require("node:fs");
+          const packagePath = process.env.PACKAGE_PATH;
+          const version = process.env.VERSION;
+
+          if (!packagePath || !version) {
+            throw new Error("Missing release package path or version");
+          }
+
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+          packageJson.version = version;
+          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + "\n");
+          NODE
+
+          actual_package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          if [[ "$actual_package_sha256" != "$EXPECTED_PACKAGE_SHA256" ]]; then
+            echo "Recreated release package does not match the verified file." >&2
+            exit 1
+          fi
+
+          mapfile -t changed_files < <(git diff --name-only)
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$PACKAGE_PATH" ]]; then
+            echo "Release PR may only modify $PACKAGE_PATH." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+      - name: Create release branch and pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ needs.verify-release.outputs.base_sha }}
+          COMPONENT: ${{ inputs.component }}
+          VERSION: ${{ needs.verify-release.outputs.version }}
+          TAG: ${{ needs.verify-release.outputs.tag }}
+          BRANCH: ${{ needs.verify-release.outputs.branch }}
+          PACKAGE_PATH: ${{ needs.verify-release.outputs.package_path }}
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main="$(git rev-parse FETCH_HEAD)"
+          if [[ "$current_main" != "$BASE_SHA" ]]; then
+            echo "main advanced during release preparation." >&2
+            echo "Release base: $BASE_SHA" >&2
+            echo "Current main: $current_main" >&2
+            echo "Rerun the workflow from the latest main." >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "Release branch already exists: $BRANCH" >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+          git switch -c "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- "$PACKAGE_PATH"
+          staged_files="$(git diff --cached --name-only)"
+          if [[ "$staged_files" != "$PACKAGE_PATH" ]]; then
+            echo "Release commit must contain only $PACKAGE_PATH." >&2
+            git diff --cached --name-only >&2
+            exit 1
+          fi
+
+          git -c core.hooksPath=/dev/null commit -m "release $COMPONENT v$VERSION"
+          git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$BRANCH"
+
+          pr_url="$(gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Release $COMPONENT v$VERSION" \
+            --body "Automated release PR for `$COMPONENT` v$VERSION.
+
+This PR only bumps `$PACKAGE_PATH`. Merge it after the normal CI checks pass. Merging this PR triggers tag creation and production deployment.")"
+
+          if gh label list --limit 100 --json name --jq '.[].name' | grep -Fxq "release"; then
+            gh pr edit "$pr_url" --add-label release
+          fi
+
+          echo "Created release PR: $pr_url"
