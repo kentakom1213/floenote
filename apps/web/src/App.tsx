@@ -1112,6 +1112,27 @@ function NoteApp({
 
     if (result) {
       syncLocalDeviceName(result.project, session);
+
+      if (
+        requestedRoute.kind === "document" &&
+        requestedRoute.projectId === result.project.id &&
+        result.project.getDocument(requestedRoute.documentId)
+      ) {
+        setSelectedId(requestedRoute.documentId);
+        writeLastDocumentId(result.project.id, requestedRoute.documentId);
+      } else if (
+        requestedRoute.kind === "root" ||
+        (requestedRoute.kind === "project" &&
+          requestedRoute.projectId === result.project.id)
+      ) {
+        const rememberedId = readLastDocumentId(result.project.id);
+        const initialDocumentId =
+          rememberedId && result.project.getDocument(rememberedId)
+            ? rememberedId
+            : result.project.listDocuments()[0]?.id ?? null;
+        setSelectedId(initialDocumentId);
+        writeLastDocumentId(result.project.id, initialDocumentId);
+      }
     }
     setOpenedProject(result);
     setProjectSummaries(
@@ -1360,8 +1381,10 @@ function NoteApp({
         setProjectSummaries(
           withActiveProjectSummary(summaries, next.project),
         );
+        replaceRoute(buildProjectUrl(next.project.id));
       } else {
         setProjectSummaries(summaries);
+        replaceRoute("/");
       }
       setMainView("note");
       setProjectCatalogReady(true);
