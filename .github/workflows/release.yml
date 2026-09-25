@@ -19,6 +19,8 @@ on:
           - minor
           - major
 
+permissions: {}
+
 concurrency:
   group: production-release
   cancel-in-progress: false
@@ -27,11 +29,13 @@ jobs:
   prepare-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
+      base_sha: ${{ steps.base.outputs.base_sha }}
       version: ${{ steps.bump.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
-      release_sha: ${{ steps.publish.outputs.release_sha }}
+      package_path: ${{ steps.bump.outputs.package_path }}
+      package_sha256: ${{ steps.release-file.outputs.package_sha256 }}
     steps:
       - name: Require main dispatch
         shell: bash
@@ -43,27 +47,26 @@ jobs:
           fi
 
       - name: Checkout latest main
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Pin release base
         id: base
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          git checkout --detach origin/main
           echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10.17.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -104,6 +107,16 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      - name: Record expected release file
+        id: release-file
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+        run: |
+          set -euo pipefail
+          package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          echo "package_sha256=$package_sha256" >> "$GITHUB_OUTPUT"
+
       - name: Test
         run: pnpm test
 
@@ -117,8 +130,15 @@ jobs:
         shell: bash
         env:
           PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
+          EXPECTED_PACKAGE_SHA256: ${{ steps.release-file.outputs.package_sha256 }}
         run: |
           set -euo pipefail
+
+          actual_package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          if [[ "$actual_package_sha256" != "$EXPECTED_PACKAGE_SHA256" ]]; then
+            echo "Release package changed during dependency install, test, typecheck, or build." >&2
+            exit 1
+          fi
 
           mapfile -t changed_files < <(git diff --name-only)
           if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$PACKAGE_PATH" ]]; then
@@ -133,20 +153,75 @@ jobs:
             exit 1
           fi
 
+  publish-release:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_sha: ${{ steps.publish.outputs.release_sha }}
+    steps:
+      - name: Checkout verified release base
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare-release.outputs.base_sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Recreate verified release file
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ needs.prepare-release.outputs.package_path }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.prepare-release.outputs.package_sha256 }}
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require("node:fs");
+          const packagePath = process.env.PACKAGE_PATH;
+          const version = process.env.VERSION;
+
+          if (!packagePath || !version) {
+            throw new Error("Missing release package path or version");
+          }
+
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+          packageJson.version = version;
+          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, 2) + "\n");
+          NODE
+
+          actual_package_sha256="$(sha256sum "$PACKAGE_PATH" | awk '{print $1}')"
+          if [[ "$actual_package_sha256" != "$EXPECTED_PACKAGE_SHA256" ]]; then
+            echo "Recreated release package does not match the verified file." >&2
+            exit 1
+          fi
+
+          mapfile -t changed_files < <(git diff --name-only)
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$PACKAGE_PATH" ]]; then
+            echo "Publish job may only modify $PACKAGE_PATH." >&2
+            git status --short >&2
+            exit 1
+          fi
+
       - name: Publish release commit and tag
         id: publish
         shell: bash
         env:
-          BASE_SHA: ${{ steps.base.outputs.base_sha }}
+          BASE_SHA: ${{ needs.prepare-release.outputs.base_sha }}
           COMPONENT: ${{ inputs.component }}
-          PACKAGE_PATH: ${{ steps.bump.outputs.package_path }}
-          VERSION: ${{ steps.bump.outputs.version }}
-          TAG: ${{ steps.bump.outputs.tag }}
+          PACKAGE_PATH: ${{ needs.prepare-release.outputs.package_path }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           set -euo pipefail
 
           git fetch --no-tags origin main
-          current_main="$(git rev-parse origin/main)"
+          current_main="$(git rev-parse FETCH_HEAD)"
           if [[ "$current_main" != "$BASE_SHA" ]]; then
             echo "main advanced during release preparation." >&2
             echo "Release base: $BASE_SHA" >&2
@@ -171,53 +246,57 @@ jobs:
             exit 1
           fi
 
-          git commit -m "release $COMPONENT v$VERSION"
+          git -c core.hooksPath=/dev/null commit -m "release $COMPONENT v$VERSION"
           release_sha="$(git rev-parse HEAD)"
           git tag "$TAG"
 
-          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG:refs/tags/$TAG"
+          git -c core.hooksPath=/dev/null push --atomic origin             "HEAD:refs/heads/main"             "refs/tags/$TAG:refs/tags/$TAG"
 
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
   deploy:
-    needs: prepare-release
+    needs:
+      - prepare-release
+      - publish-release
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
     steps:
       - name: Checkout released commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.prepare-release.outputs.release_sha }}
+          ref: ${{ needs.publish-release.outputs.release_sha }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Verify released commit
         shell: bash
         env:
-          RELEASE_SHA: ${{ needs.prepare-release.outputs.release_sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.publish-release.outputs.release_sha }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           set -euo pipefail
 
           if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
-            echo "Checked out commit does not match the prepared release SHA." >&2
+            echo "Checked out commit does not match the published release SHA." >&2
             exit 1
           fi
 
-          remote_tag_sha="$(git ls-remote origin "refs/tags/$RELEASE_TAG" | awk '{print $1}')"
+          remote_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
           if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
-            echo "Release tag does not point to the prepared release SHA." >&2
+            echo "Release tag does not point to the published release SHA." >&2
             exit 1
           fi
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 10.17.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -225,16 +304,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build Web without deployment credentials
+        if: ${{ inputs.component == 'web' }}
+        run: pnpm --filter @floe-note/web build
+
       - name: Deploy Web
         if: ${{ inputs.component == 'web' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm deploy:web
+        run: pnpm --filter @floe-note/coordinator exec wrangler deploy --config ../web/wrangler.jsonc
 
       - name: Deploy Coordinator
         if: ${{ inputs.component == 'coordinator' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm deploy:coordinator
+        run: pnpm --filter @floe-note/coordinator run deploy
