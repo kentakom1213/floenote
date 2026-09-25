@@ -874,7 +874,20 @@ function NoteApp({
 
     if (browserRoute.kind === "root") {
       setRouteError(false);
-      if (!project) return;
+
+      if (!project) {
+        const rootProject =
+          projectSummaries.find((summary) => summary.isActive) ??
+          projectSummaries[0] ??
+          null;
+
+        if (rootProject && !projectSwitching) {
+          void selectProject(rootProject.id, false).catch(() => {
+            setRouteError(true);
+          });
+        }
+        return;
+      }
 
       const rememberedId = readLastDocumentId(project.id);
       const nextId =
@@ -1004,8 +1017,14 @@ function NoteApp({
     deviceVaultState,
     project !== null,
   );
+  const recoveringRootProject =
+    deviceVaultState === "unlocked" &&
+    projectCatalogReady &&
+    project === null &&
+    browserRoute.kind === "root" &&
+    projectSummaries.length > 0;
 
-  if (entrySurface === "checking") {
+  if (entrySurface === "checking" || recoveringRootProject) {
     return (
       <main className="onboarding-loading-screen" aria-live="polite">
         <img src="/favicon.svg" alt="" aria-hidden="true" />
