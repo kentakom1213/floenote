@@ -40,6 +40,18 @@ describe("invitation session-preserving navigation", () => {
     expect(joinSource).not.toContain('window.location.replace("/")');
   });
 
+  it("flushes the ProjectKey acknowledgement before closing the invitation transport", () => {
+    const delivery = joinSource.slice(
+      joinSource.indexOf("await deliveryPromise"),
+      joinSource.indexOf("handoffDeviceVaultSession"),
+    );
+
+    expect(delivery).toContain("await transport.waitForPendingSends()");
+    expect(delivery.indexOf("await transport.waitForPendingSends()")).toBeLessThan(
+      delivery.indexOf("cleanup?.()"),
+    );
+  });
+
   it("does not add browser storage persistence for the unlock session", () => {
     expect(joinSource).not.toContain("localStorage");
     expect(joinSource).not.toContain("sessionStorage");
