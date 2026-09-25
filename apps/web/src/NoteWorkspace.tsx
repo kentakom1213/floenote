@@ -368,7 +368,6 @@ export function NoteWorkspace({
                   onSelect={(documentId) => {
                     setSelectedTrashDocumentId(documentId);
                     onSelectTrashDocument(documentId);
-                    onOpenTrash();
                     setMobileNavigationOpen(false);
                   }}
                   onRestore={(documentId) => {
