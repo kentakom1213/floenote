@@ -1,0 +1,261 @@
+name: Deploy Release
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  verify-release:
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      component: ${{ steps.release.outputs.component }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+      package_path: ${{ steps.release.outputs.package_path }}
+      release_sha: ${{ steps.release.outputs.release_sha }}
+    steps:
+      - name: Parse and validate release metadata
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RELEASE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$HEAD_REF" =~ ^release/(web|coordinator)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "Not a valid release branch: $HEAD_REF" >&2
+            exit 1
+          fi
+
+          component="${BASH_REMATCH[1]}"
+          version="${BASH_REMATCH[2]}"
+          tag="${component}-v${version}"
+
+          case "$component" in
+            web)
+              package_path="apps/web/package.json"
+              ;;
+            coordinator)
+              package_path="apps/coordinator/package.json"
+              ;;
+            *)
+              echo "Unsupported component: $component" >&2
+              exit 1
+              ;;
+          esac
+
+          mapfile -t changed_files < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename'
+          )
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$package_path" ]]; then
+            echo "Release PR must modify exactly $package_path." >&2
+            printf '%s\n' "${changed_files[@]}" >&2
+            exit 1
+          fi
+
+          echo "component=$component" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "package_path=$package_path" >> "$GITHUB_OUTPUT"
+          echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout merged release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.release_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Validate merged version bump
+        shell: bash
+        env:
+          PACKAGE_PATH: ${{ steps.release.outputs.package_path }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          actual_version="$(node -p "require('./${PACKAGE_PATH}').version")"
+          if [[ "$actual_version" != "$VERSION" ]]; then
+            echo "Release branch version and merged package version do not match." >&2
+            echo "Branch version: $VERSION" >&2
+            echo "Package version: $actual_version" >&2
+            exit 1
+          fi
+
+          previous_version="$(git show "HEAD^1:$PACKAGE_PATH" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const value = JSON.parse(input).version;
+              if (typeof value !== "string") process.exit(1);
+              process.stdout.write(value);
+            });
+          ')"
+
+          PREVIOUS_VERSION="$previous_version" VERSION="$VERSION" node <<'NODE'
+          const parse = (value) => {
+            const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value);
+            if (!match) throw new Error(`Invalid SemVer version: ${value}`);
+            return match.slice(1).map(Number);
+          };
+
+          const previous = parse(process.env.PREVIOUS_VERSION);
+          const next = parse(process.env.VERSION);
+          const allowed = [
+            [previous[0], previous[1], previous[2] + 1],
+            [previous[0], previous[1] + 1, 0],
+            [previous[0] + 1, 0, 0],
+          ];
+
+          if (!allowed.some(candidate => candidate.every((part, index) => part === next[index]))) {
+            throw new Error(
+              `Release version must be a patch, minor, or major bump: ${process.env.PREVIOUS_VERSION} -> ${process.env.VERSION}`,
+            );
+          }
+          NODE
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+  publish-tag:
+    needs: verify-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_sha: ${{ needs.verify-release.outputs.release_sha }}
+      tag: ${{ needs.verify-release.outputs.tag }}
+    steps:
+      - name: Checkout merged release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-release.outputs.release_sha }}
+          fetch-depth: 1
+
+      - name: Publish release tag
+        shell: bash
+        env:
+          TAG: ${{ needs.verify-release.outputs.tag }}
+          RELEASE_SHA: ${{ needs.verify-release.outputs.release_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "Checked out commit does not match the merged release SHA." >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists: $TAG" >&2
+            exit 1
+          fi
+
+          git tag "$TAG"
+          git -c core.hooksPath=/dev/null push origin "refs/tags/$TAG:refs/tags/$TAG"
+
+  deploy:
+    needs:
+      - verify-release
+      - publish-tag
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout released commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify-release.outputs.release_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify released commit and tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.verify-release.outputs.release_sha }}
+          RELEASE_TAG: ${{ needs.verify-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]]; then
+            echo "Checked out commit does not match the released SHA." >&2
+            exit 1
+          fi
+
+          remote_tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq '.object.sha')"
+          if [[ "$remote_tag_sha" != "$RELEASE_SHA" ]]; then
+            echo "Release tag does not point to the released SHA." >&2
+            exit 1
+          fi
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.17.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web without deployment credentials
+        if: ${{ needs.verify-release.outputs.component == 'web' }}
+        run: pnpm --filter @floe-note/web build
+
+      - name: Deploy Web
+        if: ${{ needs.verify-release.outputs.component == 'web' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm --filter @floe-note/coordinator exec wrangler deploy --config ../web/wrangler.jsonc
+
+      - name: Deploy Coordinator
+        if: ${{ needs.verify-release.outputs.component == 'coordinator' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm --filter @floe-note/coordinator run deploy
