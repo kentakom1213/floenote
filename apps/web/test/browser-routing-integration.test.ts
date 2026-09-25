@@ -45,8 +45,7 @@ describe("browser routing integration invariants", () => {
     const switchStart = appSource.indexOf(
       "if (!project || requestedProjectId !== project.id)",
     );
-    const switchEnd = appSource.indexOf("setRouteError(false);", switchStart + 1);
-    const switchBlock = appSource.slice(switchStart, switchEnd);
+    const switchBlock = appSource.slice(switchStart, switchStart + 600);
 
     expect(switchBlock).toContain("selectProject(requestedProjectId, false)");
     expect(switchBlock).not.toContain("pushRoute(");
