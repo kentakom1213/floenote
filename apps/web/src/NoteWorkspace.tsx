@@ -54,6 +54,7 @@ type NoteWorkspaceProps = {
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
   trashActive: boolean;
+  trashDocumentId: DocumentId | null;
   focusTitleDocumentId?: DocumentId | null;
   onTitleFocusHandled: () => void;
   onCreateDocument: () => void;
@@ -63,6 +64,7 @@ type NoteWorkspaceProps = {
   onRestoreDocument: (documentId: DocumentId) => void;
   onPurgeDocument: (documentId: DocumentId) => void;
   onOpenTrash: () => void;
+  onSelectTrashDocument: (documentId: DocumentId | null) => void;
 };
 
 export function NoteWorkspace({
@@ -73,6 +75,7 @@ export function NoteWorkspace({
   sidebarFooter,
   mainContent,
   trashActive,
+  trashDocumentId,
   focusTitleDocumentId,
   onTitleFocusHandled,
   onCreateDocument,
@@ -82,6 +85,7 @@ export function NoteWorkspace({
   onRestoreDocument,
   onPurgeDocument,
   onOpenTrash,
+  onSelectTrashDocument,
 }: NoteWorkspaceProps) {
   const summaries = project.listDocuments();
   const [, setNavigationRevision] = useState(0);
@@ -113,10 +117,15 @@ export function NoteWorkspace({
   );
   const [trashExpanded, setTrashExpanded] = useState(false);
   const [selectedTrashDocumentId, setSelectedTrashDocumentId] =
-    useState<DocumentId | null>(null);
+    useState<DocumentId | null>(trashDocumentId);
   const [pendingPurgeDocumentId, setPendingPurgeDocumentId] =
     useState<DocumentId | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedTrashDocumentId(trashDocumentId);
+    if (trashDocumentId !== null) setTrashExpanded(true);
+  }, [trashDocumentId]);
 
   useEffect(() => {
     setGlobalSearchOpen(false);
@@ -329,6 +338,7 @@ export function NoteWorkspace({
             }
             onClick={() => {
               setSelectedTrashDocumentId(null);
+              onSelectTrashDocument(null);
               setTrashExpanded((expanded) => !expanded);
               onOpenTrash();
               setMobileNavigationOpen(false);
@@ -357,6 +367,7 @@ export function NoteWorkspace({
                   }
                   onSelect={(documentId) => {
                     setSelectedTrashDocumentId(documentId);
+                    onSelectTrashDocument(documentId);
                     onOpenTrash();
                     setMobileNavigationOpen(false);
                   }}
@@ -413,6 +424,7 @@ export function NoteWorkspace({
             selectedDocumentId={selectedTrashDocumentId}
             onSelectDocument={(documentId) => {
               setSelectedTrashDocumentId(documentId);
+              onSelectTrashDocument(documentId);
               setTrashExpanded(true);
               setMobileNavigationOpen(false);
             }}
