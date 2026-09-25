@@ -233,39 +233,75 @@ jobs:
             exit 1
           fi
 
-          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
-            echo "Release branch already exists: $BRANCH" >&2
-            exit 1
-          fi
-
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Release tag already exists: $TAG" >&2
             exit 1
           fi
 
-          git switch -c "$BRANCH"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch_exists=false
+          if git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            branch_exists=true
+            git fetch --no-tags origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+            release_sha="$(git rev-parse "refs/remotes/origin/$BRANCH")"
+            release_parent="$(git rev-parse "$release_sha^")"
 
-          git add -- "$PACKAGE_PATH"
-          staged_files="$(git diff --cached --name-only)"
-          if [[ "$staged_files" != "$PACKAGE_PATH" ]]; then
-            echo "Release commit must contain only $PACKAGE_PATH." >&2
-            git diff --cached --name-only >&2
-            exit 1
+            if [[ "$release_parent" != "$BASE_SHA" ]]; then
+              echo "Existing release branch is not based on the verified main commit." >&2
+              echo "Expected parent: $BASE_SHA" >&2
+              echo "Actual parent: $release_parent" >&2
+              exit 1
+            fi
+
+            mapfile -t branch_changed_files < <(git diff --name-only "$BASE_SHA" "$release_sha")
+            if [[ "${#branch_changed_files[@]}" -ne 1 || "${branch_changed_files[0]}" != "$PACKAGE_PATH" ]]; then
+              echo "Existing release branch must modify exactly $PACKAGE_PATH." >&2
+              printf '%s\n' "${branch_changed_files[@]}" >&2
+              exit 1
+            fi
+
+            branch_package_sha256="$(git show "$release_sha:$PACKAGE_PATH" | sha256sum | awk '{print $1}')"
+            if [[ "$branch_package_sha256" != "$EXPECTED_PACKAGE_SHA256" ]]; then
+              echo "Existing release branch does not contain the verified release file." >&2
+              exit 1
+            fi
           fi
 
-          git -c core.hooksPath=/dev/null commit -m "release $COMPONENT v$VERSION"
-          git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$BRANCH"
-
-          pr_url="$(gh pr create \
+          pr_url="$(gh pr list \
             --base main \
             --head "$BRANCH" \
-            --title "Release $COMPONENT v$VERSION" \
-            --body "Automated release PR for $COMPONENT v$VERSION. This PR only bumps $PACKAGE_PATH. Merge it after the normal CI checks pass. Merging this PR triggers tag creation and production deployment.")"
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')"
+
+          if [[ -n "$pr_url" ]]; then
+            echo "Release PR already exists: $pr_url"
+          else
+            if [[ "$branch_exists" != true ]]; then
+              git switch -c "$BRANCH"
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+              git add -- "$PACKAGE_PATH"
+              staged_files="$(git diff --cached --name-only)"
+              if [[ "$staged_files" != "$PACKAGE_PATH" ]]; then
+                echo "Release commit must contain only $PACKAGE_PATH." >&2
+                git diff --cached --name-only >&2
+                exit 1
+              fi
+
+              git -c core.hooksPath=/dev/null commit -m "release $COMPONENT v$VERSION"
+              git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$BRANCH"
+            fi
+
+            pr_url="$(gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "Release $COMPONENT v$VERSION" \
+              --body "Automated release PR for $COMPONENT v$VERSION. This PR only bumps $PACKAGE_PATH. Merge it after the normal CI checks pass. Merging this PR triggers tag creation and production deployment.")"
+
+            echo "Created release PR: $pr_url"
+          fi
 
           if gh label list --limit 100 --json name --jq '.[].name' | grep -Fxq "release"; then
             gh pr edit "$pr_url" --add-label release
           fi
-
-          echo "Created release PR: $pr_url"
