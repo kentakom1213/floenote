@@ -28,6 +28,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { createConsoleDebugLogger } from "./debug.js";
+import {
+  closeOwnedDeviceVaultSession,
+  handoffDeviceVaultSession,
+} from "./device-vault-session-owner.js";
 import { generateDeviceDisplayName } from "./device-name.js";
 import { clearAllLastDocumentPreferences } from "./note-preference.js";
 import { resolveRtcConfiguration } from "./turn-credentials.js";
@@ -50,6 +54,10 @@ type InvitationJoinPageProps = {
   pairingSecret: string | null;
   storage: ProjectStorage;
   turnCredentialEndpoint: string | null;
+  onSessionHandoff: (
+    session: DeviceVaultSession,
+    projectId: import("@floe-note/domain").ProjectId,
+  ) => void;
 };
 
 type JoinVaultState =
@@ -73,6 +81,7 @@ export function InvitationJoinPage({
   pairingSecret,
   storage,
   turnCredentialEndpoint,
+  onSessionHandoff,
 }: InvitationJoinPageProps) {
   const [claimId] = useState(() => createClaimId());
   const vaultSessionRef = useRef<DeviceVaultSession | null>(null);
@@ -120,9 +129,7 @@ export function InvitationJoinPage({
 
     return () => {
       cancelled = true;
-      const session = vaultSessionRef.current;
-      vaultSessionRef.current = null;
-      if (session) void session.close();
+      void closeOwnedDeviceVaultSession(vaultSessionRef);
     };
   }, []);
 
@@ -179,18 +186,29 @@ export function InvitationJoinPage({
         });
         const stopSignalingState =
           signaling.onConnectionStateChange(setSignalingState);
-        signaling.start();
+        let cleanedUp = false;
 
         cleanup = () => {
+          if (cleanedUp) return;
+          cleanedUp = true;
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
-          joinedSyncEngine?.stop();
+
+          const syncEngine = joinedSyncEngine;
           joinedSyncEngine = null;
           stopJoinedPersistence?.();
           stopJoinedPersistence = null;
           stopTransportStatus();
+
+          if (syncEngine) {
+            syncEngine.stop();
+          } else {
+            transport.close();
+          }
         };
+
+        signaling.start();
 
         await authenticatePairingChannel({
           role: "join",
@@ -277,12 +295,17 @@ export function InvitationJoinPage({
                       if (disposed) return;
 
                       setInitialSyncState("ready");
+                      handoffDeviceVaultSession(
+                        vaultSessionRef,
+                        (handoffSession) =>
+                          onSessionHandoff(
+                            handoffSession,
+                            securityState.projectId,
+                          ),
+                      );
+
                       cleanup?.();
                       cleanup = null;
-
-                      window.setTimeout(() => {
-                        if (!disposed) window.location.replace("/");
-                      }, 0);
                     } catch (syncError: unknown) {
                       bootstrapCompletionStarted = false;
                       if (disposed) return;
@@ -343,6 +366,7 @@ export function InvitationJoinPage({
     coordinatorBaseUrl,
     deviceId,
     inviteId,
+    onSessionHandoff,
     pairingSecret,
     storage,
     turnCredentialEndpoint,
@@ -408,9 +432,7 @@ export function InvitationJoinPage({
     setVaultError(null);
 
     try {
-      const session = vaultSessionRef.current;
-      vaultSessionRef.current = null;
-      if (session) await session.close();
+      await closeOwnedDeviceVaultSession(vaultSessionRef);
 
       await storage.eraseAllLocalData();
       await joinDeviceVault.eraseVault();

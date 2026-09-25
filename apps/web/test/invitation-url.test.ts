@@ -1,9 +1,14 @@
+import { parseProjectId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
-import { parseInvitationUrl } from "../src/invitation-url.js";
+import {
+  parseInvitationUrl,
+  replaceInvitationUrlWithProject,
+} from "../src/invitation-url.js";
 
 const ORIGIN = "https://floe.pwll.dev";
 const INVITE_ID = "0123456789abcdef0123456789abcdef";
+const PROJECT_ID = parseProjectId("00000000-0000-7000-8000-000000000010");
 
 describe("parseInvitationUrl", () => {
   it("accepts an invitation URL on the app origin", () => {
@@ -11,7 +16,6 @@ describe("parseInvitationUrl", () => {
       `${ORIGIN}/join/v1/${INVITE_ID}#s=pairing-secret`,
       ORIGIN,
     );
-
     expect(url.pathname).toBe(`/join/v1/${INVITE_ID}`);
     expect(url.hash).toBe("#s=pairing-secret");
   });
@@ -21,7 +25,6 @@ describe("parseInvitationUrl", () => {
       `/join/v1/${INVITE_ID}#s=pairing-secret`,
       ORIGIN,
     );
-
     expect(url.origin).toBe(ORIGIN);
   });
 
@@ -40,5 +43,19 @@ describe("parseInvitationUrl", () => {
     expect(() => parseInvitationUrl(value, ORIGIN)).toThrow(
       "Paste a valid Floe Note invitation link.",
     );
+  });
+});
+
+describe("replaceInvitationUrlWithProject", () => {
+  it("replaces the current invitation entry without preserving the secret", () => {
+    const calls: unknown[][] = [];
+    const history = {
+      replaceState: (...args: unknown[]) => calls.push(args),
+    } as unknown as Pick<History, "replaceState">;
+
+    replaceInvitationUrlWithProject(history, PROJECT_ID);
+
+    expect(calls).toEqual([[null, "", `/p/${PROJECT_ID}`]]);
+    expect(JSON.stringify(calls)).not.toContain("pairing-secret");
   });
 });
