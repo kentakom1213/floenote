@@ -374,19 +374,21 @@ export class WebRtcTransport implements Transport {
       return;
     }
 
+    const channel: RTCDataChannel = dataChannel;
+
     await new Promise<void>((resolve) => {
       let finished = false;
-      const previousThreshold = dataChannel.bufferedAmountLowThreshold;
-      dataChannel.bufferedAmountLowThreshold = 0;
+      const previousThreshold = channel.bufferedAmountLowThreshold;
+      channel.bufferedAmountLowThreshold = 0;
 
       const timeout = setTimeout(finish, timeoutMs);
       const onBufferedAmountLow = () => finish();
       const onClose = () => finish();
 
-      dataChannel.addEventListener("bufferedamountlow", onBufferedAmountLow);
-      dataChannel.addEventListener("close", onClose);
+      channel.addEventListener("bufferedamountlow", onBufferedAmountLow);
+      channel.addEventListener("close", onClose);
 
-      if (dataChannel.bufferedAmount === 0) {
+      if (channel.bufferedAmount === 0) {
         finish();
       }
 
@@ -394,13 +396,13 @@ export class WebRtcTransport implements Transport {
         if (finished) return;
         finished = true;
         clearTimeout(timeout);
-        dataChannel.removeEventListener(
+        channel.removeEventListener(
           "bufferedamountlow",
           onBufferedAmountLow,
         );
-        dataChannel.removeEventListener("close", onClose);
-        if (dataChannel.readyState !== "closed") {
-          dataChannel.bufferedAmountLowThreshold = previousThreshold;
+        channel.removeEventListener("close", onClose);
+        if (channel.readyState !== "closed") {
+          channel.bufferedAmountLowThreshold = previousThreshold;
         }
         resolve();
       }
