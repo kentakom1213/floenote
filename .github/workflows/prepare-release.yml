@@ -220,6 +220,7 @@ jobs:
           TAG: ${{ needs.verify-release.outputs.tag }}
           BRANCH: ${{ needs.verify-release.outputs.branch }}
           PACKAGE_PATH: ${{ needs.verify-release.outputs.package_path }}
+          EXPECTED_PACKAGE_SHA256: ${{ needs.verify-release.outputs.package_sha256 }}
         run: |
           set -euo pipefail
 
