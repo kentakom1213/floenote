@@ -30,11 +30,13 @@ import type {
 const DATABASE_NAME = "floe-note";
 const LOCAL_PROJECT_SLOT = "default";
 const DETACHED_PROJECT_SLOT_PREFIX = "detached:";
+const BOOTSTRAPPING_PROJECT_SLOT_PREFIX = "bootstrapping:";
 
 type ProjectRecord = {
   id: string;
   localSlot: string;
   createdAt: number;
+  bootstrapState?: "bootstrapping" | "ready";
 };
 
 type ManifestRecord = {
@@ -86,6 +88,7 @@ class FloeNoteDatabase extends Dexie {
 export class DexieProjectStorage implements ProjectStorage {
   readonly #db = new FloeNoteDatabase();
   #writeQueue: Promise<void> = Promise.resolve();
+  #writeFailure: Error | null = null;
 
   openLastProject(
     crypto: ProjectStorageCrypto,
@@ -99,15 +102,17 @@ export class DexieProjectStorage implements ProjectStorage {
     const records = await this.#db.projects.orderBy("createdAt").toArray();
 
     return Promise.all(
-      records.map(async (record) => ({
+      records
+        .filter((record) => record.bootstrapState !== "bootstrapping")
+        .map(async (record) => ({
         id: parseProjectId(record.id),
         name: await this.#loadProjectName(
           parseProjectId(record.id),
           crypto,
         ),
         createdAt: record.createdAt,
-        isActive: record.localSlot === LOCAL_PROJECT_SLOT,
-      })),
+          isActive: record.localSlot === LOCAL_PROJECT_SLOT,
+        })),
     );
   }
 
@@ -118,6 +123,9 @@ export class DexieProjectStorage implements ProjectStorage {
     const record = await this.#db.projects.get(projectId);
     if (!record) {
       throw new Error("Project is not available on this device");
+    }
+    if (record.bootstrapState === "bootstrapping") {
+      throw new Error("Project setup is incomplete on this device");
     }
 
     const project = await this.#loadProject(projectId, crypto);
@@ -280,7 +288,14 @@ export class DexieProjectStorage implements ProjectStorage {
       );
     }
 
-    let targetExists = false;
+    await this.#writeQueue;
+    this.#writeFailure = null;
+
+    const target = await this.#db.projects.get(projectId);
+    if (target && target.bootstrapState !== "bootstrapping") {
+      return this.#loadProject(projectId, crypto);
+    }
+
     const emptyProject = NoteProject.create(projectId);
     const emptyEncryptedManifest =
       await crypto.encryptProjectStoragePayload(
@@ -294,44 +309,68 @@ export class DexieProjectStorage implements ProjectStorage {
       "rw",
       this.#db.projects,
       this.#db.manifests,
+      this.#db.documents,
       async () => {
-        const current = await this.#db.projects
-          .where("localSlot")
-          .equals(LOCAL_PROJECT_SLOT)
-          .first();
-        const target = await this.#db.projects.get(projectId);
-        targetExists = target !== undefined;
-
-        if (current && current.id !== projectId) {
-          await this.#db.projects.update(current.id, {
-            localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
-          });
-        }
-
-        if (target) {
-          await this.#db.projects.update(projectId, {
-            localSlot: LOCAL_PROJECT_SLOT,
-          });
+        const existing = await this.#db.projects.get(projectId);
+        if (existing && existing.bootstrapState !== "bootstrapping") {
           return;
         }
 
-        await this.#db.projects.add({
+        await this.#db.documents
+          .where("projectId")
+          .equals(projectId)
+          .delete();
+        await this.#db.projects.put({
           id: projectId,
-          localSlot: LOCAL_PROJECT_SLOT,
-          createdAt: Date.now(),
+          localSlot: `${BOOTSTRAPPING_PROJECT_SLOT_PREFIX}${projectId}`,
+          createdAt: existing?.createdAt ?? Date.now(),
+          bootstrapState: "bootstrapping",
         });
-        await this.#db.manifests.add({
+        await this.#db.manifests.put({
           projectId,
           encryptedSnapshot: emptyEncryptedManifest,
         });
       },
     );
 
-    const project = targetExists
-      ? await this.#loadProject(projectId, crypto)
-      : emptyProject;
+    return emptyProject;
+  }
 
-    return project;
+  async completeJoinedProjectBootstrap(
+    projectId: ProjectId,
+  ): Promise<void> {
+    await this.#writeQueue;
+
+    await this.#db.transaction("rw", this.#db.projects, async () => {
+      const target = await this.#db.projects.get(projectId);
+      if (!target) {
+        throw new Error("Joined Project is not available on this device");
+      }
+
+      const current = await this.#db.projects
+        .where("localSlot")
+        .equals(LOCAL_PROJECT_SLOT)
+        .first();
+
+      if (current && current.id !== projectId) {
+        await this.#db.projects.update(current.id, {
+          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+        });
+      }
+
+      await this.#db.projects.update(projectId, {
+        localSlot: LOCAL_PROJECT_SLOT,
+        bootstrapState: "ready",
+      });
+    });
+  }
+
+  async flushPendingWrites(): Promise<void> {
+    await this.#writeQueue;
+
+    const failure = this.#writeFailure;
+    this.#writeFailure = null;
+    if (failure) throw failure;
   }
 
   async loadSecurityState(
@@ -539,11 +578,16 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   #enqueue(write: () => Promise<void>): void {
-    this.#writeQueue = this.#writeQueue
-      .then(write)
-      .catch((error: unknown) => {
-        console.error("Failed to persist Floe Note state", error);
-      });
+    this.#writeQueue = this.#writeQueue.then(async () => {
+      try {
+        await write();
+      } catch (error: unknown) {
+        const failure =
+          error instanceof Error ? error : new Error(String(error));
+        this.#writeFailure ??= failure;
+        console.error("Failed to persist Floe Note state", failure);
+      }
+    });
   }
 
   async #saveProjectState(
