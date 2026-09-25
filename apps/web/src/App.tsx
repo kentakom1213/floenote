@@ -59,6 +59,7 @@ import {
   type DeviceVaultSession,
 } from "@floe-note/vault";
 
+import { useBrowserNavigation } from "./browser-navigation.js";
 import {
   buildDocumentUrl,
   buildProjectSettingsUrl,
@@ -297,30 +298,14 @@ function NoteApp({
   const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
   >("waiting");
-  const [browserRoute, setBrowserRoute] = useState<BrowserRoute>(parseLocation);
-  const [routeError, setRouteError] = useState(false);
+  const {
+    route: browserRoute,
+    routeError,
+    setRouteError,
+    pushRoute,
+    replaceRoute,
+  } = useBrowserNavigation();
   const [trashDocumentId, setTrashDocumentId] = useState<DocumentId | null>(null);
-
-  const pushRoute = useCallback((url: string): void => {
-    window.history.pushState(null, "", url);
-    setRouteError(false);
-    setBrowserRoute(parseLocation());
-  }, []);
-
-  const replaceRoute = useCallback((url: string): void => {
-    window.history.replaceState(null, "", url);
-    setRouteError(false);
-    setBrowserRoute(parseLocation());
-  }, []);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      setRouteError(false);
-      setBrowserRoute(parseLocation());
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
 
   const project = openedProject?.project ?? null;
 
@@ -1092,7 +1077,6 @@ function NoteApp({
 
     const summaries = await projectStorage.listProjects(session);
     const requestedRoute = parseLocation();
-    setBrowserRoute(requestedRoute);
     const requestedProjectId = projectIdFromRoute(requestedRoute);
     let result: OpenedProject | null = null;
 
