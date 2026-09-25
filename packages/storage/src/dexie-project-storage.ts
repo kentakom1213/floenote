@@ -105,12 +105,12 @@ export class DexieProjectStorage implements ProjectStorage {
       records
         .filter((record) => record.bootstrapState !== "bootstrapping")
         .map(async (record) => ({
-        id: parseProjectId(record.id),
-        name: await this.#loadProjectName(
-          parseProjectId(record.id),
-          crypto,
-        ),
-        createdAt: record.createdAt,
+          id: parseProjectId(record.id),
+          name: await this.#loadProjectName(
+            parseProjectId(record.id),
+            crypto,
+          ),
+          createdAt: record.createdAt,
           isActive: record.localSlot === LOCAL_PROJECT_SLOT,
         })),
     );

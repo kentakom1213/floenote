@@ -1482,7 +1482,6 @@ function NoteApp() {
       });
 
       startInvitationEncryptedSync(committedState);
-      setProjectKeyDeliveryState("delivered");
 
       try {
         await new InvitationClient(coordinatorBaseUrl).consumeInvite(
@@ -1496,6 +1495,7 @@ function NoteApp() {
         );
       }
 
+      setProjectKeyDeliveryState("delivered");
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
