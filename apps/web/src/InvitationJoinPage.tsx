@@ -237,6 +237,9 @@ export function InvitationJoinPage({
 
         setPairingState("key-stored");
 
+        await transport.waitForPendingSends();
+        if (disposed) return;
+
         cleanup?.();
         cleanup = null;
 
