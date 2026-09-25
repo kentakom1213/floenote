@@ -295,9 +295,6 @@ export function InvitationJoinPage({
                       if (disposed) return;
 
                       setInitialSyncState("ready");
-                      cleanup?.();
-                      cleanup = null;
-
                       handoffDeviceVaultSession(
                         vaultSessionRef,
                         (handoffSession) =>
@@ -306,6 +303,9 @@ export function InvitationJoinPage({
                             securityState.projectId,
                           ),
                       );
+
+                      cleanup?.();
+                      cleanup = null;
                     } catch (syncError: unknown) {
                       bootstrapCompletionStarted = false;
                       if (disposed) return;

@@ -23,10 +23,12 @@ describe("invitation session preservation", () => {
     const flush = joinSource.indexOf("await storage.flushPendingWrites()", start);
     const complete = joinSource.indexOf("await storage.completeJoinedProjectBootstrap(", start);
     const handoff = joinSource.indexOf("handoffDeviceVaultSession(", start);
+    const cleanup = joinSource.indexOf("cleanup?.();", handoff);
     expect(start).toBeGreaterThanOrEqual(0);
     expect(flush).toBeGreaterThan(start);
     expect(complete).toBeGreaterThan(flush);
     expect(handoff).toBeGreaterThan(complete);
+    expect(cleanup).toBeGreaterThan(handoff);
   });
 
   it("keeps handoff inside the persistence failure boundary", () => {
@@ -42,6 +44,21 @@ describe("invitation session preservation", () => {
     expect(syncProtocolSource).toContain('type: "full-state-end"');
     expect(storageSource).toContain('record.bootstrapState !== "bootstrapping"');
     expect(storageSource).toContain('record.bootstrapState === "bootstrapping"');
+    expect(storageSource).toContain('bootstrapState: "ready"');
+  });
+
+  it("does not treat a queued persistence failure as successful setup", () => {
+    expect(storageSource).toContain("#writeFailure");
+    expect(storageSource).toContain("if (failure) throw failure");
+
+    const start = joinSource.indexOf("onInitialRemoteStateReceived: () =>");
+    const handoff = joinSource.indexOf("handoffDeviceVaultSession(", start);
+    const failure = joinSource.indexOf("} catch (syncError: unknown) {", handoff);
+
+    expect(failure).toBeGreaterThan(handoff);
+    expect(joinSource.slice(failure, failure + 700)).toContain(
+      "Failed to persist initial Project sync",
+    );
   });
 
   it("opens the normal application without a successful-join hard reload", () => {

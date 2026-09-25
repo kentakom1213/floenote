@@ -58,4 +58,24 @@ describe("Device Vault session ownership", () => {
     expect(close).toHaveBeenCalledTimes(1);
     expect(owner.current).toBeNull();
   });
+
+  it("does not close a handed-off session when the source owner is cleaned up", async () => {
+    const close = vi.fn(async () => undefined);
+    const session = fakeSession(close);
+    const source: DeviceVaultSessionOwner = { current: session };
+    const destination: DeviceVaultSessionOwner = { current: null };
+
+    handoffDeviceVaultSession(source, (next) => {
+      destination.current = next;
+    });
+
+    await closeOwnedDeviceVaultSession(source);
+
+    expect(close).not.toHaveBeenCalled();
+    expect(destination.current).toBe(session);
+
+    await closeOwnedDeviceVaultSession(destination);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
 });
