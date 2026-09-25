@@ -1009,12 +1009,32 @@ function NoteApp({
 
   if (routeError && deviceVaultState === "unlocked") {
     return (
-      <main className="empty-state">
-        <h1>Page not found</h1>
-        <p>This Project or note is not available on this device.</p>
-        <button type="button" onClick={() => pushRoute("/")}>
-          Go to Floe Note
-        </button>
+      <main className="not-found-screen">
+        <div className="not-found-drift" aria-hidden="true">
+          <span className="not-found-floe not-found-floe-large">◆</span>
+          <span className="not-found-floe not-found-floe-medium">◆</span>
+          <span className="not-found-floe not-found-floe-small">◆</span>
+        </div>
+
+        <section
+          className="not-found-card"
+          aria-labelledby="not-found-title"
+        >
+          <p className="not-found-eyebrow">404 · Drifted off course</p>
+          <h1 id="not-found-title">Page not found</h1>
+          <p className="not-found-copy">
+            This Project or note is not available on this device, or the
+            address may have changed.
+          </p>
+          <button
+            className="not-found-action"
+            type="button"
+            onClick={() => pushRoute("/")}
+          >
+            <span aria-hidden="true">◆</span>
+            Back to Floe Note
+          </button>
+        </section>
       </main>
     );
   }
