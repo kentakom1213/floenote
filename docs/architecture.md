@@ -1501,3 +1501,39 @@ The following details can be specified independently without changing the core P
 9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
 
 These details should be introduced only when required by an implementation or product requirement.
+
+## Browser URL semantics
+
+The web client uses normal pathname routing rather than hash routing. Persistent
+navigation state has stable URLs:
+
+```text
+/                                  application entry point
+/settings                          device/app settings
+/p/:projectId                      Project entry point
+/p/:projectId/:documentId          active note
+/p/:projectId/settings             Project settings
+/p/:projectId/trash                Trash
+/p/:projectId/trash/:documentId    deleted note
+/join/v1/:inviteId#s=:secret       device invitation
+```
+
+Project and Document path components are their immutable UUIDv7 identifiers;
+titles and note contents never appear in URLs. Unknown local Projects,
+Documents, purged Documents, and malformed identifiers are handled as
+application-level not-found states after unlock. Cloudflare and the PWA keep
+serving the SPA shell for nested-path reloads.
+
+Ordinary user navigation between persistent surfaces uses the History API and
+adds an entry. Canonicalization caused by application state uses history
+replacement instead: the root and Project entry points resolve to the
+appropriate note, deleted-note active URLs resolve to their Trash URL, and
+delete/restore/purge mutations replace the current resource URL. Browser
+Back/Forward is restored from `popstate` without a full reload.
+
+The invitation fragment remains a deliberate security boundary. The
+`PairingSecret` stays in `#s=...` so it is not sent to the coordinator or
+HTTP server and is never moved into the pathname, query string, browser
+storage, or `history.state`. ProjectId and DocumentId are accepted as URL
+metadata. The web security headers retain `Referrer-Policy: no-referrer` so
+that metadata is not propagated as an HTTP referrer.
