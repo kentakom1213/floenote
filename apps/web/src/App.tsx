@@ -100,6 +100,7 @@ import { exportProjectToBrowser } from "./portable-export-download.js";
 import { importPortableProjectArchive } from "./portable-import-integration.js";
 import { importMarkdownDirectory } from "./markdown-directory-import-integration.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
+import { resolveRootRoute } from "./root-route.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
   SyncStatus,
@@ -875,32 +876,37 @@ function NoteApp({
     if (browserRoute.kind === "root") {
       setRouteError(false);
 
-      if (!project) {
-        const rootProject =
-          projectSummaries.find((summary) => summary.isActive) ??
-          projectSummaries[0] ??
-          null;
+      const rootResolution = resolveRootRoute(
+        project,
+        projectSummaries,
+        project ? readLastDocumentId(project.id) : null,
+      );
 
-        if (rootProject && !projectSwitching) {
-          void selectProject(rootProject.id, false).catch(() => {
+      if (rootResolution.kind === "open-project") {
+        if (!projectSwitching) {
+          void selectProject(rootResolution.projectId, false).catch(() => {
             setRouteError(true);
           });
         }
         return;
       }
 
-      const rememberedId = readLastDocumentId(project.id);
-      const nextId =
-        rememberedId && project.getDocument(rememberedId)
-          ? rememberedId
-          : project.listDocuments()[0]?.id ?? null;
+      if (rootResolution.kind === "empty") return;
 
-      setSelectedId(nextId);
-      writeLastDocumentId(project.id, nextId);
+      setSelectedId(rootResolution.documentId);
+      writeLastDocumentId(
+        rootResolution.projectId,
+        rootResolution.documentId,
+      );
       setMainView("note");
       setTrashDocumentId(null);
       replaceRoute(
-        nextId ? buildDocumentUrl(project.id, nextId) : buildProjectUrl(project.id),
+        rootResolution.documentId
+          ? buildDocumentUrl(
+              rootResolution.projectId,
+              rootResolution.documentId,
+            )
+          : buildProjectUrl(rootResolution.projectId),
       );
       return;
     }
