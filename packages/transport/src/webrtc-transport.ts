@@ -365,28 +365,28 @@ export class WebRtcTransport implements Transport {
   }
 
   async waitForPendingSends(timeoutMs = 1_000): Promise<void> {
-    const channel = this.#dataChannel;
+    const dataChannel = this.#dataChannel;
     if (
-      !channel ||
-      channel.readyState !== "open" ||
-      channel.bufferedAmount === 0
+      !dataChannel ||
+      dataChannel.readyState !== "open" ||
+      dataChannel.bufferedAmount === 0
     ) {
       return;
     }
 
     await new Promise<void>((resolve) => {
       let finished = false;
-      const previousThreshold = channel.bufferedAmountLowThreshold;
-      channel.bufferedAmountLowThreshold = 0;
+      const previousThreshold = dataChannel.bufferedAmountLowThreshold;
+      dataChannel.bufferedAmountLowThreshold = 0;
 
       const timeout = setTimeout(finish, timeoutMs);
       const onBufferedAmountLow = () => finish();
       const onClose = () => finish();
 
-      channel.addEventListener("bufferedamountlow", onBufferedAmountLow);
-      channel.addEventListener("close", onClose);
+      dataChannel.addEventListener("bufferedamountlow", onBufferedAmountLow);
+      dataChannel.addEventListener("close", onClose);
 
-      if (channel.bufferedAmount === 0) {
+      if (dataChannel.bufferedAmount === 0) {
         finish();
       }
 
@@ -394,10 +394,13 @@ export class WebRtcTransport implements Transport {
         if (finished) return;
         finished = true;
         clearTimeout(timeout);
-        channel.removeEventListener("bufferedamountlow", onBufferedAmountLow);
-        channel.removeEventListener("close", onClose);
-        if (channel.readyState !== "closed") {
-          channel.bufferedAmountLowThreshold = previousThreshold;
+        dataChannel.removeEventListener(
+          "bufferedamountlow",
+          onBufferedAmountLow,
+        );
+        dataChannel.removeEventListener("close", onClose);
+        if (dataChannel.readyState !== "closed") {
+          dataChannel.bufferedAmountLowThreshold = previousThreshold;
         }
         resolve();
       }
