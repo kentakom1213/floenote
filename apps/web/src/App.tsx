@@ -65,9 +65,7 @@ import {
   buildProjectUrl,
   buildTrashDocumentUrl,
   buildTrashUrl,
-  navigate,
   parseLocation,
-  replace,
   type BrowserRoute,
 } from "./browser-route.js";
 import { createConsoleDebugLogger } from "./debug.js";
@@ -302,6 +300,18 @@ function NoteApp({
   const [browserRoute, setBrowserRoute] = useState<BrowserRoute>(parseLocation);
   const [routeError, setRouteError] = useState(false);
   const [trashDocumentId, setTrashDocumentId] = useState<DocumentId | null>(null);
+
+  const pushRoute = useCallback((url: string): void => {
+    window.history.pushState(null, "", url);
+    setRouteError(false);
+    setBrowserRoute(parseLocation());
+  }, []);
+
+  const replaceRoute = useCallback((url: string): void => {
+    window.history.replaceState(null, "", url);
+    setRouteError(false);
+    setBrowserRoute(parseLocation());
+  }, []);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -846,31 +856,143 @@ function NoteApp({
     setFocusTitleDocumentId(null);
 
     const { project: loadedProject, isNew } = openedProject;
-    const summaries = loadedProject.listDocuments();
+    if (!isNew) return;
 
-    if (isNew) {
-      const document = loadedProject.createDocument("Welcome to Floe Note");
-      setSelectedId(document.id);
-      writeLastDocumentId(loadedProject.id, document.id);
+    const document = loadedProject.createDocument("Welcome to Floe Note");
+    setSelectedId(document.id);
+    writeLastDocumentId(loadedProject.id, document.id);
+
+    if (
+      browserRoute.kind === "project" &&
+      browserRoute.projectId === loadedProject.id
+    ) {
+      replaceRoute(buildDocumentUrl(loadedProject.id, document.id));
+    }
+  }, [browserRoute, openedProject, replaceRoute]);
+
+  useEffect(() => {
+    if (deviceVaultState !== "unlocked" || !projectCatalogReady) return;
+
+    if (browserRoute.kind === "not-found") {
+      setRouteError(true);
       return;
     }
 
-    const explicitDocumentId =
-      browserRoute.kind === "document" &&
-      browserRoute.projectId === loadedProject.id &&
-      loadedProject.getDocument(browserRoute.documentId)
-        ? browserRoute.documentId
-        : null;
-    const rememberedId = readLastDocumentId(loadedProject.id);
-    const nextSelectedId =
-      explicitDocumentId ??
-      (rememberedId && loadedProject.getDocument(rememberedId)
-        ? rememberedId
-        : summaries[0]?.id ?? null);
+    if (browserRoute.kind === "invitation") return;
 
-    setSelectedId(nextSelectedId);
-    writeLastDocumentId(loadedProject.id, nextSelectedId);
-  }, [openedProject]);
+    if (browserRoute.kind === "device-settings") {
+      setRouteError(false);
+      setMainView("app-settings");
+      setTrashDocumentId(null);
+      return;
+    }
+
+    if (browserRoute.kind === "root") {
+      setRouteError(false);
+      if (!project) return;
+
+      const rememberedId = readLastDocumentId(project.id);
+      const nextId =
+        rememberedId && project.getDocument(rememberedId)
+          ? rememberedId
+          : project.listDocuments()[0]?.id ?? null;
+
+      setSelectedId(nextId);
+      writeLastDocumentId(project.id, nextId);
+      setMainView("note");
+      setTrashDocumentId(null);
+      replaceRoute(
+        nextId ? buildDocumentUrl(project.id, nextId) : buildProjectUrl(project.id),
+      );
+      return;
+    }
+
+    const requestedProjectId = projectIdFromRoute(browserRoute);
+    if (!requestedProjectId) return;
+
+    if (!projectSummaries.some((summary) => summary.id === requestedProjectId)) {
+      setRouteError(true);
+      return;
+    }
+
+    if (!project || requestedProjectId !== project.id) {
+      setRouteError(false);
+      if (!projectSwitching) {
+        void selectProject(requestedProjectId, false).catch(() => {
+          setRouteError(true);
+        });
+      }
+      return;
+    }
+
+    setRouteError(false);
+
+    if (browserRoute.kind === "project") {
+      const rememberedId = readLastDocumentId(project.id);
+      const nextId =
+        rememberedId && project.getDocument(rememberedId)
+          ? rememberedId
+          : project.listDocuments()[0]?.id ?? null;
+
+      setSelectedId(nextId);
+      writeLastDocumentId(project.id, nextId);
+      setMainView("note");
+      setTrashDocumentId(null);
+
+      if (nextId) {
+        replaceRoute(buildDocumentUrl(project.id, nextId));
+      }
+      return;
+    }
+
+    if (browserRoute.kind === "project-settings") {
+      setMainView("project-settings");
+      setTrashDocumentId(null);
+      return;
+    }
+
+    if (browserRoute.kind === "trash") {
+      setMainView("trash");
+      setTrashDocumentId(null);
+      return;
+    }
+
+    if (browserRoute.kind === "trash-document") {
+      if (!project.getDeletedDocument(browserRoute.documentId)) {
+        setRouteError(true);
+        return;
+      }
+
+      setMainView("trash");
+      setTrashDocumentId(browserRoute.documentId);
+      return;
+    }
+
+    if (browserRoute.kind === "document") {
+      if (project.getDocument(browserRoute.documentId)) {
+        setSelectedId(browserRoute.documentId);
+        writeLastDocumentId(project.id, browserRoute.documentId);
+        setMainView("note");
+        setTrashDocumentId(null);
+        return;
+      }
+
+      if (project.getDeletedDocument(browserRoute.documentId)) {
+        replaceRoute(buildTrashDocumentUrl(project.id, browserRoute.documentId));
+        return;
+      }
+
+      setRouteError(true);
+    }
+  }, [
+    browserRoute,
+    deviceVaultState,
+    project,
+    projectCatalogReady,
+    projectSummaries,
+    projectSwitching,
+    replaceRoute,
+  ]);
 
   if (loadError) {
     return (
@@ -886,7 +1008,7 @@ function NoteApp({
       <main className="empty-state">
         <h1>Page not found</h1>
         <p>This Project or note is not available on this device.</p>
-        <button type="button" onClick={() => navigate("/")}>
+        <button type="button" onClick={() => pushRoute("/")}>
           Go to Floe Note
         </button>
       </main>
@@ -959,106 +1081,6 @@ function NoteApp({
     ? activeProject.getDocument(selectedId)
     : undefined;
 
-  useEffect(() => {
-    if (deviceVaultState !== "unlocked" || !projectCatalogReady) return;
-
-    if (browserRoute.kind === "not-found") {
-      setRouteError(true);
-      return;
-    }
-
-    if (browserRoute.kind === "device-settings") {
-      setMainView("app-settings");
-      setTrashDocumentId(null);
-      return;
-    }
-
-    if (browserRoute.kind === "root") {
-      setMainView("note");
-      setTrashDocumentId(null);
-      if (selectedId) {
-        replace(buildDocumentUrl(activeProject.id, selectedId));
-      } else {
-        replace(buildProjectUrl(activeProject.id));
-      }
-      return;
-    }
-
-    const requestedProjectId = projectIdFromRoute(browserRoute);
-    if (!requestedProjectId) return;
-
-    if (!projectSummaries.some((summary) => summary.id === requestedProjectId)) {
-      setRouteError(true);
-      return;
-    }
-
-    if (requestedProjectId !== activeProject.id) {
-      void selectProject(requestedProjectId, false).catch(() => setRouteError(true));
-      return;
-    }
-
-    setRouteError(false);
-
-    if (browserRoute.kind === "project") {
-      const rememberedId = readLastDocumentId(activeProject.id);
-      const nextId =
-        rememberedId && activeProject.getDocument(rememberedId)
-          ? rememberedId
-          : activeProject.listDocuments()[0]?.id ?? null;
-      setSelectedId(nextId);
-      setMainView("note");
-      setTrashDocumentId(null);
-      if (nextId) replace(buildDocumentUrl(activeProject.id, nextId));
-      return;
-    }
-
-    if (browserRoute.kind === "project-settings") {
-      setMainView("project-settings");
-      setTrashDocumentId(null);
-      return;
-    }
-
-    if (browserRoute.kind === "trash") {
-      setMainView("trash");
-      setTrashDocumentId(null);
-      return;
-    }
-
-    if (browserRoute.kind === "trash-document") {
-      if (!activeProject.getDeletedDocument(browserRoute.documentId)) {
-        setRouteError(true);
-        return;
-      }
-      setMainView("trash");
-      setTrashDocumentId(browserRoute.documentId);
-      return;
-    }
-
-    if (browserRoute.kind === "document") {
-      if (activeProject.getDocument(browserRoute.documentId)) {
-        setSelectedId(browserRoute.documentId);
-        writeLastDocumentId(activeProject.id, browserRoute.documentId);
-        setMainView("note");
-        setTrashDocumentId(null);
-        return;
-      }
-
-      if (activeProject.getDeletedDocument(browserRoute.documentId)) {
-        replace(buildTrashDocumentUrl(activeProject.id, browserRoute.documentId));
-        return;
-      }
-
-      setRouteError(true);
-    }
-  }, [
-    activeProject,
-    browserRoute,
-    deviceVaultState,
-    projectCatalogReady,
-    projectSummaries,
-    selectedId,
-  ]);
-
   async function adoptDeviceVaultSession(
     session: DeviceVaultSession,
   ): Promise<void> {
@@ -1069,12 +1091,34 @@ function NoteApp({
     }
 
     const summaries = await projectStorage.listProjects(session);
-    const requestedProjectId = projectIdFromRoute(browserRoute);
+    const requestedRoute = parseLocation();
+    setBrowserRoute(requestedRoute);
+    const requestedProjectId = projectIdFromRoute(requestedRoute);
     let result: OpenedProject | null = null;
 
-    if (requestedProjectId) {
+    if (requestedRoute.kind === "not-found") {
+      setRouteError(true);
+    } else if (requestedProjectId) {
       if (summaries.some((summary) => summary.id === requestedProjectId)) {
         result = await projectStorage.openProject(requestedProjectId, session);
+
+        if (
+          requestedRoute.kind === "document" &&
+          !result.project.getDocument(requestedRoute.documentId)
+        ) {
+          if (result.project.getDeletedDocument(requestedRoute.documentId)) {
+            replaceRoute(
+              buildTrashDocumentUrl(requestedProjectId, requestedRoute.documentId),
+            );
+          } else {
+            setRouteError(true);
+          }
+        } else if (
+          requestedRoute.kind === "trash-document" &&
+          !result.project.getDeletedDocument(requestedRoute.documentId)
+        ) {
+          setRouteError(true);
+        }
       } else {
         setRouteError(true);
       }
@@ -1186,7 +1230,7 @@ function NoteApp({
     projectId: ProjectId,
     updateHistory = true,
   ): Promise<void> {
-    if (projectId === activeProject.id || projectSwitching) return;
+    if (projectId === project?.id || projectSwitching) return;
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
@@ -1201,12 +1245,12 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      if (updateHistory) navigate(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
       );
       setProjectCatalogReady(true);
+      if (updateHistory) pushRoute(buildProjectUrl(result.project.id));
     } finally {
       setProjectSwitching(false);
     }
@@ -1228,7 +1272,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      navigate(buildProjectUrl(result.project.id));
+      pushRoute(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1260,7 +1304,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      navigate(buildProjectUrl(result.project.id));
+      pushRoute(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1294,7 +1338,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      navigate(buildProjectUrl(result.project.id));
+      pushRoute(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1834,7 +1878,7 @@ function NoteApp({
     setFocusTitleDocumentId(document.id);
     writeLastDocumentId(activeProject.id, document.id);
     setMainView("note");
-    navigate(buildDocumentUrl(activeProject.id, document.id));
+    pushRoute(buildDocumentUrl(activeProject.id, document.id));
   }
 
   function deleteDocument(documentId: DocumentId) {
@@ -1858,7 +1902,7 @@ function NoteApp({
     setSelectedId(nextId);
     setFocusTitleDocumentId(null);
     writeLastDocumentId(activeProject.id, nextId);
-    replace(
+    replaceRoute(
       nextId
         ? buildDocumentUrl(activeProject.id, nextId)
         : buildProjectUrl(activeProject.id),
@@ -1945,7 +1989,7 @@ function NoteApp({
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       onOpenProjectSettings={() => {
         setMainView("project-settings");
-        navigate(buildProjectSettingsUrl(activeProject.id));
+        pushRoute(buildProjectSettingsUrl(activeProject.id));
       }}
     />
   );
@@ -2082,6 +2126,7 @@ function NoteApp({
 
   function openProjectDeviceSettings(): void {
     setMainView("project-settings");
+    pushRoute(buildProjectSettingsUrl(activeProject.id));
     window.setTimeout(() => {
       document
         .getElementById("project-devices")
@@ -2106,7 +2151,7 @@ function NoteApp({
           type="button"
           onClick={() => {
             setMainView("app-settings");
-            navigate("/settings");
+            pushRoute("/settings");
           }}
         >
           Settings
@@ -2133,7 +2178,7 @@ function NoteApp({
         setFocusTitleDocumentId(null);
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
-        navigate(buildDocumentUrl(activeProject.id, documentId));
+        pushRoute(buildDocumentUrl(activeProject.id, documentId));
       }}
       onRenameDocument={(title) => {
         if (selectedDocument) {
@@ -2151,27 +2196,25 @@ function NoteApp({
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
         setTrashDocumentId(null);
-        replace(buildDocumentUrl(activeProject.id, documentId));
+        replaceRoute(buildDocumentUrl(activeProject.id, documentId));
       }}
       onPurgeDocument={(documentId) => {
         activeProject.purgeDocument(documentId);
         if (trashDocumentId === documentId) {
           setTrashDocumentId(null);
-          replace(buildTrashUrl(activeProject.id));
+          replaceRoute(buildTrashUrl(activeProject.id));
         }
       }}
       onOpenTrash={() => {
         setFocusTitleDocumentId(null);
         setMainView("trash");
-        if (browserRoute.kind !== "trash-document") {
-          navigate(buildTrashUrl(activeProject.id));
-        }
+        pushRoute(buildTrashUrl(activeProject.id));
       }}
       onSelectTrashDocument={(documentId) => {
         setMainView("trash");
         setTrashDocumentId(documentId);
         if (documentId) {
-          navigate(buildTrashDocumentUrl(activeProject.id, documentId));
+          pushRoute(buildTrashDocumentUrl(activeProject.id, documentId));
         }
       }}
     />
