@@ -110,12 +110,3 @@ export function buildTrashDocumentUrl(
   return `${buildTrashUrl(projectId)}/${documentId}`;
 }
 
-export function navigate(url: string): void {
-  window.history.pushState(null, "", url);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-}
-
-export function replace(url: string): void {
-  window.history.replaceState(null, "", url);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-}
