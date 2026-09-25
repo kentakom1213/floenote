@@ -262,9 +262,9 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --title "Release $COMPONENT v$VERSION" \
-            --body "Automated release PR for `$COMPONENT` v$VERSION.
+            --body "Automated release PR for $COMPONENT v$VERSION.
 
-This PR only bumps `$PACKAGE_PATH`. Merge it after the normal CI checks pass. Merging this PR triggers tag creation and production deployment.")"
+This PR only bumps $PACKAGE_PATH. Merge it after the normal CI checks pass. Merging this PR triggers tag creation and production deployment.")"
 
           if gh label list --limit 100 --json name --jq '.[].name' | grep -Fxq "release"; then
             gh pr edit "$pr_url" --add-label release
