@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NoteWorkspace } from "../src/NoteWorkspace.js";
 
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 vi.mock("../src/MarkdownPreview.js", () => ({
   MarkdownPreview: ({ document }: { document: NoteDocument }) =>
     createElement("div", null, document.bodyText),
@@ -68,7 +70,7 @@ function renderTrashWorkspace(
 describe("NoteWorkspace routing callbacks", () => {
   it("normalizes an omitted Trash route selection instead of passing undefined to the domain", () => {
     const project = NoteProject.create();
-    const document = project.createDocument("Active");
+    const activeDocument = project.createDocument("Active");
 
     container = document.createElement("div");
     document.body.append(container);
@@ -79,8 +81,8 @@ describe("NoteWorkspace routing callbacks", () => {
         root?.render(
           createElement(NoteWorkspace, {
             project,
-            selectedId: document.id,
-            selectedDocument: document,
+            selectedId: activeDocument.id,
+            selectedDocument: activeDocument,
             projectControl: createElement("div"),
             sidebarFooter: createElement("div"),
             trashActive: false,
