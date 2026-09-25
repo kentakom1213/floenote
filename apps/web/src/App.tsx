@@ -2165,6 +2165,7 @@ function NoteApp({
         }
       }}
       onSelectTrashDocument={(documentId) => {
+        setMainView("trash");
         setTrashDocumentId(documentId);
         if (documentId) {
           navigate(buildTrashDocumentUrl(activeProject.id, documentId));
