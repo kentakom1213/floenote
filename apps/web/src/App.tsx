@@ -1201,12 +1201,12 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
+      if (updateHistory) navigate(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
       );
       setProjectCatalogReady(true);
-      if (updateHistory) navigate(buildProjectUrl(result.project.id));
     } finally {
       setProjectSwitching(false);
     }
@@ -1228,6 +1228,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
+      navigate(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1259,6 +1260,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
+      navigate(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1292,6 +1294,7 @@ function NoteApp({
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
       setMainView("note");
+      navigate(buildProjectUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
