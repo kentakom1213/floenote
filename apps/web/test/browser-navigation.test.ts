@@ -9,6 +9,8 @@ import {
   type BrowserNavigation,
 } from "../src/browser-navigation.js";
 
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 const PROJECT_ID = "0199a000-0000-7000-8000-000000000001";
 const DOCUMENT_A = "0199a000-0000-7000-8000-000000000002";
 const DOCUMENT_B = "0199a000-0000-7000-8000-000000000003";
