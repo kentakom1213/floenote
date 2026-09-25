@@ -281,4 +281,31 @@ describe("ProjectSyncEngine", () => {
     leftEngine.stop();
     rightEngine.stop();
   });
+
+  it("reports initial remote full-state completion after applying the remote state", () => {
+    const source = NoteProject.create();
+    source.createDocument("Bootstrap note");
+    const joined = NoteProject.create(source.id);
+    const [sourceTransport, joinedTransport] = createTransportPair();
+    let completionCount = 0;
+
+    const sourceEngine = new ProjectSyncEngine(source, sourceTransport);
+    const joinedEngine = new ProjectSyncEngine(joined, joinedTransport, {
+      onInitialRemoteStateReceived: () => {
+        completionCount += 1;
+      },
+    });
+
+    sourceEngine.start();
+    joinedEngine.start();
+
+    expect(completionCount).toBe(1);
+    expect(joined.listDocuments().map(({ title }) => title)).toContain(
+      "Bootstrap note",
+    );
+
+    sourceEngine.stop();
+    joinedEngine.stop();
+  });
+
 });

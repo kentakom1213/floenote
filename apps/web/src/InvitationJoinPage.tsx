@@ -14,6 +14,10 @@ import {
 } from "@floe-note/pairing";
 import type { ProjectStorage } from "@floe-note/storage";
 import {
+  EncryptedSyncTransport,
+  ProjectSyncEngine,
+} from "@floe-note/sync";
+import {
   WebRtcTransport,
   type WebRtcStatus,
 } from "@floe-note/transport/webrtc";
@@ -50,7 +54,10 @@ type InvitationJoinPageProps = {
   pairingSecret: string | null;
   storage: ProjectStorage;
   turnCredentialEndpoint: string | null;
-  onSessionHandoff: (session: DeviceVaultSession) => void;
+  onSessionHandoff: (
+    session: DeviceVaultSession,
+    projectId: import("@floe-note/domain").ProjectId,
+  ) => void;
 };
 
 type JoinVaultState =
@@ -94,6 +101,9 @@ export function InvitationJoinPage({
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [deviceId, setDeviceId] = useState<DeviceId | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialSyncState, setInitialSyncState] = useState<
+    "waiting" | "syncing" | "persisting" | "ready" | "error"
+  >("waiting");
 
   useEffect(() => {
     let cancelled = false;
@@ -131,9 +141,13 @@ export function InvitationJoinPage({
 
     let disposed = false;
     let cleanup: (() => void) | null = null;
+    let joinedSyncEngine: ProjectSyncEngine | null = null;
+    let stopJoinedPersistence: (() => void) | null = null;
+    let bootstrapCompletionStarted = false;
 
     setClaimState("claiming");
     setPairingState("connecting");
+    setInitialSyncState("waiting");
     setError(null);
 
     void (async () => {
@@ -172,13 +186,26 @@ export function InvitationJoinPage({
         });
         const stopSignalingState =
           signaling.onConnectionStateChange(setSignalingState);
+        let cleanedUp = false;
 
         cleanup = () => {
+          if (cleanedUp) return;
+          cleanedUp = true;
           abortPairing.abort();
           stopSignalingState();
           signaling.stop();
+
+          const syncEngine = joinedSyncEngine;
+          joinedSyncEngine = null;
+          stopJoinedPersistence?.();
+          stopJoinedPersistence = null;
           stopTransportStatus();
-          transport.close();
+
+          if (syncEngine) {
+            syncEngine.stop();
+          } else {
+            transport.close();
+          }
         };
 
         signaling.start();
@@ -208,11 +235,93 @@ export function InvitationJoinPage({
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
-            await storage.initializeJoinedProject(
+            const joinedProject = await storage.initializeJoinedProject(
               securityState.projectId,
               session,
               securityState.keyEpoch,
             );
+
+            stopJoinedPersistence = storage.watchProject(
+              joinedProject,
+              session,
+              securityState.keyEpoch,
+            );
+
+            const encryptedTransport = new EncryptedSyncTransport(
+              transport,
+              {
+                encrypt: (plaintext) =>
+                  session.encryptProjectSyncPayload(
+                    securityState.projectId,
+                    securityState.keyEpoch,
+                    plaintext,
+                  ),
+                decrypt: (envelope) =>
+                  session.decryptProjectSyncPayload(
+                    securityState.projectId,
+                    securityState.keyEpoch,
+                    envelope,
+                  ),
+              },
+              {
+                onError: (syncError, direction) => {
+                  if (disposed) return;
+                  setInitialSyncState("error");
+                  setError(
+                    `Encrypted initial sync ${direction} failed: ${syncError.message}`,
+                  );
+                },
+              },
+            );
+
+            joinedSyncEngine = new ProjectSyncEngine(
+              joinedProject,
+              encryptedTransport,
+              {
+                debugLogger: createConsoleDebugLogger(
+                  "invite-join-encrypted-sync",
+                ),
+                onInitialRemoteStateReceived: () => {
+                  if (disposed || bootstrapCompletionStarted) return;
+                  bootstrapCompletionStarted = true;
+                  setInitialSyncState("persisting");
+
+                  void (async () => {
+                    try {
+                      await storage.flushPendingWrites();
+                      await storage.completeJoinedProjectBootstrap(
+                        securityState.projectId,
+                      );
+                      if (disposed) return;
+
+                      setInitialSyncState("ready");
+                      cleanup?.();
+                      cleanup = null;
+
+                      handoffDeviceVaultSession(
+                        vaultSessionRef,
+                        (handoffSession) =>
+                          onSessionHandoff(
+                            handoffSession,
+                            securityState.projectId,
+                          ),
+                      );
+                    } catch (syncError: unknown) {
+                      bootstrapCompletionStarted = false;
+                      if (disposed) return;
+                      setInitialSyncState("error");
+                      setError(
+                        syncError instanceof Error
+                          ? `Failed to persist initial Project sync: ${syncError.message}`
+                          : "Failed to persist initial Project sync",
+                      );
+                    }
+                  })();
+                },
+              },
+            );
+            joinedSyncEngine.start();
+            setInitialSyncState("syncing");
           },
         });
         void deliveryPromise.catch(() => undefined);
@@ -236,14 +345,6 @@ export function InvitationJoinPage({
         if (disposed) return;
 
         setPairingState("key-stored");
-
-        await transport.waitForPendingSends();
-        if (disposed) return;
-
-        cleanup?.();
-        cleanup = null;
-
-        handoffDeviceVaultSession(vaultSessionRef, onSessionHandoff);
       } catch (caught: unknown) {
         cleanup?.();
         cleanup = null;
@@ -349,10 +450,25 @@ export function InvitationJoinPage({
 
   const progressCopy =
     pairingState === "key-stored"
-      ? {
-          title: "Device added",
-          detail: "Project access is ready. Opening Floe Note…",
-        }
+      ? initialSyncState === "persisting"
+        ? {
+            title: "Saving Project",
+            detail: "Initial sync is complete. Saving it on this device…",
+          }
+        : initialSyncState === "ready"
+          ? {
+              title: "Device added",
+              detail: "Project is ready. Opening Floe Note…",
+            }
+          : initialSyncState === "error"
+            ? {
+                title: "Could not finish setup",
+                detail: error ?? "Initial Project sync could not be completed.",
+              }
+            : {
+                title: "Syncing Project",
+                detail: "Downloading the initial Project state…",
+              }
       : pairingState === "identity-sent"
         ? {
             title: "Waiting for approval",
@@ -522,6 +638,10 @@ export function InvitationJoinPage({
             <div>
               <dt>Data channel</dt>
               <dd>{webRtcStatus.dataChannelState}</dd>
+            </div>
+            <div>
+              <dt>Initial sync</dt>
+              <dd>{initialSyncState}</dd>
             </div>
           </dl>
         </details>

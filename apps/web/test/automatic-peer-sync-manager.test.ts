@@ -400,6 +400,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     await flushConnectionCleanup();
     const transport = harness.FakeWebRtcTransport.instances[0];
     transport?.emit("connected");
+    transport?.emitDataChannel("open");
     transport?.emit("disconnected");
 
     await vi.advanceTimersByTimeAsync(
@@ -470,6 +471,7 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
 
     const retried = harness.FakeWebRtcTransport.instances[1];
     retried?.emit("connected");
+    retried?.emitDataChannel("open");
     retried?.emit("failed");
     await flushConnectionCleanup();
 

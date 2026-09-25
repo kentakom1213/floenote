@@ -27,8 +27,9 @@ describe("Device Vault session ownership", () => {
     expect(owner.current).toBeNull();
   });
 
-  it("restores ownership when the receiver rejects the handoff", () => {
-    const session = fakeSession();
+  it("restores ownership when the receiver rejects the handoff", async () => {
+    const close = vi.fn(async () => undefined);
+    const session = fakeSession(close);
     const owner: DeviceVaultSessionOwner = { current: session };
 
     expect(() =>
@@ -38,6 +39,10 @@ describe("Device Vault session ownership", () => {
     ).toThrow("receiver failed");
 
     expect(owner.current).toBe(session);
+
+    await closeOwnedDeviceVaultSession(owner);
+    await closeOwnedDeviceVaultSession(owner);
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("closes an untransferred session once and clears ownership before close", async () => {

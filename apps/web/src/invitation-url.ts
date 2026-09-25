@@ -1,3 +1,5 @@
+import type { ProjectId } from "@floe-note/domain";
+
 const INVITATION_PATH_PATTERN = /^\/join\/v1\/[0-9a-f]{32}$/iu;
 const INVALID_INVITATION_MESSAGE = "Paste a valid Floe Note invitation link.";
 
@@ -25,9 +27,9 @@ export function parseInvitationUrl(
   return url;
 }
 
-
-export function clearInvitationUrl(
+export function replaceInvitationUrlWithProject(
   history: Pick<History, "replaceState">,
+  projectId: ProjectId,
 ): void {
-  history.replaceState(null, "", "/");
+  history.replaceState(null, "", `/p/${projectId}`);
 }

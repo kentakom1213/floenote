@@ -49,7 +49,10 @@ import {
   DexieProjectStorage,
   type StoredProjectSummary,
 } from "@floe-note/storage";
-import { ProjectSyncEngine } from "@floe-note/sync";
+import {
+  EncryptedSyncTransport,
+  ProjectSyncEngine,
+} from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
   WebAuthnPrfDeviceVault,
@@ -72,7 +75,7 @@ import {
   closeOwnedDeviceVaultSession,
   type DeviceVaultSessionOwner,
 } from "./device-vault-session-owner.js";
-import { clearInvitationUrl } from "./invitation-url.js";
+import { replaceInvitationUrlWithProject } from "./invitation-url.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
 import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
@@ -123,24 +126,30 @@ const useManualWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "signal";
-const initialInvitationHostRequested = searchParams.get("transport") === "invite";
+const initialInvitationHostRequested =
+  searchParams.get("transport") === "invite";
 const INVITATION_ICE_RESTART_RETRY_DELAYS_MS = [5_000, 5_000] as const;
 const useAutomaticReconnect = !useManualWebRtc && !useSignaledWebRtc;
 const useManualWebRtcJoin =
   legacyDebugRoutesEnabled && searchParams.get("join") === "webrtc";
 const useSignaledWebRtcJoin =
   legacyDebugRoutesEnabled && searchParams.get("join") === "signal";
+
 function readInvitationJoinRoute(): {
   inviteId: string;
   pairingSecret: string | null;
 } | null {
-  const match = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(window.location.pathname);
+  const match = /^\/join\/v1\/([0-9a-f]{32})$/i.exec(
+    window.location.pathname,
+  );
   const inviteId = match?.[1];
   if (!inviteId) return null;
 
   return {
     inviteId,
-    pairingSecret: new URLSearchParams(window.location.hash.slice(1)).get("s"),
+    pairingSecret: new URLSearchParams(
+      window.location.hash.slice(1),
+    ).get("s"),
   };
 }
 const coordinatorBaseUrl =
@@ -171,12 +180,15 @@ export function App() {
     };
   }, []);
 
-  function handoffJoinedDeviceVaultSession(session: DeviceVaultSession): void {
+  function handoffJoinedDeviceVaultSession(
+    session: DeviceVaultSession,
+    projectId: ProjectId,
+  ): void {
     if (deviceVaultSessionOwner.current) {
       throw new Error("A Device Vault session is already active");
     }
 
-    clearInvitationUrl(window.history);
+    replaceInvitationUrlWithProject(window.history, projectId);
     deviceVaultSessionOwner.current = session;
     setInvitationJoinRoute(null);
   }
@@ -253,6 +265,7 @@ function NoteApp({
   );
   const deviceVaultSessionRef = deviceVaultSessionOwner;
   const securityMutationInFlightRef = useRef(false);
+  const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -595,6 +608,8 @@ function NoteApp({
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
     setProjectKeyDeliveryState("waiting");
+    invitationSyncEngineRef.current?.stop();
+    invitationSyncEngineRef.current = null;
 
     if (invitationHostActive) {
       let disposed = false;
@@ -629,12 +644,21 @@ function NoteApp({
           });
           const stopSignalingState =
             signaling.onConnectionStateChange(setSignalingState);
-
+          let cleanedUp = false;
           cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
             abortPairing.abort();
             stopSignalingState();
             signaling.stop();
-            transport.close();
+
+            const syncEngine = invitationSyncEngineRef.current;
+            invitationSyncEngineRef.current = null;
+            if (syncEngine) {
+              syncEngine.stop();
+            } else {
+              transport.close();
+            }
             invitationTransport = null;
           };
 
@@ -760,6 +784,37 @@ function NoteApp({
     project,
     signalSessionId,
     turnCredentialEndpoint,
+  ]);
+
+  useEffect(() => {
+    if (
+      !invitationHostActive ||
+      projectKeyDeliveryState !== "delivered" ||
+      !webRtcTransport
+    ) {
+      return;
+    }
+
+    if (webRtcTransport.dataChannelState === "closed") {
+      exitInvitationHost(true);
+      return;
+    }
+
+    let dataChannelWasOpen = webRtcTransport.dataChannelState === "open";
+    return webRtcTransport.onStatusChange((status) => {
+      if (status.dataChannelState === "open") {
+        dataChannelWasOpen = true;
+        return;
+      }
+
+      if (dataChannelWasOpen && status.dataChannelState === "closed") {
+        exitInvitationHost(true);
+      }
+    });
+  }, [
+    invitationHostActive,
+    projectKeyDeliveryState,
+    webRtcTransport,
   ]);
 
   useEffect(() => {
@@ -1192,11 +1247,16 @@ function NoteApp({
     setCoordinationError(null);
   }
 
-  function exitInvitationHost(): void {
+  function exitInvitationHost(refreshSecurity = false): void {
     if (initialInvitationHostRequested) {
       window.history.replaceState(null, "", "/");
     }
+    if (refreshSecurity) {
+      setSecurityRefreshToken((value) => value + 1);
+    }
     setInvitationHostActive(false);
+    setWebRtcTransport(null);
+    setSignalingState("idle");
     setMainView("project-settings");
   }
 
@@ -1539,7 +1599,7 @@ function NoteApp({
         sealedEnvelope,
       });
 
-      setProjectKeyDeliveryState("delivered");
+      startInvitationEncryptedSync(committedState);
 
       try {
         await new InvitationClient(coordinatorBaseUrl).consumeInvite(
@@ -1553,14 +1613,58 @@ function NoteApp({
         );
       }
 
-      setSecurityRefreshToken((value) => value + 1);
-      exitInvitationHost();
+      setProjectKeyDeliveryState("delivered");
     } catch (error: unknown) {
       setProjectKeyDeliveryState("error");
       setCoordinationError(
         error instanceof Error ? error.message : "Failed to deliver ProjectKey",
       );
     }
+  }
+
+  function startInvitationEncryptedSync(
+    committedState: SecurityState,
+  ): void {
+    if (invitationSyncEngineRef.current) return;
+
+    const session = deviceVaultSessionRef.current;
+    if (!session || !webRtcTransport) {
+      setCoordinationError(
+        "Vault session and WebRTC transport are required for initial sync",
+      );
+      return;
+    }
+
+    const encryptedTransport = new EncryptedSyncTransport(
+      webRtcTransport,
+      {
+        encrypt: (plaintext) =>
+          session.encryptProjectSyncPayload(
+            committedState.projectId,
+            committedState.keyEpoch,
+            plaintext,
+          ),
+        decrypt: (envelope) =>
+          session.decryptProjectSyncPayload(
+            committedState.projectId,
+            committedState.keyEpoch,
+            envelope,
+          ),
+      },
+      {
+        onError: (error, direction) => {
+          setCoordinationError(
+            `Encrypted initial sync ${direction} failed: ${error.message}`,
+          );
+        },
+      },
+    );
+
+    const syncEngine = new ProjectSyncEngine(activeProject, encryptedTransport, {
+      debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
+    });
+    invitationSyncEngineRef.current = syncEngine;
+    syncEngine.start();
   }
 
   function createDocument() {
@@ -1720,7 +1824,7 @@ function NoteApp({
             <button
               className="dialog-secondary-button"
               type="button"
-              onClick={exitInvitationHost}
+              onClick={() => exitInvitationHost()}
             >
               Back to Project
             </button>

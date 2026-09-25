@@ -70,6 +70,10 @@ export interface ProjectStorage {
     keyEpoch?: number,
   ): Promise<NoteProject>;
 
+  completeJoinedProjectBootstrap(projectId: ProjectId): Promise<void>;
+
+  flushPendingWrites(): Promise<void>;
+
   loadSecurityState(projectId: ProjectId): Promise<SecurityState | null>;
   saveCommittedSecurityState(state: SecurityState): Promise<void>;
 
