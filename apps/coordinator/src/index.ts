@@ -30,6 +30,8 @@ import {
   type SecurityTransitionWirePayload,
 } from "@floe-note/security";
 
+import { allocateInvitationForAuthorizedPresence } from "./invitation-authorization.js";
+
 interface Env {
   PROJECT_COORDINATOR: DurableObjectNamespace<ProjectCoordinator>;
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
@@ -118,15 +120,6 @@ export default {
           build: env.FLOE_BUILD,
         }),
       );
-    }
-
-    const createInviteProjectId = parseCreateInviteRoute(url.pathname);
-    if (createInviteProjectId) {
-      if (request.method !== "POST") {
-        return withCors(new Response("Method not allowed", { status: 405 }));
-      }
-
-      return createInvitation(env, createInviteProjectId);
     }
 
     const inviteAction = parseInviteActionRoute(url.pathname);
@@ -1024,6 +1017,30 @@ export class ProjectCoordinator extends DurableObject<Env> {
     payload: unknown,
   ): Promise<void> {
     if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "type" in payload &&
+      payload.type === "create-invitation"
+    ) {
+      if (
+        !("requestId" in payload) ||
+        typeof payload.requestId !== "number" ||
+        !Number.isSafeInteger(payload.requestId) ||
+        payload.requestId < 0
+      ) {
+        socket.close(1007, "Invalid create-invitation request");
+        return;
+      }
+
+      await this.#createInvitationForAuthorizedDevice(
+        socket,
+        attachment,
+        payload.requestId,
+      );
+      return;
+    }
+
+    if (
       typeof payload !== "object" ||
       payload === null ||
       !("type" in payload) ||
@@ -1105,6 +1122,72 @@ export class ProjectCoordinator extends DurableObject<Env> {
         return;
       }
     }
+  }
+
+  async #createInvitationForAuthorizedDevice(
+    socket: WebSocket,
+    attachment: PresenceSocketAttachment & { deviceId: string },
+    requestId: number,
+  ): Promise<void> {
+    let projectId: ProjectId;
+    let deviceId: DeviceId;
+    try {
+      projectId = parseProjectId(attachment.projectId);
+      deviceId = parseDeviceId(attachment.deviceId);
+    } catch {
+      socket.close(1008, "Invalid authorized-presence invitation identity");
+      return;
+    }
+
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) {
+      socket.close(1011, "Project SecurityState is unavailable");
+      return;
+    }
+
+    const allocation = await allocateInvitationForAuthorizedPresence(
+      state,
+      {
+        projectId,
+        deviceId,
+        securityHead: attachment.securityHead,
+      },
+      (authorizedProjectId) =>
+        createInvitation(this.env, authorizedProjectId),
+    );
+    if (allocation.kind === "stale-security-head") {
+      socket.close(1008, "SecurityState changed during authorized presence");
+      return;
+    }
+    if (allocation.kind === "unauthorized-device") {
+      socket.close(1008, "Device is not authorized for this Project");
+      return;
+    }
+
+    const response = allocation.response;
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      sendJson(socket, {
+        type: "control-error",
+        requestId,
+        message:
+          detail === "" ? "Failed to create invitation" : detail,
+      });
+      return;
+    }
+
+    const invitation = (await response.json()) as {
+      inviteId: string;
+      sessionId: string;
+      expiresAt: number;
+    };
+    sendJson(socket, {
+      type: "invitation-created",
+      requestId,
+      inviteId: invitation.inviteId,
+      sessionId: invitation.sessionId,
+      expiresAt: invitation.expiresAt,
+    });
   }
 
   #handleSocketDeparture(socket: WebSocket): void {
@@ -1369,35 +1452,24 @@ async function createInvitation(
       );
 
     if (response.ok) {
-      return withCors(
-        Response.json(
-          {
-            inviteId,
-            sessionId,
-            expiresAt,
-          },
-          { status: 201 },
-        ),
+      return Response.json(
+        {
+          inviteId,
+          sessionId,
+          expiresAt,
+        },
+        { status: 201 },
       );
     }
 
     if (response.status !== 409) {
-      return withCors(response);
+      return response;
     }
   }
 
-  return withCors(
-    new Response("Could not allocate invitation identifier", { status: 503 }),
-  );
-}
-
-function parseCreateInviteRoute(pathname: string): string | null {
-  const match = /^\/projects\/([^/]+)\/invites$/.exec(pathname);
-  if (!match) return null;
-
-  const projectId = match[1];
-  if (!projectId || !PROJECT_ID_PATTERN.test(projectId)) return null;
-  return projectId;
+  return new Response("Could not allocate invitation identifier", {
+    status: 503,
+  });
 }
 
 function parseInviteActionRoute(

@@ -240,4 +240,93 @@ describe("AuthorizedPresenceClient reconnect", () => {
 
     client.close();
   });
+  it("creates invitations over authenticated presence", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvitation();
+    expect(socket.sent).toHaveLength(2);
+
+    const request = JSON.parse(socket.sent[1]!) as {
+      type: string;
+      requestId: number;
+    };
+    expect(request.type).toBe("create-invitation");
+    expect(Number.isSafeInteger(request.requestId)).toBe(true);
+
+    socket.message({
+      type: "invitation-created",
+      requestId: request.requestId,
+      inviteId: "11111111111111111111111111111111",
+      sessionId: "22222222222222222222222222222222",
+      expiresAt: 123_456,
+    });
+
+    await expect(invitationPromise).resolves.toEqual({
+      inviteId: "11111111111111111111111111111111",
+      sessionId: "22222222222222222222222222222222",
+      expiresAt: 123_456,
+    });
+
+    client.close();
+  });
+
+  it("keeps presence open when invitation allocation fails", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvitation();
+    const request = JSON.parse(socket.sent[1]!) as {
+      requestId: number;
+    };
+
+    socket.message({
+      type: "control-error",
+      requestId: request.requestId,
+      message: "Could not allocate invitation identifier",
+    });
+
+    await expect(invitationPromise).rejects.toThrow(
+      "Could not allocate invitation identifier",
+    );
+    expect(client.state).toBe("open");
+    expect(socket.readyState).toBe(FakeWebSocket.OPEN);
+
+    client.close();
+  });
+
+  it("rejects invitation creation before presence authentication", async () => {
+    const client = createClient();
+    client.start();
+
+    await expect(client.createInvitation()).rejects.toThrow(
+      "Authorized presence WebSocket is not open",
+    );
+
+    client.close();
+  });
+
+  it("rejects a pending invitation request when presence disconnects", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvitation();
+    socket.disconnect(1006);
+
+    await expect(invitationPromise).rejects.toThrow(
+      "Authorized presence connection closed",
+    );
+
+    client.close();
+  });
+
 });

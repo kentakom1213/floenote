@@ -40,34 +40,6 @@ export class InvitationClient {
     this.#baseUrl = new URL(coordinatorBaseUrl);
   }
 
-  async createInvite(projectId: ProjectId): Promise<CreatedInvitation> {
-    const response = await fetch(
-      new URL(
-        `/projects/${encodeURIComponent(projectId)}/invites`,
-        this.#baseUrl,
-      ),
-      {
-        method: "POST",
-      },
-    );
-    await ensureOk(response);
-
-    const payload = (await response.json()) as Record<string, unknown>;
-    if (
-      typeof payload.inviteId !== "string" ||
-      typeof payload.sessionId !== "string" ||
-      typeof payload.expiresAt !== "number"
-    ) {
-      throw new Error("Coordinator returned an invalid invitation");
-    }
-
-    return {
-      inviteId: parseInviteId(payload.inviteId),
-      sessionId: parseSessionId(payload.sessionId),
-      expiresAt: payload.expiresAt,
-    };
-  }
-
   async claimInvite(
     inviteId: InviteId,
     claimId: ClaimId,

@@ -3,13 +3,57 @@ import { describe, expect, it } from "vitest";
 
 const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const joinSource = readFileSync(new URL("../src/InvitationJoinPage.tsx", import.meta.url), "utf8");
+const projectSyncSource = readFileSync(
+  new URL("../src/useProjectSync.ts", import.meta.url),
+  "utf8",
+);
 const storageSource = readFileSync(new URL("../../../packages/storage/src/dexie-project-storage.ts", import.meta.url), "utf8");
 const syncProtocolSource = readFileSync(new URL("../../../packages/sync/src/protocol.ts", import.meta.url), "utf8");
 
 describe("invitation session preservation", () => {
-  it("starts host invitation through application state", () => {
+  it("starts host invitation only through normal application state", () => {
     expect(appSource).toContain("setInvitationHostActive(true)");
     expect(appSource).not.toContain('window.location.assign("/?transport=invite")');
+    expect(appSource).not.toContain(
+      'searchParams.get("transport") === "invite"',
+    );
+    expect(appSource).not.toContain("initialInvitationHostRequested");
+
+    const hostState = appSource.slice(
+      appSource.indexOf("const [invitationHostActive"),
+      appSource.indexOf("const [invitationHost", appSource.indexOf("const [invitationHostActive") + 1),
+    );
+    expect(hostState).toContain("useState(false)");
+  });
+
+  it("keeps authorized presence alive while invitation hosting pauses peer sync", () => {
+    expect(appSource).toContain(
+      "useAutomaticReconnect && !invitationHostActive",
+    );
+
+    const presenceEffectStart = projectSyncSource.indexOf(
+      "useEffect(() => {\n    if (!project || !localDeviceId || !securityState || !vaultSession)",
+    );
+    const automaticSyncEffectStart = projectSyncSource.indexOf(
+      "useEffect(() => {",
+      presenceEffectStart + 1,
+    );
+    const presenceEffect = projectSyncSource.slice(
+      presenceEffectStart,
+      automaticSyncEffectStart,
+    );
+    const automaticSyncEffect = projectSyncSource.slice(
+      automaticSyncEffectStart,
+      projectSyncSource.indexOf("\n  return {", automaticSyncEffectStart),
+    );
+
+    expect(presenceEffectStart).toBeGreaterThanOrEqual(0);
+    expect(automaticSyncEffectStart).toBeGreaterThan(presenceEffectStart);
+    expect(presenceEffect).not.toContain("automaticReconnectEnabled");
+    expect(automaticSyncEffect).toContain("automaticReconnectEnabled");
+    expect(automaticSyncEffect).toContain(
+      "new AutomaticPeerSyncManager",
+    );
   });
 
   it("keeps the host Vault session while invitation resources are cleaned up", () => {

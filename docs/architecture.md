@@ -505,6 +505,12 @@ coordinator verifies that signature against a DeviceId in the current
 SecurityState does the socket contribute to the online-device list. The list is
 deduplicated by DeviceId and broadcast to authenticated presence sockets.
 
+The authenticated presence socket also carries Project-scoped control commands
+that require an already authorized device, including invitation creation. Before
+executing such a mutation, the coordinator reloads the current SecurityState and
+requires the socket DeviceId to remain authorized under the same security head.
+Possession of a ProjectId alone is not sufficient to allocate invitation state.
+
 Presence is ephemeral Durable Object/WebSocket state. It is not persisted as an
 authorization record and does not change SecurityState.
 
@@ -1053,7 +1059,8 @@ The invitation server issues only a rendezvous identifier. The existing authoriz
 
 ```text
 Existing device A:
-  request InviteId from coordinator
+  authenticate its Project presence
+  request InviteId over the authenticated presence channel
   generate PairingSecret locally
 ```
 
@@ -1330,6 +1337,8 @@ The initial security model assumes:
 - Cloudflare is not trusted with project plaintext or project keys.
 - Signaling/rendezvous information is not inherently trusted.
 - Peer identity is verified using the authorized device keys in SecurityState.
+- Project-scoped control-plane mutations such as invitation creation require a
+  currently authorized device; knowledge of ProjectId alone is not authority.
 - Device private keys and ProjectKeys are trusted while the Device Vault is unlocked.
 - A revoked device may retain all information it obtained before revocation.
 - Encryption at rest protects against direct extraction of stored encrypted project blobs.
