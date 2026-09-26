@@ -5475,20 +5475,17 @@ h1 {
 
 .tag-chip-label {
   min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  height: 1em;
+  display: block;
   overflow: hidden;
-  line-height: 1;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /*
- * Keep TagChip text centered through flex + line-height rather than optical
- * translateY offsets. This component is reused in Note Properties, Sidebar,
- * Trash, filters, and Global Search, so local vertical nudges easily regress
- * another surface.
+ * Let the label's line box keep enough vertical room for CJK glyph metrics.
+ * The parent flex container handles centering; forcing the label to exactly
+ * 1em high can clip Japanese text in compact sidebar chips.
  */
 .tag-chip-compact {
   min-height: 19px;
