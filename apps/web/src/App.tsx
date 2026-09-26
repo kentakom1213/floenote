@@ -137,8 +137,6 @@ const useManualWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "webrtc";
 const useSignaledWebRtc =
   legacyDebugRoutesEnabled && searchParams.get("transport") === "signal";
-const initialInvitationHostRequested =
-  searchParams.get("transport") === "invite";
 const INVITATION_ICE_RESTART_RETRY_DELAYS_MS = [5_000, 5_000] as const;
 const useAutomaticReconnect = !useManualWebRtc && !useSignaledWebRtc;
 const useManualWebRtcJoin =
@@ -262,9 +260,7 @@ function NoteApp({
   const [signalingState, setSignalingState] =
     useState<SignalingConnectionState>("idle");
   const [signalSessionId] = useState(() => createSessionId());
-  const [invitationHostActive, setInvitationHostActive] = useState(
-    initialInvitationHostRequested,
-  );
+  const [invitationHostActive, setInvitationHostActive] = useState(false);
   const [invitationHost, setInvitationHost] =
     useState<InvitationHostState | null>(null);
   const [joiningDevice, setJoiningDevice] =
@@ -1505,9 +1501,6 @@ function NoteApp({
   }
 
   function exitInvitationHost(refreshSecurity = false): void {
-    if (initialInvitationHostRequested) {
-      window.history.replaceState(null, "", "/");
-    }
     if (refreshSecurity) {
       setSecurityRefreshToken((value) => value + 1);
     }
