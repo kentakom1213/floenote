@@ -99,6 +99,7 @@ const PROJECT_ID_PATTERN =
 const SESSION_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const INVITE_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const CLAIM_ID_PATTERN = /^[0-9a-f]{32}$/i;
+const REQUEST_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const MAX_SIGNAL_MESSAGE_BYTES = 64 * 1024;
 const INVITE_TTL_MS = 10 * 60_000;
 
@@ -118,15 +119,6 @@ export default {
           build: env.FLOE_BUILD,
         }),
       );
-    }
-
-    const createInviteProjectId = parseCreateInviteRoute(url.pathname);
-    if (createInviteProjectId) {
-      if (request.method !== "POST") {
-        return withCors(new Response("Method not allowed", { status: 405 }));
-      }
-
-      return createInvitation(env, createInviteProjectId);
     }
 
     const inviteAction = parseInviteActionRoute(url.pathname);
@@ -209,6 +201,13 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 export class ProjectCoordinator extends DurableObject<Env> {
+  readonly #env: Env;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.#env = env;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const securityStateRoute = parseSecurityStateRoute(url.pathname);
@@ -1018,11 +1017,76 @@ export class ProjectCoordinator extends DurableObject<Env> {
     this.#broadcastPresenceState();
   }
 
+  async #handleCreateInviteRequest(
+    socket: WebSocket,
+    attachment: PresenceSocketAttachment & { deviceId: string },
+    requestId: string,
+  ): Promise<void> {
+    let projectId: ProjectId;
+    let deviceId: DeviceId;
+    try {
+      projectId = parseProjectId(attachment.projectId);
+      deviceId = parseDeviceId(attachment.deviceId);
+    } catch {
+      socket.close(1011, "Invalid authorized-presence identity");
+      return;
+    }
+
+    const state = await this.#loadSecurityState(projectId);
+    if (state instanceof Response) {
+      socket.close(1011, "Project SecurityState is unavailable");
+      return;
+    }
+
+    if (attachment.securityHead !== bytesToHex(state.headHash)) {
+      socket.close(1008, "SecurityState changed");
+      return;
+    }
+
+    const authorized = state.devices.some(
+      (device) => device.deviceId === deviceId,
+    );
+    if (!authorized) {
+      socket.close(1008, "Device is not authorized for this Project");
+      return;
+    }
+
+    const response = await createInvitation(this.#env, projectId);
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      sendJson(socket, {
+        type: "invite-error",
+        requestId,
+        message:
+          detail === ""
+            ? `Invitation creation failed with HTTP ${response.status}`
+            : detail,
+      });
+      return;
+    }
+
+    const invitation = (await response.json()) as {
+      inviteId: string;
+      sessionId: string;
+      expiresAt: number;
+    };
+    sendJson(socket, {
+      type: "invite-created",
+      requestId,
+      ...invitation,
+    });
+  }
+
   async #handleAuthenticatedPresenceMessage(
     socket: WebSocket,
     attachment: PresenceSocketAttachment & { deviceId: string },
     payload: unknown,
   ): Promise<void> {
+    if (isCreateInviteRequest(payload)) {
+      await this.#handleCreateInviteRequest(socket, attachment, payload.requestId);
+      return;
+    }
+
     if (
       typeof payload !== "object" ||
       payload === null ||
@@ -1391,13 +1455,18 @@ async function createInvitation(
   );
 }
 
-function parseCreateInviteRoute(pathname: string): string | null {
-  const match = /^\/projects\/([^/]+)\/invites$/.exec(pathname);
-  if (!match) return null;
-
-  const projectId = match[1];
-  if (!projectId || !PROJECT_ID_PATTERN.test(projectId)) return null;
-  return projectId;
+function isCreateInviteRequest(
+  value: unknown,
+): value is { type: "create-invite"; requestId: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "create-invite" &&
+    "requestId" in value &&
+    typeof value.requestId === "string" &&
+    REQUEST_ID_PATTERN.test(value.requestId)
+  );
 }
 
 function parseInviteActionRoute(
