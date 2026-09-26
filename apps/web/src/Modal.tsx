@@ -4,6 +4,7 @@ type ModalProps = {
   labelledBy: string;
   onClose: () => void;
   disabled?: boolean;
+  shouldRestoreFocus?: () => boolean;
   children: ReactNode;
 };
 
@@ -11,9 +12,12 @@ export function Modal({
   labelledBy,
   onClose,
   disabled = false,
+  shouldRestoreFocus = () => true,
   children,
 }: ModalProps) {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const shouldRestoreFocusRef = useRef(shouldRestoreFocus);
+  shouldRestoreFocusRef.current = shouldRestoreFocus;
 
   useEffect(() => {
     previouslyFocusedRef.current =
@@ -23,7 +27,10 @@ export function Modal({
 
     return () => {
       const previouslyFocused = previouslyFocusedRef.current;
-      if (previouslyFocused?.isConnected) {
+      if (
+        shouldRestoreFocusRef.current() &&
+        previouslyFocused?.isConnected
+      ) {
         previouslyFocused.focus();
       }
     };
