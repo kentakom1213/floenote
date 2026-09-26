@@ -91,39 +91,65 @@ const floeEditorChrome = EditorView.theme({
     overflow: "hidden",
   },
   ".cm-panels-bottom": {
-    margin: "0 12px 12px",
-    border: "1px solid var(--color-border)",
-    borderRadius: "12px",
-    overflow: "hidden",
-  },
-  ".editor-search-position-preview": {
-    position: "absolute",
-    zIndex: "30",
-    left: "12px",
-    right: "12px",
-    bottom: "12px",
-    boxSizing: "border-box",
-    border: "1px solid var(--color-border)",
-    borderRadius: "12px",
-    color: "var(--color-text)",
-    backgroundColor: "var(--color-surface)",
-    overflow: "hidden",
-    pointerEvents: "none",
-    fontFamily:
-      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
-    fontSize: "12px",
+    borderTop: "1px solid var(--color-border)",
   },
   ".cm-panel.cm-search": {
-    display: "flex",
-    flexWrap: "wrap",
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns:
+      "minmax(0, 220px) max-content max-content max-content minmax(0, 1fr)",
+    gridTemplateRows: "auto auto auto",
     alignItems: "center",
-    gap: "6px",
-    padding: "8px 36px 8px 10px",
+    columnGap: "6px",
+    rowGap: "6px",
+    padding: "10px 38px 10px 10px",
   },
   ".cm-panel.cm-search br": {
-    flexBasis: "100%",
-    width: "0",
-    height: "0",
+    display: "none",
+  },
+  ".cm-panel.cm-search [name=search]": {
+    gridColumn: "1",
+    gridRow: "1",
+  },
+  ".cm-panel.cm-search [name=next]": {
+    gridColumn: "2",
+    gridRow: "1",
+  },
+  ".cm-panel.cm-search [name=prev]": {
+    gridColumn: "3",
+    gridRow: "1",
+  },
+  ".cm-panel.cm-search [name=select]": {
+    gridColumn: "4",
+    gridRow: "1",
+  },
+  ".cm-panel.cm-search [name=replace]": {
+    gridColumn: "1",
+    gridRow: "2",
+  },
+  ".cm-panel.cm-search button[name=replace]": {
+    gridColumn: "2",
+    gridRow: "2",
+  },
+  ".cm-panel.cm-search [name=replaceAll]": {
+    gridColumn: "3 / span 2",
+    gridRow: "2",
+    justifySelf: "start",
+  },
+  ".cm-panel.cm-search label:has(input[name=case])": {
+    gridColumn: "1",
+    gridRow: "3",
+  },
+  ".cm-panel.cm-search label:has(input[name=re])": {
+    gridColumn: "2",
+    gridRow: "3",
+  },
+  ".cm-panel.cm-search label:has(input[name=word])": {
+    gridColumn: "3 / span 2",
+    gridRow: "3",
+  },
+  ".cm-panel.cm-search:not(:has(input[name=replace])) label": {
+    gridRow: "2",
   },
   ".cm-panel.cm-search label": {
     display: "inline-flex",
@@ -132,10 +158,12 @@ const floeEditorChrome = EditorView.theme({
     margin: "0",
     color: "var(--color-text-muted)",
     fontSize: "11px",
+    whiteSpace: "nowrap",
   },
   ".cm-panel.cm-search .cm-textfield": {
+    minWidth: "0",
     minHeight: "32px",
-    width: "min(220px, 42vw)",
+    width: "100%",
     maxWidth: "100%",
     boxSizing: "border-box",
     margin: "0",
@@ -145,7 +173,7 @@ const floeEditorChrome = EditorView.theme({
     padding: "6px 9px",
     color: "var(--color-text)",
     backgroundColor: "var(--color-bg)",
-    boxShadow: "inset 0 1px 0 rgb(255 255 255 / 0.025)",
+    boxShadow: "none",
     fontFamily:
       "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
     fontSize: "12px",
@@ -207,6 +235,9 @@ const floeEditorChrome = EditorView.theme({
       "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 4.8 8.5 9.6 3.7' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")",
   },
   ".cm-panel.cm-search [name=close]": {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
     border: "0",
     borderRadius: "6px",
     padding: "2px 6px",
