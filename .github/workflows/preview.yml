@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          output="$(pnpm preview -- --name "$PREVIEW_NAME" --json)"
+          output="$(node scripts/deploy-preview.mjs --name "$PREVIEW_NAME" --json)"
           printf '%s\n' "$output"
 
           web_url="$(OUTPUT="$output" node -p 'JSON.parse(process.env.OUTPUT).webUrl')"
