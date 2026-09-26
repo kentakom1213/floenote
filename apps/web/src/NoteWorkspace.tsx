@@ -472,6 +472,7 @@ export function NoteWorkspace({
         <GlobalSearch
           cache={searchCache}
           lastOpenedAt={readNoteRecency(project.id)}
+          getTagColor={(tag) => project.getTagColor(tag)}
           onClose={() => setGlobalSearchOpen(false)}
           onSelect={(documentId) => {
             recordNoteOpened(project.id, documentId);
