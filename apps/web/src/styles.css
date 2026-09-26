@@ -1483,9 +1483,10 @@ input:focus-visible {
 
 /*
  * The color-picker wrapper must not reintroduce inline baseline layout here.
- * The previous tag chip was a single inline-flex box with a small optical
- * vertical correction for Japanese text. Keep details/summary as flex boxes so
- * adding presentation controls does not shift the tag label relative to Add tag.
+ * Keep details/summary as flex boxes so adding presentation controls does not
+ * shift the tag label relative to Add tag. The outer pill is 26px and the
+ * clickable inner pill is 24px; flex centering intentionally gives both rounded
+ * ends the same vertical centerline. Change these heights together.
  */
 .note-tag-color-picker {
   position: relative;
