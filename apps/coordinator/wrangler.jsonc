@@ -3,6 +3,7 @@
   "name": "floe-note-coordinator",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-22",
+  "preview_urls": true,
   "routes": [
     {
       "pattern": "floe-coordinator.pwll.dev",
@@ -33,5 +34,23 @@
   },
   "observability": {
     "enabled": true,
+  },
+  "previews": {
+    "vars": {
+      "FLOE_VERSION": "preview",
+      "FLOE_BUILD": "preview",
+    },
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "PROJECT_COORDINATOR",
+          "class_name": "ProjectCoordinator",
+        },
+        {
+          "name": "INVITATION_COORDINATOR",
+          "class_name": "InvitationCoordinator",
+        },
+      ],
+    },
   },
 }
