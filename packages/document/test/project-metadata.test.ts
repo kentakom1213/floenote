@@ -100,7 +100,17 @@ describe("NoteProject metadata", () => {
   it("uses gray when a tag has no color metadata", () => {
     const project = NoteProject.create();
 
+    expect(project.hasTagColor("research")).toBe(false);
     expect(project.getTagColor("research")).toBe(DEFAULT_TAG_COLOR);
+  });
+
+  it("reports whether valid tag color metadata is persisted", () => {
+    const project = NoteProject.create();
+
+    project.setTagColor("research", "blue");
+
+    expect(project.hasTagColor("research")).toBe(true);
+    expect(project.hasTagColor("work")).toBe(false);
   });
 
   it("sets and reads a Project tag color without changing note tags", () => {
@@ -137,6 +147,7 @@ describe("NoteProject metadata", () => {
       [],
     );
 
+    expect(project.hasTagColor("research")).toBe(false);
     expect(project.getTagColor("research")).toBe("gray");
   });
 
