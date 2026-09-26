@@ -30,6 +30,28 @@ describe("browser routing integration invariants", () => {
     expect(noteAppTail).not.toContain("useCallback(");
   });
 
+  it("creates the Welcome note once as part of Project creation", () => {
+    const createProjectStart = appSource.indexOf(
+      "async function createProject(name: string)",
+    );
+    const createProjectEnd = appSource.indexOf(
+      "\n  async function importFloeExport",
+      createProjectStart,
+    );
+    const createProjectBlock = appSource.slice(
+      createProjectStart,
+      createProjectEnd,
+    );
+
+    expect(createProjectBlock).toContain(
+      'result.project.createDocument("Welcome to Floe Note")',
+    );
+    expect(createProjectBlock).toContain(
+      "pushRoute(buildDocumentUrl(result.project.id, document.id))",
+    );
+    expect(appSource.match(/Welcome to Floe Note/g)).toHaveLength(1);
+  });
+
   it("keeps application navigation separate from native popstate", () => {
     expect(navigationSource).toContain('window.history.pushState(null, "", url)');
     expect(navigationSource).toContain('window.history.replaceState(null, "", url)');
