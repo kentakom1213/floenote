@@ -45,13 +45,30 @@ function runPnpm(args, { env = process.env, label, forwardStdout = false } = {})
   return result.stdout.trim();
 }
 
-function parsePreviewUrl(output, label) {
-  let parsed;
+function parsePreviewJson(output, label) {
   try {
-    parsed = JSON.parse(output);
+    return JSON.parse(output);
   } catch {
-    throw new Error(`${label} did not return valid JSON`);
+    const start = output.indexOf("{");
+    const end = output.lastIndexOf("}");
+
+    if (start >= 0 && end > start) {
+      const json = output.slice(start, end + 1);
+      try {
+        return JSON.parse(json);
+      } catch {
+        // Fall through and include the raw output below.
+      }
+    }
+
+    throw new Error(
+      `${label} did not return valid JSON. Raw stdout:\n${output || "(empty)"}`,
+    );
   }
+}
+
+function parsePreviewUrl(output, label) {
+  const parsed = parsePreviewJson(output, label);
 
   const url = parsed?.preview?.urls?.[0];
   if (typeof url !== "string" || url.length === 0) {
