@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   AuthorizedPresenceClient,
   type AuthorizedPresenceConnectionState,
+  type CreatedInvitation,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
@@ -39,6 +40,7 @@ export type AuthorizedProjectSyncState = {
   connectionAttempts: AutomaticPeerSyncStatus["connectionAttempts"];
   coordinationError: string | null;
   error: string | null;
+  createInvite: () => Promise<CreatedInvitation>;
 };
 
 const IDLE_AUTOMATIC_SYNC_STATUS: AutomaticPeerSyncStatus = {
@@ -65,13 +67,17 @@ export function useAuthorizedProjectSync({
   const [presenceError, setPresenceError] = useState<string | null>(null);
   const [automaticSyncStatus, setAutomaticSyncStatus] =
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
+  const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
+  const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
+  const onlineDeviceIdsRef = useRef<readonly DeviceId[]>([]);
 
   useEffect(() => {
     if (!project || !localDeviceId || !securityState || !vaultSession) {
+      presenceRef.current = null;
+      onlineDeviceIdsRef.current = [];
       setPresenceState("idle");
       setOnlineDeviceIds([]);
       setPresenceError(null);
-      setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
       return;
     }
 
@@ -82,24 +88,7 @@ export function useAuthorizedProjectSync({
       securityHead: securityState.headHash,
       sign: (message) => vaultSession.sign(message),
     });
-
-    const automaticPeerSync =
-      automaticReconnectEnabled && projectKeyReady
-        ? new AutomaticPeerSyncManager({
-            coordinatorBaseUrl,
-            project,
-            localDeviceId,
-            securityState,
-            vaultSession,
-            presence,
-            relayFallbackEnabled: turnCredentialEndpoint !== null,
-            rtcConfigurationProvider: (mode) =>
-              mode === "relay"
-                ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
-                : Promise.resolve(undefined),
-            onStatusChange: setAutomaticSyncStatus,
-          })
-        : null;
+    presenceRef.current = presence;
 
     const stopState = presence.onStateChange((state) => {
       setPresenceState(state);
@@ -108,12 +97,13 @@ export function useAuthorizedProjectSync({
       }
     });
     const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
+      onlineDeviceIdsRef.current = deviceIds;
       setOnlineDeviceIds(deviceIds);
-      automaticPeerSync?.updateOnlineDevices(deviceIds);
+      automaticPeerSyncRef.current?.updateOnlineDevices(deviceIds);
     });
     const stopReconnect = presence.onReconnectSession(
       (fromDeviceId, sessionId, transportMode) => {
-        automaticPeerSync?.acceptReconnectSession(
+        automaticPeerSyncRef.current?.acceptReconnectSession(
           fromDeviceId,
           sessionId,
           transportMode,
@@ -138,7 +128,6 @@ export function useAuthorizedProjectSync({
     document.addEventListener("visibilitychange", retryPresenceWhenVisible);
 
     setPresenceError(null);
-    setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
     presence.start();
 
     return () => {
@@ -151,22 +140,82 @@ export function useAuthorizedProjectSync({
       stopDevices();
       stopReconnect();
       stopErrors();
-      automaticPeerSync?.stop();
+      if (presenceRef.current === presence) {
+        presenceRef.current = null;
+      }
+      onlineDeviceIdsRef.current = [];
       presence.close();
       setOnlineDeviceIds([]);
+    };
+  }, [
+    coordinatorBaseUrl,
+    localDeviceId,
+    onSecurityStateChanged,
+    project,
+    securityState,
+    vaultSession,
+  ]);
+
+  useEffect(() => {
+    const presence = presenceRef.current;
+    if (
+      !automaticReconnectEnabled ||
+      !project ||
+      !localDeviceId ||
+      !securityState ||
+      !projectKeyReady ||
+      !vaultSession ||
+      !presence
+    ) {
+      automaticPeerSyncRef.current = null;
+      setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
+      return;
+    }
+
+    const automaticPeerSync = new AutomaticPeerSyncManager({
+      coordinatorBaseUrl,
+      project,
+      localDeviceId,
+      securityState,
+      vaultSession,
+      presence,
+      relayFallbackEnabled: turnCredentialEndpoint !== null,
+      rtcConfigurationProvider: (mode) =>
+        mode === "relay"
+          ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
+          : Promise.resolve(undefined),
+      onStatusChange: setAutomaticSyncStatus,
+    });
+    automaticPeerSyncRef.current = automaticPeerSync;
+    automaticPeerSync.updateOnlineDevices(onlineDeviceIdsRef.current);
+
+    return () => {
+      if (automaticPeerSyncRef.current === automaticPeerSync) {
+        automaticPeerSyncRef.current = null;
+      }
+      automaticPeerSync.stop();
       setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
     };
   }, [
     automaticReconnectEnabled,
     coordinatorBaseUrl,
     localDeviceId,
-    onSecurityStateChanged,
     project,
     projectKeyReady,
     securityState,
     turnCredentialEndpoint,
     vaultSession,
   ]);
+
+  const createInvite = useCallback((): Promise<CreatedInvitation> => {
+    const presence = presenceRef.current;
+    if (!presence) {
+      return Promise.reject(
+        new Error("Authorized presence WebSocket is not available"),
+      );
+    }
+    return presence.createInvite();
+  }, []);
 
   return {
     presenceState,
@@ -175,6 +224,7 @@ export function useAuthorizedProjectSync({
     connectionAttempts: automaticSyncStatus.connectionAttempts,
     coordinationError: presenceError,
     error: automaticSyncStatus.error,
+    createInvite,
   };
 }
 
