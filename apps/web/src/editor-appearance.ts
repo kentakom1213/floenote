@@ -107,6 +107,12 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panel.cm-search br": {
     display: "none",
   },
+  ".cm-panel.cm-search .cm-search-options": {
+    display: "contents",
+  },
+  ".cm-panel.cm-search .cm-search-options-toggle": {
+    display: "none",
+  },
   ".cm-panel.cm-search .cm-search-replace-toggle": {
     gridColumn: "1",
     gridRow: "1",
@@ -338,6 +344,152 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panel.cm-search [name=close]:hover": {
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
+  },
+  "@media (max-width: 760px)": {
+    ".cm-panels-top": {
+      margin: "8px 8px 0",
+      overflow: "visible",
+    },
+    ".cm-panel.cm-search": {
+      gridTemplateColumns:
+        "20px minmax(0, 1fr) 28px 28px max-content 28px",
+      columnGap: "4px",
+      rowGap: "6px",
+      padding: "8px 38px 8px 8px",
+    },
+    ".cm-panel.cm-search .cm-search-replace-toggle": {
+      width: "20px",
+      height: "30px",
+    },
+    ".cm-panel.cm-search [name=search]": {
+      gridColumn: "2",
+    },
+    ".cm-panel.cm-search [name=prev]": {
+      gridColumn: "3",
+    },
+    ".cm-panel.cm-search [name=next]": {
+      gridColumn: "4",
+    },
+    ".cm-panel.cm-search [name=select]": {
+      gridColumn: "5",
+    },
+    ".cm-panel.cm-search .cm-search-options-toggle": {
+      gridColumn: "6",
+      gridRow: "1",
+      width: "28px",
+      height: "30px",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxSizing: "border-box",
+      margin: "0",
+      border: "1px solid var(--color-border)",
+      borderRadius: "7px",
+      padding: "0",
+      color: "var(--color-text-muted)",
+      backgroundColor: "var(--color-surface)",
+      fontFamily: "inherit",
+      fontSize: "16px",
+      lineHeight: "1",
+      cursor: "pointer",
+    },
+    ".cm-panel.cm-search .cm-search-options-toggle:hover": {
+      borderColor: "var(--color-border-strong)",
+      color: "var(--color-text)",
+      backgroundColor: "var(--color-surface-hover)",
+    },
+    ".cm-panel.cm-search .cm-search-options-toggle:focus-visible": {
+      outline: "2px solid var(--color-focus)",
+      outlineOffset: "2px",
+    },
+    ".cm-panel.cm-search .cm-search-options": {
+      position: "absolute",
+      zIndex: "10",
+      top: "46px",
+      right: "8px",
+      width: "min(210px, calc(100% - 16px))",
+      display: "none",
+      flexDirection: "column",
+      boxSizing: "border-box",
+      gap: "2px",
+      padding: "6px",
+      border: "1px solid var(--color-border)",
+      borderRadius: "9px",
+      color: "var(--color-text)",
+      backgroundColor: "var(--color-surface)",
+    },
+    ".cm-panel.cm-search[data-floe-search-options-open=true] .cm-search-options":
+      {
+        display: "flex",
+      },
+    ".cm-panel.cm-search[data-floe-replace-open=true] .cm-search-options": {
+      top: "84px",
+    },
+    ".cm-panel.cm-search .cm-search-options label": {
+      width: "100%",
+      height: "34px",
+      justifyContent: "flex-start",
+      gap: "8px",
+      border: "0",
+      borderRadius: "6px",
+      padding: "0 8px",
+      color: "var(--color-text)",
+      backgroundColor: "transparent",
+      fontSize: "12px",
+      fontWeight: "500",
+    },
+    ".cm-panel.cm-search .cm-search-options label:hover": {
+      backgroundColor: "var(--color-surface-hover)",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input:checked)": {
+      color: "var(--color-accent)",
+      backgroundColor: "var(--color-accent-soft)",
+      boxShadow: "none",
+      fontWeight: "600",
+    },
+    ".cm-panel.cm-search .cm-search-options label::before": {
+      content: "\"\"",
+      width: "14px",
+      height: "14px",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxSizing: "border-box",
+      flex: "0 0 auto",
+      border: "1px solid var(--color-border-strong)",
+      borderRadius: "4px",
+      color: "var(--color-accent-contrast)",
+      backgroundColor: "var(--color-bg)",
+      fontSize: "10px",
+      lineHeight: "1",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input:checked)::before":
+      {
+        content: "\"✓\"",
+        borderColor: "var(--color-accent)",
+        backgroundColor: "var(--color-accent)",
+      },
+    ".cm-panel.cm-search .cm-search-options label::after": {
+      display: "none",
+    },
+    ".cm-panel.cm-search input[name=replace]": {
+      gridColumn: "2",
+      gridRow: "2",
+    },
+    ".cm-panel.cm-search button[name=replace]": {
+      gridColumn: "3 / span 2",
+      gridRow: "2",
+    },
+    ".cm-panel.cm-search [name=replaceAll]": {
+      gridColumn: "5 / span 2",
+      gridRow: "2",
+    },
+    ".cm-panel.cm-search [name=close]": {
+      top: "8px",
+      right: "4px",
+      width: "30px",
+      height: "30px",
+    },
   },
   ".cm-tooltip": {
     border: "1px solid var(--color-border)",

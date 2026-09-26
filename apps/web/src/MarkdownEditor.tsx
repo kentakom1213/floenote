@@ -19,51 +19,127 @@ import {
 
 function enhanceSearchPanel(view: EditorView): void {
   const panel = view.dom.querySelector<HTMLElement>(".cm-search");
-  if (!panel || panel.querySelector("[data-floe-replace-toggle]")) {
+  if (!panel) {
     return;
   }
 
-  const replaceField =
-    panel.querySelector<HTMLInputElement>('input[name="replace"]');
-  if (!replaceField) {
-    return;
+  const previousButton =
+    panel.querySelector<HTMLButtonElement>('[name="prev"]');
+  const nextButton = panel.querySelector<HTMLButtonElement>('[name="next"]');
+  previousButton?.setAttribute("title", "Previous match");
+  nextButton?.setAttribute("title", "Next match");
+
+  // CodeMirror emits Next before Previous in the search-panel DOM. Move the
+  // existing Previous button once so visual and keyboard order can both be
+  // Previous → Next without duplicating either control.
+  if (nextButton?.nextElementSibling === previousButton) {
+    nextButton.before(previousButton);
   }
-
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.className = "cm-search-replace-toggle";
-  toggle.dataset.floeReplaceToggle = "";
-  panel.dataset.floeReplaceOpen = "false";
-
-  const setReplaceOpen = (open: boolean) => {
-    panel.dataset.floeReplaceOpen = String(open);
-    toggle.setAttribute("aria-expanded", String(open));
-    const label = open ? "Hide replace controls" : "Show replace controls";
-    toggle.setAttribute("aria-label", label);
-    toggle.title = label;
-    toggle.textContent = open ? "⌄" : "›";
-  };
-
-  setReplaceOpen(false);
-  toggle.addEventListener("click", () => {
-    setReplaceOpen(panel.dataset.floeReplaceOpen !== "true");
-  });
-  panel.prepend(toggle);
-
-  panel.querySelector('[name="prev"]')?.setAttribute("title", "Previous match");
-  panel.querySelector('[name="next"]')?.setAttribute("title", "Next match");
 
   const optionTitles = [
     ["case", "Match case"],
     ["re", "Use regular expression"],
     ["word", "Match whole word"],
   ] as const;
-  for (const [name, title] of optionTitles) {
-    panel
+  const optionLabels = optionTitles.flatMap(([name, title]) => {
+    const label = panel
       .querySelector<HTMLInputElement>(`input[name="${name}"]`)
-      ?.closest("label")
-      ?.setAttribute("title", title);
+      ?.closest("label");
+    if (!label) {
+      return [];
+    }
+    label.setAttribute("title", title);
+    return [label];
+  });
+
+  let optionsMenu = panel.querySelector<HTMLElement>(
+    "[data-floe-search-options]",
+  );
+  if (!optionsMenu && optionLabels.length === optionTitles.length) {
+    optionsMenu = document.createElement("div");
+    optionsMenu.className = "cm-search-options";
+    optionsMenu.dataset.floeSearchOptions = "";
+    optionsMenu.setAttribute("role", "group");
+    optionsMenu.setAttribute("aria-label", "Search options");
+    optionLabels[0]?.before(optionsMenu);
+    for (const label of optionLabels) {
+      optionsMenu.append(label);
+    }
   }
+
+  if (
+    optionsMenu &&
+    !panel.querySelector("[data-floe-search-options-toggle]")
+  ) {
+    const optionsToggle = document.createElement("button");
+    optionsToggle.type = "button";
+    optionsToggle.className = "cm-search-options-toggle";
+    optionsToggle.dataset.floeSearchOptionsToggle = "";
+    optionsToggle.setAttribute("aria-haspopup", "true");
+    optionsToggle.textContent = "…";
+    panel.dataset.floeSearchOptionsOpen = "false";
+
+    const setOptionsOpen = (open: boolean) => {
+      panel.dataset.floeSearchOptionsOpen = String(open);
+      optionsToggle.setAttribute("aria-expanded", String(open));
+      const label = open ? "Hide search options" : "Show search options";
+      optionsToggle.setAttribute("aria-label", label);
+      optionsToggle.title = label;
+    };
+
+    setOptionsOpen(false);
+    optionsToggle.addEventListener("click", () => {
+      setOptionsOpen(panel.dataset.floeSearchOptionsOpen !== "true");
+    });
+    optionsMenu.before(optionsToggle);
+  }
+
+  const replaceField =
+    panel.querySelector<HTMLInputElement>('input[name="replace"]');
+  const lineBreak = panel.querySelector("br");
+  const closeButton = panel.querySelector<HTMLButtonElement>('[name="close"]');
+
+  // Keep the real close button in top-row keyboard order. Moving the existing
+  // node preserves CodeMirror's close behavior and event handler.
+  if (
+    replaceField &&
+    lineBreak &&
+    closeButton &&
+    closeButton.nextElementSibling !== lineBreak
+  ) {
+    lineBreak.before(closeButton);
+  }
+
+  // Read-only search panels intentionally stop here: navigation/options chrome
+  // still applies, but CodeMirror doesn't render Replace controls.
+  if (!replaceField) {
+    return;
+  }
+
+  if (panel.querySelector("[data-floe-replace-toggle]")) {
+    return;
+  }
+
+  const replaceToggle = document.createElement("button");
+  replaceToggle.type = "button";
+  replaceToggle.className = "cm-search-replace-toggle";
+  replaceToggle.dataset.floeReplaceToggle = "";
+  panel.dataset.floeReplaceOpen = "false";
+
+  const setReplaceOpen = (open: boolean) => {
+    panel.dataset.floeReplaceOpen = String(open);
+    replaceToggle.setAttribute("aria-expanded", String(open));
+    const label = open ? "Hide replace controls" : "Show replace controls";
+    replaceToggle.setAttribute("aria-label", label);
+    replaceToggle.title = label;
+    replaceToggle.textContent = open ? "⌄" : "›";
+  };
+
+  setReplaceOpen(false);
+  replaceToggle.addEventListener("click", () => {
+    setReplaceOpen(panel.dataset.floeReplaceOpen !== "true");
+  });
+  panel.prepend(replaceToggle);
 }
 
 const floeSearchPanelChrome = ViewPlugin.define((view) => {
