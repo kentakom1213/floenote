@@ -37,16 +37,16 @@
   --editor-syntax-meta: #83766b;
   --editor-search-match: #f4e4b8;
   --editor-search-match-current: #efc47f;
-  --tag-color-gray: #7b746d;
-  --tag-color-red: #b85b5b;
-  --tag-color-orange: #b56b32;
-  --tag-color-yellow: #99751d;
-  --tag-color-green: #5c7f55;
-  --tag-color-teal: #4f7f78;
-  --tag-color-blue: #4f7199;
-  --tag-color-indigo: #66699a;
-  --tag-color-purple: #80639a;
-  --tag-color-pink: #a65f80;
+  --tag-color-gray: #6f7478;
+  --tag-color-red: #a83a17;
+  --tag-color-orange: #9c6800;
+  --tag-color-yellow: #756e00;
+  --tag-color-green: #087a57;
+  --tag-color-sky: #287da0;
+  --tag-color-blue: #27539a;
+  --tag-color-brown: #74431f;
+  --tag-color-purple: #7d337d;
+  --tag-color-pink: #a24e58;
 }
 
 :root,
@@ -79,16 +79,16 @@
   --editor-syntax-meta: #71858b;
   --editor-search-match: #dceef3;
   --editor-search-match-current: #abd6e1;
-  --tag-color-gray: #6c7b80;
-  --tag-color-red: #b75a57;
-  --tag-color-orange: #b46d36;
-  --tag-color-yellow: #9a7b26;
-  --tag-color-green: #567d62;
-  --tag-color-teal: #4d807d;
-  --tag-color-blue: #4e78a0;
-  --tag-color-indigo: #676fa5;
-  --tag-color-purple: #82699f;
-  --tag-color-pink: #a35f83;
+  --tag-color-gray: #65747a;
+  --tag-color-red: #b33d1a;
+  --tag-color-orange: #9d6a00;
+  --tag-color-yellow: #746d00;
+  --tag-color-green: #087c5b;
+  --tag-color-sky: #277f9f;
+  --tag-color-blue: #2859a3;
+  --tag-color-brown: #70451f;
+  --tag-color-purple: #78367e;
+  --tag-color-pink: #9d505b;
 }
 
 :root[data-theme="polar-night"] {
@@ -120,16 +120,16 @@
   --editor-syntax-meta: #9aabb0;
   --editor-search-match: #30464f;
   --editor-search-match-current: #466675;
-  --tag-color-gray: #9eacb1;
-  --tag-color-red: #d87874;
-  --tag-color-orange: #dc9865;
-  --tag-color-yellow: #d1b35c;
-  --tag-color-green: #83b58c;
-  --tag-color-teal: #74b7ad;
-  --tag-color-blue: #79a9d4;
-  --tag-color-indigo: #9297d5;
-  --tag-color-purple: #b293d3;
-  --tag-color-pink: #d38daf;
+  --tag-color-gray: #a9b2b7;
+  --tag-color-red: #ff8060;
+  --tag-color-orange: #f3b84d;
+  --tag-color-yellow: #ded85c;
+  --tag-color-green: #5bcb9d;
+  --tag-color-sky: #66c8f0;
+  --tag-color-blue: #72a8ff;
+  --tag-color-brown: #c58a55;
+  --tag-color-purple: #d48dd5;
+  --tag-color-pink: #f09aa0;
 }
 
 :root[data-theme="charcoal"] {
@@ -161,16 +161,16 @@
   --editor-syntax-meta: #aa9e95;
   --editor-search-match: #4b382b;
   --editor-search-match-current: #6a4a34;
-  --tag-color-gray: #aaa29a;
-  --tag-color-red: #d87a74;
-  --tag-color-orange: #dc9563;
-  --tag-color-yellow: #d0ad5b;
-  --tag-color-green: #83b18a;
-  --tag-color-teal: #74aca4;
-  --tag-color-blue: #7da4cc;
-  --tag-color-indigo: #9498cf;
-  --tag-color-purple: #b28fcd;
-  --tag-color-pink: #cf8eaa;
+  --tag-color-gray: #b0aaa5;
+  --tag-color-red: #f57d60;
+  --tag-color-orange: #efb454;
+  --tag-color-yellow: #d8cf62;
+  --tag-color-green: #63c18f;
+  --tag-color-sky: #68b8d9;
+  --tag-color-blue: #7aa3e8;
+  --tag-color-brown: #c18a5e;
+  --tag-color-purple: #c88aca;
+  --tag-color-pink: #e9959b;
 }
 
 * {
@@ -5451,9 +5451,9 @@ h1 {
 [data-tag-color="orange"] { --tag-chip-color: var(--tag-color-orange); }
 [data-tag-color="yellow"] { --tag-chip-color: var(--tag-color-yellow); }
 [data-tag-color="green"] { --tag-chip-color: var(--tag-color-green); }
-[data-tag-color="teal"] { --tag-chip-color: var(--tag-color-teal); }
+[data-tag-color="sky"] { --tag-chip-color: var(--tag-color-sky); }
 [data-tag-color="blue"] { --tag-chip-color: var(--tag-color-blue); }
-[data-tag-color="indigo"] { --tag-chip-color: var(--tag-color-indigo); }
+[data-tag-color="brown"] { --tag-chip-color: var(--tag-color-brown); }
 [data-tag-color="purple"] { --tag-chip-color: var(--tag-color-purple); }
 [data-tag-color="pink"] { --tag-chip-color: var(--tag-color-pink); }
 
