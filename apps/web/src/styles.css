@@ -1470,10 +1470,11 @@ input:focus-visible {
 
 .note-tag-control {
   position: relative;
-  min-height: 26px;
+  height: 26px;
   max-width: 220px;
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--tag-chip-color) 20%, transparent);
   border-radius: 999px;
   color: color-mix(in srgb, var(--tag-chip-color) 76%, var(--color-text));
@@ -1489,6 +1490,7 @@ input:focus-visible {
 .note-tag-color-picker {
   position: relative;
   min-width: 0;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   line-height: 1;
@@ -1503,7 +1505,7 @@ input:focus-visible {
 }
 
 .note-tag-color-summary {
-  min-height: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
@@ -1512,9 +1514,9 @@ input:focus-visible {
 }
 
 .note-tag-color-summary .tag-chip {
-  min-height: 24px;
+  height: 24px;
   border: 0;
-  padding: 3px 2px 3px 9px;
+  padding: 0 2px 0 9px;
   background: transparent;
 }
 
@@ -5447,9 +5449,10 @@ h1 {
   max-width: 220px;
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--tag-chip-color) 20%, transparent);
   border-radius: 999px;
-  padding: 3px 8px;
+  padding: 0 8px;
   color: color-mix(in srgb, var(--tag-chip-color) 76%, var(--color-text));
   background: color-mix(in srgb, var(--tag-chip-color) 13%, transparent);
   font-size: 11px;
@@ -5458,17 +5461,25 @@ h1 {
 
 .tag-chip-label {
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 1em;
   overflow: hidden;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Optical alignment: Japanese glyphs sit slightly high in this compact line box. */
-  transform: translateY(1px);
 }
 
+/*
+ * Keep TagChip text centered through flex + line-height rather than optical
+ * translateY offsets. This component is reused in Note Properties, Sidebar,
+ * Trash, filters, and Global Search, so local vertical nudges easily regress
+ * another surface.
+ */
 .tag-chip-compact {
   min-height: 19px;
   max-width: 88px;
-  padding: 2px 6px;
+  padding: 0 6px;
   font-size: 10px;
 }
 
