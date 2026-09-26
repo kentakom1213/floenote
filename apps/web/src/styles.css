@@ -4007,6 +4007,7 @@ h1 {
   .note-row {
     width: 100%;
     min-height: 44px;
+    grid-template-columns: minmax(0, 1fr) 36px;
   }
 
   .note-item {
