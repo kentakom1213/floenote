@@ -125,7 +125,10 @@ describe("NoteProperties", () => {
     );
 
     expect(markup).toContain('data-tag-color="blue"');
+    expect(markup).toContain('class="note-tag-color-picker"');
+    expect(markup).toContain('class="note-tag-color-summary"');
     expect(markup).toContain('aria-label="Change research color"');
+    expect(markup).toContain('aria-label="Remove tag research"');
     expect(markup).toContain('aria-label="Set research color to blue"');
     expect(markup).toMatch(
       /aria-label="Set research color to blue"[^>]*aria-pressed="true"/u,
