@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { createProjectId } from "@floe-note/domain";
+import { LoroDoc } from "loro-crdt";
+import { describe, expect, it, vi } from "vitest";
 
-import { NoteProject } from "../src/project.js";
+import {
+  DEFAULT_TAG_COLOR,
+  NoteProject,
+} from "../src/project.js";
 
 describe("NoteProject metadata", () => {
   it("uses a friendly default project name", () => {
@@ -89,5 +94,89 @@ describe("NoteProject metadata", () => {
     expect(() => project.renameProject("   ")).toThrow(
       "Project name must not be empty",
     );
+  });
+
+
+  it("uses gray when a tag has no color metadata", () => {
+    const project = NoteProject.create();
+
+    expect(project.getTagColor("research")).toBe(DEFAULT_TAG_COLOR);
+  });
+
+  it("sets and reads a Project tag color without changing note tags", () => {
+    const project = NoteProject.create();
+    const document = project.createDocument("Tagged");
+    document.setTags(["research", "work"]);
+    const listener = vi.fn();
+    project.subscribe(listener);
+
+    project.setTagColor("research", "blue");
+
+    expect(project.getTagColor("research")).toBe("blue");
+    expect(document.tags).toEqual(["research", "work"]);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("rejects tag colors outside the fixed palette", () => {
+    const project = NoteProject.create();
+
+    expect(() =>
+      project.setTagColor("research", "chartreuse" as never),
+    ).toThrow("Invalid tag color");
+    expect(project.getTagColor("research")).toBe("gray");
+  });
+
+  it("falls back to gray for invalid persisted tag color values", () => {
+    const manifest = new LoroDoc();
+    manifest.getMap("tagColors").set("research", "chartreuse");
+    manifest.commit();
+
+    const project = NoteProject.fromSnapshot(
+      createProjectId(),
+      manifest.export({ mode: "snapshot" }),
+      [],
+    );
+
+    expect(project.getTagColor("research")).toBe("gray");
+  });
+
+  it("preserves tag colors through a manifest snapshot round trip", () => {
+    const project = NoteProject.create();
+    project.setTagColor("research", "blue");
+    project.setTagColor("work", "orange");
+
+    const restored = NoteProject.fromSnapshot(
+      project.id,
+      project.exportManifestSnapshot(),
+      [],
+    );
+
+    expect(restored.getTagColor("research")).toBe("blue");
+    expect(restored.getTagColor("work")).toBe("orange");
+  });
+
+  it("synchronizes tag colors through manifest updates", () => {
+    const source = NoteProject.create();
+    const target = NoteProject.create(source.id);
+
+    source.setTagColor("personal", "purple");
+    target.importManifestUpdate(source.exportManifestUpdate());
+
+    expect(target.getTagColor("personal")).toBe("purple");
+  });
+
+  it("retains unused tag color metadata for later reuse", () => {
+    const project = NoteProject.create();
+    const document = project.createDocument("Tagged");
+    document.addTag("research");
+    project.setTagColor("research", "indigo");
+
+    document.removeTag("research");
+
+    expect(document.tags).toEqual([]);
+    expect(project.getTagColor("research")).toBe("indigo");
+
+    document.addTag("research");
+    expect(project.getTagColor("research")).toBe("indigo");
   });
 });
