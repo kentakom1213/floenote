@@ -25,6 +25,27 @@ export type EditHistoryCheckpoint = {
   restoreSourceCheckpointId: CheckpointId | null;
 };
 
+export const TAG_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "blue",
+  "indigo",
+  "purple",
+  "pink",
+] as const;
+
+export type TagColor = (typeof TAG_COLORS)[number];
+
+export const DEFAULT_TAG_COLOR: TagColor = "gray";
+
+export function isTagColor(value: unknown): value is TagColor {
+  return typeof value === "string" && TAG_COLORS.includes(value as TagColor);
+}
+
 type CreateEditHistoryCheckpointOptions = {
   createdAt?: number;
   restoreSourceCheckpointId?: CheckpointId | null;
@@ -64,6 +85,7 @@ export class NoteProject {
     manifest.getMap("metadata");
     manifest.getMap("deviceDisplayNames");
     manifest.getMap("editHistoryCheckpoints");
+    manifest.getMap("tagColors");
 
     return new NoteProject(id, manifest, []);
   }
@@ -110,6 +132,21 @@ export class NoteProject {
     this.#manifest
       .getMap("deviceDisplayNames")
       .set(deviceId, normalized);
+    this.#manifest.commit();
+    this.#emit();
+  }
+
+  getTagColor(tag: string): TagColor {
+    const value = this.#manifest.getMap("tagColors").get(tag);
+    return isTagColor(value) ? value : DEFAULT_TAG_COLOR;
+  }
+
+  setTagColor(tag: string, color: TagColor): void {
+    if (!isTagColor(color)) {
+      throw new TypeError("Invalid tag color");
+    }
+
+    this.#manifest.getMap("tagColors").set(tag, color);
     this.#manifest.commit();
     this.#emit();
   }
