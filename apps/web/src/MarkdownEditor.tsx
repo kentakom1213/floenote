@@ -1,7 +1,8 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { search } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
-import { basicSetup, EditorView } from "codemirror";
+import { EditorView, ViewPlugin } from "@codemirror/view";
+import { basicSetup } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
 import { UndoManager } from "loro-crdt";
 import { useEffect, useRef } from "react";
@@ -16,7 +17,69 @@ import {
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
 
-export const floeEditorSearch = search({ top: true });
+function enhanceSearchPanel(view: EditorView): void {
+  const panel = view.dom.querySelector<HTMLElement>(".cm-search");
+  if (!panel || panel.querySelector("[data-floe-replace-toggle]")) {
+    return;
+  }
+
+  const replaceField =
+    panel.querySelector<HTMLInputElement>('input[name="replace"]');
+  if (!replaceField) {
+    return;
+  }
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "cm-search-replace-toggle";
+  toggle.dataset.floeReplaceToggle = "";
+  panel.dataset.floeReplaceOpen = "false";
+
+  const setReplaceOpen = (open: boolean) => {
+    panel.dataset.floeReplaceOpen = String(open);
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute(
+      "aria-label",
+      open ? "Hide replace controls" : "Show replace controls",
+    );
+    toggle.textContent = open ? "⌄" : "›";
+  };
+
+  setReplaceOpen(false);
+  toggle.addEventListener("click", () => {
+    setReplaceOpen(panel.dataset.floeReplaceOpen !== "true");
+  });
+  panel.prepend(toggle);
+
+  const optionTitles = [
+    ["case", "Match case"],
+    ["re", "Use regular expression"],
+    ["word", "Match whole word"],
+  ] as const;
+  for (const [name, title] of optionTitles) {
+    panel
+      .querySelector<HTMLInputElement>(`input[name="${name}"]`)
+      ?.closest("label")
+      ?.setAttribute("title", title);
+  }
+}
+
+const floeSearchPanelChrome = ViewPlugin.define((view) => {
+  const observer = new MutationObserver(() => enhanceSearchPanel(view));
+  observer.observe(view.dom, { childList: true, subtree: true });
+  enhanceSearchPanel(view);
+
+  return {
+    destroy() {
+      observer.disconnect();
+    },
+  };
+});
+
+export const floeEditorSearch = [
+  search({ top: true }),
+  floeSearchPanelChrome,
+];
 
 type MarkdownEditorProps = {
   document: NoteDocument;
