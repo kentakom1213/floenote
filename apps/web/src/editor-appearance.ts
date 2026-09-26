@@ -91,13 +91,29 @@ const floeEditorChrome = EditorView.theme({
     borderTop: "1px solid var(--color-border)",
   },
   ".cm-panel.cm-search": {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "6px",
     padding: "8px 36px 8px 10px",
   },
+  ".cm-panel.cm-search br": {
+    flexBasis: "100%",
+    width: "0",
+    height: "0",
+  },
   ".cm-panel.cm-search label": {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    margin: "0",
     color: "var(--color-text-muted)",
+    fontSize: "11px",
   },
   ".cm-panel.cm-search .cm-textfield": {
+    minHeight: "30px",
     boxSizing: "border-box",
+    margin: "0",
     border: "1px solid var(--color-border)",
     borderRadius: "7px",
     outline: "none",
@@ -110,6 +126,8 @@ const floeEditorChrome = EditorView.theme({
     boxShadow: "0 0 0 1px var(--color-focus)",
   },
   ".cm-panel.cm-search .cm-button": {
+    minHeight: "30px",
+    margin: "0",
     border: "1px solid var(--color-border)",
     borderRadius: "7px",
     padding: "5px 8px",
@@ -133,6 +151,7 @@ const floeEditorChrome = EditorView.theme({
       outlineOffset: "2px",
     },
   ".cm-panel.cm-search input[type=checkbox]": {
+    margin: "0",
     accentColor: "var(--color-accent)",
   },
   ".cm-panel.cm-search [name=close]": {
