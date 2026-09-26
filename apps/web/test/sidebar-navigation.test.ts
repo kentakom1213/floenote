@@ -128,18 +128,18 @@ describe("sidebar navigation", () => {
       }),
     );
 
-    expect(SIDEBAR_TAG_LIMIT).toBe(2);
+    expect(SIDEBAR_TAG_LIMIT).toBe(3);
     expect(markup).toContain("note-item note-item-with-tags");
     expect(markup).toContain("note-item-title");
     expect(markup).toContain("note-item-tags");
     expect(markup).toContain("research");
     expect(markup).toContain("work");
-    expect(markup).not.toContain(">idea<");
+    expect(markup).toContain("idea");
     expect(markup).not.toContain(">personal<");
-    expect(markup).toContain("+2");
+    expect(markup).toContain("+1");
     expect(markup).toContain('data-tag-color="blue"');
     expect(markup).toContain('data-tag-color="orange"');
-    expect(markup.match(/tag-chip tag-chip-compact/g)).toHaveLength(2);
+    expect(markup.match(/tag-chip tag-chip-compact/g)).toHaveLength(3);
   });
 
 
