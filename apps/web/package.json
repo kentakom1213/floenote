@@ -31,7 +31,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "katex": "^0.16.22",
-    "marked": "^16.4.2"
+    "marked": "^16.4.2",
+    "@codemirror/search": "^6.7.2"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
