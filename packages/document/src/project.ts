@@ -31,9 +31,9 @@ export const TAG_COLORS = [
   "orange",
   "yellow",
   "green",
-  "teal",
+  "sky",
   "blue",
-  "indigo",
+  "brown",
   "purple",
   "pink",
 ] as const;
