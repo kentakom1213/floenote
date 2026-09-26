@@ -1,18 +1,29 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures.js";
 import { createSecuredProject } from "./project.js";
 
 test("persists an edited note across reload and Device Vault unlock", async ({
   page,
 }) => {
-  await createSecuredProject(page, "Persistence Project");
+  const { projectId, documentId } = await createSecuredProject(
+    page,
+    "Persistence Project",
+  );
 
   const editor = page.locator('.editor [contenteditable="true"]');
   await expect(editor).toBeVisible();
 
   await expect
-    .poll(() => readEncryptedDocumentSnapshot(page))
+    .poll(() =>
+      readEncryptedDocumentSnapshotLength(page, projectId, documentId),
+    )
     .not.toBeNull();
-  const before = await readEncryptedDocumentSnapshot(page);
+  const beforeLength = await readEncryptedDocumentSnapshotLength(
+    page,
+    projectId,
+    documentId,
+  );
 
   await editor.fill("This body survives an encrypted IndexedDB reload.");
 
@@ -20,8 +31,10 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     "This body survives an encrypted IndexedDB reload.",
   );
   await expect
-    .poll(() => readEncryptedDocumentSnapshot(page))
-    .not.toEqual(before);
+    .poll(() =>
+      readEncryptedDocumentSnapshotLength(page, projectId, documentId),
+    )
+    .not.toBe(beforeLength);
 
   await page.reload();
 
@@ -38,35 +51,35 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   );
 });
 
-async function readEncryptedDocumentSnapshot(page: import("@playwright/test").Page) {
-  return page.evaluate(async () => {
-    const request = indexedDB.open("floe-note");
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-
-    try {
-      const transaction = database.transaction("documents", "readonly");
-      const store = transaction.objectStore("documents");
-      const getAllRequest = store.getAll();
-      const rows = await new Promise<
-        { encryptedSnapshot?: Uint8Array | ArrayBuffer }[]
-      >((resolve, reject) => {
-        getAllRequest.onerror = () => reject(getAllRequest.error);
-        getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+async function readEncryptedDocumentSnapshotLength(
+  page: Page,
+  projectId: string,
+  documentId: string,
+): Promise<number | null> {
+  return page.evaluate(
+    async ({ projectId, documentId }) => {
+      const request = indexedDB.open("floe-note");
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
       });
 
-      const encrypted = rows[0]?.encryptedSnapshot;
-      if (!encrypted) return null;
+      try {
+        const transaction = database.transaction("documents", "readonly");
+        const store = transaction.objectStore("documents");
+        const getRequest = store.get([projectId, documentId]);
+        const row = await new Promise<
+          { encryptedSnapshot?: Uint8Array | ArrayBuffer } | undefined
+        >((resolve, reject) => {
+          getRequest.onerror = () => reject(getRequest.error);
+          getRequest.onsuccess = () => resolve(getRequest.result);
+        });
 
-      const bytes =
-        encrypted instanceof Uint8Array
-          ? encrypted
-          : new Uint8Array(encrypted);
-      return Array.from(bytes).join(",");
-    } finally {
-      database.close();
-    }
-  });
+        return row?.encryptedSnapshot?.byteLength ?? null;
+      } finally {
+        database.close();
+      }
+    },
+    { projectId, documentId },
+  );
 }
