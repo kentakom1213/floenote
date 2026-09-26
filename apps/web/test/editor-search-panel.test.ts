@@ -83,6 +83,9 @@ describe("editor search panel", () => {
     expect(optionsToggle?.title).toBe("Show search options");
     expect(optionsMenu?.getAttribute("role")).toBe("group");
     expect(optionsMenu?.getAttribute("aria-label")).toBe("Search options");
+    expect(optionsMenu?.textContent).toContain("Match case");
+    expect(optionsMenu?.textContent).toContain("Regular expression");
+    expect(optionsMenu?.textContent).toContain("Whole word");
 
     for (const name of ["case", "re", "word"]) {
       const controls = panel.querySelectorAll<HTMLInputElement>(
