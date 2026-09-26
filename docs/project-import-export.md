@@ -160,7 +160,7 @@ Archive paths always use forward slashes.
 
 ## 6. Data included in a Floe export
 
-v1 preserves the logical user data that already exists in the Project model:
+v1 preserves the logical content data needed for portability and interoperability:
 
 - Project name;
 - active note titles;
@@ -180,6 +180,7 @@ IndexedDB schema.
 A portable export must not contain:
 
 - edit-history checkpoints or historical note versions;
+- presentation metadata such as Project tag colors;
 - original ProjectId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
