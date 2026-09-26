@@ -3,9 +3,13 @@ import {
   NoteProject,
 } from "@floe-note/document";
 import type { Transport } from "@floe-note/transport";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { decodeSyncMessage, ProjectSyncEngine } from "../src/index.js";
+import {
+  decodeSyncMessage,
+  encodeSyncMessage,
+  ProjectSyncEngine,
+} from "../src/index.js";
 
 class MemoryTransport implements Transport {
   #peer: MemoryTransport | null = null;
@@ -305,6 +309,42 @@ describe("ProjectSyncEngine", () => {
     );
 
     sourceEngine.stop();
+    joinedEngine.stop();
+  });
+
+  it("does not complete initial remote state after a receive failure", () => {
+    const joined = NoteProject.create();
+    vi.spyOn(joined, "importManifestUpdate").mockImplementation(() => {
+      throw new Error("Invalid manifest update");
+    });
+
+    const [senderTransport, joinedTransport] = createTransportPair();
+    let completionCount = 0;
+    let errorCount = 0;
+
+    const joinedEngine = new ProjectSyncEngine(joined, joinedTransport, {
+      onInitialRemoteStateReceived: () => {
+        completionCount += 1;
+      },
+      onInitialSyncError: () => {
+        errorCount += 1;
+      },
+    });
+
+    joinedEngine.start();
+
+    senderTransport.send(
+      encodeSyncMessage({
+        type: "manifest-update",
+        update: Uint8Array.of(1),
+      }),
+    );
+    senderTransport.send(encodeSyncMessage({ type: "full-state-end" }));
+    senderTransport.send(encodeSyncMessage({ type: "full-state-end" }));
+
+    expect(errorCount).toBe(1);
+    expect(completionCount).toBe(0);
+
     joinedEngine.stop();
   });
 

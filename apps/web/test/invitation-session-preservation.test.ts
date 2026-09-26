@@ -40,6 +40,25 @@ describe("invitation session preservation", () => {
     expect(joinSource.slice(catchStart, catchStart + 600)).toContain('setInitialSyncState("error")');
   });
 
+  it("latches initial sync failures before bootstrap completion", () => {
+    expect(joinSource).toContain("let initialSyncFailed = false");
+    expect(joinSource).toContain("initialSyncFailed = true");
+    expect(joinSource).toContain("onInitialSyncError: (syncError) =>");
+
+    const completion = joinSource.indexOf(
+      "onInitialRemoteStateReceived: () =>",
+    );
+    const failureGate = joinSource.indexOf("initialSyncFailed", completion);
+    const complete = joinSource.indexOf(
+      "await storage.completeJoinedProjectBootstrap(",
+      completion,
+    );
+
+    expect(completion).toBeGreaterThanOrEqual(0);
+    expect(failureGate).toBeGreaterThan(completion);
+    expect(complete).toBeGreaterThan(failureGate);
+  });
+
   it("preserves PR #91 full-state and incomplete-bootstrap boundaries", () => {
     expect(syncProtocolSource).toContain('type: "full-state-end"');
     expect(storageSource).toContain('record.bootstrapState !== "bootstrapping"');

@@ -14,6 +14,7 @@ export type SyncDebugLogger = (event: SyncDebugEvent) => void;
 export type ProjectSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
   onInitialRemoteStateReceived?: () => void;
+  onInitialSyncError?: (error: Error) => void;
 };
 
 export class ProjectSyncEngine {
@@ -21,11 +22,13 @@ export class ProjectSyncEngine {
   readonly #transport: Transport;
   readonly #debugLogger: SyncDebugLogger | null;
   readonly #onInitialRemoteStateReceived: (() => void) | null;
+  readonly #onInitialSyncError: ((error: Error) => void) | null;
   readonly #documentSubscriptions = new Map<string, () => void>();
   #stopProjectSubscription: (() => void) | null = null;
   #stopManifestSubscription: (() => void) | null = null;
   #stopTransportSubscription: (() => void) | null = null;
   #initialRemoteStateReceived = false;
+  #initialRemoteStateFailed = false;
   #started = false;
 
   constructor(
@@ -38,6 +41,7 @@ export class ProjectSyncEngine {
     this.#debugLogger = options.debugLogger ?? null;
     this.#onInitialRemoteStateReceived =
       options.onInitialRemoteStateReceived ?? null;
+    this.#onInitialSyncError = options.onInitialSyncError ?? null;
   }
 
   start(): void {
@@ -208,6 +212,12 @@ export class ProjectSyncEngine {
 
         case "full-state-end":
           this.#debug("full-state.end.receive");
+          if (this.#initialRemoteStateFailed) {
+            this.#debug("full-state.end.ignore", {
+              reason: "initial-sync-failed",
+            });
+            return;
+          }
           if (!this.#initialRemoteStateReceived) {
             this.#initialRemoteStateReceived = true;
             this.#onInitialRemoteStateReceived?.();
@@ -233,10 +243,21 @@ export class ProjectSyncEngine {
           return;
       }
     } catch (error) {
+      const syncError =
+        error instanceof Error ? error : new Error(String(error));
+
       this.#debug("message.error", {
         bytes: data.byteLength,
-        error: error instanceof Error ? error.message : String(error),
+        error: syncError.message,
       });
+
+      if (
+        !this.#initialRemoteStateReceived &&
+        !this.#initialRemoteStateFailed
+      ) {
+        this.#initialRemoteStateFailed = true;
+        this.#onInitialSyncError?.(syncError);
+      }
     }
   }
 
