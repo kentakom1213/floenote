@@ -3,6 +3,7 @@
   "name": "floe-note-coordinator",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-22",
+  "preview_urls": true,
   "routes": [
     {
       "pattern": "floe-coordinator.pwll.dev",
