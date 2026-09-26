@@ -1517,7 +1517,8 @@ input:focus-visible {
 .note-tag-color-summary .tag-chip {
   height: 24px;
   border: 0;
-  padding: 0 2px 0 9px;
+  /* Keep label breathing room symmetric; spacing to × belongs to the outer control. */
+  padding: 0 8px;
   background: transparent;
 }
 
