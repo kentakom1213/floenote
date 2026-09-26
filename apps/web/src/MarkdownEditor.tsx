@@ -38,10 +38,9 @@ function enhanceSearchPanel(view: EditorView): void {
   const setReplaceOpen = (open: boolean) => {
     panel.dataset.floeReplaceOpen = String(open);
     toggle.setAttribute("aria-expanded", String(open));
-    toggle.setAttribute(
-      "aria-label",
-      open ? "Hide replace controls" : "Show replace controls",
-    );
+    const label = open ? "Hide replace controls" : "Show replace controls";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
     toggle.textContent = open ? "⌄" : "›";
   };
 
@@ -50,6 +49,9 @@ function enhanceSearchPanel(view: EditorView): void {
     setReplaceOpen(panel.dataset.floeReplaceOpen !== "true");
   });
   panel.prepend(toggle);
+
+  panel.querySelector('[name="prev"]')?.setAttribute("title", "Previous match");
+  panel.querySelector('[name="next"]')?.setAttribute("title", "Next match");
 
   const optionTitles = [
     ["case", "Match case"],
