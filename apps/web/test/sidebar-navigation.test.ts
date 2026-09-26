@@ -107,6 +107,8 @@ describe("sidebar navigation", () => {
     );
 
     expect(markup).toContain("Plain note");
+    expect(markup).toContain('class="note-item"');
+    expect(markup).not.toContain("note-item-with-tags");
     expect(markup).not.toContain("tag-chip");
     expect(markup).not.toContain("note-item-tag-overflow");
   });
@@ -127,6 +129,9 @@ describe("sidebar navigation", () => {
     );
 
     expect(SIDEBAR_TAG_LIMIT).toBe(2);
+    expect(markup).toContain("note-item note-item-with-tags");
+    expect(markup).toContain("note-item-title");
+    expect(markup).toContain("note-item-tags");
     expect(markup).toContain("research");
     expect(markup).toContain("work");
     expect(markup).not.toContain(">idea<");
