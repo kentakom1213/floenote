@@ -4,7 +4,6 @@ import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
   createPairingSecret,
   createSessionId,
-  InvitationClient,
   SecurityCoordinatorClient,
   WebRtcSignalingSession,
   type InviteId,
@@ -631,15 +630,16 @@ function NoteApp({
     invitationSyncEngineRef.current = null;
 
     if (invitationHostActive) {
+      if (authorizedSync.presenceState !== "open") return;
+
       let disposed = false;
       let cleanup: (() => void) | null = null;
       let invitationTransport: WebRtcTransport | null = null;
-      const invitationClient = new InvitationClient(coordinatorBaseUrl);
 
       void (async () => {
         try {
           const pairingSecret = createPairingSecret();
-          const invitation = await invitationClient.createInvite(project.id);
+          const invitation = await authorizedSync.createInvitation();
           if (disposed) return;
 
           const transport = new WebRtcTransport(
@@ -799,6 +799,8 @@ function NoteApp({
     setSignalingState("idle");
     return;
   }, [
+    authorizedSync.createInvitation,
+    authorizedSync.presenceState,
     invitationHostActive,
     project,
     signalSessionId,
