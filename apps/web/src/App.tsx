@@ -833,26 +833,6 @@ function NoteApp({
   ]);
 
   useEffect(() => {
-    if (!openedProject) return;
-
-    setFocusTitleDocumentId(null);
-
-    const { project: loadedProject, isNew } = openedProject;
-    if (!isNew) return;
-
-    const document = loadedProject.createDocument("Welcome to Floe Note");
-    setSelectedId(document.id);
-    writeLastDocumentId(loadedProject.id, document.id);
-
-    if (
-      browserRoute.kind === "project" &&
-      browserRoute.projectId === loadedProject.id
-    ) {
-      replaceRoute(buildDocumentUrl(loadedProject.id, document.id));
-    }
-  }, [browserRoute, openedProject, replaceRoute]);
-
-  useEffect(() => {
     if (deviceVaultState !== "unlocked" || !projectCatalogReady) return;
 
     if (browserRoute.kind === "not-found") {
@@ -1314,11 +1294,15 @@ function NoteApp({
 
     try {
       const result = await projectStorage.createProject(name);
+      const document = result.project.createDocument("Welcome to Floe Note");
       syncLocalDeviceName(result.project, session);
       const summaries = await projectStorage.listProjects(session);
       resetProjectSecurityUiState();
+      setSelectedId(document.id);
+      setFocusTitleDocumentId(null);
+      writeLastDocumentId(result.project.id, document.id);
       setMainView("note");
-      pushRoute(buildProjectUrl(result.project.id));
+      pushRoute(buildDocumentUrl(result.project.id, document.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
