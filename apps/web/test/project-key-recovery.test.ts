@@ -5,25 +5,10 @@ import {
   signEd25519,
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
-import { createProjectId, type DeviceId } from "@floe-note/domain";
+import { createProjectId } from "@floe-note/domain";
 import {
-  attachAddDeviceSignature,
-  attachCreateProjectSignature,
   attachProjectKeyRotationEnvelopeSignature,
-  attachRevokeDeviceSignature,
-  createUnsignedAddDeviceTransition,
-  createUnsignedCreateProjectTransition,
-  createUnsignedRevokeDeviceTransition,
-  deriveAddDeviceSecurityState,
-  deriveInitialSecurityState,
-  deriveRevokeDeviceSecurityState,
-  encodeAddDeviceTransition,
-  encodeCreateProjectTransition,
-  encodeRevokeDeviceTransition,
-  encodeUnsignedAddDeviceTransition,
-  encodeUnsignedCreateProjectTransition,
   encodeUnsignedProjectKeyRotationEnvelope,
-  encodeUnsignedRevokeDeviceTransition,
   type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
@@ -38,145 +23,80 @@ afterEach(async () => {
   await Promise.all(keyMaterials.splice(0).map(destroyDeviceKeyMaterial));
 });
 
-async function createInitialState(
-  device: DeviceKeyMaterial,
-): Promise<SecurityState> {
-  const unsigned = createUnsignedCreateProjectTransition(
-    createProjectId(),
-    device.publicIdentity,
+async function createScenario(): Promise<{
+  state: SecurityState;
+  envelope: ProjectKeyRotationEnvelope;
+  localDeviceId: SecurityState["devices"][number]["deviceId"];
+  otherDeviceId: SecurityState["devices"][number]["deviceId"];
+}> {
+  const signer = await generateDeviceKeyMaterial();
+  const recipient = await generateDeviceKeyMaterial();
+  const addedLater = await generateDeviceKeyMaterial();
+  keyMaterials.push(signer, recipient, addedLater);
+
+  const projectId = createProjectId();
+  const rotationHead = await sha256(
+    new TextEncoder().encode("revoke-device-head"),
   );
-  const transition = attachCreateProjectSignature(
-    unsigned,
-    await signEd25519(
-      encodeUnsignedCreateProjectTransition(unsigned),
-      device.signingPrivateKey,
-    ),
+  const currentHead = await sha256(
+    new TextEncoder().encode("later-add-device-head"),
   );
 
-  return deriveInitialSecurityState(
-    transition,
-    await sha256(encodeCreateProjectTransition(transition)),
-  );
-}
-
-async function addDevice(
-  state: SecurityState,
-  device: DeviceKeyMaterial,
-  signer: DeviceKeyMaterial,
-): Promise<SecurityState> {
-  const unsigned = createUnsignedAddDeviceTransition(
-    state,
-    device.publicIdentity,
-    signer.publicIdentity.deviceId,
-  );
-  const transition = attachAddDeviceSignature(
-    unsigned,
-    await signEd25519(
-      encodeUnsignedAddDeviceTransition(unsigned),
-      signer.signingPrivateKey,
-    ),
-  );
-
-  return deriveAddDeviceSecurityState(
-    state,
-    transition,
-    await sha256(encodeAddDeviceTransition(transition)),
-  );
-}
-
-async function revokeDevice(
-  state: SecurityState,
-  revokedDeviceId: DeviceId,
-  signer: DeviceKeyMaterial,
-): Promise<SecurityState> {
-  const unsigned = createUnsignedRevokeDeviceTransition(
-    state,
-    revokedDeviceId,
-    signer.publicIdentity.deviceId,
-  );
-  const transition = attachRevokeDeviceSignature(
-    unsigned,
-    await signEd25519(
-      encodeUnsignedRevokeDeviceTransition(unsigned),
-      signer.signingPrivateKey,
-    ),
-  );
-
-  return deriveRevokeDeviceSecurityState(
-    state,
-    transition,
-    await sha256(encodeRevokeDeviceTransition(transition)),
-  );
-}
-
-async function createRotationEnvelope(
-  state: SecurityState,
-  signer: DeviceKeyMaterial,
-  recipient: DeviceKeyMaterial,
-): Promise<ProjectKeyRotationEnvelope> {
-  const unsigned = {
+  // The envelope was created by a RevokeDevice at sequence 3 / epoch 2.
+  const unsignedEnvelope = {
     protocolVersion: 1 as const,
-    projectId: state.projectId,
-    keyEpoch: state.keyEpoch,
-    securityHead: state.headHash,
+    projectId,
+    keyEpoch: 2,
+    securityHead: rotationHead,
     recipientDeviceId: recipient.publicIdentity.deviceId,
     sealedEnvelope: new Uint8Array([0x01, 0x02, 0x03]),
     signerDeviceId: signer.publicIdentity.deviceId,
   };
-
-  return attachProjectKeyRotationEnvelopeSignature(
-    unsigned,
+  const envelope = attachProjectKeyRotationEnvelopeSignature(
+    unsignedEnvelope,
     await signEd25519(
-      encodeUnsignedProjectKeyRotationEnvelope(unsigned),
+      encodeUnsignedProjectKeyRotationEnvelope(unsignedEnvelope),
       signer.signingPrivateKey,
     ),
   );
-}
 
-async function createRecoveryScenario(): Promise<{
-  currentState: SecurityState;
-  envelope: ProjectKeyRotationEnvelope;
-  localDeviceId: DeviceId;
-  otherDeviceId: DeviceId;
-}> {
-  const deviceA = await generateDeviceKeyMaterial();
-  const deviceB = await generateDeviceKeyMaterial();
-  const deviceC = await generateDeviceKeyMaterial();
-  const deviceD = await generateDeviceKeyMaterial();
-  keyMaterials.push(deviceA, deviceB, deviceC, deviceD);
-
-  let state = await createInitialState(deviceA);
-  state = await addDevice(state, deviceB, deviceA);
-  state = await addDevice(state, deviceC, deviceA);
-
-  const rotatedState = await revokeDevice(
-    state,
-    deviceB.publicIdentity.deviceId,
-    deviceA,
-  );
-  const envelope = await createRotationEnvelope(
-    rotatedState,
-    deviceA,
-    deviceC,
-  );
-
-  const currentState = await addDevice(rotatedState, deviceD, deviceA);
+  // A later AddDevice advances the SecurityState head but keeps epoch 2.
+  const state: SecurityState = {
+    protocolVersion: 1,
+    projectId,
+    sequence: 4,
+    headHash: currentHead,
+    keyEpoch: 2,
+    devices: [
+      {
+        ...signer.publicIdentity,
+        addedAtSequence: 0,
+      },
+      {
+        ...recipient.publicIdentity,
+        addedAtSequence: 2,
+      },
+      {
+        ...addedLater.publicIdentity,
+        addedAtSequence: 4,
+      },
+    ].sort((left, right) => left.deviceId.localeCompare(right.deviceId)),
+  };
 
   return {
-    currentState,
+    state,
     envelope,
-    localDeviceId: deviceC.publicIdentity.deviceId,
-    otherDeviceId: deviceD.publicIdentity.deviceId,
+    localDeviceId: recipient.publicIdentity.deviceId,
+    otherDeviceId: addedLater.publicIdentity.deviceId,
   };
 }
 
 describe("rotated ProjectKey recovery", () => {
-  it("accepts a valid envelope after the SecurityState head advances within the same key epoch", async () => {
-    const { currentState, envelope, localDeviceId } =
-      await createRecoveryScenario();
+  it("uses the authenticated rotation head after a same-epoch SecurityState update", async () => {
+    const { state, envelope, localDeviceId } = await createScenario();
 
-    expect(currentState.keyEpoch).toBe(envelope.keyEpoch);
-    expect(currentState.headHash).not.toEqual(envelope.securityHead);
+    expect(state.keyEpoch).toBe(envelope.keyEpoch);
+    expect(state.headHash).not.toEqual(envelope.securityHead);
 
     let stored:
       | {
@@ -194,18 +114,13 @@ describe("rotated ProjectKey recovery", () => {
         keyEpoch,
         securityHead,
       ) {
-        stored = {
-          sealedEnvelope,
-          projectId,
-          keyEpoch,
-          securityHead,
-        };
+        stored = { sealedEnvelope, projectId, keyEpoch, securityHead };
       },
     };
 
     await storeVerifiedRotatedProjectKey(
       session,
-      currentState,
+      state,
       localDeviceId,
       envelope,
     );
@@ -218,47 +133,41 @@ describe("rotated ProjectKey recovery", () => {
     });
   });
 
-  it("rejects mismatched Project, key epoch, and recipient contexts", async () => {
-    const { currentState, envelope, localDeviceId, otherDeviceId } =
-      await createRecoveryScenario();
+  it("still rejects mismatched Project, epoch, and recipient contexts", async () => {
+    const { state, envelope, localDeviceId, otherDeviceId } =
+      await createScenario();
     const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
       async storeSealedProjectKey() {},
     };
 
-    await expect(
-      storeVerifiedRotatedProjectKey(session, currentState, localDeviceId, {
-        ...envelope,
-        projectId: createProjectId(),
-      }),
-    ).rejects.toThrow("ProjectKey rotation envelope does not match SecurityState");
-
-    await expect(
-      storeVerifiedRotatedProjectKey(session, currentState, localDeviceId, {
-        ...envelope,
-        keyEpoch: envelope.keyEpoch + 1,
-      }),
-    ).rejects.toThrow("ProjectKey rotation envelope does not match SecurityState");
-
-    await expect(
-      storeVerifiedRotatedProjectKey(session, currentState, localDeviceId, {
-        ...envelope,
-        recipientDeviceId: otherDeviceId,
-      }),
-    ).rejects.toThrow("ProjectKey rotation envelope does not match SecurityState");
+    for (const mismatchedEnvelope of [
+      { ...envelope, projectId: createProjectId() },
+      { ...envelope, keyEpoch: envelope.keyEpoch + 1 },
+      { ...envelope, recipientDeviceId: otherDeviceId },
+    ]) {
+      await expect(
+        storeVerifiedRotatedProjectKey(
+          session,
+          state,
+          localDeviceId,
+          mismatchedEnvelope,
+        ),
+      ).rejects.toThrow(
+        "ProjectKey rotation envelope does not match SecurityState",
+      );
+    }
   });
 
-  it("rejects a tampered rotation-time security head", async () => {
-    const { currentState, envelope, localDeviceId } =
-      await createRecoveryScenario();
+  it("still authenticates the rotation-time security head", async () => {
+    const { state, envelope, localDeviceId } = await createScenario();
     const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
       async storeSealedProjectKey() {},
     };
-
     const securityHead = envelope.securityHead.slice();
     securityHead[0] = (securityHead[0] ?? 0) ^ 0xff;
 
     await expect(
-      storeVerifiedRotatedProjectKey(session, currentState, localDeviceId, {
+      storeVerifiedRotatedProjectKey(session, state, localDeviceId, {
         ...envelope,
         securityHead,
       }),
