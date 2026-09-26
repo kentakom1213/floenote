@@ -17,6 +17,7 @@ import {
   type EditorMode,
 } from "./editor-mode-preference.js";
 import { NoteProperties } from "./NoteProperties.js";
+import { pickRandomTagColor } from "./tag-colors.js";
 import {
   readNoteRecency,
   recordNoteOpened,
@@ -668,6 +669,11 @@ function DocumentPane({
             availableTags={availableTags}
             getTagColor={(tag) => project.getTagColor(tag)}
             onTagColorChange={(tag, color) => project.setTagColor(tag, color)}
+            onNewProjectTag={(tag) => {
+              if (!project.hasTagColor(tag)) {
+                project.setTagColor(tag, pickRandomTagColor());
+              }
+            }}
             trailingControl={
               <EditorModeSwitcher
                 mode={mode}
