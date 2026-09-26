@@ -6,7 +6,7 @@ import type { DocumentId } from "@floe-note/domain";
 import { TagChip } from "./TagChip.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
-export const SIDEBAR_TAG_LIMIT = 2;
+export const SIDEBAR_TAG_LIMIT = 3;
 
 type SidebarNoteRowProps = {
   id: DocumentId;
