@@ -274,6 +274,33 @@ describe("AuthorizedPresenceClient reconnect", () => {
     client.close();
   });
 
+  it("keeps presence open when invitation allocation fails", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvitation();
+    const request = JSON.parse(socket.sent[1]!) as {
+      requestId: number;
+    };
+
+    socket.message({
+      type: "control-error",
+      requestId: request.requestId,
+      message: "Could not allocate invitation identifier",
+    });
+
+    await expect(invitationPromise).rejects.toThrow(
+      "Could not allocate invitation identifier",
+    );
+    expect(client.state).toBe("open");
+    expect(socket.readyState).toBe(FakeWebSocket.OPEN);
+
+    client.close();
+  });
+
   it("rejects invitation creation before presence authentication", async () => {
     const client = createClient();
     client.start();
