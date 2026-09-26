@@ -198,8 +198,10 @@ These values are either Floe Note-specific presentation/runtime metadata or
 belong to the original Project's cryptographic and synchronization identity.
 
 Consequently, importing an export does not resume synchronization with the
-original Project. Imported notes also start with fresh edit history; portable
-v1 export carries only the current logical note state.
+original Project. Tag strings are preserved, but Project tag colors are not;
+imported tags therefore use the default gray until the user explicitly chooses
+a color. Imported notes also start with fresh edit history; portable v1 export
+carries only the current logical note state.
 
 ## 8. Export consistency
 
