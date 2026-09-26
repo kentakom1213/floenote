@@ -178,7 +178,7 @@ const floeEditorChrome = EditorView.theme({
     gridColumn: "8",
     gridRow: "1",
   },
-  ".cm-panel.cm-search[data-floe-replace-open=false] input[name=replace], .cm-panel.cm-search[data-floe-replace-open=false] button[name=replace], .cm-panel.cm-search[data-floe-replace-open=false] [name=replaceAll]": {
+  ".cm-panel.cm-search:not([data-floe-replace-open=true]) input[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) button[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) [name=replaceAll]": {
     display: "none",
   },
   ".cm-panel.cm-search label": {
