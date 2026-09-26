@@ -9,7 +9,11 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   const editor = page.locator('.editor [contenteditable="true"]');
   await expect(editor).toBeVisible();
 
+  await expect
+    .poll(() => readEncryptedDocumentSnapshot(page))
+    .not.toBeNull();
   const before = await readEncryptedDocumentSnapshot(page);
+
   await editor.fill("This body survives an encrypted IndexedDB reload.");
 
   await expect(editor).toContainText(
