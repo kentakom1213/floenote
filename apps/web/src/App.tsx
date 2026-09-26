@@ -623,20 +623,6 @@ function NoteApp({
   useEffect(() => {
     if (!project) return;
 
-    if (
-      invitationHostActive &&
-      authorizedSync.presenceState !== "open"
-    ) {
-      setCoordinationError(
-        authorizedSync.presenceState === "error" ||
-          authorizedSync.presenceState === "closed"
-          ? authorizedSync.coordinationError ??
-              "Authorized coordinator connection is unavailable"
-          : null,
-      );
-      return;
-    }
-
     setCoordinationError(null);
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
@@ -812,9 +798,7 @@ function NoteApp({
     setSignalingState("idle");
     return;
   }, [
-    authorizedSync.coordinationError,
     authorizedSync.createInvite,
-    authorizedSync.presenceState,
     invitationHostActive,
     project,
     signalSessionId,
