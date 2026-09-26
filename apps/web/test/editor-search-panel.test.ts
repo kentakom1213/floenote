@@ -25,7 +25,15 @@ describe("editor search panel", () => {
     });
 
     expect(openSearchPanel(view)).toBe(true);
-    expect(view.dom.querySelector(".cm-panels-top .cm-search")).not.toBeNull();
+
+    const searchPanels = view.dom.querySelectorAll(".cm-search");
+    expect(searchPanels).toHaveLength(1);
+    expect(view.dom.querySelector(".cm-panels-top .cm-search")).toBe(
+      searchPanels[0],
+    );
     expect(view.dom.querySelector(".cm-panels-bottom .cm-search")).toBeNull();
+    expect(
+      view.dom.querySelector(".editor-search-position-preview"),
+    ).toBeNull();
   });
 });
