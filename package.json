@@ -15,11 +15,13 @@
     "dev:turn": "pnpm --filter @floe-note/turn dev",
     "deploy:turn": "pnpm --filter @floe-note/turn run deploy",
     "preview": "node scripts/deploy-preview.mjs",
-    "preview:delete": "node scripts/delete-preview.mjs"
+    "preview:delete": "node scripts/delete-preview.mjs",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "jsdom": "29.0.1",
     "typescript": "^5.9.2",
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "@playwright/test": "1.63.0"
   }
 }
