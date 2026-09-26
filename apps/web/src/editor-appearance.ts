@@ -165,7 +165,7 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panel.cm-search button[name=replace]": {
     gridColumn: "3 / span 2",
     gridRow: "2",
-    justifySelf: "start",
+    justifySelf: "end",
   },
   ".cm-panel.cm-search [name=replaceAll]": {
     gridColumn: "5 / span 3",
