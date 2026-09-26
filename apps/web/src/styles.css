@@ -742,40 +742,48 @@ input:focus-visible {
 .note-item {
   min-width: 0;
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(64px, 1fr) auto;
-  align-items: center;
-  gap: 6px;
   overflow: hidden;
   border: 0;
   border-radius: 9px;
-  padding: 8px 6px 8px 10px;
+  padding: 9px 6px 9px 10px;
   color: inherit;
   background: transparent;
   text-align: left;
 }
 
+.note-item-with-tags {
+  display: grid;
+  gap: 5px;
+  padding-block: 7px 6px;
+}
+
 .note-item-title {
   min-width: 0;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/*
+ * Keep tags on their own row. Putting title and chips in one grid row made both
+ * unreadable in a narrow/resized sidebar. The title remains the primary row;
+ * compact tags may truncate independently below it.
+ */
 .note-item-tags {
   min-width: 0;
-  max-width: 48%;
+  max-width: 100%;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
+  justify-content: flex-start;
+  gap: 4px;
   overflow: hidden;
 }
 
 .note-item-tag-overflow {
   flex: 0 0 auto;
   color: var(--color-text-faint);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 650;
   line-height: 1;
 }
@@ -1472,9 +1480,18 @@ input:focus-visible {
   background: color-mix(in srgb, var(--tag-chip-color) 13%, transparent);
 }
 
+/*
+ * The color-picker wrapper must not reintroduce inline baseline layout here.
+ * The previous tag chip was a single inline-flex box with a small optical
+ * vertical correction for Japanese text. Keep details/summary as flex boxes so
+ * adding presentation controls does not shift the tag label relative to Add tag.
+ */
 .note-tag-color-picker {
   position: relative;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .note-tag-color-picker > summary {
@@ -1486,12 +1503,16 @@ input:focus-visible {
 }
 
 .note-tag-color-summary {
-  display: block;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   cursor: pointer;
+  line-height: 1;
 }
 
 .note-tag-color-summary .tag-chip {
+  min-height: 24px;
   border: 0;
   padding: 3px 2px 3px 9px;
   background: transparent;
@@ -5440,14 +5461,15 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transform: translateY(0.5px);
+  /* Optical alignment: Japanese glyphs sit slightly high in this compact line box. */
+  transform: translateY(1px);
 }
 
 .tag-chip-compact {
-  min-height: 18px;
-  max-width: 58px;
-  padding: 2px 5px;
-  font-size: 9px;
+  min-height: 19px;
+  max-width: 88px;
+  padding: 2px 6px;
+  font-size: 10px;
 }
 
 .tag-color-popover {
