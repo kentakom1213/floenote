@@ -62,6 +62,7 @@ function parsePreviewUrl(output, label) {
 }
 
 const { name, json } = parseArgs(process.argv.slice(2));
+const wranglerEnv = { ...process.env, CI: "true" };
 
 const coordinatorOutput = runPnpm(
   [
@@ -74,7 +75,7 @@ const coordinatorOutput = runPnpm(
     name,
     "--json",
   ],
-  { label: "Coordinator preview" },
+  { env: wranglerEnv, label: "Coordinator preview" },
 );
 const coordinatorUrl = parsePreviewUrl(coordinatorOutput, "Coordinator preview");
 
@@ -103,7 +104,7 @@ const webOutput = runPnpm(
     name,
     "--json",
   ],
-  { label: "Web preview" },
+  { env: wranglerEnv, label: "Web preview" },
 );
 const webUrl = parsePreviewUrl(webOutput, "Web preview");
 
