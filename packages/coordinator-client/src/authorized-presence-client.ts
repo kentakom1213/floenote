@@ -4,6 +4,7 @@ import {
   type ProjectId,
 } from "@floe-note/domain";
 
+import { parseInviteId, type CreatedInvitation } from "./invitation.js";
 import { parseSessionId, type SessionId } from "./session-id.js";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
@@ -66,6 +67,14 @@ export class AuthorizedPresenceClient {
   #generation = 0;
   #reconnectAttempt = 0;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  #nextRequestId = 1;
+  readonly #pendingInvitationRequests = new Map<
+    number,
+    {
+      resolve: (invitation: CreatedInvitation) => void;
+      reject: (error: Error) => void;
+    }
+  >();
 
   constructor(options: AuthorizedPresenceClientOptions) {
     this.#url = createPresenceWebSocketUrl(
@@ -115,6 +124,9 @@ export class AuthorizedPresenceClient {
     socket.addEventListener("close", (event) => {
       if (generation !== this.#generation || socket !== this.#socket) return;
       this.#socket = null;
+      this.#rejectPendingInvitationRequests(
+        new Error("Authorized presence connection closed"),
+      );
 
       if (!this.#started) {
         this.#setState("closed");
@@ -202,6 +214,39 @@ export class AuthorizedPresenceClient {
     );
   }
 
+  createInvitation(): Promise<CreatedInvitation> {
+    if (
+      this.#socket?.readyState !== WebSocket.OPEN ||
+      this.#state !== "open"
+    ) {
+      return Promise.reject(
+        new Error("Authorized presence WebSocket is not open"),
+      );
+    }
+
+    const requestId = this.#nextRequestId;
+    this.#nextRequestId += 1;
+
+    return new Promise<CreatedInvitation>((resolve, reject) => {
+      this.#pendingInvitationRequests.set(requestId, { resolve, reject });
+      try {
+        this.#socket?.send(
+          JSON.stringify({
+            type: "create-invitation",
+            requestId,
+          }),
+        );
+      } catch (error: unknown) {
+        this.#pendingInvitationRequests.delete(requestId);
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("Failed to request invitation"),
+        );
+      }
+    });
+  }
+
   close(): void {
     if (!this.#started && !this.#socket && !this.#reconnectTimer) return;
 
@@ -211,6 +256,9 @@ export class AuthorizedPresenceClient {
     this.#socket?.close(1000, "Authorized presence ended");
     this.#socket = null;
     this.#reconnectAttempt = 0;
+    this.#rejectPendingInvitationRequests(
+      new Error("Authorized presence client closed"),
+    );
     this.#setState("closed");
     this.#deviceHandlers.clear();
     this.#stateHandlers.clear();
@@ -238,6 +286,30 @@ export class AuthorizedPresenceClient {
         for (const handler of this.#deviceHandlers) {
           handler(deviceIds);
         }
+        return;
+      }
+
+      if (isInvitationCreatedMessage(parsed)) {
+        const pending = this.#pendingInvitationRequests.get(parsed.requestId);
+        if (!pending) {
+          throw new Error("Unknown invitation request");
+        }
+        this.#pendingInvitationRequests.delete(parsed.requestId);
+        pending.resolve({
+          inviteId: parseInviteId(parsed.inviteId),
+          sessionId: parseSessionId(parsed.sessionId),
+          expiresAt: parsed.expiresAt,
+        });
+        return;
+      }
+
+      if (isControlErrorMessage(parsed)) {
+        const pending = this.#pendingInvitationRequests.get(parsed.requestId);
+        if (!pending) {
+          throw new Error("Unknown authorized-presence control request");
+        }
+        this.#pendingInvitationRequests.delete(parsed.requestId);
+        pending.reject(new Error(parsed.message));
         return;
       }
 
@@ -337,10 +409,18 @@ export class AuthorizedPresenceClient {
   }
 
   #fail(error: Error): void {
+    this.#rejectPendingInvitationRequests(error);
     this.#setState("error");
     for (const handler of this.#errorHandlers) {
       handler(error);
     }
+  }
+
+  #rejectPendingInvitationRequests(error: Error): void {
+    for (const pending of this.#pendingInvitationRequests.values()) {
+      pending.reject(error);
+    }
+    this.#pendingInvitationRequests.clear();
   }
 
   #setState(state: AuthorizedPresenceConnectionState): void {
@@ -370,6 +450,20 @@ type ReconnectSessionMessage = {
   transportMode?: ReconnectTransportMode;
 };
 
+type InvitationCreatedMessage = {
+  type: "invitation-created";
+  requestId: number;
+  inviteId: string;
+  sessionId: string;
+  expiresAt: number;
+};
+
+type ControlErrorMessage = {
+  type: "control-error";
+  requestId: number;
+  message: string;
+};
+
 function isChallengeMessage(value: unknown): value is PresenceChallengeMessage {
   return (
     typeof value === "object" &&
@@ -394,6 +488,40 @@ function isPresenceStateMessage(
     "deviceIds" in value &&
     Array.isArray(value.deviceIds) &&
     value.deviceIds.every((deviceId) => typeof deviceId === "string")
+  );
+}
+
+function isInvitationCreatedMessage(
+  value: unknown,
+): value is InvitationCreatedMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "invitation-created" &&
+    "requestId" in value &&
+    typeof value.requestId === "number" &&
+    Number.isSafeInteger(value.requestId) &&
+    "inviteId" in value &&
+    typeof value.inviteId === "string" &&
+    "sessionId" in value &&
+    typeof value.sessionId === "string" &&
+    "expiresAt" in value &&
+    typeof value.expiresAt === "number"
+  );
+}
+
+function isControlErrorMessage(value: unknown): value is ControlErrorMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    value.type === "control-error" &&
+    "requestId" in value &&
+    typeof value.requestId === "number" &&
+    Number.isSafeInteger(value.requestId) &&
+    "message" in value &&
+    typeof value.message === "string"
   );
 }
 
