@@ -30,6 +30,8 @@ import {
   type SecurityTransitionWirePayload,
 } from "@floe-note/security";
 
+import { allocateInvitationForAuthorizedPresence } from "./invitation-authorization.js";
+
 interface Env {
   PROJECT_COORDINATOR: DurableObjectNamespace<ProjectCoordinator>;
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
@@ -1143,20 +1145,26 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    if (attachment.securityHead !== bytesToHex(state.headHash)) {
+    const allocation = await allocateInvitationForAuthorizedPresence(
+      state,
+      {
+        projectId,
+        deviceId,
+        securityHead: attachment.securityHead,
+      },
+      (authorizedProjectId) =>
+        createInvitation(this.env, authorizedProjectId),
+    );
+    if (allocation.kind === "stale-security-head") {
       socket.close(1008, "SecurityState changed during authorized presence");
       return;
     }
-
-    const authorized = state.devices.some(
-      (device) => device.deviceId === deviceId,
-    );
-    if (!authorized) {
+    if (allocation.kind === "unauthorized-device") {
       socket.close(1008, "Device is not authorized for this Project");
       return;
     }
 
-    const response = await createInvitation(this.env, projectId);
+    const response = allocation.response;
     if (!response.ok) {
       const detail = (await response.text()).trim();
       sendJson(socket, {
