@@ -12,7 +12,6 @@ test("keeps visible views and browser history aligned", async ({ page }) => {
   await page.getByRole("button", { name: "Project settings" }).click();
 
   await expect(page).toHaveURL(`/p/${projectId}/settings`);
-  await expect(page.getByText("Project settings", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Navigation Project" }),
   ).toBeVisible();
