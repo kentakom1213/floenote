@@ -175,7 +175,8 @@ export function NoteWorkspace({
       if (
         event.key.toLowerCase() === "k" &&
         (event.ctrlKey || event.metaKey) &&
-        !event.altKey
+        !event.altKey &&
+        !event.shiftKey
       ) {
         event.preventDefault();
         setGlobalSearchOpen(true);
