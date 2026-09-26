@@ -1535,13 +1535,14 @@ input:focus-visible {
 }
 
 .note-tag-remove {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  margin-right: 3px;
+  margin-left: -2px;
+  margin-right: 4px;
   padding: 0;
   color: inherit;
   line-height: 1;
@@ -1549,8 +1550,8 @@ input:focus-visible {
 }
 
 .note-tag-remove svg {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   display: block;
   fill: none;
   stroke: currentColor;
