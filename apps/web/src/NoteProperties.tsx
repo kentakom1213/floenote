@@ -161,7 +161,7 @@ export function NoteProperties({
                   aria-label={`Remove tag ${tag}`}
                   onClick={() => removeTagFromProperties(document, tag)}
                 >
-                  ×
+                  <RemoveTagIcon />
                 </button>
               </span>
             );
@@ -281,6 +281,14 @@ export function NoteProperties({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function RemoveTagIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="m5 5 6 6M11 5l-6 6" />
+    </svg>
   );
 }
 
