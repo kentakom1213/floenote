@@ -630,8 +630,6 @@ function NoteApp({
     invitationSyncEngineRef.current = null;
 
     if (invitationHostActive) {
-      if (authorizedSync.presenceState !== "open") return;
-
       let disposed = false;
       let cleanup: (() => void) | null = null;
       let invitationTransport: WebRtcTransport | null = null;
@@ -800,7 +798,6 @@ function NoteApp({
     return;
   }, [
     authorizedSync.createInvitation,
-    authorizedSync.presenceState,
     invitationHostActive,
     project,
     signalSessionId,
