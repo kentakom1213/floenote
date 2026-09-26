@@ -63,6 +63,27 @@ function cloneProject(source: NoteProject): NoteProject {
 }
 
 describe("ProjectSyncEngine", () => {
+  it("synchronizes Project tag colors through ordinary manifest updates", () => {
+    const base = NoteProject.create();
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new ProjectSyncEngine(left, leftTransport);
+    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+
+    leftEngine.start();
+    rightEngine.start();
+
+    left.setTagColor("research", "blue");
+    expect(right.getTagColor("research")).toBe("blue");
+
+    right.setTagColor("research", "purple");
+    expect(left.getTagColor("research")).toBe("purple");
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
   it("synchronizes delete and restore as manifest updates", () => {
     const base = NoteProject.create();
     const document = base.createDocument("Trash sync");
