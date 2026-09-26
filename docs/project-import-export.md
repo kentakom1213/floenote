@@ -194,8 +194,8 @@ A portable export must not contain:
 - edit-history checkpoints and historical versions;
 - IndexedDB records or schema details.
 
-These values belong to the original Project's cryptographic and synchronization
-identity.
+These values are either Floe Note-specific presentation/runtime metadata or
+belong to the original Project's cryptographic and synchronization identity.
 
 Consequently, importing an export does not resume synchronization with the
 original Project. Imported notes also start with fresh edit history; portable
