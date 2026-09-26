@@ -17,9 +17,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      preview_required: ${{ steps.filter.outputs.preview_required }}
+    steps:
+      - name: Check preview-relevant changes
+        id: filter
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          preview_required=false
+          while IFS= read -r path; do
+            case "$path" in
+              docs/*|*.md|.github/ISSUE_TEMPLATE/*)
+                ;;
+              *)
+                preview_required=true
+                break
+                ;;
+            esac
+          done < <(
+            gh api --paginate "repos/$REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename'
+          )
+
+          echo "preview_required=$preview_required" >> "$GITHUB_OUTPUT"
+
   deploy:
+    needs: changes
     if: >-
-      github.event.action != 'closed' &&
+      needs.changes.outputs.preview_required == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: preview
