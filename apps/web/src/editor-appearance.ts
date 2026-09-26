@@ -123,7 +123,7 @@ const floeEditorChrome = EditorView.theme({
     gridColumn: "4",
     gridRow: "1",
   },
-  ".cm-panel.cm-search [name=replace]": {
+  ".cm-panel.cm-search input[name=replace]": {
     gridColumn: "1",
     gridRow: "2",
   },
