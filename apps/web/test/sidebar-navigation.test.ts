@@ -17,7 +17,10 @@ import {
   type SidebarNavigationNote,
 } from "../src/sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "../src/SidebarNavigationToolbar.js";
-import { SidebarNoteRow } from "../src/SidebarNoteRow.js";
+import {
+  SIDEBAR_TAG_LIMIT,
+  SidebarNoteRow,
+} from "../src/SidebarNoteRow.js";
 
 function note(
   id: string,
@@ -51,6 +54,7 @@ describe("sidebar navigation", () => {
         tags: ["graph", "research"],
         selectedTags: ["research"],
         tagFilterMode: DEFAULT_TAG_FILTER_MODE,
+        getTagColor: (tag: string) => (tag === "research" ? "blue" : "gray"),
         onQueryChange: vi.fn(),
         onSearchOpenChange: vi.fn(),
         onSortChange: vi.fn(),
@@ -67,6 +71,7 @@ describe("sidebar navigation", () => {
     expect(markup).toContain('aria-label="Tag filter mode"');
     expect(markup).toContain('type="checkbox"');
     expect(markup).toContain('checked=""');
+    expect(markup).toContain('data-tag-color="blue"');
     expect(markup).toContain('aria-label="New note"');
     expect(markup).toContain("<svg");
   });
@@ -86,6 +91,50 @@ describe("sidebar navigation", () => {
     expect(markup).toContain("Delete note");
     expect(markup).toContain("note-row-menu-item danger");
     expect(markup.match(/<circle/g)).toHaveLength(3);
+  });
+
+
+  it("renders an untagged note row without tag chrome", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SidebarNoteRow, {
+        id: "note-a" as DocumentId,
+        title: "Plain note",
+        tags: [],
+        selected: false,
+        onSelect: vi.fn(),
+        onDelete: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain("Plain note");
+    expect(markup).not.toContain("tag-chip");
+    expect(markup).not.toContain("note-item-tag-overflow");
+  });
+
+  it("renders colored sidebar tag chips with a fixed maximum and overflow count", () => {
+    const tags = ["research", "work", "idea", "personal"];
+    const markup = renderToStaticMarkup(
+      createElement(SidebarNoteRow, {
+        id: "note-a" as DocumentId,
+        title: "Tagged note",
+        tags,
+        getTagColor: (tag: string) =>
+          tag === "research" ? "blue" : tag === "work" ? "orange" : "gray",
+        selected: false,
+        onSelect: vi.fn(),
+        onDelete: vi.fn(),
+      }),
+    );
+
+    expect(SIDEBAR_TAG_LIMIT).toBe(2);
+    expect(markup).toContain("research");
+    expect(markup).toContain("work");
+    expect(markup).not.toContain(">idea<");
+    expect(markup).not.toContain(">personal<");
+    expect(markup).toContain("+2");
+    expect(markup).toContain('data-tag-color="blue"');
+    expect(markup).toContain('data-tag-color="orange"');
+    expect(markup.match(/tag-chip tag-chip-compact/g)).toHaveLength(2);
   });
 
 
