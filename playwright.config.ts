@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-const WEB_URL = "http://127.0.0.1:4173";
+const WEB_URL = "http://localhost:4173";
 const COORDINATOR_URL = "http://127.0.0.1:8787";
 
 export default defineConfig({
