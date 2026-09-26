@@ -37,6 +37,16 @@
   --editor-syntax-meta: #83766b;
   --editor-search-match: #f4e4b8;
   --editor-search-match-current: #efc47f;
+  --tag-color-gray: #6f7478;
+  --tag-color-red: #a83a17;
+  --tag-color-orange: #9c6800;
+  --tag-color-yellow: #756e00;
+  --tag-color-green: #087a57;
+  --tag-color-sky: #287da0;
+  --tag-color-blue: #27539a;
+  --tag-color-brown: #74431f;
+  --tag-color-purple: #7d337d;
+  --tag-color-pink: #a24e58;
 }
 
 :root,
@@ -69,6 +79,16 @@
   --editor-syntax-meta: #71858b;
   --editor-search-match: #dceef3;
   --editor-search-match-current: #abd6e1;
+  --tag-color-gray: #65747a;
+  --tag-color-red: #b33d1a;
+  --tag-color-orange: #9d6a00;
+  --tag-color-yellow: #746d00;
+  --tag-color-green: #087c5b;
+  --tag-color-sky: #277f9f;
+  --tag-color-blue: #2859a3;
+  --tag-color-brown: #70451f;
+  --tag-color-purple: #78367e;
+  --tag-color-pink: #9d505b;
 }
 
 :root[data-theme="polar-night"] {
@@ -100,6 +120,16 @@
   --editor-syntax-meta: #9aabb0;
   --editor-search-match: #30464f;
   --editor-search-match-current: #466675;
+  --tag-color-gray: #a9b2b7;
+  --tag-color-red: #ff8060;
+  --tag-color-orange: #f3b84d;
+  --tag-color-yellow: #ded85c;
+  --tag-color-green: #5bcb9d;
+  --tag-color-sky: #66c8f0;
+  --tag-color-blue: #72a8ff;
+  --tag-color-brown: #c58a55;
+  --tag-color-purple: #d48dd5;
+  --tag-color-pink: #f09aa0;
 }
 
 :root[data-theme="charcoal"] {
@@ -131,6 +161,16 @@
   --editor-syntax-meta: #aa9e95;
   --editor-search-match: #4b382b;
   --editor-search-match-current: #6a4a34;
+  --tag-color-gray: #b0aaa5;
+  --tag-color-red: #f57d60;
+  --tag-color-orange: #efb454;
+  --tag-color-yellow: #d8cf62;
+  --tag-color-green: #63c18f;
+  --tag-color-sky: #68b8d9;
+  --tag-color-blue: #7aa3e8;
+  --tag-color-brown: #c18a5e;
+  --tag-color-purple: #c88aca;
+  --tag-color-pink: #e9959b;
 }
 
 * {
@@ -709,8 +749,43 @@ input:focus-visible {
   color: inherit;
   background: transparent;
   text-align: left;
+}
+
+.note-item-with-tags {
+  display: grid;
+  gap: 5px;
+  padding-block: 7px 6px;
+}
+
+.note-item-title {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * Keep tags on their own row. Putting title and chips in one grid row made both
+ * unreadable in a narrow/resized sidebar. The title remains the primary row;
+ * compact tags may truncate independently below it.
+ */
+.note-item-tags {
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.note-item-tag-overflow {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
 }
 
 .note-row-menu {
@@ -1393,25 +1468,63 @@ input:focus-visible {
   gap: 6px;
 }
 
-.note-tag {
-  min-height: 26px;
+.note-tag-control {
+  position: relative;
+  height: 26px;
   max-width: 220px;
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
-  gap: 3px;
+  border: 1px solid color-mix(in srgb, var(--tag-chip-color) 20%, transparent);
   border-radius: 999px;
-  padding: 3px 4px 3px 9px;
-  color: var(--color-text-muted);
-  background: var(--color-surface-selected);
+  color: color-mix(in srgb, var(--tag-chip-color) 76%, var(--color-text));
+  background: color-mix(in srgb, var(--tag-chip-color) 13%, transparent);
+}
+
+/*
+ * The color-picker wrapper must not reintroduce inline baseline layout here.
+ * Keep details/summary as flex boxes so adding presentation controls does not
+ * shift the tag label relative to Add tag. The outer pill is 26px and the
+ * clickable inner pill is 24px; flex centering intentionally gives both rounded
+ * ends the same vertical centerline. Change these heights together.
+ */
+.note-tag-color-picker {
+  position: relative;
+  min-width: 0;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
   line-height: 1;
 }
 
-.note-tag > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transform: translateY(1px);
+.note-tag-color-picker > summary {
+  list-style: none;
+}
+
+.note-tag-color-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+.note-tag-color-summary {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.note-tag-color-summary .tag-chip {
+  height: 24px;
+  border: 0;
+  /* Keep label breathing room symmetric; spacing to × belongs to the outer control. */
+  padding: 0 8px;
+  background: transparent;
+}
+
+.note-tag-color-summary:hover .tag-chip,
+.note-tag-color-picker[open] .note-tag-color-summary .tag-chip {
+  background: color-mix(in srgb, var(--tag-chip-color) 8%, transparent);
 }
 
 .note-tag-remove,
@@ -1422,14 +1535,29 @@ input:focus-visible {
 }
 
 .note-tag-remove {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
+  margin-left: -2px;
+  margin-right: 4px;
   padding: 0;
+  color: inherit;
   line-height: 1;
+  opacity: 0.62;
+}
+
+.note-tag-remove svg {
+  width: 10px;
+  height: 10px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .note-tag-remove:hover {
@@ -4906,13 +5034,13 @@ h1 {
   white-space: nowrap;
 }
 
-.sidebar-tag-filter-hash {
-  color: var(--color-text-faint);
-  text-align: center;
-}
-
-.sidebar-tag-filter-options label:has(input:checked) .sidebar-tag-filter-hash {
-  color: var(--color-accent);
+.sidebar-tag-filter-dot {
+  width: 8px;
+  height: 8px;
+  justify-self: center;
+  border: 1px solid color-mix(in srgb, var(--tag-chip-color) 72%, var(--color-border));
+  border-radius: 50%;
+  background: var(--tag-chip-color);
 }
 
 .sidebar-tag-filter-empty {
@@ -4986,6 +5114,12 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.note-tag-suggestion > .tag-chip {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
 }
 
 @media (max-width: 760px) {
@@ -5308,4 +5442,111 @@ h1 {
   .historical-version-restore-note {
     width: min(100% - 32px, 820px);
   }
+}
+
+
+/* Shared Project tag colors */
+[data-tag-color="gray"] { --tag-chip-color: var(--tag-color-gray); }
+[data-tag-color="red"] { --tag-chip-color: var(--tag-color-red); }
+[data-tag-color="orange"] { --tag-chip-color: var(--tag-color-orange); }
+[data-tag-color="yellow"] { --tag-chip-color: var(--tag-color-yellow); }
+[data-tag-color="green"] { --tag-chip-color: var(--tag-color-green); }
+[data-tag-color="sky"] { --tag-chip-color: var(--tag-color-sky); }
+[data-tag-color="blue"] { --tag-chip-color: var(--tag-color-blue); }
+[data-tag-color="brown"] { --tag-chip-color: var(--tag-color-brown); }
+[data-tag-color="purple"] { --tag-chip-color: var(--tag-color-purple); }
+[data-tag-color="pink"] { --tag-chip-color: var(--tag-color-pink); }
+
+.tag-chip {
+  min-width: 0;
+  min-height: 24px;
+  max-width: 220px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--tag-chip-color) 20%, transparent);
+  border-radius: 999px;
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--tag-chip-color) 76%, var(--color-text));
+  background: color-mix(in srgb, var(--tag-chip-color) 13%, transparent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tag-chip-label {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Let the label's line box keep enough vertical room for CJK glyph metrics.
+ * The parent flex container handles centering; forcing the label to exactly
+ * 1em high can clip Japanese text in compact sidebar chips.
+ */
+.tag-chip-compact {
+  min-height: 19px;
+  max-width: 88px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.tag-color-popover {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 5px);
+  left: 0;
+  width: 184px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 7px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.tag-color-popover-label {
+  margin: 2px 4px 7px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-color-palette {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.tag-color-option {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+}
+
+.tag-color-option:hover {
+  background: var(--color-surface-hover);
+}
+
+.tag-color-option[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--tag-chip-color) 62%, var(--color-border-strong));
+  background: color-mix(in srgb, var(--tag-chip-color) 12%, transparent);
+}
+
+.tag-color-swatch {
+  width: 14px;
+  height: 14px;
+  border: 1px solid color-mix(in srgb, var(--tag-chip-color) 75%, var(--color-border));
+  border-radius: 50%;
+  background: var(--tag-chip-color);
 }

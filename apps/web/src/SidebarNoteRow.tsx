@@ -1,12 +1,18 @@
 import { useRef } from "react";
 
+import { DEFAULT_TAG_COLOR, type TagColor } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
+import { TagChip } from "./TagChip.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
+
+export const SIDEBAR_TAG_LIMIT = 3;
 
 type SidebarNoteRowProps = {
   id: DocumentId;
   title: string;
+  tags?: readonly string[];
+  getTagColor?: (tag: string) => TagColor;
   selected: boolean;
   onSelect: (documentId: DocumentId) => void;
   onDelete: (documentId: DocumentId) => void;
@@ -15,6 +21,8 @@ type SidebarNoteRowProps = {
 export function SidebarNoteRow({
   id,
   title,
+  tags = [],
+  getTagColor = () => DEFAULT_TAG_COLOR,
   selected,
   onSelect,
   onDelete,
@@ -23,15 +31,39 @@ export function SidebarNoteRow({
   useDismissibleDetails(menuRef);
 
   const displayTitle = title || "Untitled";
+  const visibleTags = tags.slice(0, SIDEBAR_TAG_LIMIT);
+  const remainingTagCount = Math.max(0, tags.length - visibleTags.length);
 
   return (
     <div className={selected ? "note-row selected" : "note-row"}>
       <button
-        className="note-item"
+        className={
+          visibleTags.length > 0 ? "note-item note-item-with-tags" : "note-item"
+        }
         type="button"
         onClick={() => onSelect(id)}
       >
-        {displayTitle}
+        <span className="note-item-title">{displayTitle}</span>
+        {visibleTags.length > 0 ? (
+          <span className="note-item-tags" aria-label="Tags">
+            {visibleTags.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                color={getTagColor(tag)}
+                compact
+              />
+            ))}
+            {remainingTagCount > 0 ? (
+              <span
+                className="note-item-tag-overflow"
+                aria-label={`${remainingTagCount} more tags`}
+              >
+                +{remainingTagCount}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </button>
 
       <details className="note-row-menu" ref={menuRef}>

@@ -1,3 +1,4 @@
+import { DEFAULT_TAG_COLOR, type TagColor } from "@floe-note/document";
 import { useEffect, useRef } from "react";
 
 import {
@@ -15,6 +16,7 @@ type SidebarNavigationToolbarProps = {
   tags: readonly string[];
   selectedTags: readonly string[];
   tagFilterMode: TagFilterMode;
+  getTagColor?: (tag: string) => TagColor;
   onQueryChange: (query: string) => void;
   onSearchOpenChange: (open: boolean) => void;
   onSortChange: (preference: NoteSortPreference) => void;
@@ -36,6 +38,7 @@ export function SidebarNavigationToolbar({
   tags,
   selectedTags,
   tagFilterMode,
+  getTagColor = () => DEFAULT_TAG_COLOR,
   onQueryChange,
   onSearchOpenChange,
   onSortChange,
@@ -208,9 +211,11 @@ export function SidebarNavigationToolbar({
                       checked={selectedTags.includes(tag)}
                       onChange={() => toggleTag(tag)}
                     />
-                    <span className="sidebar-tag-filter-hash" aria-hidden="true">
-                      #
-                    </span>
+                    <span
+                      className="sidebar-tag-filter-dot"
+                      data-tag-color={getTagColor(tag)}
+                      aria-hidden="true"
+                    />
                     <span>{tag}</span>
                   </label>
                 ))}
