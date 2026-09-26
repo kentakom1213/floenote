@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_TAG_COLOR,
   NoteProject,
+  TAG_COLORS,
 } from "../src/project.js";
 
 describe("NoteProject metadata", () => {
@@ -127,9 +128,7 @@ describe("NoteProject metadata", () => {
     expect(listener).toHaveBeenCalledOnce();
   });
 
-  it("uses the CUD-oriented fixed palette roles", async () => {
-    const { TAG_COLORS } = await import("../src/project.js");
-
+  it("uses the CUD-oriented fixed palette roles", () => {
     expect(TAG_COLORS).toEqual([
       "gray",
       "red",
