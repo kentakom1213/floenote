@@ -144,6 +144,15 @@ export function InvitationJoinPage({
     let joinedSyncEngine: ProjectSyncEngine | null = null;
     let stopJoinedPersistence: (() => void) | null = null;
     let bootstrapCompletionStarted = false;
+    let initialSyncFailed = false;
+
+    const failInitialSync = (message: string): void => {
+      if (bootstrapCompletionStarted || initialSyncFailed) return;
+      initialSyncFailed = true;
+      if (disposed) return;
+      setInitialSyncState("error");
+      setError(message);
+    };
 
     setClaimState("claiming");
     setPairingState("connecting");
@@ -265,9 +274,7 @@ export function InvitationJoinPage({
               },
               {
                 onError: (syncError, direction) => {
-                  if (disposed) return;
-                  setInitialSyncState("error");
-                  setError(
+                  failInitialSync(
                     `Encrypted initial sync ${direction} failed: ${syncError.message}`,
                   );
                 },
@@ -282,7 +289,13 @@ export function InvitationJoinPage({
                   "invite-join-encrypted-sync",
                 ),
                 onInitialRemoteStateReceived: () => {
-                  if (disposed || bootstrapCompletionStarted) return;
+                  if (
+                    disposed ||
+                    bootstrapCompletionStarted ||
+                    initialSyncFailed
+                  ) {
+                    return;
+                  }
                   bootstrapCompletionStarted = true;
                   setInitialSyncState("persisting");
 
@@ -318,10 +331,15 @@ export function InvitationJoinPage({
                     }
                   })();
                 },
+                onInitialSyncError: (syncError) => {
+                  failInitialSync(
+                    `Initial Project sync failed: ${syncError.message}`,
+                  );
+                },
               },
             );
-            joinedSyncEngine.start();
             setInitialSyncState("syncing");
+            joinedSyncEngine.start();
           },
         });
         void deliveryPromise.catch(() => undefined);
