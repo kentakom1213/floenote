@@ -37,7 +37,9 @@ export function SidebarNoteRow({
   return (
     <div className={selected ? "note-row selected" : "note-row"}>
       <button
-        className="note-item"
+        className={
+          visibleTags.length > 0 ? "note-item note-item-with-tags" : "note-item"
+        }
         type="button"
         onClick={() => onSelect(id)}
       >
