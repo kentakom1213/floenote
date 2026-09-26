@@ -87,35 +87,6 @@ export function MarkdownEditor({
       view.dispatch({});
     });
 
-    let searchPositionPreview: HTMLElement | null = null;
-
-    const updateSearchPositionPreview = () => {
-      const searchPanel = view.dom.querySelector<HTMLElement>(
-        ".cm-panels-top .cm-search",
-      );
-
-      if (!searchPanel) {
-        searchPositionPreview?.remove();
-        searchPositionPreview = null;
-        return;
-      }
-
-      if (!searchPositionPreview) {
-        searchPositionPreview = searchPanel.cloneNode(true) as HTMLElement;
-        searchPositionPreview.classList.add("editor-search-position-preview");
-        searchPositionPreview.setAttribute("aria-hidden", "true");
-        searchPositionPreview.inert = true;
-        view.dom.append(searchPositionPreview);
-      }
-    };
-
-    const searchPanelObserver = new MutationObserver(updateSearchPositionPreview);
-    searchPanelObserver.observe(view.dom, {
-      childList: true,
-      subtree: true,
-    });
-    updateSearchPositionPreview();
-
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
@@ -175,8 +146,6 @@ export function MarkdownEditor({
       });
 
     return () => {
-      searchPanelObserver.disconnect();
-      searchPositionPreview?.remove();
       unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
