@@ -32,7 +32,11 @@ function enhanceSearchPanel(view: EditorView): void {
   // CodeMirror emits Next before Previous in the search-panel DOM. Move the
   // existing Previous button once so visual and keyboard order can both be
   // Previous → Next without duplicating either control.
-  if (nextButton?.nextElementSibling === previousButton) {
+  if (
+    nextButton &&
+    previousButton &&
+    nextButton.nextElementSibling === previousButton
+  ) {
     nextButton.before(previousButton);
   }
 
