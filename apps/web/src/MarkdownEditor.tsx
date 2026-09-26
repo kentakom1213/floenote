@@ -87,6 +87,66 @@ export function MarkdownEditor({
       view.dispatch({});
     });
 
+    let searchPositionPreview: HTMLElement | null = null;
+
+    const updateSearchPositionPreview = () => {
+      const searchPanel = view.dom.querySelector<HTMLElement>(
+        ".cm-panels-top .cm-search",
+      );
+
+      if (!searchPanel) {
+        searchPositionPreview?.remove();
+        searchPositionPreview = null;
+        return;
+      }
+
+      if (!searchPositionPreview) {
+        searchPositionPreview = searchPanel.cloneNode(true) as HTMLElement;
+        searchPositionPreview.classList.add("editor-search-position-preview");
+        searchPositionPreview.setAttribute("aria-hidden", "true");
+        searchPositionPreview.inert = true;
+        view.dom.append(searchPositionPreview);
+      }
+
+      const editorRect = view.dom.getBoundingClientRect();
+      const inset = 12;
+
+      if (
+        editorRect.bottom <= 0 ||
+        editorRect.top >= window.innerHeight ||
+        editorRect.width <= inset * 2
+      ) {
+        searchPositionPreview.style.display = "none";
+        return;
+      }
+
+      searchPositionPreview.style.display = "flex";
+      searchPositionPreview.style.left = `${Math.max(
+        inset,
+        editorRect.left + inset,
+      )}px`;
+      searchPositionPreview.style.width = `${Math.max(
+        0,
+        Math.min(
+          editorRect.width - inset * 2,
+          window.innerWidth - Math.max(inset, editorRect.left + inset) - inset,
+        ),
+      )}px`;
+      searchPositionPreview.style.bottom = `${Math.max(
+        inset,
+        window.innerHeight - editorRect.bottom + inset,
+      )}px`;
+    };
+
+    const searchPanelObserver = new MutationObserver(updateSearchPositionPreview);
+    searchPanelObserver.observe(view.dom, {
+      childList: true,
+      subtree: true,
+    });
+    window.addEventListener("resize", updateSearchPositionPreview);
+    window.addEventListener("scroll", updateSearchPositionPreview, true);
+    updateSearchPositionPreview();
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
@@ -146,6 +206,10 @@ export function MarkdownEditor({
       });
 
     return () => {
+      searchPanelObserver.disconnect();
+      window.removeEventListener("resize", updateSearchPositionPreview);
+      window.removeEventListener("scroll", updateSearchPositionPreview, true);
+      searchPositionPreview?.remove();
       unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
       view.destroy();
