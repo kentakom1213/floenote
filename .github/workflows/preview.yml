@@ -38,9 +38,7 @@ jobs:
           preview_required=false
           while IFS= read -r path; do
             case "$path" in
-              docs/*|*.md|.github/ISSUE_TEMPLATE/*)
-                ;;
-              *)
+              apps/web/src/*|apps/web/public/*|apps/web/index.html|apps/web/package.json|apps/web/vite.config.*|apps/web/wrangler.jsonc|apps/coordinator/src/*|apps/coordinator/package.json|apps/coordinator/wrangler.jsonc|packages/*/src/*|packages/*/package.json|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|scripts/deploy-preview.mjs|.github/workflows/preview.yml)
                 preview_required=true
                 break
                 ;;
