@@ -458,7 +458,7 @@ const floeEditorChrome = EditorView.theme({
       flex: "0 0 auto",
       border: "1px solid var(--color-border-strong)",
       borderRadius: "4px",
-      color: "var(--color-accent-contrast)",
+      color: "var(--color-accent-contrast, white)",
       backgroundColor: "var(--color-bg)",
       fontSize: "10px",
       lineHeight: "1",
