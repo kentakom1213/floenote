@@ -1,5 +1,10 @@
 export { NoteDocument } from "./document.js";
-export { NoteProject } from "./project.js";
+export {
+  DEFAULT_TAG_COLOR,
+  TAG_COLORS,
+  NoteProject,
+  isTagColor,
+} from "./project.js";
 export { parsePortableProjectImport } from "./portable-import.js";
 export {
   isMarkdownDirectoryImportPath,
@@ -21,7 +26,11 @@ export type {
   NoteDocumentInitialState,
   TaskMarkerToggle,
 } from "./document.js";
-export type { DocumentSummary, EditHistoryCheckpoint } from "./project.js";
+export type {
+  DocumentSummary,
+  EditHistoryCheckpoint,
+  TagColor,
+} from "./project.js";
 export type {
   FloeExportManifestV1,
   PortableDocument,
