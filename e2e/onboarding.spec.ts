@@ -26,7 +26,7 @@ test("creates a secured Project with a virtual PRF passkey", async ({ page }) =>
     const url = new URL(response.url());
     return (
       url.origin === "http://127.0.0.1:8787" &&
-      /^\/projects\/[^/]+\/security$/.test(url.pathname) &&
+      /^\/projects\/[^/]+\/security\/transitions$/.test(url.pathname) &&
       response.request().method() === "POST" &&
       response.status() === 201
     );
