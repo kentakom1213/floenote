@@ -121,7 +121,7 @@ async function authenticate(
   expect(client.state).toBe("open");
 }
 
-describe("AuthorizedPresenceClient reconnect", () => {
+describe("AuthorizedPresenceClient", () => {
   beforeEach(() => {
     FakeWebSocket.instances.length = 0;
     vi.useFakeTimers();
@@ -131,6 +131,64 @@ describe("AuthorizedPresenceClient reconnect", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("creates an invitation over authenticated presence", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvite();
+    const request = JSON.parse(socket.sent[1]!) as {
+      type: string;
+      requestId: string;
+    };
+    expect(request.type).toBe("create-invite");
+    expect(request.requestId).toMatch(/^[0-9a-f]{32}$/);
+
+    socket.message({
+      type: "invite-created",
+      requestId: request.requestId,
+      inviteId: "11111111111111111111111111111111",
+      sessionId: "22222222222222222222222222222222",
+      expiresAt: 123456,
+    });
+
+    await expect(invitationPromise).resolves.toEqual({
+      inviteId: "11111111111111111111111111111111",
+      sessionId: "22222222222222222222222222222222",
+      expiresAt: 123456,
+    });
+
+    client.close();
+  });
+
+  it("rejects invitation creation without closing presence", async () => {
+    const client = createClient();
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitationPromise = client.createInvite();
+    const request = JSON.parse(socket.sent[1]!) as {
+      requestId: string;
+    };
+
+    socket.message({
+      type: "invite-error",
+      requestId: request.requestId,
+      message: "Could not allocate invitation identifier",
+    });
+
+    await expect(invitationPromise).rejects.toThrow(
+      "Could not allocate invitation identifier",
+    );
+    expect(client.state).toBe("open");
+
+    client.close();
   });
 
   it.each([1000, 1006])(
