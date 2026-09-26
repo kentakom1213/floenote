@@ -136,10 +136,6 @@ export class NoteProject {
     this.#emit();
   }
 
-  hasTagColor(tag: string): boolean {
-    return isTagColor(this.#manifest.getMap("tagColors").get(tag));
-  }
-
   getTagColor(tag: string): TagColor {
     const value = this.#manifest.getMap("tagColors").get(tag);
     return isTagColor(value) ? value : DEFAULT_TAG_COLOR;
