@@ -1,9 +1,15 @@
-import type { NoteDocument, NoteProject } from "@floe-note/document";
+import {
+  DEFAULT_TAG_COLOR,
+  type NoteDocument,
+  type NoteProject,
+  type TagColor,
+} from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
 import { formatNoteTimestamp } from "./NoteProperties.js";
+import { TagChip } from "./TagChip.js";
 
 type TrashViewProps = {
   project: NoteProject;
@@ -28,6 +34,7 @@ export function TrashView({
     return (
       <TrashNotePreview
         document={selectedDocument}
+        getTagColor={(tag) => project.getTagColor(tag)}
         onRestore={() => onRestoreDocument(selectedDocument.id)}
         onRequestPermanentDelete={() =>
           onRequestPermanentDelete(selectedDocument.id)
@@ -90,12 +97,14 @@ export function TrashView({
 
 type TrashNotePreviewProps = {
   document: NoteDocument;
+  getTagColor?: (tag: string) => TagColor;
   onRestore: () => void;
   onRequestPermanentDelete: () => void;
 };
 
 export function TrashNotePreview({
   document,
+  getTagColor = () => DEFAULT_TAG_COLOR,
   onRestore,
   onRequestPermanentDelete,
 }: TrashNotePreviewProps) {
@@ -133,9 +142,11 @@ export function TrashNotePreview({
           <div className="trash-note-tag-list">
             {document.tags.length > 0 ? (
               document.tags.map((tag) => (
-                <span className="trash-note-tag" key={tag}>
-                  {tag}
-                </span>
+                <TagChip
+                  key={tag}
+                  tag={tag}
+                  color={getTagColor(tag)}
+                />
               ))
             ) : (
               <span className="trash-note-property-empty">None</span>

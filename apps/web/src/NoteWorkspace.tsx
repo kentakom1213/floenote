@@ -144,6 +144,15 @@ export function NoteWorkspace({
     .getAllDocuments()
     .map((document) => document.id)
     .join("\u0000");
+
+  useEffect(
+    () =>
+      project.subscribe(() => {
+        setNavigationRevision((value) => value + 1);
+      }),
+    [project],
+  );
+
   useEffect(() => {
     const stopSubscriptions = project
       .getAllDocuments()
@@ -289,6 +298,7 @@ export function NoteWorkspace({
           tags={projectTags}
           selectedTags={selectedTags}
           tagFilterMode={tagFilterMode}
+          getTagColor={(tag) => project.getTagColor(tag)}
           onQueryChange={setQuery}
           onSearchOpenChange={setSearchOpen}
           onSortChange={(preference) => {
@@ -310,6 +320,8 @@ export function NoteWorkspace({
                 key={note.id}
                 id={note.id}
                 title={note.title}
+                tags={note.tags}
+                getTagColor={(tag) => project.getTagColor(tag)}
                 selected={!trashActive && note.id === selectedId}
                 onSelect={(documentId) => {
                   setSelectedTrashDocumentId(null);
@@ -460,6 +472,7 @@ export function NoteWorkspace({
         <GlobalSearch
           cache={searchCache}
           lastOpenedAt={readNoteRecency(project.id)}
+          getTagColor={(tag) => project.getTagColor(tag)}
           onClose={() => setGlobalSearchOpen(false)}
           onSelect={(documentId) => {
             recordNoteOpened(project.id, documentId);
@@ -653,6 +666,8 @@ function DocumentPane({
           <NoteProperties
             document={document}
             availableTags={availableTags}
+            getTagColor={(tag) => project.getTagColor(tag)}
+            onTagColorChange={(tag, color) => project.setTagColor(tag, color)}
             trailingControl={
               <EditorModeSwitcher
                 mode={mode}

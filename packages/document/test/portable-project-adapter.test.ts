@@ -12,6 +12,7 @@ describe("createPortableProjectSnapshot", () => {
     now.mockReturnValue(100);
     const project = NoteProject.create();
     project.renameProject("Research");
+    project.setTagColor("research", "blue");
     const document = project.createDocument("Paper notes");
 
     now.mockReturnValue(200);
@@ -23,7 +24,9 @@ describe("createPortableProjectSnapshot", () => {
     binding.doc.commit();
     await Promise.resolve();
 
-    expect(createPortableProjectSnapshot(project)).toEqual({
+    const snapshot = createPortableProjectSnapshot(project);
+
+    expect(snapshot).toEqual({
       name: "Research",
       documents: [
         {
@@ -35,6 +38,8 @@ describe("createPortableProjectSnapshot", () => {
         },
       ],
     });
+    expect(snapshot).not.toHaveProperty("tagColors");
+    expect(JSON.stringify(snapshot)).not.toContain('"blue"');
   });
 
   it("omits tombstoned documents", () => {

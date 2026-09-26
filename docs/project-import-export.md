@@ -160,7 +160,7 @@ Archive paths always use forward slashes.
 
 ## 6. Data included in a Floe export
 
-v1 preserves the logical user data that already exists in the Project model:
+v1 preserves the logical content data needed for portability and interoperability:
 
 - Project name;
 - active note titles;
@@ -180,6 +180,7 @@ IndexedDB schema.
 A portable export must not contain:
 
 - edit-history checkpoints or historical note versions;
+- presentation metadata such as Project tag colors;
 - original ProjectId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
@@ -193,12 +194,14 @@ A portable export must not contain:
 - edit-history checkpoints and historical versions;
 - IndexedDB records or schema details.
 
-These values belong to the original Project's cryptographic and synchronization
-identity.
+These values are either Floe Note-specific presentation/runtime metadata or
+belong to the original Project's cryptographic and synchronization identity.
 
 Consequently, importing an export does not resume synchronization with the
-original Project. Imported notes also start with fresh edit history; portable
-v1 export carries only the current logical note state.
+original Project. Tag strings are preserved, but Project tag colors are not;
+imported tags therefore use the default gray until the user explicitly chooses
+a color. Imported notes also start with fresh edit history; portable v1 export
+carries only the current logical note state.
 
 ## 8. Export consistency
 

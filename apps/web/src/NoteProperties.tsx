@@ -1,4 +1,9 @@
-import type { NoteDocument } from "@floe-note/document";
+import {
+  DEFAULT_TAG_COLOR,
+  TAG_COLORS,
+  type NoteDocument,
+  type TagColor,
+} from "@floe-note/document";
 import {
   useCallback,
   useEffect,
@@ -11,15 +16,26 @@ import {
   type ReactNode,
 } from "react";
 
+import { TagChip } from "./TagChip.js";
+import { useDismissibleDetails } from "./useDismissibleDetails.js";
+
 type NotePropertiesProps = {
   document: NoteDocument;
   availableTags?: readonly string[];
+  getTagColor?: (tag: string) => TagColor;
+  onTagColorChange?: (tag: string, color: TagColor) => void;
   trailingControl?: ReactNode;
 };
 
 export type TagAssignmentOption = {
   kind: "existing" | "create";
   tag: string;
+};
+
+type TagColorPaletteProps = {
+  tag: string;
+  currentColor: TagColor;
+  onChange: (color: TagColor) => void;
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -30,6 +46,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 export function NoteProperties({
   document,
   availableTags = [],
+  getTagColor = () => DEFAULT_TAG_COLOR,
+  onTagColorChange = () => {},
   trailingControl,
 }: NotePropertiesProps) {
   const subscribe = useCallback(
@@ -92,10 +110,7 @@ export function NoteProperties({
       return;
     }
 
-    const result = addTagFromInput(document, tagInput);
-    if (result !== "empty") {
-      stopAddingTag(true);
-    }
+    addTag(tagInput);
   }
 
   function handleTagInputKeyDown(
@@ -122,19 +137,32 @@ export function NoteProperties({
       <div className="note-tags-row">
         <span className="note-properties-label">Tags</span>
         <div className="note-tag-list">
-          {document.tags.map((tag) => (
-            <span className="note-tag" key={tag}>
-              <span>{tag}</span>
-              <button
-                className="note-tag-remove"
-                type="button"
-                aria-label={`Remove tag ${tag}`}
-                onClick={() => removeTagFromProperties(document, tag)}
+          {document.tags.map((tag) => {
+            const color = getTagColor(tag);
+            return (
+              <span
+                className="note-tag-control"
+                data-tag-color={color}
+                key={tag}
               >
-                ×
-              </button>
-            </span>
-          ))}
+                <NoteTagColorControl
+                  tag={tag}
+                  color={color}
+                  onColorChange={(nextColor) =>
+                    onTagColorChange(tag, nextColor)
+                  }
+                />
+                <button
+                  className="note-tag-remove"
+                  type="button"
+                  aria-label={`Remove tag ${tag}`}
+                  onClick={() => removeTagFromProperties(document, tag)}
+                >
+                  <RemoveTagIcon />
+                </button>
+              </span>
+            );
+          })}
 
           {addingTag ? (
             <form
@@ -194,14 +222,23 @@ export function NoteProperties({
                       onMouseEnter={() => setActiveOptionIndex(index)}
                       onClick={() => addTag(option.tag)}
                     >
-                      <span className="note-tag-suggestion-symbol" aria-hidden="true">
-                        {option.kind === "create" ? "+" : "#"}
-                      </span>
-                      <span>
-                        {option.kind === "create"
-                          ? `Create “${option.tag}”`
-                          : option.tag}
-                      </span>
+                      {option.kind === "create" ? (
+                        <>
+                          <span
+                            className="note-tag-suggestion-symbol"
+                            aria-hidden="true"
+                          >
+                            +
+                          </span>
+                          <span>{`Create “${option.tag}”`}</span>
+                        </>
+                      ) : (
+                        <TagChip
+                          tag={option.tag}
+                          color={getTagColor(option.tag)}
+                          compact
+                        />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -241,6 +278,78 @@ export function NoteProperties({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function RemoveTagIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="m5 5 6 6M11 5l-6 6" />
+    </svg>
+  );
+}
+
+function NoteTagColorControl({
+  tag,
+  color,
+  onColorChange,
+}: {
+  tag: string;
+  color: TagColor;
+  onColorChange: (color: TagColor) => void;
+}) {
+  const pickerRef = useRef<HTMLDetailsElement>(null);
+  useDismissibleDetails(pickerRef);
+
+  return (
+    <details className="note-tag-color-picker" ref={pickerRef}>
+      <summary
+        className="note-tag-color-summary"
+        aria-label={`Change ${tag} color`}
+        title={`Change ${tag} color`}
+      >
+        <TagChip tag={tag} color={color} />
+      </summary>
+      <div className="tag-color-popover">
+        <p className="tag-color-popover-label">{tag}</p>
+        <TagColorPalette
+          tag={tag}
+          currentColor={color}
+          onChange={(nextColor) => {
+            onColorChange(nextColor);
+            pickerRef.current?.removeAttribute("open");
+          }}
+        />
+      </div>
+    </details>
+  );
+}
+
+export function TagColorPalette({
+  tag,
+  currentColor,
+  onChange,
+}: TagColorPaletteProps) {
+  return (
+    <div
+      className="tag-color-palette"
+      role="group"
+      aria-label={`Color for ${tag}`}
+    >
+      {TAG_COLORS.map((color) => (
+        <button
+          className="tag-color-option"
+          type="button"
+          data-tag-color={color}
+          aria-label={`Set ${tag} color to ${color}`}
+          aria-pressed={currentColor === color}
+          key={color}
+          onClick={() => onChange(color)}
+        >
+          <span className="tag-color-swatch" aria-hidden="true" />
+        </button>
+      ))}
+    </div>
   );
 }
 

@@ -1,11 +1,16 @@
 import { createDocumentId } from "@floe-note/domain";
 import { NoteDocument } from "@floe-note/document";
-import { createElement } from "react";
+import {
+  createElement,
+  isValidElement,
+  type ReactNode,
+} from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   NoteProperties,
+  TagColorPalette,
   addTagFromInput,
   formatNoteTimestamp,
   getNoteMetadataSnapshot,
@@ -104,6 +109,48 @@ describe("NoteProperties", () => {
 
     expect(markup).toContain('aria-label="Add tag"');
     expect(markup).toContain(">Add tag<");
+  });
+
+
+  it("renders an existing tag with its Project color and identifiable current palette option", () => {
+    const document = NoteDocument.create(createDocumentId(), "Tags", 100);
+    document.setTags(["research"]);
+
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, {
+        document,
+        getTagColor: () => "blue",
+        onTagColorChange: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain('data-tag-color="blue"');
+    expect(markup).toContain('class="note-tag-color-picker"');
+    expect(markup).toContain('class="note-tag-color-summary"');
+    expect(markup).toContain('aria-label="Change research color"');
+    expect(markup).toContain('aria-label="Remove tag research"');
+    expect(markup).toContain('aria-label="Set research color to blue"');
+    expect(markup).toMatch(
+      /aria-label="Set research color to blue"[^>]*aria-pressed="true"/u,
+    );
+  });
+
+  it("calls the color-change handler when a palette color is selected", () => {
+    const onChange = vi.fn();
+    const palette = TagColorPalette({
+      tag: "research",
+      currentColor: "blue",
+      onChange,
+    });
+    const purple = findButtonByAriaLabel(
+      palette,
+      "Set research color to purple",
+    );
+
+    expect(purple).toBeDefined();
+    purple?.props.onClick();
+
+    expect(onChange).toHaveBeenCalledWith("purple");
   });
 
   it("suggests existing Project tags that are not on the current note", () => {
@@ -268,3 +315,43 @@ describe("NoteProperties", () => {
     expect(document.updatedAt).toBe(400);
   });
 });
+
+
+type TestButton = ReturnType<typeof createElement> & {
+  props: {
+    "aria-label"?: string;
+    children?: ReactNode;
+    onClick: () => void;
+  };
+};
+
+function findButtonByAriaLabel(
+  node: ReactNode,
+  label: string,
+): TestButton | undefined {
+  if (!isValidElement(node)) return undefined;
+
+  const props = node.props as {
+    "aria-label"?: string;
+    children?: ReactNode;
+    onClick?: () => void;
+  };
+
+  if (
+    node.type === "button" &&
+    props["aria-label"] === label &&
+    props.onClick
+  ) {
+    return node as TestButton;
+  }
+
+  const children = Array.isArray(props.children)
+    ? props.children
+    : [props.children];
+  for (const child of children) {
+    const match = findButtonByAriaLabel(child, label);
+    if (match) return match;
+  }
+
+  return undefined;
+}
