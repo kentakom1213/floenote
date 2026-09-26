@@ -17,6 +17,18 @@ import {
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
 
+function setSearchOptionsOpen(
+  panel: HTMLElement,
+  toggle: HTMLButtonElement,
+  open: boolean,
+): void {
+  panel.dataset.floeSearchOptionsOpen = String(open);
+  toggle.setAttribute("aria-expanded", String(open));
+  const label = open ? "Hide search options" : "Show search options";
+  toggle.setAttribute("aria-label", label);
+  toggle.title = label;
+}
+
 function enhanceSearchPanel(view: EditorView): void {
   const panel = view.dom.querySelector<HTMLElement>(".cm-search");
   if (!panel) {
@@ -89,17 +101,13 @@ function enhanceSearchPanel(view: EditorView): void {
     optionsToggle.textContent = "…";
     panel.dataset.floeSearchOptionsOpen = "false";
 
-    const setOptionsOpen = (open: boolean) => {
-      panel.dataset.floeSearchOptionsOpen = String(open);
-      optionsToggle.setAttribute("aria-expanded", String(open));
-      const label = open ? "Hide search options" : "Show search options";
-      optionsToggle.setAttribute("aria-label", label);
-      optionsToggle.title = label;
-    };
-
-    setOptionsOpen(false);
+    setSearchOptionsOpen(panel, optionsToggle, false);
     optionsToggle.addEventListener("click", () => {
-      setOptionsOpen(panel.dataset.floeSearchOptionsOpen !== "true");
+      setSearchOptionsOpen(
+        panel,
+        optionsToggle,
+        panel.dataset.floeSearchOptionsOpen !== "true",
+      );
     });
     optionsMenu.before(optionsToggle);
   }
@@ -154,12 +162,46 @@ function enhanceSearchPanel(view: EditorView): void {
 
 const floeSearchPanelChrome = ViewPlugin.define((view) => {
   const observer = new MutationObserver(() => enhanceSearchPanel(view));
+  const handleDocumentPointerDown = (event: PointerEvent) => {
+    const panel = view.dom.querySelector<HTMLElement>(".cm-search");
+    if (!panel || panel.dataset.floeSearchOptionsOpen !== "true") {
+      return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+
+    const optionsToggle = panel.querySelector<HTMLButtonElement>(
+      "[data-floe-search-options-toggle]",
+    );
+    const optionsMenu = panel.querySelector<HTMLElement>(
+      "[data-floe-search-options]",
+    );
+    if (
+      optionsToggle?.contains(target) ||
+      optionsMenu?.contains(target) ||
+      !optionsToggle
+    ) {
+      return;
+    }
+
+    setSearchOptionsOpen(panel, optionsToggle, false);
+  };
+
   observer.observe(view.dom, { childList: true, subtree: true });
+  document.addEventListener("pointerdown", handleDocumentPointerDown, true);
   enhanceSearchPanel(view);
 
   return {
     destroy() {
       observer.disconnect();
+      document.removeEventListener(
+        "pointerdown",
+        handleDocumentPointerDown,
+        true,
+      );
     },
   };
 });
