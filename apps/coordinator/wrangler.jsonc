@@ -34,4 +34,22 @@
   "observability": {
     "enabled": true,
   },
+  "previews": {
+    "vars": {
+      "FLOE_VERSION": "preview",
+      "FLOE_BUILD": "preview",
+    },
+    "durable_objects": {
+      "bindings": [
+        {
+          "name": "PROJECT_COORDINATOR",
+          "class_name": "ProjectCoordinator",
+        },
+        {
+          "name": "INVITATION_COORDINATOR",
+          "class_name": "InvitationCoordinator",
+        },
+      ],
+    },
+  },
 }
