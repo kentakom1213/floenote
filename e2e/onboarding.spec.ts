@@ -15,6 +15,13 @@ test("creates a secured Project with a virtual PRF passkey", async ({ page }) =>
 
   await page.getByLabel("Device name").fill("Playwright Chromium");
 
+  await page.getByRole("button", { name: "Create new passkey" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Create a Project" }),
+  ).toBeVisible();
+
+  await page.getByLabel("Project name").fill("Playwright Project");
   const projectSecurityCommit = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
@@ -25,13 +32,6 @@ test("creates a secured Project with a virtual PRF passkey", async ({ page }) =>
     );
   });
 
-  await page.getByRole("button", { name: "Create new passkey" }).click();
-
-  await expect(
-    page.getByRole("heading", { name: "Create a Project" }),
-  ).toBeVisible();
-
-  await page.getByLabel("Project name").fill("Playwright Project");
   await page.getByRole("button", { name: "Create", exact: true }).click();
 
   await projectSecurityCommit;
