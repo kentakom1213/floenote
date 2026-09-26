@@ -98,7 +98,7 @@ const floeEditorChrome = EditorView.theme({
     display: "grid",
     gridTemplateColumns:
       "minmax(0, 220px) max-content max-content max-content max-content max-content max-content minmax(0, 1fr)",
-    gridTemplateRows: "auto auto",
+    gridTemplateRows: "auto",
     alignItems: "center",
     columnGap: "6px",
     rowGap: "6px",
