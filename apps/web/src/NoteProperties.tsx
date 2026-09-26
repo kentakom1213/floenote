@@ -24,6 +24,7 @@ type NotePropertiesProps = {
   availableTags?: readonly string[];
   getTagColor?: (tag: string) => TagColor;
   onTagColorChange?: (tag: string, color: TagColor) => void;
+  onNewProjectTag?: (tag: string) => void;
   trailingControl?: ReactNode;
 };
 
@@ -48,6 +49,7 @@ export function NoteProperties({
   availableTags = [],
   getTagColor = () => DEFAULT_TAG_COLOR,
   onTagColorChange = () => {},
+  onNewProjectTag = () => {},
   trailingControl,
 }: NotePropertiesProps) {
   const subscribe = useCallback(
@@ -97,7 +99,14 @@ export function NoteProperties({
   }
 
   function addTag(tag: string): void {
-    const result = addTagFromInput(document, tag);
+    const normalized = tag.trim();
+    const isNewProjectTag =
+      normalized.length > 0 && !availableTags.includes(normalized);
+    const result = addTagFromInput(document, normalized);
+
+    if (result === "added" && isNewProjectTag) {
+      onNewProjectTag(normalized);
+    }
     if (result !== "empty") {
       stopAddingTag(true);
     }
@@ -110,10 +119,7 @@ export function NoteProperties({
       return;
     }
 
-    const result = addTagFromInput(document, tagInput);
-    if (result !== "empty") {
-      stopAddingTag(true);
-    }
+    addTag(tagInput);
   }
 
   function handleTagInputKeyDown(
