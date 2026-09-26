@@ -97,7 +97,7 @@ const floeEditorChrome = EditorView.theme({
     position: "relative",
     display: "grid",
     gridTemplateColumns:
-      "minmax(0, 220px) max-content max-content max-content max-content max-content max-content minmax(0, 1fr)",
+      "24px minmax(0, 220px) 30px 30px max-content 30px 30px 30px minmax(0, 1fr)",
     gridTemplateRows: "auto",
     alignItems: "center",
     columnGap: "6px",
@@ -107,11 +107,35 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panel.cm-search br": {
     display: "none",
   },
-  ".cm-panel.cm-search [name=search]": {
+  ".cm-panel.cm-search .cm-search-replace-toggle": {
     gridColumn: "1",
     gridRow: "1",
+    width: "24px",
+    height: "32px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+    margin: "0",
+    border: "0",
+    borderRadius: "6px",
+    padding: "0",
+    color: "var(--color-text-muted)",
+    backgroundColor: "transparent",
+    fontFamily: "inherit",
+    fontSize: "18px",
+    lineHeight: "1",
+    cursor: "pointer",
   },
-  ".cm-panel.cm-search [name=next]": {
+  ".cm-panel.cm-search .cm-search-replace-toggle:hover": {
+    color: "var(--color-text)",
+    backgroundColor: "var(--color-surface-hover)",
+  },
+  ".cm-panel.cm-search .cm-search-replace-toggle:focus-visible": {
+    outline: "2px solid var(--color-focus)",
+    outlineOffset: "2px",
+  },
+  ".cm-panel.cm-search [name=search]": {
     gridColumn: "2",
     gridRow: "1",
   },
@@ -119,41 +143,51 @@ const floeEditorChrome = EditorView.theme({
     gridColumn: "3",
     gridRow: "1",
   },
-  ".cm-panel.cm-search [name=select]": {
+  ".cm-panel.cm-search [name=next]": {
     gridColumn: "4",
     gridRow: "1",
   },
-  ".cm-panel.cm-search input[name=replace]": {
-    gridColumn: "1",
-    gridRow: "2",
+  ".cm-panel.cm-search [name=select]": {
+    gridColumn: "5",
+    gridRow: "1",
+    textTransform: "capitalize",
   },
-  ".cm-panel.cm-search button[name=replace]": {
+  ".cm-panel.cm-search input[name=replace]": {
     gridColumn: "2",
     gridRow: "2",
   },
-  ".cm-panel.cm-search [name=replaceAll]": {
+  ".cm-panel.cm-search button[name=replace]": {
     gridColumn: "3 / span 2",
     gridRow: "2",
     justifySelf: "start",
   },
-  ".cm-panel.cm-search label:has(input[name=case])": {
-    gridColumn: "5",
-    gridRow: "1",
+  ".cm-panel.cm-search [name=replaceAll]": {
+    gridColumn: "5 / span 3",
+    gridRow: "2",
+    justifySelf: "start",
   },
-  ".cm-panel.cm-search label:has(input[name=re])": {
+  ".cm-panel.cm-search label:has(input[name=case])": {
     gridColumn: "6",
     gridRow: "1",
   },
-  ".cm-panel.cm-search label:has(input[name=word])": {
+  ".cm-panel.cm-search label:has(input[name=re])": {
     gridColumn: "7",
     gridRow: "1",
   },
+  ".cm-panel.cm-search label:has(input[name=word])": {
+    gridColumn: "8",
+    gridRow: "1",
+  },
+  ".cm-panel.cm-search[data-floe-replace-open=false] input[name=replace], .cm-panel.cm-search[data-floe-replace-open=false] button[name=replace], .cm-panel.cm-search[data-floe-replace-open=false] [name=replaceAll]": {
+    display: "none",
+  },
   ".cm-panel.cm-search label": {
     position: "relative",
-    display: "inline-grid",
+    display: "inline-flex",
     width: "30px",
     height: "30px",
-    placeItems: "center",
+    alignItems: "center",
+    justifyContent: "center",
     boxSizing: "border-box",
     margin: "0",
     border: "1px solid var(--color-border)",
@@ -184,15 +218,21 @@ const floeEditorChrome = EditorView.theme({
   },
   ".cm-panel.cm-search label:has(input[name=case])::after": {
     content: "\"Aa\"",
+    display: "block",
     fontSize: "11px",
+    lineHeight: "1",
   },
   ".cm-panel.cm-search label:has(input[name=re])::after": {
     content: "\".*\"",
+    display: "block",
     fontSize: "12px",
+    lineHeight: "1",
   },
   ".cm-panel.cm-search label:has(input[name=word])::after": {
     content: "\"ab\"",
+    display: "block",
     fontSize: "11px",
+    lineHeight: "1",
     textDecoration: "underline",
     textUnderlineOffset: "2px",
   },
@@ -221,22 +261,42 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panel.cm-search .cm-button": {
     minHeight: "30px",
     margin: "0",
-    border: "1px solid var(--color-border)",
+    border: "1px solid transparent",
     borderRadius: "7px",
     padding: "5px 8px",
     color: "var(--color-text)",
-    backgroundColor: "var(--color-surface)",
+    backgroundColor: "transparent",
     backgroundImage: "none",
     fontSize: "11px",
+    lineHeight: "1",
     textTransform: "none",
   },
   ".cm-panel.cm-search .cm-button:hover": {
-    borderColor: "var(--color-border-strong)",
     backgroundColor: "var(--color-surface-hover)",
   },
   ".cm-panel.cm-search .cm-button:active": {
-    borderColor: "var(--color-accent)",
+    color: "var(--color-accent)",
     backgroundColor: "var(--color-accent-soft)",
+  },
+  ".cm-panel.cm-search [name=prev], .cm-panel.cm-search [name=next]": {
+    width: "30px",
+    height: "30px",
+    minHeight: "30px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0",
+    fontSize: "0",
+  },
+  ".cm-panel.cm-search [name=prev]::after": {
+    content: "\"↑\"",
+    fontSize: "14px",
+    lineHeight: "1",
+  },
+  ".cm-panel.cm-search [name=next]::after": {
+    content: "\"↓\"",
+    fontSize: "14px",
+    lineHeight: "1",
   },
   ".cm-panel.cm-search .cm-button:focus-visible, .cm-panel.cm-search [name=close]:focus-visible":
     {
@@ -256,8 +316,9 @@ const floeEditorChrome = EditorView.theme({
     right: "8px",
     width: "32px",
     height: "32px",
-    display: "inline-grid",
-    placeItems: "center",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     boxSizing: "border-box",
     border: "0",
     borderRadius: "6px",
