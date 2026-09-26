@@ -499,7 +499,6 @@ const floeEditorChrome = EditorView.theme({
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
   },
-  "@media (max-width: 760px)": compactSearchChrome,
   "@container editor-source (max-width: 520px)": compactSearchChrome,
   ".cm-tooltip": {
     border: "1px solid var(--color-border)",
