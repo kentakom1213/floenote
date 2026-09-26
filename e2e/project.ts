@@ -32,13 +32,13 @@ export async function createSecuredProject(
     return (
       url.origin === "http://127.0.0.1:8787" &&
       /^\/projects\/[^/]+\/security\/transitions$/.test(url.pathname) &&
-      response.request().method() === "POST" &&
-      response.status() === 201
+      response.request().method() === "POST"
     );
   });
 
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await projectSecurityCommit;
+  const projectSecurityResponse = await projectSecurityCommit;
+  expect(projectSecurityResponse.status()).toBe(201);
 
   await expect(page.getByLabel("Note title")).toHaveValue(
     "Welcome to Floe Note",
