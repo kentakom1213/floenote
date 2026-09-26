@@ -1,4 +1,5 @@
 import { markdown } from "@codemirror/lang-markdown";
+import { search } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import { basicSetup, EditorView } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
@@ -14,6 +15,8 @@ import {
   EDITOR_UNDO_MERGE_INTERVAL_MS,
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
+
+export const floeEditorSearch = search({ top: true });
 
 type MarkdownEditorProps = {
   document: NoteDocument;
@@ -49,6 +52,7 @@ export function MarkdownEditor({
       parent: host,
       extensions: [
         basicSetup,
+        floeEditorSearch,
         markdown(),
         ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
