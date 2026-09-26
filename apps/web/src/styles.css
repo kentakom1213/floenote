@@ -751,8 +751,10 @@ input:focus-visible {
   text-align: left;
 }
 
-.note-item-with-tags {
+.note-item.note-item-with-tags {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
   gap: 5px;
   padding-block: 7px 6px;
 }
