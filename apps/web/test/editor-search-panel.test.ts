@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe("editor search panel", () => {
-  it("opens in the top panel container", () => {
+  it("opens in the top panel container with replace collapsed", async () => {
     const host = document.createElement("div");
     document.body.append(host);
 
@@ -25,6 +25,9 @@ describe("editor search panel", () => {
     });
 
     expect(openSearchPanel(view)).toBe(true);
+    await new Promise<void>((resolve) => {
+      queueMicrotask(resolve);
+    });
 
     const searchPanels = view.dom.querySelectorAll(".cm-search");
     expect(searchPanels).toHaveLength(1);
@@ -35,5 +38,20 @@ describe("editor search panel", () => {
     expect(
       view.dom.querySelector(".editor-search-position-preview"),
     ).toBeNull();
+
+    const panel = searchPanels[0] as HTMLElement;
+    const replaceToggle = panel.querySelector<HTMLButtonElement>(
+      "[data-floe-replace-toggle]",
+    );
+    expect(replaceToggle).not.toBeNull();
+    expect(panel.dataset.floeReplaceOpen).toBe("false");
+    expect(replaceToggle?.getAttribute("aria-expanded")).toBe("false");
+
+    replaceToggle?.click();
+    expect(panel.dataset.floeReplaceOpen).toBe("true");
+    expect(replaceToggle?.getAttribute("aria-expanded")).toBe("true");
+
+    replaceToggle?.click();
+    expect(panel.dataset.floeReplaceOpen).toBe("false");
   });
 });
