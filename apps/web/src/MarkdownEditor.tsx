@@ -41,11 +41,11 @@ function enhanceSearchPanel(view: EditorView): void {
   }
 
   const optionTitles = [
-    ["case", "Match case"],
-    ["re", "Use regular expression"],
-    ["word", "Match whole word"],
+    ["case", "Match case", "Match case"],
+    ["re", "Use regular expression", "Regular expression"],
+    ["word", "Match whole word", "Whole word"],
   ] as const;
-  const optionLabels = optionTitles.flatMap(([name, title]) => {
+  const optionLabels = optionTitles.flatMap(([name, title, text]) => {
     const label = panel
       .querySelector<HTMLInputElement>(`input[name="${name}"]`)
       ?.closest("label");
@@ -53,6 +53,12 @@ function enhanceSearchPanel(view: EditorView): void {
       return [];
     }
     label.setAttribute("title", title);
+    const textNode = [...label.childNodes].find(
+      (node) => node.nodeType === Node.TEXT_NODE,
+    );
+    if (textNode) {
+      textNode.textContent = text;
+    }
     return [label];
   });
 
