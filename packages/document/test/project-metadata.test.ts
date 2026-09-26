@@ -98,8 +98,11 @@ describe("NoteProject metadata", () => {
   });
 
 
-  it("uses gray when a tag has no color metadata", () => {
+  it("keeps a newly created tag gray until a color is explicitly set", () => {
     const project = NoteProject.create();
+    const document = project.createDocument("Tagged");
+
+    document.addTag("research");
 
     expect(project.getTagColor("research")).toBe(DEFAULT_TAG_COLOR);
   });
