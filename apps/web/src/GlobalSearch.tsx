@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 
+import type { TagColor } from "@floe-note/document";
 import type { DocumentId } from "@floe-note/domain";
 
 import {
@@ -14,12 +15,14 @@ import {
   type GlobalSearchResult,
 } from "./global-search.js";
 import { Modal } from "./Modal.js";
+import { TagChip } from "./TagChip.js";
 
 type GlobalSearchProps = {
   cache: GlobalSearchCache;
   lastOpenedAt: ReadonlyMap<DocumentId, number>;
   onClose: () => void;
   onSelect: (documentId: DocumentId) => void;
+  getTagColor: (tag: string) => TagColor;
 };
 
 export function GlobalSearch({
@@ -27,6 +30,7 @@ export function GlobalSearch({
   lastOpenedAt,
   onClose,
   onSelect,
+  getTagColor,
 }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -131,10 +135,12 @@ export function GlobalSearch({
                     aria-label="Matching tags"
                   >
                     {result.matchedTags.slice(0, 3).map((tag) => (
-                      <span className="global-search-result-tag" key={tag}>
-                        <span aria-hidden="true">#</span>
-                        {highlightText(tag, terms)}
-                      </span>
+                      <TagChip
+                        key={tag}
+                        tag={tag}
+                        color={getTagColor(tag)}
+                        compact
+                      />
                     ))}
                     {result.matchedTags.length > 3 ? (
                       <span className="global-search-result-tag-overflow">
