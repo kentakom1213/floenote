@@ -127,6 +127,23 @@ describe("NoteProject metadata", () => {
     expect(listener).toHaveBeenCalledOnce();
   });
 
+  it("uses the CUD-oriented fixed palette roles", async () => {
+    const { TAG_COLORS } = await import("../src/project.js");
+
+    expect(TAG_COLORS).toEqual([
+      "gray",
+      "red",
+      "orange",
+      "yellow",
+      "green",
+      "sky",
+      "blue",
+      "brown",
+      "purple",
+      "pink",
+    ]);
+  });
+
   it("rejects tag colors outside the fixed palette", () => {
     const project = NoteProject.create();
 
@@ -180,14 +197,14 @@ describe("NoteProject metadata", () => {
     const project = NoteProject.create();
     const document = project.createDocument("Tagged");
     document.addTag("research");
-    project.setTagColor("research", "indigo");
+    project.setTagColor("research", "brown");
 
     document.removeTag("research");
 
     expect(document.tags).toEqual([]);
-    expect(project.getTagColor("research")).toBe("indigo");
+    expect(project.getTagColor("research")).toBe("brown");
 
     document.addTag("research");
-    expect(project.getTagColor("research")).toBe("indigo");
+    expect(project.getTagColor("research")).toBe("brown");
   });
 });
