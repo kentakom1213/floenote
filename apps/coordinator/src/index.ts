@@ -141,7 +141,7 @@ export default {
         .get(id)
         .fetch(internalRequest);
 
-      return response;
+      return withCors(response);
     }
 
     const securityStateRoute = parseSecurityStateRoute(url.pathname);
@@ -1455,7 +1455,7 @@ async function createInvitation(
     }
 
     if (response.status !== 409) {
-      return withCors(response);
+      return response;
     }
   }
 
