@@ -325,8 +325,15 @@ const floeEditorChrome = EditorView.theme({
     padding: "0",
     color: "var(--color-text-faint)",
     backgroundColor: "transparent",
+    fontSize: "0",
+    lineHeight: "1",
+  },
+  ".cm-panel.cm-search [name=close]::after": {
+    content: "\"×\"",
+    display: "block",
     fontSize: "18px",
     lineHeight: "1",
+    transform: "translateY(-1px)",
   },
   ".cm-panel.cm-search [name=close]:hover": {
     color: "var(--color-text)",
