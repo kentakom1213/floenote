@@ -4,6 +4,7 @@ import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import {
   createPairingSecret,
   createSessionId,
+  InvitationClient,
   SecurityCoordinatorClient,
   WebRtcSignalingSession,
   type InviteId,
