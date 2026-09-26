@@ -35,6 +35,7 @@ export function GlobalSearch({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const selectionCommittedRef = useRef(false);
   const terms = useMemo(() => splitSearchTerms(query), [query]);
   const results = cache.search(query, lastOpenedAt);
 
@@ -49,12 +50,17 @@ export function GlobalSearch({
   }, [query, results.length]);
 
   function select(result: GlobalSearchResult): void {
+    selectionCommittedRef.current = true;
     onSelect(result.id);
     onClose();
   }
 
   return (
-    <Modal labelledBy="global-search-title" onClose={onClose}>
+    <Modal
+      labelledBy="global-search-title"
+      onClose={onClose}
+      shouldRestoreFocus={() => !selectionCommittedRef.current}
+    >
       <div className="global-search">
         <h2 id="global-search-title" className="global-search-heading">
           Search notes
