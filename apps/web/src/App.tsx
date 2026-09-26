@@ -623,6 +623,20 @@ function NoteApp({
   useEffect(() => {
     if (!project) return;
 
+    if (
+      invitationHostActive &&
+      authorizedSync.presenceState !== "open"
+    ) {
+      setCoordinationError(
+        authorizedSync.presenceState === "error" ||
+          authorizedSync.presenceState === "closed"
+          ? authorizedSync.coordinationError ??
+              "Authorized coordinator connection is unavailable"
+          : null,
+      );
+      return;
+    }
+
     setCoordinationError(null);
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
@@ -634,12 +648,11 @@ function NoteApp({
       let disposed = false;
       let cleanup: (() => void) | null = null;
       let invitationTransport: WebRtcTransport | null = null;
-      const invitationClient = new InvitationClient(coordinatorBaseUrl);
 
       void (async () => {
         try {
           const pairingSecret = createPairingSecret();
-          const invitation = await invitationClient.createInvite(project.id);
+          const invitation = await authorizedSync.createInvite();
           if (disposed) return;
 
           const transport = new WebRtcTransport(
@@ -799,6 +812,9 @@ function NoteApp({
     setSignalingState("idle");
     return;
   }, [
+    authorizedSync.coordinationError,
+    authorizedSync.createInvite,
+    authorizedSync.presenceState,
     invitationHostActive,
     project,
     signalSessionId,
