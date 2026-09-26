@@ -90,6 +90,20 @@ const floeEditorChrome = EditorView.theme({
   ".cm-panels-bottom": {
     borderTop: "1px solid var(--color-border)",
   },
+  ".editor-search-position-preview": {
+    position: "fixed",
+    zIndex: "30",
+    boxSizing: "border-box",
+    border: "1px solid var(--color-border)",
+    borderRadius: "12px",
+    color: "var(--color-text)",
+    backgroundColor: "var(--color-surface)",
+    overflow: "hidden",
+    pointerEvents: "none",
+    fontFamily:
+      "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    fontSize: "12px",
+  },
   ".cm-panel.cm-search": {
     display: "flex",
     flexWrap: "wrap",
