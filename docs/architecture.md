@@ -1187,8 +1187,11 @@ The revoking device prepares K5 ephemerally inside the unlocked Device Vault
 and seals it independently to every device remaining in the candidate
 SecurityState, including itself. Raw K5 is zeroed without first being persisted.
 Each sealed envelope is bound to ProjectId, keyEpoch, recipient DeviceId, and
-the committed security head. The revoking device additionally signs the complete
-sealed-envelope record with its device signing key.
+the security head of the RevokeDevice state that created that key epoch. The
+revoking device additionally signs the complete sealed-envelope record with its
+device signing key. That rotation-time security head remains part of the
+envelope context even if a later AddDevice advances SecurityState.headHash
+without changing keyEpoch.
 
 The RevokeDevice transition and the signed sealed envelopes are submitted
 together. The ProjectCoordinator verifies the RevokeDevice signature, derives
@@ -1199,10 +1202,13 @@ therefore acts only as an opaque mailbox and never receives the plaintext
 ProjectKey.
 
 After commit, each remaining device fetches only its own signed sealed envelope,
-verifies its signer and context against the verified SecurityState, opens it
-inside the Device Vault, and then persists K5. A presence connection tied to the
-old security head is invalidated; an unlocked client uses that invalidation to
-run SecurityTransition catch-up and acquire the current key automatically.
+verifies that it targets the current Project and key epoch and that its signer
+is currently authorized, then verifies the complete envelope signature. The
+Device Vault opens the sealed key with the authenticated rotation-time security
+head carried by the envelope, not the latest SecurityState head, and then
+persists K5. A presence connection tied to the old security head is invalidated;
+an unlocked client uses that invalidation to run SecurityTransition catch-up and
+acquire the current key automatically.
 
 A revoked device may retain data and keys it obtained before revocation. Cryptography cannot make already disclosed plaintext disappear.
 

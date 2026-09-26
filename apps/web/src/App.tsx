@@ -42,7 +42,6 @@ import {
   encodeUnsignedAddDeviceTransition,
   encodeUnsignedCreateProjectTransition,
   encodeUnsignedRevokeDeviceTransition,
-  type ProjectKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
 import {
@@ -116,6 +115,7 @@ import {
   useTurnCredentialEndpoint,
 } from "./turn-preference.js";
 import { clearSidebarPreference } from "./sidebar-preference.js";
+import { storeVerifiedRotatedProjectKey } from "./project-key-recovery.js";
 import {
   reconcileVerifiedSecurityState,
   securityStatesEqual,
@@ -2289,45 +2289,6 @@ function withActiveProjectSummary(
       isActive: true,
     },
   ];
-}
-
-async function storeVerifiedRotatedProjectKey(
-  session: DeviceVaultSession,
-  state: SecurityState,
-  localDeviceId: DeviceId,
-  envelope: ProjectKeyRotationEnvelope,
-): Promise<void> {
-  if (
-    envelope.projectId !== state.projectId ||
-    envelope.keyEpoch !== state.keyEpoch ||
-    envelope.recipientDeviceId !== localDeviceId ||
-    !bytesEqual(envelope.securityHead, state.headHash)
-  ) {
-    throw new Error("ProjectKey rotation envelope does not match SecurityState");
-  }
-
-  const signer = state.devices.find(
-    (device) => device.deviceId === envelope.signerDeviceId,
-  );
-  if (!signer) {
-    throw new Error("ProjectKey rotation envelope signer is not authorized");
-  }
-
-  const verified = await verifyEd25519Signature(
-    encodeUnsignedProjectKeyRotationEnvelope(envelope),
-    envelope.signature,
-    signer.signingPublicKey,
-  );
-  if (!verified) {
-    throw new Error("ProjectKey rotation envelope signature verification failed");
-  }
-
-  await session.storeSealedProjectKey(
-    envelope.sealedEnvelope,
-    state.projectId,
-    state.keyEpoch,
-    state.headHash,
-  );
 }
 
 async function ensureInitialProjectKey(
