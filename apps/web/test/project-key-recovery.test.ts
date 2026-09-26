@@ -175,4 +175,22 @@ describe("rotated ProjectKey recovery", () => {
       "ProjectKey rotation envelope signature verification failed",
     );
   });
+
+  it("rejects an invalid envelope signature", async () => {
+    const { state, envelope, localDeviceId } = await createScenario();
+    const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
+      async storeSealedProjectKey() {},
+    };
+    const signature = envelope.signature.slice();
+    signature[0] = (signature[0] ?? 0) ^ 0xff;
+
+    await expect(
+      storeVerifiedRotatedProjectKey(session, state, localDeviceId, {
+        ...envelope,
+        signature,
+      }),
+    ).rejects.toThrow(
+      "ProjectKey rotation envelope signature verification failed",
+    );
+  });
 });
