@@ -13,7 +13,9 @@
     "version:web": "node scripts/bump-version.mjs web",
     "version:coordinator": "node scripts/bump-version.mjs coordinator",
     "dev:turn": "pnpm --filter @floe-note/turn dev",
-    "deploy:turn": "pnpm --filter @floe-note/turn run deploy"
+    "deploy:turn": "pnpm --filter @floe-note/turn run deploy",
+    "preview": "node scripts/deploy-preview.mjs",
+    "preview:delete": "node scripts/delete-preview.mjs"
   },
   "devDependencies": {
     "jsdom": "29.0.1",
