@@ -112,6 +112,26 @@ describe("editor search panel", () => {
     expect(caseControl?.checked).toBe(true);
   });
 
+  it("closes search options when tapping outside the popover", async () => {
+    const panel = await openEditorSearch();
+    const optionsToggle = panel.querySelector<HTMLButtonElement>(
+      "[data-floe-search-options-toggle]",
+    );
+
+    optionsToggle?.click();
+    expect(panel.dataset.floeSearchOptionsOpen).toBe("true");
+
+    document.body.dispatchEvent(
+      new Event("pointerdown", { bubbles: true }),
+    );
+
+    expect(panel.dataset.floeSearchOptionsOpen).toBe("false");
+    expect(optionsToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(optionsToggle?.getAttribute("aria-label")).toBe(
+      "Show search options",
+    );
+  });
+
   it("enhances read-only search without adding Replace controls", async () => {
     const panel = await openEditorSearch(true);
 
