@@ -52,6 +52,7 @@ describe("TrashView", () => {
     const project = NoteProject.create();
     const document = project.createDocument("Deleted preview");
     document.setTags(["research", "draft"]);
+    project.setTagColor("research", "blue");
     const binding = document.getEditorBinding();
     binding.getText(binding.doc).insert(0, "# Preview body");
     binding.doc.commit();
@@ -71,6 +72,8 @@ describe("TrashView", () => {
     expect(markup).toContain("Deleted preview");
     expect(markup).toContain("research");
     expect(markup).toContain("draft");
+    expect(markup).toContain('data-tag-color="blue"');
+    expect(markup).toContain('data-tag-color="gray"');
     expect(markup).toContain("Preview body");
     expect(markup).toContain('data-preview-interactive="false"');
     expect(markup).toContain(">Restore<");
