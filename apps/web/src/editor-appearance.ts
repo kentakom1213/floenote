@@ -484,6 +484,12 @@ const floeEditorChrome = EditorView.theme({
       gridColumn: "5 / span 2",
       gridRow: "2",
     },
+    ".cm-panel.cm-search button[name=replace], .cm-panel.cm-search [name=replaceAll]":
+      {
+        minWidth: "0",
+        paddingInline: "4px",
+        fontSize: "10px",
+      },
     ".cm-panel.cm-search [name=close]": {
       top: "8px",
       right: "4px",
