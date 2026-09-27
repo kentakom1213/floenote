@@ -2,11 +2,13 @@
 
 Status: proposed v1 specification.
 
-This document defines the portable data boundary for Floe Note Projects.
+This document defines the portable content boundary for Floe Note. The v1
+`floe-project` format and its `project` field retain their content-oriented
+names; neither represents a Workspace security identity.
 
 The format is intentionally a content/interoperability format, not an internal
 storage dump and not a cryptographic restoration image. Import always creates a
-new Project identity.
+new Workspace security identity.
 
 ## 1. Project creation sources
 
@@ -19,18 +21,19 @@ Create Project
 └── Import Markdown directory
 ```
 
-All three produce an ordinary new Floe Note Project with:
+All three initialize a new Workspace around the current Project-named content
+model with:
 
-- a new ProjectId;
-- a new ProjectKey;
-- a new CreateProject root;
+- a new WorkspaceId;
+- a new WorkspaceKey;
+- a new CreateWorkspace root;
 - the current Device as the initial authorized device.
 
 The source only determines the initial Project content. Project creation still
-uses the normal coordinator-backed CreateProject commit flow.
+uses the normal coordinator-backed CreateWorkspace commit flow.
 
-This keeps Project creation separate from the authorization identity of any
-source Project without introducing a separate offline-genesis mode.
+This keeps Project content creation separate from the Workspace authorization
+identity of its source without introducing a separate offline-genesis mode.
 
 ## 2. Portable Floe export
 
@@ -181,11 +184,11 @@ A portable export must not contain:
 
 - edit-history checkpoints or historical note versions;
 - presentation metadata such as Project tag colors;
-- original ProjectId;
+- original WorkspaceId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
 - device private keys;
-- ProjectKey material;
+- WorkspaceKey material or key epochs;
 - SecurityState;
 - SecurityTransitions;
 - coordinator URL/state;
@@ -195,7 +198,7 @@ A portable export must not contain:
 - IndexedDB records or schema details.
 
 These values are either Floe Note-specific presentation/runtime metadata or
-belong to the original Project's cryptographic and synchronization identity.
+belong to the original Workspace's cryptographic and synchronization identity.
 
 Consequently, importing an export does not resume synchronization with the
 original Project. Tag strings are preserved, but Project tag colors are not;
@@ -245,9 +248,9 @@ After validation:
 .floe.zip
     |
     v
-new ProjectId
-new ProjectKey
-new CreateProject
+new WorkspaceId
+new WorkspaceKey
+new CreateWorkspace
     |
     +-- Project name
     +-- new DocumentId for each note
@@ -374,8 +377,8 @@ Floe export / Markdown directory
         |
 validate and prepare initial content locally
         |
-generate ProjectId + ProjectKey
-sign CreateProject
+generate WorkspaceId + WorkspaceKey
+sign CreateWorkspace
         |
 coordinator verifies and commits genesis
         |
@@ -419,7 +422,7 @@ Import & export section) and remains available while the coordinator is offline.
 
 v1 does not implement:
 
-- restore with the original ProjectId;
+- restore with the original WorkspaceId;
 - importing into/merging with an existing Project;
 - round-tripping Loro history;
 - preserving device authorization;

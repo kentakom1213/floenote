@@ -12,10 +12,10 @@ import {
   exchangeJoiningDeviceIdentity,
   receiveWorkspaceKeyDelivery,
 } from "@floe-note/pairing";
-import type { ProjectStorage } from "@floe-note/storage";
+import type { WorkspaceStorage } from "@floe-note/storage";
 import {
   EncryptedSyncTransport,
-  ProjectSyncEngine,
+  WorkspaceSyncEngine,
 } from "@floe-note/sync";
 import {
   WebRtcTransport,
@@ -52,7 +52,7 @@ type InvitationJoinPageProps = {
   coordinatorBaseUrl: string;
   inviteId: string;
   pairingSecret: string | null;
-  storage: ProjectStorage;
+  storage: WorkspaceStorage;
   turnCredentialEndpoint: string | null;
   onSessionHandoff: (
     session: DeviceVaultSession,
@@ -141,7 +141,7 @@ export function InvitationJoinPage({
 
     let disposed = false;
     let cleanup: (() => void) | null = null;
-    let joinedSyncEngine: ProjectSyncEngine | null = null;
+    let joinedSyncEngine: WorkspaceSyncEngine | null = null;
     let stopJoinedPersistence: (() => void) | null = null;
     let bootstrapCompletionStarted = false;
     let initialSyncFailed = false;
@@ -244,13 +244,13 @@ export function InvitationJoinPage({
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
-            const joinedProject = await storage.initializeJoinedProject(
+            const joinedProject = await storage.initializeJoinedWorkspace(
               securityState.workspaceId,
               session,
               securityState.keyEpoch,
             );
 
-            stopJoinedPersistence = storage.watchProject(
+            stopJoinedPersistence = storage.watchWorkspace(
               joinedProject,
               session,
               securityState.keyEpoch,
@@ -281,7 +281,7 @@ export function InvitationJoinPage({
               },
             );
 
-            joinedSyncEngine = new ProjectSyncEngine(
+            joinedSyncEngine = new WorkspaceSyncEngine(
               joinedProject,
               encryptedTransport,
               {
@@ -302,7 +302,7 @@ export function InvitationJoinPage({
                   void (async () => {
                     try {
                       await storage.flushPendingWrites();
-                      await storage.completeJoinedProjectBootstrap(
+                      await storage.completeJoinedWorkspaceBootstrap(
                         securityState.workspaceId,
                       );
                       if (disposed) return;

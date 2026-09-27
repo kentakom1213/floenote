@@ -238,13 +238,14 @@ materialization are future concerns and must be designed together if introduced.
 Portable `.floe.zip` export remains a current-content portability format in v1.
 
 Edit-history checkpoints and Loro synchronization history are not exported.
-Import creates fresh Project and Document identities and starts with no edit
+Import creates fresh Workspace and Document identities and starts with no edit
 history.
 
 ## 12. Encryption boundary
 
-Edit-history metadata is Project data. Because checkpoint records live in the
-Project manifest, they use the existing ProjectKey encryption boundary for local
+Edit-history metadata is Workspace content. Checkpoint records live in the
+Workspace manifest (currently named `NoteProject` / Project manifest in the
+implementation), so they use the WorkspaceKey encryption boundary for local
 persistence and the existing application-layer encrypted synchronization path.
 
 No plaintext edit-history store is introduced.

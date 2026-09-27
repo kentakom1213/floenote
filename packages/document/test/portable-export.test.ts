@@ -116,14 +116,17 @@ describe("portable Project export", () => {
     );
   });
 
-  it("does not serialize Project identity or security/coordinator state", () => {
+  it("does not serialize Workspace security identity or runtime state", () => {
     const project = {
       name: "Portable",
       documents: [document("Note")],
       projectId: "PROJECT-ID-SENTINEL",
+      workspaceId: "WORKSPACE-ID-SENTINEL",
       deviceId: "DEVICE-ID-SENTINEL",
       securityState: "SECURITY-STATE-SENTINEL",
       projectKey: "PROJECT-KEY-SENTINEL",
+      workspaceKey: "WORKSPACE-KEY-SENTINEL",
+      keyEpoch: "KEY-EPOCH-SENTINEL",
       vault: "VAULT-SENTINEL",
       coordinatorState: "COORDINATOR-SENTINEL",
       loroHistory: "LORO-HISTORY-SENTINEL",
@@ -137,9 +140,12 @@ describe("portable Project export", () => {
 
     for (const sentinel of [
       project.projectId,
+      project.workspaceId,
       project.deviceId,
       project.securityState,
       project.projectKey,
+      project.workspaceKey,
+      project.keyEpoch,
       project.vault,
       project.coordinatorState,
       project.loroHistory,

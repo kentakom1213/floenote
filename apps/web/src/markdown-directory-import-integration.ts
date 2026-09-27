@@ -1,4 +1,4 @@
-import type { OpenProjectResult } from "@floe-note/storage";
+import type { OpenWorkspaceResult } from "@floe-note/storage";
 
 import {
   readMarkdownDirectorySelection,
@@ -14,7 +14,7 @@ export async function importMarkdownDirectory(
   files: readonly BrowserMarkdownDirectoryFile[],
   dependencies: ProjectImportDependencies,
   importedAt = Date.now(),
-): Promise<OpenProjectResult> {
+): Promise<OpenWorkspaceResult> {
   // File enumeration, reads, UTF-8 decoding, and source validation all finish
   // before prepareImportedProject allocates a WorkspaceId or DocumentIds.
   const imported = await readMarkdownDirectorySelection(files, importedAt);

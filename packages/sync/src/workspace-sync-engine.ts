@@ -11,13 +11,13 @@ export type SyncDebugEvent = {
 
 export type SyncDebugLogger = (event: SyncDebugEvent) => void;
 
-export type ProjectSyncEngineOptions = {
+export type WorkspaceSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
   onInitialRemoteStateReceived?: () => void;
   onInitialSyncError?: (error: Error) => void;
 };
 
-export class ProjectSyncEngine {
+export class WorkspaceSyncEngine {
   readonly #project: NoteProject;
   readonly #transport: Transport;
   readonly #debugLogger: SyncDebugLogger | null;
@@ -34,7 +34,7 @@ export class ProjectSyncEngine {
   constructor(
     project: NoteProject,
     transport: Transport,
-    options: ProjectSyncEngineOptions = {},
+    options: WorkspaceSyncEngineOptions = {},
   ) {
     this.#project = project;
     this.#transport = transport;

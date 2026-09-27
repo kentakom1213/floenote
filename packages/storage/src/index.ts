@@ -1,9 +1,9 @@
-export { DexieProjectStorage } from "./dexie-project-storage.js";
+export { DexieWorkspaceStorage } from "./dexie-workspace-storage.js";
 
 export type {
-  OpenProjectResult,
-  ProjectStorage,
-  ProjectStorageCrypto,
+  OpenWorkspaceResult,
+  WorkspaceStorage,
+  WorkspaceStorageCrypto,
   WorkspaceStorageRecordContext,
-  StoredProjectSummary,
-} from "./project-storage.js";
+  StoredWorkspaceSummary,
+} from "./workspace-storage.js";

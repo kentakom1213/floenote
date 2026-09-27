@@ -12,13 +12,13 @@ import {
   type SecurityState,
 } from "@floe-note/security";
 import type {
-  OpenProjectResult,
-  ProjectStorageCrypto,
+  OpenWorkspaceResult,
+  WorkspaceStorageCrypto,
 } from "@floe-note/storage";
 
 import { securityStatesEqual } from "./security-reconciliation.js";
 
-export type ProjectGenesisSession = ProjectStorageCrypto & {
+export type ProjectGenesisSession = WorkspaceStorageCrypto & {
   publicIdentity: DevicePublicIdentity;
   displayName: string;
   sign(message: Uint8Array): Promise<Uint8Array>;
@@ -38,11 +38,11 @@ export type ProjectGenesisCoordinator = {
 };
 
 export type ProjectGenesisStorage = {
-  initializeCommittedProject(
+  initializeCommittedWorkspace(
     project: NoteProject,
     state: SecurityState,
-    crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult>;
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<OpenWorkspaceResult>;
 };
 
 export type ProjectGenesisRuntime = {
@@ -65,7 +65,7 @@ export async function commitNewProjectGenesis(
   coordinator: ProjectGenesisCoordinator,
   storage: ProjectGenesisStorage,
   runtime: ProjectGenesisRuntime = defaultRuntime,
-): Promise<OpenProjectResult> {
+): Promise<OpenWorkspaceResult> {
   const identity = session.publicIdentity;
   project.setDeviceDisplayName(identity.deviceId, session.displayName);
 
@@ -117,7 +117,7 @@ export async function commitNewProjectGenesis(
   }
 
   try {
-    return await storage.initializeCommittedProject(
+    return await storage.initializeCommittedWorkspace(
       project,
       committedState,
       session,

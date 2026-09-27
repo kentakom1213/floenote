@@ -45,12 +45,12 @@ import {
   type SecurityState,
 } from "@floe-note/security";
 import {
-  DexieProjectStorage,
-  type StoredProjectSummary,
+  DexieWorkspaceStorage,
+  type StoredWorkspaceSummary,
 } from "@floe-note/storage";
 import {
   EncryptedSyncTransport,
-  ProjectSyncEngine,
+  WorkspaceSyncEngine,
 } from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import {
@@ -125,11 +125,11 @@ import { WebRtcDebugPanel } from "./WebRtcDebugPanel.js";
 import { UnlockScreen } from "./UnlockScreen.js";
 import { WebRtcJoinPage } from "./WebRtcJoinPage.js";
 import {
-  useAuthorizedProjectSync,
+  useAuthorizedWorkspaceSync,
   useEncryptedLocalTabSync,
-} from "./useProjectSync.js";
+} from "./useWorkspaceSync.js";
 
-const projectStorage = new DexieProjectStorage();
+const workspaceStorage = new DexieWorkspaceStorage();
 const deviceVault = new WebAuthnPrfDeviceVault();
 const searchParams = new URLSearchParams(window.location.search);
 const legacyDebugRoutesEnabled = import.meta.env.DEV;
@@ -208,7 +208,7 @@ export function App() {
         coordinatorBaseUrl={coordinatorBaseUrl}
         inviteId={invitationJoinRoute.inviteId}
         pairingSecret={invitationJoinRoute.pairingSecret}
-        storage={projectStorage}
+        storage={workspaceStorage}
         turnCredentialEndpoint={readTurnCredentialEndpoint()}
         onSessionHandoff={handoffJoinedDeviceVaultSession}
       />
@@ -216,13 +216,13 @@ export function App() {
   }
 
   if (useManualWebRtcJoin) {
-    return <WebRtcJoinPage storage={projectStorage} />;
+    return <WebRtcJoinPage storage={workspaceStorage} />;
   }
 
   if (useSignaledWebRtcJoin) {
     return (
       <SignaledJoinPage
-        storage={projectStorage}
+        storage={workspaceStorage}
         coordinatorBaseUrl={coordinatorBaseUrl}
         projectId={searchParams.get("project")}
         sessionId={searchParams.get("session")}
@@ -243,7 +243,7 @@ function NoteApp({
     useTurnCredentialEndpoint();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
   const [projectSummaries, setProjectSummaries] = useState<
-    readonly StoredProjectSummary[]
+    readonly StoredWorkspaceSummary[]
   >([]);
   const [projectCatalogReady, setProjectCatalogReady] = useState(false);
   const [projectSwitching, setProjectSwitching] = useState(false);
@@ -272,7 +272,7 @@ function NoteApp({
   );
   const deviceVaultSessionRef = deviceVaultSessionOwner;
   const securityMutationInFlightRef = useRef(false);
-  const invitationSyncEngineRef = useRef<ProjectSyncEngine | null>(null);
+  const invitationSyncEngineRef = useRef<WorkspaceSyncEngine | null>(null);
   const [deviceVaultState, setDeviceVaultState] =
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
@@ -377,7 +377,7 @@ function NoteApp({
     setLocalProjectKeyReady(null);
 
     void (async () => {
-      const storedState = await projectStorage.loadSecurityState(project.id);
+      const storedState = await workspaceStorage.loadSecurityState(project.id);
       if (storedState) {
         if (
           !storedState.devices.some(
@@ -445,7 +445,7 @@ function NoteApp({
           }
 
           if (!securityStatesEqual(storedState, verifiedState)) {
-            await projectStorage.saveCommittedSecurityState(verifiedState);
+            await workspaceStorage.saveCommittedSecurityState(verifiedState);
           }
 
           if (!cancelled) {
@@ -517,7 +517,7 @@ function NoteApp({
         );
       }
 
-      await projectStorage.saveCommittedSecurityState(committedState);
+      await workspaceStorage.saveCommittedSecurityState(committedState);
       const projectKeyReady = await ensureInitialProjectKey(
         session,
         committedState,
@@ -559,7 +559,7 @@ function NoteApp({
   const automaticReconnectEnabled =
     useAutomaticReconnect && !invitationHostActive;
 
-  const authorizedSync = useAuthorizedProjectSync({
+  const authorizedSync = useAuthorizedWorkspaceSync({
     coordinatorBaseUrl,
     project,
     localDeviceId,
@@ -604,7 +604,7 @@ function NoteApp({
     const session = deviceVaultSessionRef.current;
     if (!session) return;
 
-    return projectStorage.watchProject(
+    return workspaceStorage.watchWorkspace(
       project,
       session,
       localSecurityState.keyEpoch,
@@ -760,7 +760,7 @@ function NoteApp({
       );
       setWebRtcTransport(transport);
 
-      const syncEngine = new ProjectSyncEngine(project, transport, {
+      const syncEngine = new WorkspaceSyncEngine(project, transport, {
         debugLogger: createConsoleDebugLogger(
           useSignaledWebRtc ? "signal-host-sync" : "sync",
         ),
@@ -1096,7 +1096,7 @@ function NoteApp({
       if (previous) await previous.close();
     }
 
-    const summaries = await projectStorage.listProjects(session);
+    const summaries = await workspaceStorage.listWorkspaces(session);
     const requestedRoute = parseLocation();
     const requestedWorkspaceId = projectIdFromRoute(requestedRoute);
     let result: OpenedProject | null = null;
@@ -1105,7 +1105,10 @@ function NoteApp({
       setRouteError(true);
     } else if (requestedWorkspaceId) {
       if (summaries.some((summary) => summary.id === requestedWorkspaceId)) {
-        result = await projectStorage.openProject(requestedWorkspaceId, session);
+        result = await workspaceStorage.openWorkspace(
+          requestedWorkspaceId,
+          session,
+        );
 
         if (
           requestedRoute.kind === "document" &&
@@ -1128,7 +1131,7 @@ function NoteApp({
         setRouteError(true);
       }
     } else {
-      result = await projectStorage.openLastProject(session);
+      result = await workspaceStorage.openLastWorkspace(session);
     }
 
     if (result) {
@@ -1245,7 +1248,7 @@ function NoteApp({
     deviceVaultSessionRef.current = null;
     if (previous) await previous.close();
 
-    await projectStorage.eraseAllLocalData();
+    await workspaceStorage.eraseAllLocalData();
     await deviceVault.eraseVault();
     clearAllLastDocumentPreferences();
 
@@ -1266,9 +1269,9 @@ function NoteApp({
     setProjectSwitching(true);
 
     try {
-      const result = await projectStorage.openProject(projectId, session);
+      const result = await workspaceStorage.openWorkspace(projectId, session);
       syncLocalDeviceName(result.project, session);
-      const summaries = await projectStorage.listProjects(session);
+      const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setMainView("note");
       setOpenedProject(result);
@@ -1293,10 +1296,10 @@ function NoteApp({
     setProjectSwitching(true);
 
     try {
-      const result = await projectStorage.createProject(name);
+      const result = await workspaceStorage.createWorkspace(name);
       const document = result.project.createDocument("Welcome to Floe Note");
       syncLocalDeviceName(result.project, session);
-      const summaries = await projectStorage.listProjects(session);
+      const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setSelectedId(document.id);
       setFocusTitleDocumentId(null);
@@ -1329,9 +1332,9 @@ function NoteApp({
       const result = await importPortableProjectArchive(archive, {
         session,
         coordinator: securityCoordinator,
-        storage: projectStorage,
+        storage: workspaceStorage,
       });
-      const summaries = await projectStorage.listProjects(session);
+      const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setMainView("note");
       pushRoute(buildProjectUrl(result.project.id));
@@ -1363,9 +1366,9 @@ function NoteApp({
       const result = await importMarkdownDirectory(files, {
         session,
         coordinator: securityCoordinator,
-        storage: projectStorage,
+        storage: workspaceStorage,
       });
-      const summaries = await projectStorage.listProjects(session);
+      const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setMainView("note");
       pushRoute(buildProjectUrl(result.project.id));
@@ -1395,13 +1398,13 @@ function NoteApp({
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
     try {
-      const nextWorkspaceId = await projectStorage.removeProject(projectId);
+      const nextWorkspaceId = await workspaceStorage.removeWorkspace(projectId);
       await session.removeWorkspaceKeys(projectId);
       writeLastDocumentId(projectId, null);
 
-      const summaries = await projectStorage.listProjects(session);
+      const summaries = await workspaceStorage.listWorkspaces(session);
       if (nextWorkspaceId) {
-        const next = await projectStorage.openProject(nextWorkspaceId, session);
+        const next = await workspaceStorage.openWorkspace(nextWorkspaceId, session);
         setOpenedProject(next);
         setProjectSummaries(
           withActiveProjectSummary(summaries, next.project),
@@ -1414,10 +1417,10 @@ function NoteApp({
       setMainView("note");
       setProjectCatalogReady(true);
     } catch (error) {
-      const recovered = await projectStorage.openLastProject(session).catch(
+      const recovered = await workspaceStorage.openLastWorkspace(session).catch(
         () => null,
       );
-      const summaries = await projectStorage.listProjects(session).catch(
+      const summaries = await workspaceStorage.listWorkspaces(session).catch(
         () => [],
       );
       setOpenedProject(recovered);
@@ -1447,7 +1450,7 @@ function NoteApp({
       deviceVaultSessionRef.current = null;
       if (session) await session.close();
 
-      await projectStorage.eraseAllLocalData();
+      await workspaceStorage.eraseAllLocalData();
       await deviceVault.eraseVault();
       clearThemePreference();
       clearTurnCredentialEndpoint();
@@ -1620,7 +1623,7 @@ function NoteApp({
           );
         }
 
-        await projectStorage.saveCommittedSecurityState(committedState);
+        await workspaceStorage.saveCommittedSecurityState(committedState);
         activeProject.setDeviceDisplayName(
           joiningDevice.deviceId,
           joiningDevice.displayName,
@@ -1755,7 +1758,7 @@ function NoteApp({
         localEnvelope,
       );
 
-      await projectStorage.saveCommittedSecurityState(committedState);
+      await workspaceStorage.saveCommittedSecurityState(committedState);
       setLocalSecurityState(committedState);
       setLocalProjectKeyReady(true);
     } catch (error: unknown) {
@@ -1894,9 +1897,13 @@ function NoteApp({
       },
     );
 
-    const syncEngine = new ProjectSyncEngine(activeProject, encryptedTransport, {
-      debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
-    });
+    const syncEngine = new WorkspaceSyncEngine(
+      activeProject,
+      encryptedTransport,
+      {
+        debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
+      },
+    );
     invitationSyncEngineRef.current = syncEngine;
     syncEngine.start();
   }
@@ -2262,9 +2269,9 @@ function syncLocalDeviceName(
 }
 
 function withActiveProjectSummary(
-  summaries: readonly StoredProjectSummary[],
+  summaries: readonly StoredWorkspaceSummary[],
   activeProject: NoteProject,
-): readonly StoredProjectSummary[] {
+): readonly StoredWorkspaceSummary[] {
   const existing = summaries.find(
     (summary) => summary.id === activeProject.id,
   );

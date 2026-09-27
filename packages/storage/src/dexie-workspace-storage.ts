@@ -20,40 +20,40 @@ import {
   staleDocumentRowIds,
 } from "./document-persistence-reconciliation.js";
 import type {
-  OpenProjectResult,
-  ProjectStorage,
-  ProjectStorageCrypto,
+  OpenWorkspaceResult,
+  WorkspaceStorage,
+  WorkspaceStorageCrypto,
   WorkspaceStorageRecordContext,
-  StoredProjectSummary,
-} from "./project-storage.js";
+  StoredWorkspaceSummary,
+} from "./workspace-storage.js";
 
-const DATABASE_NAME = "floe-note";
-const LOCAL_PROJECT_SLOT = "default";
-const DETACHED_PROJECT_SLOT_PREFIX = "detached:";
-const BOOTSTRAPPING_PROJECT_SLOT_PREFIX = "bootstrapping:";
+// Pre-Workspace development data remains in "floe-note" and is never opened.
+// Device Vault uses its own database and is unaffected by this boundary.
+const DATABASE_NAME = "floe-note-workspaces";
+const LOCAL_WORKSPACE_SLOT = "default";
+const DETACHED_WORKSPACE_SLOT_PREFIX = "detached:";
+const BOOTSTRAPPING_WORKSPACE_SLOT_PREFIX = "bootstrapping:";
 
-type ProjectRecord = {
-  id: string;
+type WorkspaceRecord = {
+  workspaceId: string;
   localSlot: string;
   createdAt: number;
   bootstrapState?: "bootstrapping" | "ready";
 };
 
 type ManifestRecord = {
-  projectId: string;
-  snapshot?: Uint8Array;
-  encryptedSnapshot?: Uint8Array;
+  workspaceId: string;
+  encryptedSnapshot: Uint8Array;
 };
 
 type DocumentRecord = {
-  projectId: string;
+  workspaceId: string;
   documentId: string;
-  snapshot?: Uint8Array;
-  encryptedSnapshot?: Uint8Array;
+  encryptedSnapshot: Uint8Array;
 };
 
 class FloeNoteDatabase extends Dexie {
-  projects!: Table<ProjectRecord, string>;
+  workspaces!: Table<WorkspaceRecord, string>;
   manifests!: Table<ManifestRecord, string>;
   documents!: Table<DocumentRecord, [string, string]>;
   security!: Table<SecurityStateWirePayload, string>;
@@ -62,96 +62,81 @@ class FloeNoteDatabase extends Dexie {
     super(DATABASE_NAME);
 
     this.version(1).stores({
-      projects: "&id,&localSlot,createdAt",
-      manifests: "&projectId",
-      documents: "[projectId+documentId],projectId,documentId",
-    });
-
-    this.version(2).stores({
-      projects: "&id,&localSlot,createdAt",
-      manifests: "&projectId",
-      documents: "[projectId+documentId],projectId,documentId",
-      security: "&projectId",
-    });
-
-    // The current schema keys Workspace security state by WorkspaceId.
-    // Pre-Workspace development data is not migrated here.
-    this.version(3).stores({
-      projects: "&id,&localSlot,createdAt",
-      manifests: "&projectId",
-      documents: "[projectId+documentId],projectId,documentId",
+      workspaces: "&workspaceId,&localSlot,createdAt",
+      manifests: "&workspaceId",
+      documents: "[workspaceId+documentId],workspaceId,documentId",
       security: "&workspaceId",
     });
   }
 }
 
-export class DexieProjectStorage implements ProjectStorage {
+export class DexieWorkspaceStorage implements WorkspaceStorage {
   readonly #db = new FloeNoteDatabase();
   #writeQueue: Promise<void> = Promise.resolve();
   #writeFailure: Error | null = null;
 
-  openLastProject(
-    crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult | null> {
-    return this.#loadLastProject(crypto);
+  openLastWorkspace(
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<OpenWorkspaceResult | null> {
+    return this.#loadLastWorkspace(crypto);
   }
 
-  async listProjects(
-    crypto: ProjectStorageCrypto,
-  ): Promise<readonly StoredProjectSummary[]> {
-    const records = await this.#db.projects.orderBy("createdAt").toArray();
+  async listWorkspaces(
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<readonly StoredWorkspaceSummary[]> {
+    const records = await this.#db.workspaces.orderBy("createdAt").toArray();
 
     return Promise.all(
       records
         .filter((record) => record.bootstrapState !== "bootstrapping")
         .map(async (record) => ({
-          id: parseWorkspaceId(record.id),
-          name: await this.#loadProjectName(
-            parseWorkspaceId(record.id),
+          id: parseWorkspaceId(record.workspaceId),
+          name: await this.#loadWorkspaceName(
+            parseWorkspaceId(record.workspaceId),
             crypto,
           ),
           createdAt: record.createdAt,
-          isActive: record.localSlot === LOCAL_PROJECT_SLOT,
+          isActive: record.localSlot === LOCAL_WORKSPACE_SLOT,
         })),
     );
   }
 
-  async openProject(
-    projectId: WorkspaceId,
-    crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult> {
-    const record = await this.#db.projects.get(projectId);
+  async openWorkspace(
+    workspaceId: WorkspaceId,
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<OpenWorkspaceResult> {
+    const record = await this.#db.workspaces.get(workspaceId);
     if (!record) {
-      throw new Error("Project is not available on this device");
+      throw new Error("Workspace is not available on this device");
     }
     if (record.bootstrapState === "bootstrapping") {
-      throw new Error("Project setup is incomplete on this device");
+      throw new Error("Workspace setup is incomplete on this device");
     }
 
-    const project = await this.#loadProject(projectId, crypto);
-    await this.#activateProject(projectId);
+    const project = await this.#loadWorkspace(workspaceId, crypto);
+    await this.#activateWorkspace(workspaceId);
     return { project, isNew: false };
   }
 
-  async createProject(name: string): Promise<OpenProjectResult> {
+  async createWorkspace(name: string): Promise<OpenWorkspaceResult> {
     const project = NoteProject.create();
     project.renameProject(name);
 
-    await this.#db.transaction("rw", this.#db.projects, async () => {
-      const current = await this.#db.projects
+    await this.#db.transaction("rw", this.#db.workspaces, async () => {
+      const current = await this.#db.workspaces
         .where("localSlot")
-        .equals(LOCAL_PROJECT_SLOT)
+        .equals(LOCAL_WORKSPACE_SLOT)
         .first();
 
       if (current) {
-        await this.#db.projects.update(current.id, {
-          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+        await this.#db.workspaces.update(current.workspaceId, {
+          localSlot: `${DETACHED_WORKSPACE_SLOT_PREFIX}${current.workspaceId}`,
         });
       }
 
-      await this.#db.projects.add({
-        id: project.id,
-        localSlot: LOCAL_PROJECT_SLOT,
+      await this.#db.workspaces.add({
+        workspaceId: project.id,
+        localSlot: LOCAL_WORKSPACE_SLOT,
         createdAt: Date.now(),
       });
     });
@@ -159,20 +144,20 @@ export class DexieProjectStorage implements ProjectStorage {
     return { project, isNew: true };
   }
 
-  async initializeCommittedProject(
+  async initializeCommittedWorkspace(
     project: NoteProject,
     state: SecurityState,
-    crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult> {
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<OpenWorkspaceResult> {
     if (state.workspaceId !== project.id) {
-      throw new Error("Committed SecurityState does not match Project");
+      throw new Error("Committed SecurityState does not match Workspace");
     }
 
     await this.#writeQueue;
 
     const documentRows = await Promise.all(
       project.getAllDocuments().map(async (document) => ({
-        projectId: project.id,
+        workspaceId: project.id,
         documentId: document.id,
         encryptedSnapshot: await crypto.encryptWorkspaceStoragePayload(
           project.id,
@@ -191,34 +176,34 @@ export class DexieProjectStorage implements ProjectStorage {
 
     await this.#db.transaction(
       "rw",
-      this.#db.projects,
+      this.#db.workspaces,
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
       async () => {
-        const existing = await this.#db.projects.get(project.id);
+        const existing = await this.#db.workspaces.get(project.id);
         if (existing) {
-          throw new Error("Project already exists on this device");
+          throw new Error("Workspace already exists on this device");
         }
 
-        const current = await this.#db.projects
+        const current = await this.#db.workspaces
           .where("localSlot")
-          .equals(LOCAL_PROJECT_SLOT)
+          .equals(LOCAL_WORKSPACE_SLOT)
           .first();
 
         if (current) {
-          await this.#db.projects.update(current.id, {
-            localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+          await this.#db.workspaces.update(current.workspaceId, {
+            localSlot: `${DETACHED_WORKSPACE_SLOT_PREFIX}${current.workspaceId}`,
           });
         }
 
-        await this.#db.projects.add({
-          id: project.id,
-          localSlot: LOCAL_PROJECT_SLOT,
+        await this.#db.workspaces.add({
+          workspaceId: project.id,
+          localSlot: LOCAL_WORKSPACE_SLOT,
           createdAt: Date.now(),
         });
         await this.#db.manifests.add({
-          projectId: project.id,
+          workspaceId: project.id,
           encryptedSnapshot: encryptedManifest,
         });
         for (const row of documentRows) {
@@ -231,39 +216,39 @@ export class DexieProjectStorage implements ProjectStorage {
     return { project, isNew: false };
   }
 
-  async removeProject(projectId: WorkspaceId): Promise<WorkspaceId | null> {
+  async removeWorkspace(workspaceId: WorkspaceId): Promise<WorkspaceId | null> {
     await this.#writeQueue;
 
-    const record = await this.#db.projects.get(projectId);
+    const record = await this.#db.workspaces.get(workspaceId);
     if (!record) return null;
 
     let nextWorkspaceId: WorkspaceId | null = null;
 
     await this.#db.transaction(
       "rw",
-      this.#db.projects,
+      this.#db.workspaces,
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
       async () => {
-        const remaining = await this.#db.projects
+        const remaining = await this.#db.workspaces
           .orderBy("createdAt")
-          .filter((candidate) => candidate.id !== projectId)
+          .filter((candidate) => candidate.workspaceId !== workspaceId)
           .toArray();
 
         await this.#db.documents
-          .where("projectId")
-          .equals(projectId)
+          .where("workspaceId")
+          .equals(workspaceId)
           .delete();
-        await this.#db.manifests.delete(projectId);
-        await this.#db.security.delete(projectId);
-        await this.#db.projects.delete(projectId);
+        await this.#db.manifests.delete(workspaceId);
+        await this.#db.security.delete(workspaceId);
+        await this.#db.workspaces.delete(workspaceId);
 
-        if (record.localSlot === LOCAL_PROJECT_SLOT && remaining[0]) {
-          await this.#db.projects.update(remaining[0].id, {
-            localSlot: LOCAL_PROJECT_SLOT,
+        if (record.localSlot === LOCAL_WORKSPACE_SLOT && remaining[0]) {
+          await this.#db.workspaces.update(remaining[0].workspaceId, {
+            localSlot: LOCAL_WORKSPACE_SLOT,
           });
-          nextWorkspaceId = parseWorkspaceId(remaining[0].id);
+          nextWorkspaceId = parseWorkspaceId(remaining[0].workspaceId);
         }
       },
     );
@@ -277,29 +262,29 @@ export class DexieProjectStorage implements ProjectStorage {
     await Dexie.delete(DATABASE_NAME);
   }
 
-  async initializeJoinedProject(
-    projectId: WorkspaceId,
-    crypto?: ProjectStorageCrypto,
+  async initializeJoinedWorkspace(
+    workspaceId: WorkspaceId,
+    crypto?: WorkspaceStorageCrypto,
     keyEpoch?: number,
   ): Promise<NoteProject> {
     if (!crypto || keyEpoch === undefined) {
       throw new Error(
-        "Device Vault and current ProjectKey are required to persist a joined Project",
+        "Device Vault and current WorkspaceKey are required to persist a joined Workspace",
       );
     }
 
     await this.#writeQueue;
     this.#writeFailure = null;
 
-    const target = await this.#db.projects.get(projectId);
+    const target = await this.#db.workspaces.get(workspaceId);
     if (target && target.bootstrapState !== "bootstrapping") {
-      return this.#loadProject(projectId, crypto);
+      return this.#loadWorkspace(workspaceId, crypto);
     }
 
-    const emptyProject = NoteProject.create(projectId);
+    const emptyProject = NoteProject.create(workspaceId);
     const emptyEncryptedManifest =
       await crypto.encryptWorkspaceStoragePayload(
-        projectId,
+        workspaceId,
         keyEpoch,
         manifestContext(),
         emptyProject.exportManifestSnapshot(),
@@ -307,27 +292,27 @@ export class DexieProjectStorage implements ProjectStorage {
 
     await this.#db.transaction(
       "rw",
-      this.#db.projects,
+      this.#db.workspaces,
       this.#db.manifests,
       this.#db.documents,
       async () => {
-        const existing = await this.#db.projects.get(projectId);
+        const existing = await this.#db.workspaces.get(workspaceId);
         if (existing && existing.bootstrapState !== "bootstrapping") {
           return;
         }
 
         await this.#db.documents
-          .where("projectId")
-          .equals(projectId)
+          .where("workspaceId")
+          .equals(workspaceId)
           .delete();
-        await this.#db.projects.put({
-          id: projectId,
-          localSlot: `${BOOTSTRAPPING_PROJECT_SLOT_PREFIX}${projectId}`,
+        await this.#db.workspaces.put({
+          workspaceId,
+          localSlot: `${BOOTSTRAPPING_WORKSPACE_SLOT_PREFIX}${workspaceId}`,
           createdAt: existing?.createdAt ?? Date.now(),
           bootstrapState: "bootstrapping",
         });
         await this.#db.manifests.put({
-          projectId,
+          workspaceId,
           encryptedSnapshot: emptyEncryptedManifest,
         });
       },
@@ -336,30 +321,30 @@ export class DexieProjectStorage implements ProjectStorage {
     return emptyProject;
   }
 
-  async completeJoinedProjectBootstrap(
-    projectId: WorkspaceId,
+  async completeJoinedWorkspaceBootstrap(
+    workspaceId: WorkspaceId,
   ): Promise<void> {
     await this.#writeQueue;
 
-    await this.#db.transaction("rw", this.#db.projects, async () => {
-      const target = await this.#db.projects.get(projectId);
+    await this.#db.transaction("rw", this.#db.workspaces, async () => {
+      const target = await this.#db.workspaces.get(workspaceId);
       if (!target) {
-        throw new Error("Joined Project is not available on this device");
+        throw new Error("Joined Workspace is not available on this device");
       }
 
-      const current = await this.#db.projects
+      const current = await this.#db.workspaces
         .where("localSlot")
-        .equals(LOCAL_PROJECT_SLOT)
+        .equals(LOCAL_WORKSPACE_SLOT)
         .first();
 
-      if (current && current.id !== projectId) {
-        await this.#db.projects.update(current.id, {
-          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+      if (current && current.workspaceId !== workspaceId) {
+        await this.#db.workspaces.update(current.workspaceId, {
+          localSlot: `${DETACHED_WORKSPACE_SLOT_PREFIX}${current.workspaceId}`,
         });
       }
 
-      await this.#db.projects.update(projectId, {
-        localSlot: LOCAL_PROJECT_SLOT,
+      await this.#db.workspaces.update(workspaceId, {
+        localSlot: LOCAL_WORKSPACE_SLOT,
         bootstrapState: "ready",
       });
     });
@@ -374,24 +359,24 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async loadSecurityState(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<SecurityState | null> {
-    const record = await this.#db.security.get(projectId);
-    return record ? parseSecurityStateWirePayload(record, projectId) : null;
+    const record = await this.#db.security.get(workspaceId);
+    return record ? parseSecurityStateWirePayload(record, workspaceId) : null;
   }
 
   async saveCommittedSecurityState(state: SecurityState): Promise<void> {
     await this.#db.security.put(securityStateToWire(state));
   }
 
-  watchProject(
+  watchWorkspace(
     project: NoteProject,
-    crypto?: ProjectStorageCrypto,
+    crypto?: WorkspaceStorageCrypto,
     keyEpoch?: number,
   ): () => void {
     if (!crypto || keyEpoch === undefined) {
       throw new Error(
-        "Device Vault and current ProjectKey are required to persist Project data",
+        "Device Vault and current WorkspaceKey are required to persist Workspace data",
       );
     }
 
@@ -429,14 +414,14 @@ export class DexieProjectStorage implements ProjectStorage {
       reconcileDocuments();
 
       this.#enqueue(() =>
-        this.#saveProjectState(project, crypto, keyEpoch),
+        this.#saveWorkspaceState(project, crypto, keyEpoch),
       );
     });
 
-    // Persist immediately so legacy plaintext rows and older key epochs are
-    // rewritten using the active epoch even if the user makes no edit.
+    // Persist immediately so snapshots use the active key epoch even if the
+    // user makes no edit.
     this.#enqueue(() =>
-      this.#saveProjectState(project, crypto, keyEpoch),
+      this.#saveWorkspaceState(project, crypto, keyEpoch),
     );
 
     return () => {
@@ -447,87 +432,87 @@ export class DexieProjectStorage implements ProjectStorage {
     };
   }
 
-  async #loadLastProject(
-    crypto: ProjectStorageCrypto,
-  ): Promise<OpenProjectResult | null> {
-    const existing = await this.#db.projects
+  async #loadLastWorkspace(
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<OpenWorkspaceResult | null> {
+    const existing = await this.#db.workspaces
       .where("localSlot")
-      .equals(LOCAL_PROJECT_SLOT)
+      .equals(LOCAL_WORKSPACE_SLOT)
       .first();
 
     if (!existing) return null;
 
     return {
-      project: await this.#loadProject(
-        parseWorkspaceId(existing.id),
+      project: await this.#loadWorkspace(
+        parseWorkspaceId(existing.workspaceId),
         crypto,
       ),
       isNew: false,
     };
   }
 
-  async #activateProject(projectId: WorkspaceId): Promise<void> {
-    await this.#db.transaction("rw", this.#db.projects, async () => {
-      const current = await this.#db.projects
+  async #activateWorkspace(workspaceId: WorkspaceId): Promise<void> {
+    await this.#db.transaction("rw", this.#db.workspaces, async () => {
+      const current = await this.#db.workspaces
         .where("localSlot")
-        .equals(LOCAL_PROJECT_SLOT)
+        .equals(LOCAL_WORKSPACE_SLOT)
         .first();
 
-      if (current && current.id !== projectId) {
-        await this.#db.projects.update(current.id, {
-          localSlot: `${DETACHED_PROJECT_SLOT_PREFIX}${current.id}`,
+      if (current && current.workspaceId !== workspaceId) {
+        await this.#db.workspaces.update(current.workspaceId, {
+          localSlot: `${DETACHED_WORKSPACE_SLOT_PREFIX}${current.workspaceId}`,
         });
       }
 
-      await this.#db.projects.update(projectId, {
-        localSlot: LOCAL_PROJECT_SLOT,
+      await this.#db.workspaces.update(workspaceId, {
+        localSlot: LOCAL_WORKSPACE_SLOT,
       });
     });
   }
 
-  async #loadProjectName(
-    projectId: WorkspaceId,
-    crypto: ProjectStorageCrypto,
+  async #loadWorkspaceName(
+    workspaceId: WorkspaceId,
+    crypto: WorkspaceStorageCrypto,
   ): Promise<string> {
-    const manifest = await this.#db.manifests.get(projectId);
+    const manifest = await this.#db.manifests.get(workspaceId);
     if (!manifest) {
-      return NoteProject.create(projectId).name;
+      return NoteProject.create(workspaceId).name;
     }
 
     const manifestSnapshot = await this.#readSnapshot(
-      projectId,
+      workspaceId,
       manifestContext(),
       manifest,
       crypto,
     );
 
-    return NoteProject.fromSnapshot(projectId, manifestSnapshot, []).name;
+    return NoteProject.fromSnapshot(workspaceId, manifestSnapshot, []).name;
   }
 
-  async #loadProject(
-    projectId: WorkspaceId,
-    crypto: ProjectStorageCrypto,
+  async #loadWorkspace(
+    workspaceId: WorkspaceId,
+    crypto: WorkspaceStorageCrypto,
   ): Promise<NoteProject> {
-    const manifest = await this.#db.manifests.get(projectId);
+    const manifest = await this.#db.manifests.get(workspaceId);
     if (!manifest) {
-      return NoteProject.create(projectId);
+      return NoteProject.create(workspaceId);
     }
 
     const manifestSnapshot = await this.#readSnapshot(
-      projectId,
+      workspaceId,
       manifestContext(),
       manifest,
       crypto,
     );
 
     const manifestProject = NoteProject.fromSnapshot(
-      projectId,
+      workspaceId,
       manifestSnapshot,
       [],
     );
     const documentRows = await this.#db.documents
-      .where("projectId")
-      .equals(projectId)
+      .where("workspaceId")
+      .equals(workspaceId)
       .toArray();
 
     const documents = await Promise.all(
@@ -535,7 +520,7 @@ export class DexieProjectStorage implements ProjectStorage {
         async (record) => {
           const documentId = parseDocumentId(record.documentId);
           const snapshot = await this.#readSnapshot(
-            projectId,
+            workspaceId,
             documentContext(documentId),
             record,
             crypto,
@@ -546,35 +531,27 @@ export class DexieProjectStorage implements ProjectStorage {
     );
 
     return NoteProject.fromSnapshot(
-      projectId,
+      workspaceId,
       manifestSnapshot,
       documents,
     );
   }
 
   async #readSnapshot(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     context: WorkspaceStorageRecordContext,
-    record: {
-      snapshot?: Uint8Array;
-      encryptedSnapshot?: Uint8Array;
-    },
-    crypto: ProjectStorageCrypto,
+    record: { encryptedSnapshot: Uint8Array },
+    crypto: WorkspaceStorageCrypto,
   ): Promise<Uint8Array> {
-    if (record.encryptedSnapshot) {
-      const decrypted = await crypto.decryptWorkspaceStoragePayload(
-        projectId,
-        context,
-        record.encryptedSnapshot,
-      );
-      return decrypted.plaintext;
+    if (!record.encryptedSnapshot) {
+      throw new Error("Encrypted Workspace snapshot is missing");
     }
-
-    if (record.snapshot) {
-      return record.snapshot.slice();
-    }
-
-    throw new Error("Local Project snapshot is missing");
+    const decrypted = await crypto.decryptWorkspaceStoragePayload(
+      workspaceId,
+      context,
+      record.encryptedSnapshot,
+    );
+    return decrypted.plaintext;
   }
 
   #enqueue(write: () => Promise<void>): void {
@@ -590,14 +567,14 @@ export class DexieProjectStorage implements ProjectStorage {
     });
   }
 
-  async #saveProjectState(
+  async #saveWorkspaceState(
     project: NoteProject,
-    crypto: ProjectStorageCrypto,
+    crypto: WorkspaceStorageCrypto,
     keyEpoch: number,
   ): Promise<void> {
     const documentRows = await Promise.all(
       project.getAllDocuments().map(async (document) => ({
-        projectId: project.id,
+        workspaceId: project.id,
         documentId: document.id,
         encryptedSnapshot: await crypto.encryptWorkspaceStoragePayload(
           project.id,
@@ -622,7 +599,7 @@ export class DexieProjectStorage implements ProjectStorage {
       this.#db.documents,
       async () => {
         const existingRows = await this.#db.documents
-          .where("projectId")
+          .where("workspaceId")
           .equals(project.id)
           .toArray();
 
@@ -641,7 +618,7 @@ export class DexieProjectStorage implements ProjectStorage {
         }
 
         await this.#db.manifests.put({
-          projectId: project.id,
+          workspaceId: project.id,
           encryptedSnapshot: encryptedManifest,
         });
       },
@@ -649,21 +626,21 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #saveDocument(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     document: NoteDocument,
-    crypto: ProjectStorageCrypto,
+    crypto: WorkspaceStorageCrypto,
     keyEpoch: number,
   ): Promise<void> {
     const encryptedSnapshot =
       await crypto.encryptWorkspaceStoragePayload(
-        projectId,
+        workspaceId,
         keyEpoch,
         documentContext(document.id),
         document.exportSnapshot(),
       );
 
     await this.#db.documents.put({
-      projectId,
+      workspaceId,
       documentId: document.id,
       encryptedSnapshot,
     });

@@ -64,6 +64,9 @@ describe("portable Floe import", () => {
           documentEntry("notes/Note.md", "Note"),
         ]),
         projectId: "SOURCE-PROJECT-ID",
+        workspaceId: "SOURCE-WORKSPACE-ID",
+        workspaceKey: "SOURCE-WORKSPACE-KEY",
+        keyEpoch: 7,
         deviceId: "SOURCE-DEVICE-ID",
         securityState: { sequence: 99 },
         project: {
@@ -98,6 +101,7 @@ describe("portable Floe import", () => {
       ],
     });
     expect(imported).not.toHaveProperty("projectId");
+    expect(imported).not.toHaveProperty("workspaceId");
     expect(imported.documents[0]).not.toHaveProperty("documentId");
     expect(JSON.stringify(imported)).not.toContain("SOURCE-");
   });

@@ -5,8 +5,8 @@ import {
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
 import { parseWorkspaceId } from "@floe-note/domain";
-import { DexieProjectStorage } from "@floe-note/storage";
-import { ProjectSyncEngine } from "@floe-note/sync";
+import { DexieWorkspaceStorage } from "@floe-note/storage";
+import { WorkspaceSyncEngine } from "@floe-note/sync";
 import {
   WebRtcTransport,
   type WebRtcStatus,
@@ -27,7 +27,7 @@ const INITIAL_WEBRTC_STATUS: WebRtcStatus = {
 };
 
 type SignaledJoinPageProps = {
-  storage: DexieProjectStorage;
+  storage: DexieWorkspaceStorage;
   coordinatorBaseUrl: string;
   projectId: string | null;
   sessionId: string | null;
@@ -61,7 +61,7 @@ export function SignaledJoinPage({
         const parsedWorkspaceId = parseWorkspaceId(projectId);
         const parsedSessionId = parseSessionId(sessionId);
         const joinedProject =
-          await storage.initializeJoinedProject(parsedWorkspaceId);
+          await storage.initializeJoinedWorkspace(parsedWorkspaceId);
 
         if (disposed) return;
 
@@ -72,12 +72,12 @@ export function SignaledJoinPage({
         );
         const stopTransportStatus =
           transport.onStatusChange(setWebRtcStatus);
-        const stopPersistence = storage.watchProject(joinedProject);
+        const stopPersistence = storage.watchWorkspace(joinedProject);
         const stopProject = joinedProject.subscribe(() => {
           setRevision((value) => value + 1);
         });
 
-        const syncEngine = new ProjectSyncEngine(joinedProject, transport, {
+        const syncEngine = new WorkspaceSyncEngine(joinedProject, transport, {
           debugLogger: createConsoleDebugLogger("signal-join-sync"),
         });
         syncEngine.start();
