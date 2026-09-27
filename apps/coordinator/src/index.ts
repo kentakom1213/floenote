@@ -1568,16 +1568,19 @@ function parsePresenceRoute(
 
 function parseSignalRoute(
   pathname: string,
-): { workspaceId: string; sessionId: string } | null {
+): { workspaceId: WorkspaceId; sessionId: string } | null {
   const match = /^\/workspaces\/([^/]+)\/sessions\/([^/]+)$/.exec(pathname);
   if (!match) return null;
 
-  const [, workspaceId, sessionId] = match;
-  if (!workspaceId || !sessionId) return null;
-  if (!WORKSPACE_ID_PATTERN.test(workspaceId)) return null;
+  const [, rawWorkspaceId, sessionId] = match;
+  if (!rawWorkspaceId || !sessionId) return null;
+  if (!WORKSPACE_ID_PATTERN.test(rawWorkspaceId)) return null;
   if (!SESSION_ID_PATTERN.test(sessionId)) return null;
 
-  return { workspaceId, sessionId };
+  return {
+    workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+    sessionId,
+  };
 }
 
 function securityTransitionKey(sequence: number): string {

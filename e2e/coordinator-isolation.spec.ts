@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("keeps signaling sessions separate across Workspaces", async ({ page }) => {
+test("uses one signaling scope per Workspace regardless of UUID casing", async ({ page }) => {
   await page.goto("/");
 
   const messages = await page.evaluate(async () => {
     const sessionId = "a".repeat(32);
-    const workspaceA = "00000000-0000-7000-8000-000000000010";
-    const workspaceB = "00000000-0000-7000-8000-000000000011";
+    const workspaceA = "00000000-0000-7000-8000-0000000000aa";
+    const workspaceB = "00000000-0000-7000-8000-0000000000bb";
     const received = {
       firstA: [] as string[],
       firstB: [] as string[],
@@ -35,7 +35,7 @@ test("keeps signaling sessions separate across Workspaces", async ({ page }) => 
         connect(workspaceB, received.firstB),
       ]);
       sockets.push(firstA, firstB);
-      const secondA = await connect(workspaceA, received.secondA);
+      const secondA = await connect(workspaceA.toUpperCase(), received.secondA);
       sockets.push(secondA);
       const deadline = Date.now() + 2_000;
       while (
