@@ -3,18 +3,18 @@ import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 import type { StoredWorkspaceSummary } from "@floe-note/storage";
 
 export type RootRouteResolution =
-  | { kind: "open-project"; projectId: WorkspaceId }
+  | { kind: "open-workspace"; workspaceId: WorkspaceId }
   | {
-      kind: "canonical-project";
-      projectId: WorkspaceId;
-      documentId: DocumentId | null;
+      kind: "canonical-workspace";
+      workspaceId: WorkspaceId;
+      noteId: DocumentId | null;
     }
   | { kind: "empty" };
 
 export function resolveRootRoute(
   project: NoteProject | null,
   projectSummaries: readonly StoredWorkspaceSummary[],
-  rememberedDocumentId: DocumentId | null,
+  rememberedNoteId: DocumentId | null,
 ): RootRouteResolution {
   if (!project) {
     const summary =
@@ -23,18 +23,18 @@ export function resolveRootRoute(
       null;
 
     return summary
-      ? { kind: "open-project", projectId: summary.id }
+      ? { kind: "open-workspace", workspaceId: summary.id }
       : { kind: "empty" };
   }
 
-  const documentId =
-    rememberedDocumentId && project.getDocument(rememberedDocumentId)
-      ? rememberedDocumentId
+  const noteId =
+    rememberedNoteId && project.getDocument(rememberedNoteId)
+      ? rememberedNoteId
       : project.listDocuments()[0]?.id ?? null;
 
   return {
-    kind: "canonical-project",
-    projectId: project.id,
-    documentId,
+    kind: "canonical-workspace",
+    workspaceId: project.id,
+    noteId,
   };
 }

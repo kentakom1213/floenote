@@ -47,7 +47,7 @@ describe("browser routing integration invariants", () => {
       'result.project.createDocument("Welcome to Floe Note")',
     );
     expect(createProjectBlock).toContain(
-      "pushRoute(buildDocumentUrl(result.project.id, document.id))",
+      "pushRoute(buildNoteUrl(result.project.id, document.id))",
     );
     expect(appSource.match(/Welcome to Floe Note/g)).toHaveLength(1);
   });
@@ -63,7 +63,7 @@ describe("browser routing integration invariants", () => {
     expect(navigationSource).not.toContain("new PopStateEvent");
   });
 
-  it("restores a different Project from the requested browser route without pushing history", () => {
+  it("restores a different Workspace from the requested browser route without pushing history", () => {
     const switchStart = appSource.indexOf(
       "if (!project || requestedWorkspaceId !== project.id)",
     );
@@ -80,7 +80,7 @@ describe("browser routing integration invariants", () => {
       appSource.indexOf("const sidebarFooter"),
     );
     expect(manageDevices).toContain(
-      "pushRoute(buildProjectSettingsUrl(activeProject.id))",
+      "pushRoute(buildWorkspaceSettingsUrl(activeProject.id))",
     );
 
     const workspaceProps = appSource.slice(
@@ -91,10 +91,10 @@ describe("browser routing integration invariants", () => {
       "pushRoute(buildTrashUrl(activeProject.id))",
     );
     expect(workspaceProps).toContain(
-      "pushRoute(buildTrashDocumentUrl(activeProject.id, documentId))",
+      "pushRoute(buildTrashNoteUrl(activeProject.id, documentId))",
     );
     expect(workspaceProps).toContain(
-      "replaceRoute(buildDocumentUrl(activeProject.id, documentId))",
+      "replaceRoute(buildNoteUrl(activeProject.id, documentId))",
     );
     expect(workspaceProps).toContain(
       "replaceRoute(buildTrashUrl(activeProject.id))",
@@ -103,10 +103,10 @@ describe("browser routing integration invariants", () => {
 
   it("keeps invitation completion owned by the existing handoff boundary", () => {
     expect(appSource).toContain(
-      "replaceInvitationUrlWithProject(window.history, projectId)",
+      "replaceInvitationUrlWithWorkspace(window.history, workspaceId)",
     );
     expect(invitationUrlSource).toContain(
-      'history.replaceState(null, "", `/p/${projectId}`)',
+      'history.replaceState(null, "", buildWorkspaceUrl(workspaceId))',
     );
     expect(invitationUrlSource).not.toContain("pushState");
     expect(invitationUrlSource).not.toContain("sessionStorage");

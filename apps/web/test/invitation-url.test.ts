@@ -1,14 +1,16 @@
+/** @vitest-environment jsdom */
+
 import { parseWorkspaceId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
 import {
   parseInvitationUrl,
-  replaceInvitationUrlWithProject,
+  replaceInvitationUrlWithWorkspace,
 } from "../src/invitation-url.js";
 
 const ORIGIN = "https://floe.pwll.dev";
 const INVITE_ID = "0123456789abcdef0123456789abcdef";
-const PROJECT_ID = parseWorkspaceId("00000000-0000-7000-8000-000000000010");
+const WORKSPACE_ID = parseWorkspaceId("00000000-0000-7000-8000-000000000010");
 
 describe("parseInvitationUrl", () => {
   it("accepts an invitation URL on the app origin", () => {
@@ -46,16 +48,30 @@ describe("parseInvitationUrl", () => {
   });
 });
 
-describe("replaceInvitationUrlWithProject", () => {
+describe("replaceInvitationUrlWithWorkspace", () => {
   it("replaces the current invitation entry without preserving the secret", () => {
     const calls: unknown[][] = [];
     const history = {
       replaceState: (...args: unknown[]) => calls.push(args),
     } as unknown as Pick<History, "replaceState">;
 
-    replaceInvitationUrlWithProject(history, PROJECT_ID);
+    replaceInvitationUrlWithWorkspace(history, WORKSPACE_ID);
 
-    expect(calls).toEqual([[null, "", `/p/${PROJECT_ID}`]]);
+    expect(calls).toEqual([[null, "", `/w/${WORKSPACE_ID}`]]);
     expect(JSON.stringify(calls)).not.toContain("pairing-secret");
+  });
+
+  it("replaces the invitation history entry and removes its fragment", () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/join/v1/${INVITE_ID}#s=pairing-secret`,
+    );
+
+    replaceInvitationUrlWithWorkspace(window.history, WORKSPACE_ID);
+
+    expect(window.location.pathname).toBe(`/w/${WORKSPACE_ID}`);
+    expect(window.location.hash).toBe("");
+    expect(window.history.state).toBeNull();
   });
 });
