@@ -56,7 +56,7 @@ type InvitationJoinPageProps = {
   turnCredentialEndpoint: string | null;
   onSessionHandoff: (
     session: DeviceVaultSession,
-    projectId: import("@floe-note/domain").ProjectId,
+    projectId: import("@floe-note/domain").WorkspaceId,
   ) => void;
 };
 
@@ -237,7 +237,7 @@ export function InvitationJoinPage({
           signal: abortPairing.signal,
           timeoutMs: Math.max(1_000, claimed.expiresAt - Date.now()),
           onDelivery: async ({ securityState, sealedEnvelope }) => {
-            await session.storeSealedProjectKey(
+            await session.storeSealedWorkspaceKey(
               sealedEnvelope,
               securityState.projectId,
               securityState.keyEpoch,
@@ -260,13 +260,13 @@ export function InvitationJoinPage({
               transport,
               {
                 encrypt: (plaintext) =>
-                  session.encryptProjectSyncPayload(
+                  session.encryptWorkspaceSyncPayload(
                     securityState.projectId,
                     securityState.keyEpoch,
                     plaintext,
                   ),
                 decrypt: (envelope) =>
-                  session.decryptProjectSyncPayload(
+                  session.decryptWorkspaceSyncPayload(
                     securityState.projectId,
                     securityState.keyEpoch,
                     envelope,

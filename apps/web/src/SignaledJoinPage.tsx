@@ -4,7 +4,7 @@ import {
   type SignalingConnectionState,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
-import { parseProjectId } from "@floe-note/domain";
+import { parseWorkspaceId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import {
@@ -49,7 +49,7 @@ export function SignaledJoinPage({
 
   useEffect(() => {
     if (!projectId || !sessionId) {
-      setError("Missing ProjectId or SessionId in the join URL.");
+      setError("Missing WorkspaceId or SessionId in the join URL.");
       return;
     }
 
@@ -58,15 +58,15 @@ export function SignaledJoinPage({
 
     void (async () => {
       try {
-        const parsedProjectId = parseProjectId(projectId);
+        const parsedWorkspaceId = parseWorkspaceId(projectId);
         const parsedSessionId = parseSessionId(sessionId);
         const joinedProject =
-          await storage.initializeJoinedProject(parsedProjectId);
+          await storage.initializeJoinedProject(parsedWorkspaceId);
 
         if (disposed) return;
 
         const transport = new WebRtcTransport(
-          parsedProjectId,
+          parsedWorkspaceId,
           undefined,
           createConsoleDebugLogger("signal-join-webrtc"),
         );
@@ -85,7 +85,7 @@ export function SignaledJoinPage({
         const signaling = new WebRtcSignalingSession({
           role: "join",
           coordinatorBaseUrl,
-          projectId: parsedProjectId,
+          projectId: parsedWorkspaceId,
           sessionId: parsedSessionId,
           transport,
           debugLogger: createConsoleDebugLogger("signal-join"),

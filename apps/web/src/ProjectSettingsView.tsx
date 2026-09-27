@@ -1,11 +1,11 @@
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import type { AuthorizedDevice } from "@floe-note/security";
 import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "./ConfirmDialog.js";
 
 type ProjectSettingsViewProps = {
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   projectName: string;
   localDeviceId: DeviceId | null;
   authorizedDevices: readonly AuthorizedDevice[] | null;

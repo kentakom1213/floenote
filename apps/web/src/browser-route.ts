@@ -1,18 +1,18 @@
 import {
   parseDocumentId,
-  parseProjectId,
+  parseWorkspaceId,
   type DocumentId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 
 export type BrowserRoute =
   | { kind: "root" }
   | { kind: "device-settings" }
-  | { kind: "project"; projectId: ProjectId }
-  | { kind: "document"; projectId: ProjectId; documentId: DocumentId }
-  | { kind: "project-settings"; projectId: ProjectId }
-  | { kind: "trash"; projectId: ProjectId }
-  | { kind: "trash-document"; projectId: ProjectId; documentId: DocumentId }
+  | { kind: "project"; projectId: WorkspaceId }
+  | { kind: "document"; projectId: WorkspaceId; documentId: DocumentId }
+  | { kind: "project-settings"; projectId: WorkspaceId }
+  | { kind: "trash"; projectId: WorkspaceId }
+  | { kind: "trash-document"; projectId: WorkspaceId; documentId: DocumentId }
   | { kind: "invitation"; inviteId: string; pairingSecret: string | null }
   | { kind: "not-found" };
 
@@ -42,9 +42,9 @@ export function parseLocation(
     return { kind: "not-found" };
   }
 
-  let projectId: ProjectId;
+  let projectId: WorkspaceId;
   try {
-    projectId = parseProjectId(segments[1]!);
+    projectId = parseWorkspaceId(segments[1]!);
   } catch {
     return { kind: "not-found" };
   }
@@ -84,27 +84,27 @@ export function parseLocation(
   return { kind: "not-found" };
 }
 
-export function buildProjectUrl(projectId: ProjectId): string {
+export function buildProjectUrl(projectId: WorkspaceId): string {
   return `/p/${projectId}`;
 }
 
 export function buildDocumentUrl(
-  projectId: ProjectId,
+  projectId: WorkspaceId,
   documentId: DocumentId,
 ): string {
   return `${buildProjectUrl(projectId)}/${documentId}`;
 }
 
-export function buildProjectSettingsUrl(projectId: ProjectId): string {
+export function buildProjectSettingsUrl(projectId: WorkspaceId): string {
   return `${buildProjectUrl(projectId)}/settings`;
 }
 
-export function buildTrashUrl(projectId: ProjectId): string {
+export function buildTrashUrl(projectId: WorkspaceId): string {
   return `${buildProjectUrl(projectId)}/trash`;
 }
 
 export function buildTrashDocumentUrl(
-  projectId: ProjectId,
+  projectId: WorkspaceId,
   documentId: DocumentId,
 ): string {
   return `${buildTrashUrl(projectId)}/${documentId}`;
