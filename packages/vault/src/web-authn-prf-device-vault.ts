@@ -14,7 +14,7 @@ import {
   generateDeviceKeyMaterial,
   generateWorkspaceKey,
   openSealedWorkspaceKeyForDevice,
-  PROJECT_KEY_BYTES,
+  WORKSPACE_KEY_BYTES,
   readWorkspaceStoragePayloadKeyEpoch,
   readWorkspaceSyncPayloadKeyEpoch,
   sealWorkspaceKeyForDevice,
@@ -960,7 +960,7 @@ function parseWorkspaceKeyEntry(value: unknown): WorkspaceKeyEntry {
   return {
     workspaceId: parseWorkspaceId(value.workspaceId),
     keyEpoch: value.keyEpoch,
-    workspaceKey: hexToBytes(value.workspaceKey, PROJECT_KEY_BYTES),
+    workspaceKey: hexToBytes(value.workspaceKey, WORKSPACE_KEY_BYTES),
   };
 }
 
