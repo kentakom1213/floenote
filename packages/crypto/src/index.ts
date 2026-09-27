@@ -27,8 +27,8 @@ export {
 } from "./security-crypto.js";
 
 export {
-  PROJECT_KEY_BYTES,
-  PROJECT_KEY_ENVELOPE_VERSION,
+  WORKSPACE_KEY_BYTES,
+  WORKSPACE_KEY_ENVELOPE_VERSION,
   generateWorkspaceKey,
   openSealedWorkspaceKeyForDevice,
   sealWorkspaceKeyForDevice,
@@ -39,14 +39,14 @@ export type { WorkspaceKeyEnvelopeContext } from "./workspace-key.js";
 export {
   decryptWorkspaceSyncPayload,
   encryptWorkspaceSyncPayload,
-  PROJECT_SYNC_ENVELOPE_VERSION,
+  WORKSPACE_SYNC_ENVELOPE_VERSION,
   readWorkspaceSyncPayloadKeyEpoch,
 } from "./workspace-sync-crypto.js";
 
 export {
   decryptWorkspaceStoragePayload,
   encryptWorkspaceStoragePayload,
-  PROJECT_STORAGE_ENVELOPE_VERSION,
+  WORKSPACE_STORAGE_ENVELOPE_VERSION,
   readWorkspaceStoragePayloadKeyEpoch,
 } from "./workspace-storage-crypto.js";
 

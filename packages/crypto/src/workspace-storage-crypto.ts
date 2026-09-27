@@ -1,9 +1,9 @@
 import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 import sodium from "libsodium-wrappers";
 
-import { PROJECT_KEY_BYTES } from "./workspace-key.js";
+import { WORKSPACE_KEY_BYTES } from "./workspace-key.js";
 
-export const PROJECT_STORAGE_ENVELOPE_VERSION = 1 as const;
+export const WORKSPACE_STORAGE_ENVELOPE_VERSION = 1 as const;
 
 export type WorkspaceStorageRecordContext =
   | {
@@ -46,7 +46,7 @@ export async function encryptWorkspaceStoragePayload(
 
   const envelope = new Uint8Array(HEADER_BYTES + ciphertext.byteLength);
   envelope.set(MAGIC, 0);
-  envelope[VERSION_OFFSET] = PROJECT_STORAGE_ENVELOPE_VERSION;
+  envelope[VERSION_OFFSET] = WORKSPACE_STORAGE_ENVELOPE_VERSION;
   new DataView(
     envelope.buffer,
     envelope.byteOffset,
@@ -124,7 +124,7 @@ function assertEnvelopeHeader(envelope: Uint8Array): void {
     }
   }
 
-  if (envelope[VERSION_OFFSET] !== PROJECT_STORAGE_ENVELOPE_VERSION) {
+  if (envelope[VERSION_OFFSET] !== WORKSPACE_STORAGE_ENVELOPE_VERSION) {
     throw new Error(
       `Unsupported Workspace storage envelope version: ${envelope[VERSION_OFFSET]}`,
     );
@@ -145,9 +145,9 @@ function createAad(
 }
 
 function assertWorkspaceKey(workspaceKey: Uint8Array): void {
-  if (workspaceKey.byteLength !== PROJECT_KEY_BYTES) {
+  if (workspaceKey.byteLength !== WORKSPACE_KEY_BYTES) {
     throw new TypeError(
-      `WorkspaceKey must be ${PROJECT_KEY_BYTES} bytes`,
+      `WorkspaceKey must be ${WORKSPACE_KEY_BYTES} bytes`,
     );
   }
 }

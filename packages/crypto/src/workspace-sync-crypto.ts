@@ -1,9 +1,9 @@
 import type { WorkspaceId } from "@floe-note/domain";
 import sodium from "libsodium-wrappers";
 
-import { PROJECT_KEY_BYTES } from "./workspace-key.js";
+import { WORKSPACE_KEY_BYTES } from "./workspace-key.js";
 
-export const PROJECT_SYNC_ENVELOPE_VERSION = 1 as const;
+export const WORKSPACE_SYNC_ENVELOPE_VERSION = 1 as const;
 
 const MAGIC = Uint8Array.of(0x46, 0x4c, 0x4f, 0x45); // "FLOE"
 const VERSION_OFFSET = MAGIC.byteLength;
@@ -36,7 +36,7 @@ export async function encryptWorkspaceSyncPayload(
 
   const envelope = new Uint8Array(HEADER_BYTES + ciphertext.byteLength);
   envelope.set(MAGIC, 0);
-  envelope[VERSION_OFFSET] = PROJECT_SYNC_ENVELOPE_VERSION;
+  envelope[VERSION_OFFSET] = WORKSPACE_SYNC_ENVELOPE_VERSION;
   new DataView(
     envelope.buffer,
     envelope.byteOffset,
@@ -105,7 +105,7 @@ function assertEnvelopeHeader(envelope: Uint8Array): void {
     }
   }
 
-  if (envelope[VERSION_OFFSET] !== PROJECT_SYNC_ENVELOPE_VERSION) {
+  if (envelope[VERSION_OFFSET] !== WORKSPACE_SYNC_ENVELOPE_VERSION) {
     throw new Error(
       `Unsupported Workspace sync envelope version: ${envelope[VERSION_OFFSET]}`,
     );
@@ -119,9 +119,9 @@ function createAad(workspaceId: WorkspaceId, keyEpoch: number): Uint8Array {
 }
 
 function assertWorkspaceKey(workspaceKey: Uint8Array): void {
-  if (workspaceKey.byteLength !== PROJECT_KEY_BYTES) {
+  if (workspaceKey.byteLength !== WORKSPACE_KEY_BYTES) {
     throw new TypeError(
-      `WorkspaceKey must be ${PROJECT_KEY_BYTES} bytes`,
+      `WorkspaceKey must be ${WORKSPACE_KEY_BYTES} bytes`,
     );
   }
 }

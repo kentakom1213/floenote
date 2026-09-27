@@ -12,8 +12,8 @@ import {
 } from "./device-keys.js";
 import { SHA256_BYTES } from "./security-crypto.js";
 
-export const PROJECT_KEY_BYTES = 32;
-export const PROJECT_KEY_ENVELOPE_VERSION = 1 as const;
+export const WORKSPACE_KEY_BYTES = 32;
+export const WORKSPACE_KEY_ENVELOPE_VERSION = 1 as const;
 
 export type WorkspaceKeyEnvelopeContext = {
   workspaceId: WorkspaceId;
@@ -23,7 +23,7 @@ export type WorkspaceKeyEnvelopeContext = {
 };
 
 type SerializedWorkspaceKeyEnvelope = {
-  version: typeof PROJECT_KEY_ENVELOPE_VERSION;
+  version: typeof WORKSPACE_KEY_ENVELOPE_VERSION;
   workspaceId: string;
   keyEpoch: number;
   recipientDeviceId: string;
@@ -33,7 +33,7 @@ type SerializedWorkspaceKeyEnvelope = {
 
 export async function generateWorkspaceKey(): Promise<Uint8Array> {
   await sodium.ready;
-  return sodium.randombytes_buf(PROJECT_KEY_BYTES);
+  return sodium.randombytes_buf(WORKSPACE_KEY_BYTES);
 }
 
 export async function sealWorkspaceKeyForDevice(
@@ -43,7 +43,7 @@ export async function sealWorkspaceKeyForDevice(
 ): Promise<Uint8Array> {
   await sodium.ready;
   validateContext(context);
-  assertLength(workspaceKey, PROJECT_KEY_BYTES, "WorkspaceKey");
+  assertLength(workspaceKey, WORKSPACE_KEY_BYTES, "WorkspaceKey");
   assertLength(
     recipientEncryptionPublicKey,
     DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
@@ -52,7 +52,7 @@ export async function sealWorkspaceKeyForDevice(
 
   const plaintext = new TextEncoder().encode(
     JSON.stringify({
-      version: PROJECT_KEY_ENVELOPE_VERSION,
+      version: WORKSPACE_KEY_ENVELOPE_VERSION,
       workspaceId: context.workspaceId,
       keyEpoch: context.keyEpoch,
       recipientDeviceId: context.recipientDeviceId,
@@ -137,7 +137,7 @@ function parseEnvelope(plaintext: Uint8Array): {
     typeof parsed !== "object" ||
     parsed === null ||
     !("version" in parsed) ||
-    parsed.version !== PROJECT_KEY_ENVELOPE_VERSION ||
+    parsed.version !== WORKSPACE_KEY_ENVELOPE_VERSION ||
     !("workspaceId" in parsed) ||
     typeof parsed.workspaceId !== "string" ||
     !("keyEpoch" in parsed) ||
@@ -159,7 +159,7 @@ function parseEnvelope(plaintext: Uint8Array): {
     keyEpoch: parsed.keyEpoch,
     recipientDeviceId: parseDeviceId(parsed.recipientDeviceId),
     securityHead: hexToBytes(parsed.securityHead, SHA256_BYTES, "security head"),
-    workspaceKey: hexToBytes(parsed.workspaceKey, PROJECT_KEY_BYTES, "WorkspaceKey"),
+    workspaceKey: hexToBytes(parsed.workspaceKey, WORKSPACE_KEY_BYTES, "WorkspaceKey"),
   };
 }
 
