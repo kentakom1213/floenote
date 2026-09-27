@@ -94,7 +94,7 @@ export async function sendProjectKeyDelivery(
   const message: ProjectKeyDeliveryMessage = {
     protocolVersion: 1,
     type: "project-key-delivery",
-    projectId: securityState.projectId,
+    projectId: securityState.workspaceId,
     keyEpoch: securityState.keyEpoch,
     recipientDeviceId,
     securityHead,
@@ -115,7 +115,7 @@ export async function sendProjectKeyDelivery(
         if (!received || received.type !== "project-key-stored") return;
 
         if (
-          received.projectId !== securityState.projectId ||
+          received.projectId !== securityState.workspaceId ||
           received.keyEpoch !== securityState.keyEpoch ||
           received.recipientDeviceId !== recipientDeviceId ||
           received.securityHead !== securityHead
