@@ -324,20 +324,20 @@ different head is a conflict.
 
 ## 11. UI implications
 
-Coordinator failure should not be represented as a whole-Project loading or
-fatal-error state when local Project data is healthy.
+Coordinator failure should not be represented as a whole-Workspace loading or
+fatal-error state when local Workspace data is healthy.
 
 A typical offline state is conceptually:
 
 ~~~text
-Project: available
+Workspace: available
 Local data: available
 
 Sync: offline
 Device management: unavailable
 ~~~
 
-Project settings which operate only on local data, including export and local
+Workspace settings which operate only on local data, including export and local
 removal, remain available.
 
 Controls which require coordination, such as Add device or Revoke device, may be

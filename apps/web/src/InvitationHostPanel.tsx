@@ -100,11 +100,11 @@ export function InvitationHostPanel({
   return (
     <section className="invitation-host-view">
       <header className="settings-header invitation-host-header">
-        <p className="settings-eyebrow">Project devices</p>
+        <p className="settings-eyebrow">Devices</p>
         <h1>Add a device</h1>
         <p>
           Open this invitation on the device you want to add. You will approve
-          the device here before Project access is granted.
+          the device here before Workspace access is granted.
         </p>
       </header>
 
@@ -149,7 +149,7 @@ export function InvitationHostPanel({
           <div>
             <h2>Approve the device</h2>
             <p>
-              Check the device name before granting access to this Project.
+              Check the device name before granting access to this Workspace.
             </p>
           </div>
         </div>
@@ -202,8 +202,8 @@ export function InvitationHostPanel({
             <span className="invitation-pulse" aria-hidden="true" />
             <p>
               {workspaceKeyDeliveryState === "error"
-                ? "Project access could not be delivered."
-                : "Securely delivering Project access…"}
+                ? "Workspace access could not be delivered."
+                : "Securely delivering Workspace access…"}
             </p>
             {workspaceKeyDeliveryState === "error" ? (
               <button
@@ -222,7 +222,7 @@ export function InvitationHostPanel({
             <span aria-hidden="true">✓</span>
             <div>
               <strong>Device added</strong>
-              <p>Opening your Project…</p>
+              <p>Opening your Workspace…</p>
             </div>
           </div>
         ) : null}

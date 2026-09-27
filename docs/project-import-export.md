@@ -397,26 +397,27 @@ This keeps import/export separate from the authorization protocol:
 
 ## 13. UI model
 
-Project creation should expose one conceptual action with source choices rather
-than separate unrelated features:
+After first-run creates the default Workspace without a naming step, adding
+another Workspace exposes source choices rather than unrelated features:
 
 ```text
-New Project
+New workspace
 
-[ Blank Project ]
-Start with an empty Project.
+[ Blank workspace ]
+Start with an empty Workspace.
 
 [ Import Floe export ]
-Create a new Project from a .floe.zip export and preserve Floe metadata.
+Create a new Workspace from a .floe.zip export and preserve Floe metadata.
 
 [ Import Markdown directory ]
-Create a new Project from ordinary Markdown files.
+Create a new Workspace from ordinary Markdown files.
 ```
 
-Importing always displays that a new independent Project will be created.
+Importing always displays that a new independent Workspace will be created.
 
-Export belongs in Project settings under Data & security (or a future
-Import & export section) and remains available while the coordinator is offline.
+Export belongs in Workspace settings under Data and remains available while
+the coordinator is offline. The portable archive remains content-oriented;
+it does not restore Workspace security identity or keys.
 
 ## 14. Non-goals for v1
 

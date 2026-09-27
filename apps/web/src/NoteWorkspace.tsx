@@ -259,11 +259,19 @@ export function NoteWorkspace({
     <div className="sidebar-layout">
       <div className="sidebar-content">
         <header className="brand-row">
-          <div className="brand-lockup">
-            <span className="floe-mark" aria-hidden="true">
-              ◆
-            </span>
-            <span className="brand-name">Floe Note</span>
+          <div
+            className="workspace-context"
+            onClickCapture={(event) => {
+              const target = event.target;
+              if (
+                target instanceof Element &&
+                target.closest(".project-switcher-item, .project-switcher-action")
+              ) {
+                setMobileNavigationOpen(false);
+              }
+            }}
+          >
+            {projectControl}
           </div>
           <button
             className="global-search-trigger"
@@ -276,20 +284,7 @@ export function NoteWorkspace({
           </button>
         </header>
 
-        <div
-          className="project-slot"
-          onClickCapture={(event) => {
-            const target = event.target;
-            if (
-              target instanceof Element &&
-              target.closest(".project-switcher-item, .project-switcher-action")
-            ) {
-              setMobileNavigationOpen(false);
-            }
-          }}
-        >
-          {projectControl}
-        </div>
+        <p className="sidebar-section-label">Notes</p>
 
         <SidebarNavigationToolbar
           query={query}
@@ -460,7 +455,7 @@ export function NoteWorkspace({
               ◆
             </div>
             <h1>No notes yet</h1>
-            <p>Create a note to start writing in this Project.</p>
+            <p>Create a note to start writing in this Workspace.</p>
             <button type="button" onClick={onCreateDocument}>
               Create your first note
             </button>

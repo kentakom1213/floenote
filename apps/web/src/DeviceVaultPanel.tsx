@@ -89,7 +89,7 @@ export function DeviceVaultPanel({
                 Devices: <strong>{securityDeviceCount}</strong>
               </p>
               <p className="webrtc-status">
-                Project key:{" "}
+                Workspace key:{" "}
                 <strong>
                   {projectKeyReady === null
                     ? "checking"

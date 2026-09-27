@@ -20,7 +20,7 @@ export function UnlockScreen({
 
   async function resetDevice(): Promise<void> {
     const confirmed = window.confirm(
-      "Reset this device? This deletes the local Device Vault and all local Project data. You will need another authorized device to join those Projects again.",
+      "Reset this device? This deletes the local Device Vault and all local Workspace data. You will need another authorized device to join those Workspaces again.",
     );
     if (!confirmed) return;
 
@@ -48,7 +48,7 @@ export function UnlockScreen({
         <div className="unlock-flow">
           <h1>Unlock Floe Note</h1>
           <p className="unlock-copy">
-            Unlock this device to open your encrypted local Projects.
+            Unlock this device to open your encrypted local Workspaces.
           </p>
 
           <button

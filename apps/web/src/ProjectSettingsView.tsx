@@ -1,6 +1,6 @@
 import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import type { AuthorizedDevice } from "@floe-note/security";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "./ConfirmDialog.js";
 
@@ -26,6 +26,7 @@ type ProjectSettingsViewProps = {
   onAddDevice: () => void;
   onRetrySecurity: () => void;
   onRemoveDevice: (deviceId: DeviceId) => Promise<void>;
+  scopeNavigation?: ReactNode;
 };
 
 function shortDeviceId(deviceId: DeviceId): string {
@@ -51,6 +52,7 @@ export function ProjectSettingsView({
   onAddDevice,
   onRetrySecurity,
   onRemoveDevice,
+  scopeNavigation,
 }: ProjectSettingsViewProps) {
   const online = new Set(onlineDeviceIds);
   const connected = new Set(connectedDeviceIds);
@@ -88,7 +90,7 @@ export function ProjectSettingsView({
     } catch (error: unknown) {
       setExportState("error");
       setExportError(
-        error instanceof Error ? error.message : "Failed to export Project",
+        error instanceof Error ? error.message : "Failed to export notes",
       );
     }
   }
@@ -103,12 +105,14 @@ export function ProjectSettingsView({
   return (
     <section className="settings-view">
       <header className="settings-header">
-        <p className="settings-eyebrow">Project settings</p>
+        <p className="settings-eyebrow">Settings · Workspace</p>
         <h1>{projectName}</h1>
       </header>
 
+      {scopeNavigation}
+
       <div className="settings-section">
-        <h2>General</h2>
+        <h2>Workspace</h2>
         <form
           className="settings-form-row"
           onSubmit={(event) => {
@@ -118,7 +122,7 @@ export function ProjectSettingsView({
           }}
         >
           <label className="settings-field">
-            <span>Project name</span>
+            <span>Workspace name</span>
             <input
               value={nameDraft}
               maxLength={80}
@@ -135,11 +139,11 @@ export function ProjectSettingsView({
         </form>
       </div>
 
-      <div className="settings-section" id="project-devices">
+      <div className="settings-section" id="workspace-devices">
         <div className="settings-section-heading">
           <div>
             <h2>Devices</h2>
-            <p>Devices with access to this Project.</p>
+            <p>Devices with access to this Workspace.</p>
           </div>
           <button
             className="settings-primary-action"
@@ -258,21 +262,21 @@ export function ProjectSettingsView({
       </div>
 
       <div className="settings-section">
-        <h2>Data &amp; security</h2>
+        <h2>Data</h2>
         <div className="settings-copy-block">
           <p>
             Notes are stored on your devices and synchronized directly between
             approved devices when they are online.
           </p>
           <p>
-            Project data is encrypted with a Project key that is separate from
-            other Projects.
+            Workspace data is encrypted with a Workspace key that is separate
+            from other Workspaces.
           </p>
         </div>
 
         <div className="settings-row settings-row-spread project-export-row">
           <div className="project-export-copy">
-            <strong>Export Project</strong>
+            <strong>Export notes</strong>
             <p>
               Export the notes and metadata currently available on this device
               as portable Markdown and JSON. Encryption keys, device
@@ -306,7 +310,7 @@ export function ProjectSettingsView({
           <summary>Technical details</summary>
           <dl>
             <div>
-              <dt>Project ID</dt>
+              <dt>Workspace ID</dt>
               <dd>{projectId}</dd>
             </div>
           </dl>
@@ -324,8 +328,8 @@ export function ProjectSettingsView({
           <div>
             <strong>Remove from this device</strong>
             <p>
-              Deletes this Project&apos;s local notes, metadata, SecurityState,
-              and Project keys. This device remains authorized and can rejoin
+              Deletes this Workspace&apos;s local notes, metadata, security state,
+              and Workspace keys. This device remains authorized and can rejoin
               later.
             </p>
           </div>
@@ -341,7 +345,7 @@ export function ProjectSettingsView({
 
       {removeDeviceId ? (
         <ConfirmDialog
-          title={`Remove ${removeDeviceName} from this Project?`}
+          title={`Remove ${removeDeviceName} from this Workspace?`}
           description={
             <p>
               This device will stop receiving future changes. Data already
@@ -359,7 +363,7 @@ export function ProjectSettingsView({
           title={`Remove ${projectName} from this device?`}
           description={
             <p>
-              Other devices are not changed. To use this Project here again,
+              Other devices are not changed. To use this Workspace here again,
               join it again from an authorized device.
             </p>
           }

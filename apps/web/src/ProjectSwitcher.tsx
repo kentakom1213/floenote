@@ -25,7 +25,6 @@ type ProjectSwitcherProps = {
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
-  onOpenProjectSettings: () => void;
 };
 
 export function ProjectSwitcher({
@@ -35,7 +34,6 @@ export function ProjectSwitcher({
   onCreateProject,
   onImportFloeExport,
   onImportMarkdownDirectory,
-  onOpenProjectSettings,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
   const switcherRef = useRef<HTMLDetailsElement>(null);
@@ -62,7 +60,7 @@ export function ProjectSwitcher({
       switcherRef.current?.removeAttribute("open");
     } catch (caught: unknown) {
       setError(
-        caught instanceof Error ? caught.message : "Could not open Project",
+        caught instanceof Error ? caught.message : "Could not open Workspace",
       );
     } finally {
       setPendingWorkspaceId(null);
@@ -84,7 +82,7 @@ export function ProjectSwitcher({
       setNewProjectOpen(false);
     } catch (caught: unknown) {
       setError(
-        caught instanceof Error ? caught.message : "Could not create Project",
+        caught instanceof Error ? caught.message : "Could not create Workspace",
       );
     } finally {
       setBusy(false);
@@ -171,10 +169,10 @@ export function ProjectSwitcher({
       <details className="project-switcher" ref={switcherRef}>
         <summary
           className="project-switcher-trigger"
-          aria-label="Switch project"
+          aria-label={`Switch workspace, current ${current?.name ?? "Personal"}`}
         >
+          <span className="floe-mark" aria-hidden="true">◆</span>
           <span className="project-switcher-copy">
-            <span className="project-switcher-label">Project</span>
             <span className="project-switcher-name">
               {current?.name ?? "Personal"}
             </span>
@@ -185,7 +183,7 @@ export function ProjectSwitcher({
         </summary>
 
         <div className="project-switcher-menu">
-          <p className="project-switcher-menu-label">Projects</p>
+          <p className="project-switcher-menu-label">Workspaces</p>
 
           <div className="project-switcher-list">
             {projects.map((project) => (
@@ -193,6 +191,7 @@ export function ProjectSwitcher({
                 className="project-switcher-item"
                 type="button"
                 key={project.id}
+                aria-current={project.isCurrent ? "page" : undefined}
                 disabled={disabled || pendingWorkspaceId !== null}
                 onClick={() => void selectProject(project.id)}
               >
@@ -227,20 +226,7 @@ export function ProjectSwitcher({
             }}
           >
             <span aria-hidden="true">＋</span>
-            <span>New project</span>
-          </button>
-
-          <button
-            className="project-switcher-action"
-            type="button"
-            disabled={disabled}
-            onClick={() => {
-              switcherRef.current?.removeAttribute("open");
-              onOpenProjectSettings();
-            }}
-          >
-            <span aria-hidden="true">⚙</span>
-            <span>Project settings</span>
+            <span>New workspace</span>
           </button>
 
           {error && !newProjectOpen ? (
@@ -255,12 +241,12 @@ export function ProjectSwitcher({
           disabled={busy}
           onClose={closeNewProject}
         >
-          <h2 id="new-project-title">New project</h2>
+          <h2 id="new-project-title">New workspace</h2>
 
           {newProjectSource === null ? (
             <>
               <p className="dialog-description">
-                Choose how to add a Project to this device.
+                Choose how to add a Workspace to this device.
               </p>
 
               <div className="new-project-source-list">
@@ -270,9 +256,9 @@ export function ProjectSwitcher({
                   autoFocus
                   onClick={() => setNewProjectSource("blank")}
                 >
-                  <strong>Blank project</strong>
+                  <strong>Blank workspace</strong>
                   <span>
-                    Create a new Project identity and start with an empty note
+                    Create a new Workspace and start with an empty note
                     space.
                   </span>
                 </button>
@@ -283,7 +269,7 @@ export function ProjectSwitcher({
                 >
                   <strong>Join with invitation link</strong>
                   <span>
-                    Add an existing Project to this device using an invitation
+                    Add an existing Workspace to this device using an invitation
                     from another authorized device.
                   </span>
                 </button>
@@ -294,7 +280,7 @@ export function ProjectSwitcher({
                 >
                   <strong>Import Floe export</strong>
                   <span>
-                    Create a new independent Project from a portable .floe.zip
+                    Create a new independent Workspace from a portable .floe.zip
                     export and preserve note metadata.
                   </span>
                 </button>
@@ -305,7 +291,7 @@ export function ProjectSwitcher({
                 >
                   <strong>Import Markdown directory</strong>
                   <span>
-                    Create a new independent Project from ordinary Markdown
+                    Create a new independent Workspace from ordinary Markdown
                     files. Nested directories are flattened.
                   </span>
                 </button>
@@ -324,7 +310,7 @@ export function ProjectSwitcher({
           ) : newProjectSource === "blank" ? (
             <>
               <p className="dialog-description">
-                Create a new Project identity and a separate space for notes and
+                Create a new Workspace with a separate space for notes and
                 devices.
               </p>
 
@@ -371,7 +357,7 @@ export function ProjectSwitcher({
                     type="submit"
                     disabled={busy || newProjectName.trim().length === 0}
                   >
-                    {busy ? "Creating…" : "Create project"}
+                    {busy ? "Creating…" : "Create workspace"}
                   </button>
                 </div>
               </form>
@@ -380,7 +366,7 @@ export function ProjectSwitcher({
             <>
               <p className="dialog-description">
                 Paste an invitation link created on an authorized device. This
-                adds that existing Project to this device.
+                adds that existing Workspace to this device.
               </p>
 
               <button
@@ -425,7 +411,7 @@ export function ProjectSwitcher({
                     type="submit"
                     disabled={busy || inviteUrl.trim().length === 0}
                   >
-                    Join project
+                    Join workspace
                   </button>
                 </div>
               </form>
@@ -434,7 +420,7 @@ export function ProjectSwitcher({
             <>
               <p className="dialog-description">
                 Choose a portable Floe export. The archive is fully validated
-                before a new Project is created. Import creates a new Project
+                before a new Workspace is created. Import creates a new Workspace
                 identity and does not restore device authorization or keys.
               </p>
 
@@ -463,7 +449,7 @@ export function ProjectSwitcher({
               </label>
               <p className="settings-field-hint">
                 {busy
-                  ? "Validating and creating a new Project…"
+                  ? "Validating and creating a new Workspace…"
                   : "Select a .floe.zip file exported by Floe Note."}
               </p>
 
@@ -485,7 +471,7 @@ export function ProjectSwitcher({
               <p className="dialog-description">
                 Choose a directory containing Markdown files. Floe Note reads
                 and validates all importable files before creating a new
-                independent Project. Nested directories are flattened.
+                independent Workspace. Nested directories are flattened.
               </p>
 
               <button
@@ -518,7 +504,7 @@ export function ProjectSwitcher({
               </label>
               <p className="settings-field-hint">
                 {busy
-                  ? "Reading, validating, and creating a new Project…"
+                  ? "Reading, validating, and creating a new Workspace…"
                   : "Imports .md and .markdown files recursively. Hidden files and directories are ignored."}
               </p>
 

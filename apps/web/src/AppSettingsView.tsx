@@ -1,5 +1,5 @@
 import type { DeviceId } from "@floe-note/domain";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import {
   useCoordinatorBuildInfo,
@@ -24,6 +24,7 @@ type AppSettingsViewProps = {
   showDeviceControls?: boolean;
   showDangerZone?: boolean;
   emphasizeCoordinatorDetails?: boolean;
+  scopeNavigation?: ReactNode;
 };
 
 function shortDeviceId(deviceId: DeviceId): string {
@@ -44,6 +45,7 @@ export function AppSettingsView({
   showDeviceControls = true,
   showDangerZone = true,
   emphasizeCoordinatorDetails = true,
+  scopeNavigation,
 }: AppSettingsViewProps) {
   const coordinatorBuildInfo = useCoordinatorBuildInfo(coordinatorBaseUrl);
   const [eraseOpen, setEraseOpen] = useState(false);
@@ -132,6 +134,8 @@ export function AppSettingsView({
         <h1>Settings</h1>
       </header>
 
+      {scopeNavigation}
+
       <div className="settings-section">
         <div className="settings-section-heading">
           <div>
@@ -173,7 +177,7 @@ export function AppSettingsView({
             </form>
             <p className="settings-field-hint">
               This name is stored in the Device Vault and shared only inside
-              Projects you use.
+              Workspaces you use.
             </p>
             {nameError ? <p className="dialog-error">{nameError}</p> : null}
 
@@ -196,7 +200,7 @@ export function AppSettingsView({
         ) : (
           <p className="settings-device-placeholder">
             Security will be configured when you create, join, or import a
-            Project.
+            Workspace.
           </p>
         )}
       </div>
@@ -245,7 +249,7 @@ export function AppSettingsView({
           </div>
         </div>
         <p className="settings-field-hint">
-          Optional and stored only on this device. All Projects on this device
+          Optional and stored only on this device. All Workspaces on this device
           use it as an ICE relay fallback when direct WebRTC connectivity is
           unavailable. Treat the endpoint URL as a secret.
         </p>
@@ -259,11 +263,11 @@ export function AppSettingsView({
         <h2>About</h2>
         <div className="settings-copy-block">
           <p>
-            Floe Note is a local-first note app. Project data stays on your
+            Floe Note is a local-first note app. Workspace data stays on your
             devices and synchronizes directly between authorized devices when
             they are online.
           </p>
-          <p>Each Project has its own access boundary and encryption key.</p>
+          <p>Each Workspace has its own access boundary and encryption key.</p>
         </div>
 
         <details className="technical-details">
@@ -321,8 +325,8 @@ export function AppSettingsView({
             <div>
               <strong>Erase Floe Note from this device</strong>
               <p>
-                Removes local Projects, notes, SecurityState, Device Vault keys,
-                Project keys, and Floe Note preferences. Other devices are not
+                Removes local Workspaces, notes, security state, Device Vault keys,
+                Workspace keys, and Floe Note preferences. Other devices are not
                 changed.
               </p>
             </div>
@@ -349,7 +353,7 @@ export function AppSettingsView({
               <p>
                 This removes all Floe Note data stored by this app on this
                 device. It does not remove data from other devices or revoke
-                this Device ID from Projects.
+                this Device ID from Workspaces.
               </p>
               <p>This action cannot be undone locally.</p>
             </>
