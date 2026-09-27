@@ -56,7 +56,7 @@ type InvitationJoinPageProps = {
   turnCredentialEndpoint: string | null;
   onSessionHandoff: (
     session: DeviceVaultSession,
-    projectId: import("@floe-note/domain").ProjectId,
+    projectId: import("@floe-note/domain").WorkspaceId,
   ) => void;
 };
 
@@ -237,15 +237,15 @@ export function InvitationJoinPage({
           signal: abortPairing.signal,
           timeoutMs: Math.max(1_000, claimed.expiresAt - Date.now()),
           onDelivery: async ({ securityState, sealedEnvelope }) => {
-            await session.storeSealedProjectKey(
+            await session.storeSealedWorkspaceKey(
               sealedEnvelope,
-              securityState.projectId,
+              securityState.workspaceId,
               securityState.keyEpoch,
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
             const joinedProject = await storage.initializeJoinedProject(
-              securityState.projectId,
+              securityState.workspaceId,
               session,
               securityState.keyEpoch,
             );
@@ -260,14 +260,14 @@ export function InvitationJoinPage({
               transport,
               {
                 encrypt: (plaintext) =>
-                  session.encryptProjectSyncPayload(
-                    securityState.projectId,
+                  session.encryptWorkspaceSyncPayload(
+                    securityState.workspaceId,
                     securityState.keyEpoch,
                     plaintext,
                   ),
                 decrypt: (envelope) =>
-                  session.decryptProjectSyncPayload(
-                    securityState.projectId,
+                  session.decryptWorkspaceSyncPayload(
+                    securityState.workspaceId,
                     securityState.keyEpoch,
                     envelope,
                   ),
@@ -303,7 +303,7 @@ export function InvitationJoinPage({
                     try {
                       await storage.flushPendingWrites();
                       await storage.completeJoinedProjectBootstrap(
-                        securityState.projectId,
+                        securityState.workspaceId,
                       );
                       if (disposed) return;
 
@@ -313,7 +313,7 @@ export function InvitationJoinPage({
                         (handoffSession) =>
                           onSessionHandoff(
                             handoffSession,
-                            securityState.projectId,
+                            securityState.workspaceId,
                           ),
                       );
 

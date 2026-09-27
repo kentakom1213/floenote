@@ -1,4 +1,4 @@
-import { createProjectId } from "@floe-note/domain";
+import { createWorkspaceId } from "@floe-note/domain";
 import {
   destroyDeviceKeyMaterial,
   generateDeviceKeyMaterial,
@@ -8,15 +8,15 @@ import {
 } from "@floe-note/crypto";
 import {
   attachAddDeviceSignature,
-  attachCreateProjectSignature,
+  attachCreateWorkspaceSignature,
   createUnsignedAddDeviceTransition,
-  createUnsignedCreateProjectTransition,
+  createUnsignedCreateWorkspaceTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
   encodeAddDeviceTransition,
-  encodeCreateProjectTransition,
+  encodeCreateWorkspaceTransition,
   encodeUnsignedAddDeviceTransition,
-  encodeUnsignedCreateProjectTransition,
+  encodeUnsignedCreateWorkspaceTransition,
   type SecurityState,
 } from "@floe-note/security";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,20 +33,20 @@ afterEach(async () => {
 });
 
 async function createInitialState(device: DeviceKeyMaterial) {
-  const unsigned = createUnsignedCreateProjectTransition(
-    createProjectId(),
+  const unsigned = createUnsignedCreateWorkspaceTransition(
+    createWorkspaceId(),
     device.publicIdentity,
   );
-  const transition = attachCreateProjectSignature(
+  const transition = attachCreateWorkspaceSignature(
     unsigned,
     await signEd25519(
-      encodeUnsignedCreateProjectTransition(unsigned),
+      encodeUnsignedCreateWorkspaceTransition(unsigned),
       device.signingPrivateKey,
     ),
   );
   return deriveInitialSecurityState(
     transition,
-    await sha256(encodeCreateProjectTransition(transition)),
+    await sha256(encodeCreateWorkspaceTransition(transition)),
   );
 }
 
@@ -101,7 +101,7 @@ describe("SecurityState coordinator reconciliation", () => {
       reconcileVerifiedSecurityState(coordinator, storedState),
     ).resolves.toEqual(coordinatorState);
     expect(coordinator.getSecurityTransitions).toHaveBeenCalledWith(
-      storedState.projectId,
+      storedState.workspaceId,
       storedState.sequence,
     );
   });

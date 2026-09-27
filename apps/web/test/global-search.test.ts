@@ -1,4 +1,4 @@
-import { createDocumentId, createProjectId, type DocumentId } from "@floe-note/domain";
+import { createDocumentId, createWorkspaceId, type DocumentId } from "@floe-note/domain";
 import { NoteProject } from "@floe-note/document";
 import { describe, expect, it, vi } from "vitest";
 
@@ -218,7 +218,7 @@ describe("global search", () => {
     vi.stubGlobal("window", { localStorage });
 
     try {
-      const projectId = createProjectId();
+      const projectId = createWorkspaceId();
       const first = createDocumentId();
       const second = createDocumentId();
 

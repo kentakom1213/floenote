@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 
 import type { Transport } from "./transport.js";
 
@@ -7,7 +7,7 @@ const CHANNEL_PREFIX = "floe-note:project:";
 export class BroadcastChannelTransport implements Transport {
   readonly #channel: BroadcastChannel;
 
-  constructor(projectId: ProjectId) {
+  constructor(projectId: WorkspaceId) {
     this.#channel = new BroadcastChannel(`${CHANNEL_PREFIX}${projectId}`);
   }
 

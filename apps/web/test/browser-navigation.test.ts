@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { NoteProject } from "@floe-note/document";
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,7 +129,7 @@ describe("browser navigation state", () => {
   });
 
   it("recovers from a 404 through root to the active local Project and canonical note URL", () => {
-    const project = NoteProject.create(PROJECT_ID as ProjectId);
+    const project = NoteProject.create(PROJECT_ID as WorkspaceId);
     const document = project.createDocument("Recovered note");
     const summaries = [
       {

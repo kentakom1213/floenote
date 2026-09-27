@@ -65,11 +65,11 @@ describe("browser routing integration invariants", () => {
 
   it("restores a different Project from the requested browser route without pushing history", () => {
     const switchStart = appSource.indexOf(
-      "if (!project || requestedProjectId !== project.id)",
+      "if (!project || requestedWorkspaceId !== project.id)",
     );
     const switchBlock = appSource.slice(switchStart, switchStart + 600);
 
-    expect(switchBlock).toContain("selectProject(requestedProjectId, false)");
+    expect(switchBlock).toContain("selectProject(requestedWorkspaceId, false)");
     expect(switchBlock).not.toContain("pushRoute(");
     expect(switchBlock).not.toContain("replaceRoute(");
   });

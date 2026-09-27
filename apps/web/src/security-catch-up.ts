@@ -45,9 +45,9 @@ export async function applyVerifiedSecurityTransitions(
         break;
       }
 
-      case "create-project":
+      case "create-workspace":
         throw new Error(
-          "CreateProject cannot appear after an existing local SecurityState",
+          "CreateWorkspace cannot appear after an existing local SecurityState",
         );
 
       case "revoke-device": {

@@ -6,7 +6,7 @@ type Identifier<Kind extends string> = string & {
   readonly [identifierBrand]: Kind;
 };
 
-export type ProjectId = Identifier<"ProjectId">;
+export type WorkspaceId = Identifier<"WorkspaceId">;
 export type DocumentId = Identifier<"DocumentId">;
 export type DeviceId = Identifier<"DeviceId">;
 export type AttachmentId = Identifier<"AttachmentId">;
@@ -30,7 +30,7 @@ function createUuidV7<Kind extends string>(): Identifier<Kind> {
   return uuidv7() as Identifier<Kind>;
 }
 
-export function createProjectId(): ProjectId {
+export function createWorkspaceId(): WorkspaceId {
   return createUuidV7();
 }
 
@@ -50,8 +50,8 @@ export function createCheckpointId(): CheckpointId {
   return createUuidV7();
 }
 
-export function parseProjectId(value: string): ProjectId {
-  return parseUuidV7(value, "ProjectId");
+export function parseWorkspaceId(value: string): WorkspaceId {
+  return parseUuidV7(value, "WorkspaceId");
 }
 
 export function parseDocumentId(value: string): DocumentId {

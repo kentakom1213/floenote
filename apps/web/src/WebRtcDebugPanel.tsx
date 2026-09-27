@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import type {
   WebRtcStatus,
   WebRtcTransport,
 } from "@floe-note/transport/webrtc";
 
 type WebRtcDebugPanelProps = {
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   transport: WebRtcTransport;
 };
 

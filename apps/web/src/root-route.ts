@@ -1,12 +1,12 @@
 import type { NoteProject } from "@floe-note/document";
-import type { DocumentId, ProjectId } from "@floe-note/domain";
+import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 import type { StoredProjectSummary } from "@floe-note/storage";
 
 export type RootRouteResolution =
-  | { kind: "open-project"; projectId: ProjectId }
+  | { kind: "open-project"; projectId: WorkspaceId }
   | {
       kind: "canonical-project";
-      projectId: ProjectId;
+      projectId: WorkspaceId;
       documentId: DocumentId | null;
     }
   | { kind: "empty" };

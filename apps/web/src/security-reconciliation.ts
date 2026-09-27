@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import type {
   SecurityState,
   SecurityTransition,
@@ -7,9 +7,9 @@ import type {
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 
 export type SecurityStateCoordinatorReader = {
-  getSecurityState(projectId: ProjectId): Promise<SecurityState>;
+  getSecurityState(projectId: WorkspaceId): Promise<SecurityState>;
   getSecurityTransitions(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     afterSequence: number,
   ): Promise<readonly SecurityTransition[]>;
 };
@@ -19,7 +19,7 @@ export async function reconcileVerifiedSecurityState(
   storedState: SecurityState,
 ): Promise<SecurityState> {
   const coordinatorState = await coordinator.getSecurityState(
-    storedState.projectId,
+    storedState.workspaceId,
   );
 
   if (coordinatorState.sequence < storedState.sequence) {
@@ -32,7 +32,7 @@ export async function reconcileVerifiedSecurityState(
 
   if (coordinatorState.sequence > storedState.sequence) {
     const transitions = await coordinator.getSecurityTransitions(
-      storedState.projectId,
+      storedState.workspaceId,
       storedState.sequence,
     );
     verifiedState = await applyVerifiedSecurityTransitions(
@@ -56,7 +56,7 @@ export function securityStatesEqual(
 ): boolean {
   if (
     left.protocolVersion !== right.protocolVersion ||
-    left.projectId !== right.projectId ||
+    left.workspaceId !== right.workspaceId ||
     left.sequence !== right.sequence ||
     left.keyEpoch !== right.keyEpoch ||
     !bytesEqual(left.headHash, right.headHash) ||

@@ -16,7 +16,7 @@ export async function importMarkdownDirectory(
   importedAt = Date.now(),
 ): Promise<OpenProjectResult> {
   // File enumeration, reads, UTF-8 decoding, and source validation all finish
-  // before prepareImportedProject allocates a ProjectId or DocumentIds.
+  // before prepareImportedProject allocates a WorkspaceId or DocumentIds.
   const imported = await readMarkdownDirectorySelection(files, importedAt);
   const project = prepareImportedProject(imported);
 

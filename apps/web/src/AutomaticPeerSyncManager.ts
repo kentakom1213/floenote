@@ -296,14 +296,14 @@ export class AutomaticPeerSyncManager {
       transport,
       {
         encrypt: (plaintext) =>
-          this.#vaultSession.encryptProjectSyncPayload(
-            this.#securityState.projectId,
+          this.#vaultSession.encryptWorkspaceSyncPayload(
+            this.#securityState.workspaceId,
             this.#securityState.keyEpoch,
             plaintext,
           ),
         decrypt: (envelope) =>
-          this.#vaultSession.decryptProjectSyncPayload(
-            this.#securityState.projectId,
+          this.#vaultSession.decryptWorkspaceSyncPayload(
+            this.#securityState.workspaceId,
             this.#securityState.keyEpoch,
             envelope,
           ),

@@ -4,39 +4,37 @@ import {
   DEVICE_SIGNING_PRIVATE_KEY_BYTES,
   DEVICE_SIGNING_PUBLIC_KEY_BYTES,
   decryptDeviceVaultPayload,
-  decryptProjectStoragePayload as decryptProjectStoragePayloadWithKey,
-  decryptProjectSyncPayload as decryptProjectSyncPayloadWithKey,
+  decryptWorkspaceStoragePayload as decryptWorkspaceStoragePayloadWithKey,
+  decryptWorkspaceSyncPayload as decryptWorkspaceSyncPayloadWithKey,
   deriveDeviceVaultKey,
   destroyDeviceKeyMaterial,
   encryptDeviceVaultPayload,
-  encryptProjectStoragePayload as encryptProjectStoragePayloadWithKey,
-  encryptProjectSyncPayload as encryptProjectSyncPayloadWithKey,
+  encryptWorkspaceStoragePayload as encryptWorkspaceStoragePayloadWithKey,
+  encryptWorkspaceSyncPayload as encryptWorkspaceSyncPayloadWithKey,
   generateDeviceKeyMaterial,
-  generateProjectKey,
-  openSealedProjectKeyForDevice,
-  PROJECT_KEY_BYTES,
-  readProjectStoragePayloadKeyEpoch,
-  readProjectSyncPayloadKeyEpoch,
-  sealProjectKeyForDevice,
+  generateWorkspaceKey,
+  openSealedWorkspaceKeyForDevice,
+  WORKSPACE_KEY_BYTES,
+  readWorkspaceStoragePayloadKeyEpoch,
+  readWorkspaceSyncPayloadKeyEpoch,
+  sealWorkspaceKeyForDevice,
   signEd25519,
   type DeviceKeyMaterial,
-  type ProjectStorageRecordContext,
+  type WorkspaceStorageRecordContext,
 } from "@floe-note/crypto";
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
   type DeviceId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import type { DevicePublicIdentity } from "@floe-note/security";
 import Dexie, { type Table } from "dexie";
 
 const DATABASE_NAME = "floe-note-device-vault";
-const VAULT_RECORD_ID = "device-v1";
+const VAULT_RECORD_ID = "workspace-device-v1";
 const VAULT_RECORD_VERSION = 1 as const;
-const VAULT_PAYLOAD_VERSION_V1 = 1 as const;
-const VAULT_PAYLOAD_VERSION_V2 = 2 as const;
-const VAULT_PAYLOAD_VERSION = 3 as const;
+const VAULT_PAYLOAD_VERSION = 4 as const;
 const PRF_INPUT_BYTES = 32;
 const WEBAUTHN_TIMEOUT_MS = 60_000;
 
@@ -49,29 +47,10 @@ type VaultRecord = {
   ciphertext: Uint8Array;
 };
 
-type SerializedDeviceKeyMaterialV1 = {
-  version: typeof VAULT_PAYLOAD_VERSION_V1;
-  deviceId: string;
-  encryptionPublicKey: string;
-  encryptionPrivateKey: string;
-  signingPublicKey: string;
-  signingPrivateKey: string;
-};
-
-type SerializedDeviceVaultPayloadV2 = {
-  version: typeof VAULT_PAYLOAD_VERSION_V2;
-  deviceId: string;
-  encryptionPublicKey: string;
-  encryptionPrivateKey: string;
-  signingPublicKey: string;
-  signingPrivateKey: string;
-  projectKeys: SerializedProjectKey[];
-};
-
-type SerializedProjectKey = {
-  projectId: string;
+type SerializedWorkspaceKey = {
+  workspaceId: string;
   keyEpoch: number;
-  projectKey: string;
+  workspaceKey: string;
 };
 
 type SerializedDeviceVaultPayload = {
@@ -82,25 +61,25 @@ type SerializedDeviceVaultPayload = {
   encryptionPrivateKey: string;
   signingPublicKey: string;
   signingPrivateKey: string;
-  projectKeys: SerializedProjectKey[];
+  workspaceKeys: SerializedWorkspaceKey[];
 };
 
-type ProjectKeyEntry = {
-  projectId: ProjectId;
+type WorkspaceKeyEntry = {
+  workspaceId: WorkspaceId;
   keyEpoch: number;
-  projectKey: Uint8Array;
+  workspaceKey: Uint8Array;
 };
 
 type DeviceVaultContents = {
   keyMaterial: DeviceKeyMaterial;
   displayName: string;
-  projectKeys: ProjectKeyEntry[];
+  workspaceKeys: WorkspaceKeyEntry[];
 };
 
 type PersistDeviceVault = (
   keyMaterial: DeviceKeyMaterial,
   displayName: string,
-  projectKeys: readonly ProjectKeyEntry[],
+  workspaceKeys: readonly WorkspaceKeyEntry[],
 ) => Promise<void>;
 
 type PrfOutput = {
@@ -135,7 +114,7 @@ export interface DeviceVault {
 export class DeviceVaultSession {
   #keyMaterial: DeviceKeyMaterial | null;
   #displayName: string;
-  #projectKeys: ProjectKeyEntry[];
+  #workspaceKeys: WorkspaceKeyEntry[];
   #vaultKey: Uint8Array | null;
   readonly #persist: PersistDeviceVault;
 
@@ -146,7 +125,7 @@ export class DeviceVaultSession {
   ) {
     this.#keyMaterial = contents.keyMaterial;
     this.#displayName = contents.displayName;
-    this.#projectKeys = contents.projectKeys;
+    this.#workspaceKeys = contents.workspaceKeys;
     this.#vaultKey = vaultKey;
     this.#persist = persist;
   }
@@ -170,151 +149,151 @@ export class DeviceVaultSession {
     const normalized = normalizeDeviceDisplayName(displayName);
     if (normalized === this.#displayName) return;
 
-    await this.#persist(this.#requireOpen(), normalized, this.#projectKeys);
+    await this.#persist(this.#requireOpen(), normalized, this.#workspaceKeys);
     this.#displayName = normalized;
   }
 
-  hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean {
+  hasWorkspaceKey(workspaceId: WorkspaceId, keyEpoch: number): boolean {
     this.#requireOpen();
-    return this.#projectKeys.some(
+    return this.#workspaceKeys.some(
       (entry) =>
-        entry.projectId === projectId &&
+        entry.workspaceId === workspaceId &&
         entry.keyEpoch === keyEpoch,
     );
   }
 
-  async encryptProjectSyncPayload(
-    projectId: ProjectId,
+  async encryptWorkspaceSyncPayload(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
     plaintext: Uint8Array,
   ): Promise<Uint8Array> {
     this.#requireOpen();
-    const entry = this.#findProjectKey(projectId, keyEpoch);
+    const entry = this.#findWorkspaceKey(workspaceId, keyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+        `WorkspaceKey epoch ${keyEpoch} is not available on this device`,
       );
     }
 
-    return encryptProjectSyncPayloadWithKey(
-      projectId,
+    return encryptWorkspaceSyncPayloadWithKey(
+      workspaceId,
       keyEpoch,
-      entry.projectKey,
+      entry.workspaceKey,
       plaintext,
     );
   }
 
-  async decryptProjectSyncPayload(
-    projectId: ProjectId,
+  async decryptWorkspaceSyncPayload(
+    workspaceId: WorkspaceId,
     expectedKeyEpoch: number,
     envelope: Uint8Array,
   ): Promise<Uint8Array> {
     this.#requireOpen();
     assertKeyEpoch(expectedKeyEpoch);
 
-    const envelopeKeyEpoch = readProjectSyncPayloadKeyEpoch(envelope);
+    const envelopeKeyEpoch = readWorkspaceSyncPayloadKeyEpoch(envelope);
     if (envelopeKeyEpoch !== expectedKeyEpoch) {
       throw new Error(
         `Encrypted sync uses key epoch ${envelopeKeyEpoch}, expected ${expectedKeyEpoch}`,
       );
     }
 
-    const entry = this.#findProjectKey(projectId, expectedKeyEpoch);
+    const entry = this.#findWorkspaceKey(workspaceId, expectedKeyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${expectedKeyEpoch} is not available on this device`,
+        `WorkspaceKey epoch ${expectedKeyEpoch} is not available on this device`,
       );
     }
 
-    return decryptProjectSyncPayloadWithKey(
-      projectId,
-      entry.projectKey,
+    return decryptWorkspaceSyncPayloadWithKey(
+      workspaceId,
+      entry.workspaceKey,
       envelope,
     );
   }
 
-  async encryptProjectStoragePayload(
-    projectId: ProjectId,
+  async encryptWorkspaceStoragePayload(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
-    context: ProjectStorageRecordContext,
+    context: WorkspaceStorageRecordContext,
     plaintext: Uint8Array,
   ): Promise<Uint8Array> {
     this.#requireOpen();
-    const entry = this.#findProjectKey(projectId, keyEpoch);
+    const entry = this.#findWorkspaceKey(workspaceId, keyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+        `WorkspaceKey epoch ${keyEpoch} is not available on this device`,
       );
     }
 
-    return encryptProjectStoragePayloadWithKey(
-      projectId,
+    return encryptWorkspaceStoragePayloadWithKey(
+      workspaceId,
       keyEpoch,
       context,
-      entry.projectKey,
+      entry.workspaceKey,
       plaintext,
     );
   }
 
-  async decryptProjectStoragePayload(
-    projectId: ProjectId,
-    context: ProjectStorageRecordContext,
+  async decryptWorkspaceStoragePayload(
+    workspaceId: WorkspaceId,
+    context: WorkspaceStorageRecordContext,
     envelope: Uint8Array,
   ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
     this.#requireOpen();
-    const keyEpoch = readProjectStoragePayloadKeyEpoch(envelope);
-    const entry = this.#findProjectKey(projectId, keyEpoch);
+    const keyEpoch = readWorkspaceStoragePayloadKeyEpoch(envelope);
+    const entry = this.#findWorkspaceKey(workspaceId, keyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+        `WorkspaceKey epoch ${keyEpoch} is not available on this device`,
       );
     }
 
     return {
       keyEpoch,
-      plaintext: await decryptProjectStoragePayloadWithKey(
-        projectId,
+      plaintext: await decryptWorkspaceStoragePayloadWithKey(
+        workspaceId,
         keyEpoch,
         context,
-        entry.projectKey,
+        entry.workspaceKey,
         envelope,
       ),
     };
   }
 
-  async createProjectKeyIfMissing(
-    projectId: ProjectId,
+  async createWorkspaceKeyIfMissing(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
   ): Promise<boolean> {
     this.#requireOpen();
     assertKeyEpoch(keyEpoch);
 
-    if (this.hasProjectKey(projectId, keyEpoch)) {
+    if (this.hasWorkspaceKey(workspaceId, keyEpoch)) {
       return false;
     }
 
-    const projectKey = await generateProjectKey();
-    this.#projectKeys.push({
-      projectId,
+    const workspaceKey = await generateWorkspaceKey();
+    this.#workspaceKeys.push({
+      workspaceId,
       keyEpoch,
-      projectKey,
+      workspaceKey,
     });
-    sortProjectKeys(this.#projectKeys);
+    sortWorkspaceKeys(this.#workspaceKeys);
 
     try {
       await this.#persistCurrentState();
       return true;
     } catch (error) {
-      this.#projectKeys = this.#projectKeys.filter(
-        (entry) => entry.projectKey !== projectKey,
+      this.#workspaceKeys = this.#workspaceKeys.filter(
+        (entry) => entry.workspaceKey !== workspaceKey,
       );
-      projectKey.fill(0);
+      workspaceKey.fill(0);
       throw error;
     }
   }
 
-  async prepareProjectKeyRotation(
-    projectId: ProjectId,
+  async prepareWorkspaceKeyRotation(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
     securityHead: Uint8Array,
     recipients: readonly DevicePublicIdentity[],
@@ -325,81 +304,81 @@ export class DeviceVaultSession {
     this.#requireOpen();
     assertKeyEpoch(keyEpoch);
 
-    if (this.#findProjectKey(projectId, keyEpoch)) {
+    if (this.#findWorkspaceKey(workspaceId, keyEpoch)) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} already exists on this device`,
+        `WorkspaceKey epoch ${keyEpoch} already exists on this device`,
       );
     }
 
     const seen = new Set<DeviceId>();
     for (const recipient of recipients) {
       if (seen.has(recipient.deviceId)) {
-        throw new TypeError("Duplicate ProjectKey rotation recipient");
+        throw new TypeError("Duplicate WorkspaceKey rotation recipient");
       }
       seen.add(recipient.deviceId);
     }
 
-    const projectKey = await generateProjectKey();
+    const workspaceKey = await generateWorkspaceKey();
     try {
       return await Promise.all(
         recipients.map(async (recipient) => ({
           recipientDeviceId: recipient.deviceId,
-          sealedEnvelope: await sealProjectKeyForDevice(
+          sealedEnvelope: await sealWorkspaceKeyForDevice(
             {
-              projectId,
+              workspaceId,
               keyEpoch,
               recipientDeviceId: recipient.deviceId,
               securityHead,
             },
-            projectKey,
+            workspaceKey,
             recipient.encryptionPublicKey,
           ),
         })),
       );
     } finally {
-      projectKey.fill(0);
+      workspaceKey.fill(0);
     }
   }
 
-  async sealProjectKeyForRecipient(
-    projectId: ProjectId,
+  async sealWorkspaceKeyForRecipient(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
     recipientDeviceId: DeviceId,
     recipientEncryptionPublicKey: Uint8Array,
     securityHead: Uint8Array,
   ): Promise<Uint8Array> {
     this.#requireOpen();
-    const entry = this.#findProjectKey(projectId, keyEpoch);
+    const entry = this.#findWorkspaceKey(workspaceId, keyEpoch);
     if (!entry) {
       throw new Error(
-        `ProjectKey epoch ${keyEpoch} is not available on this device`,
+        `WorkspaceKey epoch ${keyEpoch} is not available on this device`,
       );
     }
 
-    return sealProjectKeyForDevice(
+    return sealWorkspaceKeyForDevice(
       {
-        projectId,
+        workspaceId,
         keyEpoch,
         recipientDeviceId,
         securityHead,
       },
-      entry.projectKey,
+      entry.workspaceKey,
       recipientEncryptionPublicKey,
     );
   }
 
-  async storeSealedProjectKey(
+  async storeSealedWorkspaceKey(
     sealedEnvelope: Uint8Array,
-    projectId: ProjectId,
+    workspaceId: WorkspaceId,
     keyEpoch: number,
     securityHead: Uint8Array,
   ): Promise<void> {
     const keyMaterial = this.#requireOpen();
     const recipientDeviceId = keyMaterial.publicIdentity.deviceId;
-    const projectKey = await openSealedProjectKeyForDevice(
+    const workspaceKey = await openSealedWorkspaceKeyForDevice(
       sealedEnvelope,
       {
-        projectId,
+        workspaceId,
         keyEpoch,
         recipientDeviceId,
         securityHead,
@@ -408,47 +387,47 @@ export class DeviceVaultSession {
       keyMaterial.encryptionPrivateKey,
     );
 
-    const existing = this.#findProjectKey(projectId, keyEpoch);
+    const existing = this.#findWorkspaceKey(workspaceId, keyEpoch);
     if (existing) {
-      const matches = bytesEqual(existing.projectKey, projectKey);
-      projectKey.fill(0);
+      const matches = bytesEqual(existing.workspaceKey, workspaceKey);
+      workspaceKey.fill(0);
       if (!matches) {
         throw new Error(
-          "A different ProjectKey already exists for this epoch",
+          "A different WorkspaceKey already exists for this epoch",
         );
       }
       return;
     }
 
-    const entry: ProjectKeyEntry = {
-      projectId,
+    const entry: WorkspaceKeyEntry = {
+      workspaceId,
       keyEpoch,
-      projectKey,
+      workspaceKey,
     };
-    this.#projectKeys.push(entry);
-    sortProjectKeys(this.#projectKeys);
+    this.#workspaceKeys.push(entry);
+    sortWorkspaceKeys(this.#workspaceKeys);
 
     try {
       await this.#persistCurrentState();
     } catch (error) {
-      this.#projectKeys = this.#projectKeys.filter(
+      this.#workspaceKeys = this.#workspaceKeys.filter(
         (candidate) => candidate !== entry,
       );
-      projectKey.fill(0);
+      workspaceKey.fill(0);
       throw error;
     }
   }
 
-  async removeProjectKeys(projectId: ProjectId): Promise<void> {
+  async removeWorkspaceKeys(workspaceId: WorkspaceId): Promise<void> {
     this.#requireOpen();
 
-    const removed = this.#projectKeys.filter(
-      (entry) => entry.projectId === projectId,
+    const removed = this.#workspaceKeys.filter(
+      (entry) => entry.workspaceId === workspaceId,
     );
     if (removed.length === 0) return;
 
-    const remaining = this.#projectKeys.filter(
-      (entry) => entry.projectId !== projectId,
+    const remaining = this.#workspaceKeys.filter(
+      (entry) => entry.workspaceId !== workspaceId,
     );
 
     await this.#persist(
@@ -456,8 +435,8 @@ export class DeviceVaultSession {
       this.#displayName,
       remaining,
     );
-    this.#projectKeys = remaining;
-    for (const entry of removed) entry.projectKey.fill(0);
+    this.#workspaceKeys = remaining;
+    for (const entry of removed) entry.workspaceKey.fill(0);
   }
 
   async sign(message: Uint8Array): Promise<Uint8Array> {
@@ -470,10 +449,10 @@ export class DeviceVaultSession {
     const keyMaterial = this.#keyMaterial;
     this.#keyMaterial = null;
 
-    for (const entry of this.#projectKeys) {
-      entry.projectKey.fill(0);
+    for (const entry of this.#workspaceKeys) {
+      entry.workspaceKey.fill(0);
     }
-    this.#projectKeys = [];
+    this.#workspaceKeys = [];
 
     if (this.#vaultKey) {
       this.#vaultKey.fill(0);
@@ -491,17 +470,17 @@ export class DeviceVaultSession {
     await this.#persist(
       keyMaterial,
       this.#displayName,
-      this.#projectKeys,
+      this.#workspaceKeys,
     );
   }
 
-  #findProjectKey(
-    projectId: ProjectId,
+  #findWorkspaceKey(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
-  ): ProjectKeyEntry | undefined {
-    return this.#projectKeys.find(
+  ): WorkspaceKeyEntry | undefined {
+    return this.#workspaceKeys.find(
       (entry) =>
-        entry.projectId === projectId &&
+        entry.workspaceId === workspaceId &&
         entry.keyEpoch === keyEpoch,
     );
   }
@@ -608,30 +587,30 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
         credentialId: new Uint8Array(credential.rawId),
         prfInput,
       } as const;
-      const projectKeys: ProjectKeyEntry[] = [];
+      const workspaceKeys: WorkspaceKeyEntry[] = [];
 
       await this.#persistVault(
         recordBase,
         vaultKey,
         keyMaterial,
         normalizedDisplayName,
-        projectKeys,
+        workspaceKeys,
       );
 
       return new DeviceVaultSession(
         {
           keyMaterial,
           displayName: normalizedDisplayName,
-          projectKeys,
+          workspaceKeys,
         },
         vaultKey,
-        (nextKeyMaterial, nextDisplayName, nextProjectKeys) =>
+        (nextKeyMaterial, nextDisplayName, nextWorkspaceKeys) =>
           this.#persistVault(
             recordBase,
             vaultKey as Uint8Array,
             nextKeyMaterial,
             nextDisplayName,
-            nextProjectKeys,
+            nextWorkspaceKeys,
           ),
       );
     } catch (error) {
@@ -673,13 +652,13 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
       return new DeviceVaultSession(
         contents,
         vaultKey,
-        (keyMaterial, displayName, projectKeys) =>
+        (keyMaterial, displayName, workspaceKeys) =>
           this.#persistVault(
             recordBase,
             vaultKey,
             keyMaterial,
             displayName,
-            projectKeys,
+            workspaceKeys,
           ),
       );
     } catch (error) {
@@ -698,12 +677,12 @@ export class WebAuthnPrfDeviceVault implements DeviceVault {
     vaultKey: Uint8Array,
     keyMaterial: DeviceKeyMaterial,
     displayName: string,
-    projectKeys: readonly ProjectKeyEntry[],
+    workspaceKeys: readonly WorkspaceKeyEntry[],
   ): Promise<void> {
     const plaintext = serializeDeviceVaultPayload(
       keyMaterial,
       displayName,
-      projectKeys,
+      workspaceKeys,
     );
     try {
       const encrypted = await encryptDeviceVaultPayload(vaultKey, plaintext);
@@ -849,7 +828,7 @@ function readPrfOutput(
 function serializeDeviceVaultPayload(
   keyMaterial: DeviceKeyMaterial,
   displayName: string,
-  projectKeys: readonly ProjectKeyEntry[],
+  workspaceKeys: readonly WorkspaceKeyEntry[],
 ): Uint8Array {
   const payload: SerializedDeviceVaultPayload = {
     version: VAULT_PAYLOAD_VERSION,
@@ -861,10 +840,10 @@ function serializeDeviceVaultPayload(
     encryptionPrivateKey: bytesToHex(keyMaterial.encryptionPrivateKey),
     signingPublicKey: bytesToHex(keyMaterial.publicIdentity.signingPublicKey),
     signingPrivateKey: bytesToHex(keyMaterial.signingPrivateKey),
-    projectKeys: projectKeys.map((entry) => ({
-      projectId: entry.projectId,
+    workspaceKeys: workspaceKeys.map((entry) => ({
+      workspaceId: entry.workspaceId,
       keyEpoch: entry.keyEpoch,
-      projectKey: bytesToHex(entry.projectKey),
+      workspaceKey: bytesToHex(entry.workspaceKey),
     })),
   };
 
@@ -907,63 +886,48 @@ export function deserializeDeviceVaultPayload(
     ),
   };
 
-  if (parsed.version === VAULT_PAYLOAD_VERSION_V1) {
-    return {
-      keyMaterial,
-      displayName: "My device",
-      projectKeys: [],
-    };
-  }
-
   if (
-    (parsed.version !== VAULT_PAYLOAD_VERSION_V2 &&
-      parsed.version !== VAULT_PAYLOAD_VERSION) ||
-    !("projectKeys" in parsed) ||
-    !Array.isArray(parsed.projectKeys)
+    parsed.version !== VAULT_PAYLOAD_VERSION ||
+    !("displayName" in parsed) ||
+    typeof parsed.displayName !== "string" ||
+    !("workspaceKeys" in parsed) ||
+    !Array.isArray(parsed.workspaceKeys)
   ) {
     throw new Error("Unsupported Device Vault payload version");
   }
 
-  const displayName =
-    parsed.version === VAULT_PAYLOAD_VERSION &&
-    "displayName" in parsed &&
-    typeof parsed.displayName === "string"
-      ? normalizeDeviceDisplayName(parsed.displayName)
-      : "My device";
+  const displayName = normalizeDeviceDisplayName(parsed.displayName);
 
-  const projectKeys = parsed.projectKeys.map(parseProjectKeyEntry);
+  const workspaceKeys = parsed.workspaceKeys.map(parseWorkspaceKeyEntry);
   const seen = new Set<string>();
-  for (const entry of projectKeys) {
-    const identity = `${entry.projectId}:${entry.keyEpoch}`;
+  for (const entry of workspaceKeys) {
+    const identity = `${entry.workspaceId}:${entry.keyEpoch}`;
     if (seen.has(identity)) {
-      throw new Error("Duplicate ProjectKey entry in Device Vault");
+      throw new Error("Duplicate WorkspaceKey entry in Device Vault");
     }
     seen.add(identity);
   }
-  sortProjectKeys(projectKeys);
+  sortWorkspaceKeys(workspaceKeys);
 
   return {
     keyMaterial,
     displayName,
-    projectKeys,
+    workspaceKeys,
   };
 }
 
 function isBaseVaultPayload(
   parsed: unknown,
-): parsed is
-  | SerializedDeviceKeyMaterialV1
-  | SerializedDeviceVaultPayloadV2
-  | SerializedDeviceVaultPayload {
+): parsed is SerializedDeviceVaultPayload {
   return (
     typeof parsed === "object" &&
     parsed !== null &&
     "version" in parsed &&
-    (parsed.version === VAULT_PAYLOAD_VERSION_V1 ||
-      parsed.version === VAULT_PAYLOAD_VERSION_V2 ||
-      parsed.version === VAULT_PAYLOAD_VERSION) &&
+    parsed.version === VAULT_PAYLOAD_VERSION &&
     "deviceId" in parsed &&
     typeof parsed.deviceId === "string" &&
+    "displayName" in parsed &&
+    typeof parsed.displayName === "string" &&
     "encryptionPublicKey" in parsed &&
     typeof parsed.encryptionPublicKey === "string" &&
     "encryptionPrivateKey" in parsed &&
@@ -971,45 +935,47 @@ function isBaseVaultPayload(
     "signingPublicKey" in parsed &&
     typeof parsed.signingPublicKey === "string" &&
     "signingPrivateKey" in parsed &&
-    typeof parsed.signingPrivateKey === "string"
+    typeof parsed.signingPrivateKey === "string" &&
+    "workspaceKeys" in parsed &&
+    Array.isArray(parsed.workspaceKeys)
   );
 }
 
-function parseProjectKeyEntry(value: unknown): ProjectKeyEntry {
+function parseWorkspaceKeyEntry(value: unknown): WorkspaceKeyEntry {
   if (
     typeof value !== "object" ||
     value === null ||
-    !("projectId" in value) ||
-    typeof value.projectId !== "string" ||
+    !("workspaceId" in value) ||
+    typeof value.workspaceId !== "string" ||
     !("keyEpoch" in value) ||
     typeof value.keyEpoch !== "number" ||
     !Number.isSafeInteger(value.keyEpoch) ||
     value.keyEpoch < 1 ||
-    !("projectKey" in value) ||
-    typeof value.projectKey !== "string"
+    !("workspaceKey" in value) ||
+    typeof value.workspaceKey !== "string"
   ) {
-    throw new Error("Invalid ProjectKey entry in Device Vault");
+    throw new Error("Invalid WorkspaceKey entry in Device Vault");
   }
 
   return {
-    projectId: parseProjectId(value.projectId),
+    workspaceId: parseWorkspaceId(value.workspaceId),
     keyEpoch: value.keyEpoch,
-    projectKey: hexToBytes(value.projectKey, PROJECT_KEY_BYTES),
+    workspaceKey: hexToBytes(value.workspaceKey, WORKSPACE_KEY_BYTES),
   };
 }
 
-function sortProjectKeys(projectKeys: ProjectKeyEntry[]): void {
-  projectKeys.sort((left, right) => {
-    const projectOrder = left.projectId.localeCompare(right.projectId);
-    return projectOrder !== 0
-      ? projectOrder
+function sortWorkspaceKeys(workspaceKeys: WorkspaceKeyEntry[]): void {
+  workspaceKeys.sort((left, right) => {
+    const workspaceOrder = left.workspaceId.localeCompare(right.workspaceId);
+    return workspaceOrder !== 0
+      ? workspaceOrder
       : left.keyEpoch - right.keyEpoch;
   });
 }
 
 function assertKeyEpoch(keyEpoch: number): void {
   if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
-    throw new TypeError("ProjectKey epoch must be a positive safe integer");
+    throw new TypeError("WorkspaceKey epoch must be a positive safe integer");
   }
 }
 

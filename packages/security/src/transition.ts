@@ -1,4 +1,4 @@
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 
 import type {
   DevicePublicIdentity,
@@ -7,22 +7,22 @@ import type {
 
 type TransitionBase = {
   protocolVersion: SecurityProtocolVersion;
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
 };
 
 type SignedTransitionBase = TransitionBase & {
   signature: Uint8Array;
 };
 
-export type UnsignedCreateProjectTransition = TransitionBase & {
-  type: "create-project";
+export type UnsignedCreateWorkspaceTransition = TransitionBase & {
+  type: "create-workspace";
   sequence: 0;
   previousHash: null;
   keyEpoch: 1;
   initialDevice: DevicePublicIdentity;
 };
 
-export type CreateProjectTransition = UnsignedCreateProjectTransition &
+export type CreateWorkspaceTransition = UnsignedCreateWorkspaceTransition &
   SignedTransitionBase;
 
 export type UnsignedAddDeviceTransition = TransitionBase & {
@@ -49,6 +49,6 @@ export type RevokeDeviceTransition = UnsignedRevokeDeviceTransition &
   SignedTransitionBase;
 
 export type SecurityTransition =
-  | CreateProjectTransition
+  | CreateWorkspaceTransition
   | AddDeviceTransition
   | RevokeDeviceTransition;
