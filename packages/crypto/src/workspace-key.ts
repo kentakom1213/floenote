@@ -1,8 +1,8 @@
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
   type DeviceId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import sodium from "libsodium-wrappers";
 
@@ -15,35 +15,35 @@ import { SHA256_BYTES } from "./security-crypto.js";
 export const PROJECT_KEY_BYTES = 32;
 export const PROJECT_KEY_ENVELOPE_VERSION = 1 as const;
 
-export type ProjectKeyEnvelopeContext = {
-  projectId: ProjectId;
+export type WorkspaceKeyEnvelopeContext = {
+  workspaceId: WorkspaceId;
   keyEpoch: number;
   recipientDeviceId: DeviceId;
   securityHead: Uint8Array;
 };
 
-type SerializedProjectKeyEnvelope = {
+type SerializedWorkspaceKeyEnvelope = {
   version: typeof PROJECT_KEY_ENVELOPE_VERSION;
-  projectId: string;
+  workspaceId: string;
   keyEpoch: number;
   recipientDeviceId: string;
   securityHead: string;
-  projectKey: string;
+  workspaceKey: string;
 };
 
-export async function generateProjectKey(): Promise<Uint8Array> {
+export async function generateWorkspaceKey(): Promise<Uint8Array> {
   await sodium.ready;
   return sodium.randombytes_buf(PROJECT_KEY_BYTES);
 }
 
-export async function sealProjectKeyForDevice(
-  context: ProjectKeyEnvelopeContext,
-  projectKey: Uint8Array,
+export async function sealWorkspaceKeyForDevice(
+  context: WorkspaceKeyEnvelopeContext,
+  workspaceKey: Uint8Array,
   recipientEncryptionPublicKey: Uint8Array,
 ): Promise<Uint8Array> {
   await sodium.ready;
   validateContext(context);
-  assertLength(projectKey, PROJECT_KEY_BYTES, "ProjectKey");
+  assertLength(workspaceKey, PROJECT_KEY_BYTES, "WorkspaceKey");
   assertLength(
     recipientEncryptionPublicKey,
     DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
@@ -53,12 +53,12 @@ export async function sealProjectKeyForDevice(
   const plaintext = new TextEncoder().encode(
     JSON.stringify({
       version: PROJECT_KEY_ENVELOPE_VERSION,
-      projectId: context.projectId,
+      workspaceId: context.workspaceId,
       keyEpoch: context.keyEpoch,
       recipientDeviceId: context.recipientDeviceId,
       securityHead: bytesToHex(context.securityHead),
-      projectKey: bytesToHex(projectKey),
-    } satisfies SerializedProjectKeyEnvelope),
+      workspaceKey: bytesToHex(workspaceKey),
+    } satisfies SerializedWorkspaceKeyEnvelope),
   );
 
   try {
@@ -71,9 +71,9 @@ export async function sealProjectKeyForDevice(
   }
 }
 
-export async function openSealedProjectKeyForDevice(
+export async function openSealedWorkspaceKeyForDevice(
   sealedEnvelope: Uint8Array,
-  expected: ProjectKeyEnvelopeContext,
+  expected: WorkspaceKeyEnvelopeContext,
   recipientEncryptionPublicKey: Uint8Array,
   recipientEncryptionPrivateKey: Uint8Array,
 ): Promise<Uint8Array> {
@@ -98,39 +98,39 @@ export async function openSealedProjectKeyForDevice(
       recipientEncryptionPrivateKey,
     );
   } catch {
-    throw new Error("Could not open ProjectKey envelope");
+    throw new Error("Could not open WorkspaceKey envelope");
   }
 
   try {
     const parsed = parseEnvelope(plaintext);
     if (
-      parsed.projectId !== expected.projectId ||
+      parsed.workspaceId !== expected.workspaceId ||
       parsed.keyEpoch !== expected.keyEpoch ||
       parsed.recipientDeviceId !== expected.recipientDeviceId ||
       !bytesEqual(parsed.securityHead, expected.securityHead)
     ) {
-      parsed.projectKey.fill(0);
-      throw new Error("ProjectKey envelope context does not match pairing");
+      parsed.workspaceKey.fill(0);
+      throw new Error("WorkspaceKey envelope context does not match pairing");
     }
 
-    return parsed.projectKey;
+    return parsed.workspaceKey;
   } finally {
     sodium.memzero(plaintext);
   }
 }
 
 function parseEnvelope(plaintext: Uint8Array): {
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
   keyEpoch: number;
   recipientDeviceId: DeviceId;
   securityHead: Uint8Array;
-  projectKey: Uint8Array;
+  workspaceKey: Uint8Array;
 } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(plaintext));
   } catch {
-    throw new Error("Invalid ProjectKey envelope");
+    throw new Error("Invalid WorkspaceKey envelope");
   }
 
   if (
@@ -138,8 +138,8 @@ function parseEnvelope(plaintext: Uint8Array): {
     parsed === null ||
     !("version" in parsed) ||
     parsed.version !== PROJECT_KEY_ENVELOPE_VERSION ||
-    !("projectId" in parsed) ||
-    typeof parsed.projectId !== "string" ||
+    !("workspaceId" in parsed) ||
+    typeof parsed.workspaceId !== "string" ||
     !("keyEpoch" in parsed) ||
     typeof parsed.keyEpoch !== "number" ||
     !Number.isSafeInteger(parsed.keyEpoch) ||
@@ -148,24 +148,24 @@ function parseEnvelope(plaintext: Uint8Array): {
     typeof parsed.recipientDeviceId !== "string" ||
     !("securityHead" in parsed) ||
     typeof parsed.securityHead !== "string" ||
-    !("projectKey" in parsed) ||
-    typeof parsed.projectKey !== "string"
+    !("workspaceKey" in parsed) ||
+    typeof parsed.workspaceKey !== "string"
   ) {
-    throw new Error("Invalid ProjectKey envelope");
+    throw new Error("Invalid WorkspaceKey envelope");
   }
 
   return {
-    projectId: parseProjectId(parsed.projectId),
+    workspaceId: parseWorkspaceId(parsed.workspaceId),
     keyEpoch: parsed.keyEpoch,
     recipientDeviceId: parseDeviceId(parsed.recipientDeviceId),
     securityHead: hexToBytes(parsed.securityHead, SHA256_BYTES, "security head"),
-    projectKey: hexToBytes(parsed.projectKey, PROJECT_KEY_BYTES, "ProjectKey"),
+    workspaceKey: hexToBytes(parsed.workspaceKey, PROJECT_KEY_BYTES, "WorkspaceKey"),
   };
 }
 
-function validateContext(context: ProjectKeyEnvelopeContext): void {
+function validateContext(context: WorkspaceKeyEnvelopeContext): void {
   if (!Number.isSafeInteger(context.keyEpoch) || context.keyEpoch < 1) {
-    throw new TypeError("ProjectKey epoch must be a positive safe integer");
+    throw new TypeError("WorkspaceKey epoch must be a positive safe integer");
   }
   assertLength(context.securityHead, SHA256_BYTES, "security head");
 }

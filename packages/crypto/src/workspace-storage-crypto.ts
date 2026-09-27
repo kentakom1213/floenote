@@ -1,11 +1,11 @@
-import type { DocumentId, ProjectId } from "@floe-note/domain";
+import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 import sodium from "libsodium-wrappers";
 
-import { PROJECT_KEY_BYTES } from "./project-key.js";
+import { PROJECT_KEY_BYTES } from "./workspace-key.js";
 
 export const PROJECT_STORAGE_ENVELOPE_VERSION = 1 as const;
 
-export type ProjectStorageRecordContext =
+export type WorkspaceStorageRecordContext =
   | {
       kind: "manifest";
     }
@@ -21,27 +21,27 @@ const KEY_EPOCH_BYTES = 8;
 const NONCE_OFFSET = KEY_EPOCH_OFFSET + KEY_EPOCH_BYTES;
 const NONCE_BYTES = 24;
 const HEADER_BYTES = NONCE_OFFSET + NONCE_BYTES;
-const AAD_CONTEXT = "floe-note/project-storage/v1";
+const AAD_CONTEXT = "floe-note/workspace-storage/v1";
 
-export async function encryptProjectStoragePayload(
-  projectId: ProjectId,
+export async function encryptWorkspaceStoragePayload(
+  workspaceId: WorkspaceId,
   keyEpoch: number,
-  context: ProjectStorageRecordContext,
-  projectKey: Uint8Array,
+  context: WorkspaceStorageRecordContext,
+  workspaceKey: Uint8Array,
   plaintext: Uint8Array,
 ): Promise<Uint8Array> {
   await sodium.ready;
-  assertProjectKey(projectKey);
+  assertWorkspaceKey(workspaceKey);
   assertKeyEpoch(keyEpoch);
 
   const nonce = sodium.randombytes_buf(NONCE_BYTES);
-  const aad = createAad(projectId, keyEpoch, context);
+  const aad = createAad(workspaceId, keyEpoch, context);
   const ciphertext = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
     plaintext,
     aad,
     null,
     nonce,
-    projectKey,
+    workspaceKey,
   );
 
   const envelope = new Uint8Array(HEADER_BYTES + ciphertext.byteLength);
@@ -58,7 +58,7 @@ export async function encryptProjectStoragePayload(
   return envelope;
 }
 
-export function readProjectStoragePayloadKeyEpoch(
+export function readWorkspaceStoragePayloadKeyEpoch(
   envelope: Uint8Array,
 ): number {
   assertEnvelopeHeader(envelope);
@@ -70,7 +70,7 @@ export function readProjectStoragePayloadKeyEpoch(
   ).getBigUint64(KEY_EPOCH_OFFSET, false);
 
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error("Project storage key epoch exceeds safe integer range");
+    throw new Error("Workspace storage key epoch exceeds safe integer range");
   }
 
   const keyEpoch = Number(value);
@@ -78,27 +78,27 @@ export function readProjectStoragePayloadKeyEpoch(
   return keyEpoch;
 }
 
-export async function decryptProjectStoragePayload(
-  projectId: ProjectId,
+export async function decryptWorkspaceStoragePayload(
+  workspaceId: WorkspaceId,
   expectedKeyEpoch: number,
-  context: ProjectStorageRecordContext,
-  projectKey: Uint8Array,
+  context: WorkspaceStorageRecordContext,
+  workspaceKey: Uint8Array,
   envelope: Uint8Array,
 ): Promise<Uint8Array> {
   await sodium.ready;
-  assertProjectKey(projectKey);
+  assertWorkspaceKey(workspaceKey);
   assertKeyEpoch(expectedKeyEpoch);
 
-  const keyEpoch = readProjectStoragePayloadKeyEpoch(envelope);
+  const keyEpoch = readWorkspaceStoragePayloadKeyEpoch(envelope);
   if (keyEpoch !== expectedKeyEpoch) {
     throw new Error(
-      `Encrypted Project storage uses key epoch ${keyEpoch}, expected ${expectedKeyEpoch}`,
+      `Encrypted Workspace storage uses key epoch ${keyEpoch}, expected ${expectedKeyEpoch}`,
     );
   }
 
   const nonce = envelope.slice(NONCE_OFFSET, HEADER_BYTES);
   const ciphertext = envelope.slice(HEADER_BYTES);
-  const aad = createAad(projectId, keyEpoch, context);
+  const aad = createAad(workspaceId, keyEpoch, context);
 
   try {
     return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
@@ -106,54 +106,54 @@ export async function decryptProjectStoragePayload(
       ciphertext,
       aad,
       nonce,
-      projectKey,
+      workspaceKey,
     );
   } catch {
-    throw new Error("Could not authenticate encrypted Project storage payload");
+    throw new Error("Could not authenticate encrypted Workspace storage payload");
   }
 }
 
 function assertEnvelopeHeader(envelope: Uint8Array): void {
   if (envelope.byteLength <= HEADER_BYTES) {
-    throw new Error("Encrypted Project storage payload is too short");
+    throw new Error("Encrypted Workspace storage payload is too short");
   }
 
   for (let index = 0; index < MAGIC.byteLength; index += 1) {
     if (envelope[index] !== MAGIC[index]) {
-      throw new Error("Invalid encrypted Project storage payload magic");
+      throw new Error("Invalid encrypted Workspace storage payload magic");
     }
   }
 
   if (envelope[VERSION_OFFSET] !== PROJECT_STORAGE_ENVELOPE_VERSION) {
     throw new Error(
-      `Unsupported Project storage envelope version: ${envelope[VERSION_OFFSET]}`,
+      `Unsupported Workspace storage envelope version: ${envelope[VERSION_OFFSET]}`,
     );
   }
 }
 
 function createAad(
-  projectId: ProjectId,
+  workspaceId: WorkspaceId,
   keyEpoch: number,
-  context: ProjectStorageRecordContext,
+  context: WorkspaceStorageRecordContext,
 ): Uint8Array {
   const recordId =
     context.kind === "document" ? context.documentId : "";
 
   return new TextEncoder().encode(
-    `${AAD_CONTEXT}\0${projectId}\0${keyEpoch}\0${context.kind}\0${recordId}`,
+    `${AAD_CONTEXT}\0${workspaceId}\0${keyEpoch}\0${context.kind}\0${recordId}`,
   );
 }
 
-function assertProjectKey(projectKey: Uint8Array): void {
-  if (projectKey.byteLength !== PROJECT_KEY_BYTES) {
+function assertWorkspaceKey(workspaceKey: Uint8Array): void {
+  if (workspaceKey.byteLength !== PROJECT_KEY_BYTES) {
     throw new TypeError(
-      `ProjectKey must be ${PROJECT_KEY_BYTES} bytes`,
+      `WorkspaceKey must be ${PROJECT_KEY_BYTES} bytes`,
     );
   }
 }
 
 function assertKeyEpoch(keyEpoch: number): void {
   if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
-    throw new TypeError("Project key epoch must be a positive safe integer");
+    throw new TypeError("Workspace key epoch must be a positive safe integer");
   }
 }
