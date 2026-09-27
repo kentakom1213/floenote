@@ -34,7 +34,7 @@ async function createScenario(): Promise<{
   const addedLater = await generateDeviceKeyMaterial();
   keyMaterials.push(signer, recipient, addedLater);
 
-  const projectId = createWorkspaceId();
+  const workspaceId = createWorkspaceId();
   const rotationHead = await sha256(
     new TextEncoder().encode("revoke-device-head"),
   );
@@ -45,7 +45,7 @@ async function createScenario(): Promise<{
   // The envelope was created by a RevokeDevice at sequence 3 / epoch 2.
   const unsignedEnvelope = {
     protocolVersion: 1 as const,
-    projectId,
+    workspaceId,
     keyEpoch: 2,
     securityHead: rotationHead,
     recipientDeviceId: recipient.publicIdentity.deviceId,
@@ -63,7 +63,7 @@ async function createScenario(): Promise<{
   // A later AddDevice advances the SecurityState head but keeps epoch 2.
   const state: SecurityState = {
     protocolVersion: 1,
-    projectId,
+    workspaceId,
     sequence: 4,
     headHash: currentHead,
     keyEpoch: 2,
@@ -101,7 +101,7 @@ describe("rotated ProjectKey recovery", () => {
     let stored:
       | {
           sealedEnvelope: Uint8Array;
-          projectId: string;
+          workspaceId: string;
           keyEpoch: number;
           securityHead: Uint8Array;
         }
@@ -110,11 +110,11 @@ describe("rotated ProjectKey recovery", () => {
     const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
       async storeSealedWorkspaceKey(
         sealedEnvelope,
-        projectId,
+        workspaceId,
         keyEpoch,
         securityHead,
       ) {
-        stored = { sealedEnvelope, projectId, keyEpoch, securityHead };
+        stored = { sealedEnvelope, workspaceId, keyEpoch, securityHead };
       },
     };
 
@@ -127,7 +127,7 @@ describe("rotated ProjectKey recovery", () => {
 
     expect(stored).toEqual({
       sealedEnvelope: envelope.sealedEnvelope,
-      projectId: envelope.projectId,
+      workspaceId: envelope.workspaceId,
       keyEpoch: envelope.keyEpoch,
       securityHead: envelope.securityHead,
     });
@@ -141,7 +141,7 @@ describe("rotated ProjectKey recovery", () => {
     };
 
     for (const mismatchedEnvelope of [
-      { ...envelope, projectId: createWorkspaceId() },
+      { ...envelope, workspaceId: createWorkspaceId() },
       { ...envelope, keyEpoch: envelope.keyEpoch + 1 },
       { ...envelope, recipientDeviceId: otherDeviceId },
     ]) {

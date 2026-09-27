@@ -101,7 +101,7 @@ describe("SecurityState coordinator reconciliation", () => {
       reconcileVerifiedSecurityState(coordinator, storedState),
     ).resolves.toEqual(coordinatorState);
     expect(coordinator.getSecurityTransitions).toHaveBeenCalledWith(
-      storedState.projectId,
+      storedState.workspaceId,
       storedState.sequence,
     );
   });
