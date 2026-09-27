@@ -4,6 +4,6 @@ export type {
   OpenProjectResult,
   ProjectStorage,
   ProjectStorageCrypto,
-  ProjectStorageRecordContext,
+  WorkspaceStorageRecordContext,
   StoredProjectSummary,
 } from "./project-storage.js";

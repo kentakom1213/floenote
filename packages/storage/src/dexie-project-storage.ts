@@ -164,7 +164,7 @@ export class DexieProjectStorage implements ProjectStorage {
     state: SecurityState,
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult> {
-    if (state.projectId !== project.id) {
+    if (state.workspaceId !== project.id) {
       throw new Error("Committed SecurityState does not match Project");
     }
 
