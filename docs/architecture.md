@@ -592,7 +592,7 @@ Device display names such as "Laptop" or "Phone" are not security-critical ident
 Each Workspace has a symmetric WorkspaceKey.
 
 ```text
-Project
+Workspace
 ├── keyEpoch = n
 └── WorkspaceKey Kn
 ```
@@ -711,15 +711,17 @@ XChaCha20-Poly1305. The payload contains the long-lived DeviceId, the device
 encryption/signing key pairs, and WorkspaceKey entries keyed by WorkspaceId and key
 epoch.
 
-Vault payload version 2 adds the WorkspaceKey key ring. Version-1 payloads remain
-readable and are interpreted as having an empty key ring; the next Vault
-mutation rewrites the encrypted payload in version-2 form. The unlocked runtime
-retains the VaultKey in memory so WorkspaceKeys can be added without prompting
-WebAuthn for every Vault write. The VaultKey and all in-memory private/project
-keys are cleared when the session closes.
+The Workspace-era Vault uses a distinct record identity and payload version.
+Pre-Workspace Vault records are development state and are intentionally not
+opened, partially migrated, or reused. Initializing the Workspace-era Vault
+therefore creates a fresh DeviceId, fresh device key pairs, and an empty
+WorkspaceKey ring. The unlocked runtime retains the VaultKey in memory so
+WorkspaceKeys can be added without prompting WebAuthn for every Vault write.
+The VaultKey and all in-memory private and Workspace keys are cleared when the
+session closes.
 
 Creating a local Device Vault establishes a device identity, but does not by
-itself authorize that device for any Project. Project authorization begins with
+itself authorize that device for any Workspace. Workspace authorization begins with
 the signed SecurityState transitions.
 
 The WebAuthn credential is a vault-unlock mechanism, not the Floe Note device
@@ -744,23 +746,23 @@ action, which avoids silently creating duplicate passkeys.
 
 Passkey availability and Floe Note device authorization are independent concerns.
 
-A WebAuthn credential proves that the user can unlock or create a local vault boundary. It does not prove that the current local device identity is authorized for a Project. Conversely, a device may remain present in SecurityState while the WebAuthn credential needed to unlock its local vault is temporarily unavailable.
+A WebAuthn credential proves that the user can unlock or create a local vault boundary. It does not prove that the current local device identity is authorized for a Workspace. Conversely, a device may remain present in SecurityState while the WebAuthn credential needed to unlock its local vault is temporarily unavailable.
 
 Conceptually, the browser onboarding flow must account for the cross product of these two axes:
 
-| Passkey available | Local device / Project authorization | Meaning |
+| Passkey available | Local device / Workspace authorization | Meaning |
 | --- | --- | --- |
 | no | absent / unauthorized | New or unsupported environment. A persistent vault cannot be opened until a usable WebAuthn credential is available. |
 | yes | absent / unauthorized | Normal new-device onboarding state. A synchronized Floe Note passkey may be reused to create or unlock an independent local vault, but the new DeviceId is still unauthorized until the signed AddDevice flow succeeds. |
-| no | present / authorized | The Project may still list the device as authorized, but the local vault cannot be unlocked in this environment. Authorization alone does not recover local secrets. |
+| no | present / authorized | The Workspace may still list the device as authorized, but the local vault cannot be unlocked in this environment. Authorization alone does not recover local secrets. |
 | yes | present / authorized | Normal returning-device state. The passkey unlocks the local vault, after which the device identity is checked against SecurityState. |
 
 The table is a UX model, not a replacement for the underlying security checks. In particular:
 
 - synchronized passkey availability must not be treated as device registration;
-- creating or unlocking a Device Vault must not implicitly authorize the device for a Project;
+- creating or unlocking a Device Vault must not implicitly authorize the device for a Workspace;
 - a successful vault unlock must still be followed by the normal SecurityState authorization check;
-- a revoked device may still be able to unlock its local vault, but must be rejected as unauthorized for the Project;
+- a revoked device may still be able to unlock its local vault, but must be rejected as unauthorized for the Workspace;
 - one synchronized passkey may unlock multiple independent local vaults, each with a distinct DeviceId and device key pairs.
 
 When no local vault exists, the browser onboarding UX prefers reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or WorkspaceKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
@@ -768,15 +770,15 @@ When no local vault exists, the browser onboarding UX prefers reusing an existin
 v1 does not provide a recovery credential or recovery secret. If a local vault
 still exists but its passkey has been deleted or is permanently unavailable,
 that vault is unrecoverable. The UI therefore offers an explicit local reset
-path that deletes the Device Vault and local Project data so the browser can be
+path that deletes the Device Vault and local Workspace data so the browser can be
 set up again. Resetting local storage does not revoke the old DeviceId from
-SecurityState; another authorized device is required to rejoin Projects and may
+SecurityState; another authorized device is required to rejoin Workspaces and may
 later revoke the stale device entry. If no other usable device or backup exists,
-the reset can permanently lose the only accessible copy of local Project data.
+the reset can permanently lose the only accessible copy of local Workspace data.
 
 ### 14.3 Ephemeral sessions
 
-A future temporary-session mode may allow a Project to be opened without creating a persistent Device Vault on that browser profile.
+A future temporary-session mode may allow a Workspace to be opened without creating a persistent Device Vault on that browser profile.
 
 The intended property is that sensitive session material, including any temporary device key material and WorkspaceKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or project storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
 
