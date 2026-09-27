@@ -396,6 +396,7 @@ input:focus-visible {
 }
 
 .project-switcher-name {
+  display: block;
   overflow: hidden;
   font-size: 15px;
   font-weight: 650;
