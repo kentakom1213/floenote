@@ -45,7 +45,7 @@ export async function createSecuredProject(
   if (projectName !== "Personal") {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("navigation", { name: "Settings sections" })
-      .getByRole("button", { name: "Personal" }).click();
+      .getByRole("button", { name: "Workspace" }).click();
     await page.getByLabel("Workspace name").fill(projectName);
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByRole("navigation", { name: "Notes" })

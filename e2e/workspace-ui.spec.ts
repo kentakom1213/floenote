@@ -36,7 +36,8 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
 test("keeps device shortcuts and detailed management in Settings", async ({
   page,
 }) => {
-  const { projectId } = await createSecuredProject(page);
+  const { projectId, documentId } = await createSecuredProject(page);
+  const notePath = `/w/${projectId}/n/${documentId}`;
 
   await page.locator(".sync-status-summary").click();
   await expect(page.locator(".sync-status-heading")).toContainText("Devices");
@@ -44,8 +45,12 @@ test("keeps device shortcuts and detailed management in Settings", async ({
   await expect(page.getByRole("button", { name: "Add device" })).toBeEnabled();
   await page.getByRole("button", { name: "Add device" }).click();
   await expect(page.getByRole("heading", { name: "Add a device" })).toBeVisible();
+  await expect(page).toHaveURL(notePath);
   await page.getByRole("button", { name: "Cancel invitation" }).click();
-  await expect(page.getByRole("heading", { name: "Devices" })).toBeVisible();
+  await expect(page).toHaveURL(notePath);
+  await expect(page.getByLabel("Note title")).toHaveValue(
+    "Welcome to Floe Note",
+  );
 
   await page.locator(".sync-status-summary").click();
   await page.getByRole("button", { name: /Manage devices/ }).click();
@@ -55,13 +60,33 @@ test("keeps device shortcuts and detailed management in Settings", async ({
   await expect(page.getByRole("button", { name: "Add device" })).toBeVisible();
   await expect(page.getByLabel("Workspace name")).toHaveValue("Personal");
   await expect(page.locator(".settings-view")).not.toContainText("Project");
+  await page.getByRole("button", { name: "Add device" }).click();
+  await expect(page.getByRole("heading", { name: "Add a device" })).toBeVisible();
+  await expect(page).toHaveURL(`/w/${projectId}/settings`);
+  await page.getByRole("button", { name: "Cancel invitation" }).click();
+  await expect(page).toHaveURL(`/w/${projectId}/settings`);
+  await expect(page.getByLabel("Workspace name")).toHaveValue("Personal");
 
-  await page.getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "General" }).click();
+  const settingsSections = page.getByRole("navigation", {
+    name: "Settings sections",
+  });
+  await expect(
+    settingsSections.getByRole("button", { name: "General" }),
+  ).toBeVisible();
+  await expect(
+    settingsSections.getByRole("button", { name: "Workspace" }),
+  ).toBeVisible();
+  await expect(
+    settingsSections.getByRole("button", { name: "Personal" }),
+  ).toHaveCount(0);
+  await settingsSections.getByRole("button", { name: "General" }).click();
   await expect(page).toHaveURL("/settings");
   await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "This device" })).toBeVisible();
   await expect(page.locator(".settings-view")).not.toContainText("Project");
+  await expect(
+    settingsSections.getByRole("button", { name: "Workspace" }),
+  ).toBeVisible();
 });
 
 test("removes only the selected Workspace from this device", async ({
@@ -81,7 +106,7 @@ test("removes only the selected Workspace from this device", async ({
     .locator("dd").first().textContent();
   expect(deviceIdBefore).toBeTruthy();
   await page.getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "Temporary" }).click();
+    .getByRole("button", { name: "Workspace" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByRole("heading", {
     name: "Remove Temporary from this device?",

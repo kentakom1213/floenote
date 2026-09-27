@@ -10,7 +10,7 @@ test("keeps visible views and browser history aligned", async ({ page }) => {
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("navigation", { name: "Settings sections" })
-    .getByRole("button", { name: "Navigation Project" }).click();
+    .getByRole("button", { name: "Workspace" }).click();
 
   await expect(page).toHaveURL(`/w/${projectId}/settings`);
   await expect(

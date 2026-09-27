@@ -1488,7 +1488,6 @@ function NoteApp({
     setInvitationHostActive(false);
     setWebRtcTransport(null);
     setSignalingState("idle");
-    setMainView("project-settings");
   }
 
   async function authorizeJoiningDevice(): Promise<void> {
@@ -2040,7 +2039,7 @@ function NoteApp({
           pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
         }}
       >
-        {activeProject.name}
+        Workspace
       </button>
     </nav>
   );
@@ -2201,8 +2200,6 @@ function NoteApp({
             localSecurityState !== null && projectCoordinationState === "ready"
           }
           onAddDevice={() => {
-            setMainView("project-settings");
-            pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
             setInvitationHostActive(true);
           }}
           onManageDevices={openProjectDeviceSettings}
