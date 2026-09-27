@@ -5,11 +5,11 @@ import {
   signEd25519,
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
-import { createProjectId } from "@floe-note/domain";
+import { createWorkspaceId } from "@floe-note/domain";
 import {
-  attachProjectKeyRotationEnvelopeSignature,
-  encodeUnsignedProjectKeyRotationEnvelope,
-  type ProjectKeyRotationEnvelope,
+  attachWorkspaceKeyRotationEnvelopeSignature,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
+  type WorkspaceKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
 import type { DeviceVaultSession } from "@floe-note/vault";
@@ -25,7 +25,7 @@ afterEach(async () => {
 
 async function createScenario(): Promise<{
   state: SecurityState;
-  envelope: ProjectKeyRotationEnvelope;
+  envelope: WorkspaceKeyRotationEnvelope;
   localDeviceId: SecurityState["devices"][number]["deviceId"];
   otherDeviceId: SecurityState["devices"][number]["deviceId"];
 }> {
@@ -34,7 +34,7 @@ async function createScenario(): Promise<{
   const addedLater = await generateDeviceKeyMaterial();
   keyMaterials.push(signer, recipient, addedLater);
 
-  const projectId = createProjectId();
+  const projectId = createWorkspaceId();
   const rotationHead = await sha256(
     new TextEncoder().encode("revoke-device-head"),
   );
@@ -52,10 +52,10 @@ async function createScenario(): Promise<{
     sealedEnvelope: new Uint8Array([0x01, 0x02, 0x03]),
     signerDeviceId: signer.publicIdentity.deviceId,
   };
-  const envelope = attachProjectKeyRotationEnvelopeSignature(
+  const envelope = attachWorkspaceKeyRotationEnvelopeSignature(
     unsignedEnvelope,
     await signEd25519(
-      encodeUnsignedProjectKeyRotationEnvelope(unsignedEnvelope),
+      encodeUnsignedWorkspaceKeyRotationEnvelope(unsignedEnvelope),
       signer.signingPrivateKey,
     ),
   );
@@ -107,8 +107,8 @@ describe("rotated ProjectKey recovery", () => {
         }
       | undefined;
 
-    const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
-      async storeSealedProjectKey(
+    const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
+      async storeSealedWorkspaceKey(
         sealedEnvelope,
         projectId,
         keyEpoch,
@@ -136,12 +136,12 @@ describe("rotated ProjectKey recovery", () => {
   it("still rejects mismatched Project, epoch, and recipient contexts", async () => {
     const { state, envelope, localDeviceId, otherDeviceId } =
       await createScenario();
-    const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
-      async storeSealedProjectKey() {},
+    const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
+      async storeSealedWorkspaceKey() {},
     };
 
     for (const mismatchedEnvelope of [
-      { ...envelope, projectId: createProjectId() },
+      { ...envelope, projectId: createWorkspaceId() },
       { ...envelope, keyEpoch: envelope.keyEpoch + 1 },
       { ...envelope, recipientDeviceId: otherDeviceId },
     ]) {
@@ -160,8 +160,8 @@ describe("rotated ProjectKey recovery", () => {
 
   it("still authenticates the rotation-time security head", async () => {
     const { state, envelope, localDeviceId } = await createScenario();
-    const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
-      async storeSealedProjectKey() {},
+    const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
+      async storeSealedWorkspaceKey() {},
     };
     const securityHead = envelope.securityHead.slice();
     securityHead[0] = (securityHead[0] ?? 0) ^ 0xff;
@@ -178,8 +178,8 @@ describe("rotated ProjectKey recovery", () => {
 
   it("rejects an invalid envelope signature", async () => {
     const { state, envelope, localDeviceId } = await createScenario();
-    const session: Pick<DeviceVaultSession, "storeSealedProjectKey"> = {
-      async storeSealedProjectKey() {},
+    const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
+      async storeSealedWorkspaceKey() {},
     };
     const signature = envelope.signature.slice();
     signature[0] = (signature[0] ?? 0) ^ 0xff;
