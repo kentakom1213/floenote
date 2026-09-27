@@ -1,5 +1,5 @@
 import { SHA256_BYTES } from "@floe-note/crypto";
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import {
   parseSecurityStateWirePayload,
   securityStateToWire,
@@ -54,7 +54,7 @@ export type SendProjectKeyDeliveryOptions = {
 
 export type ReceiveProjectKeyDeliveryOptions = {
   transport: Transport;
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   recipientIdentity: DevicePublicIdentity;
   onDelivery: (delivery: ProjectKeyDelivery) => Promise<void>;
   signal?: AbortSignal;

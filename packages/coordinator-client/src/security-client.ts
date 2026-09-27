@@ -1,8 +1,8 @@
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
   type DeviceId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import {
   addDeviceTransitionToWire,
@@ -11,8 +11,8 @@ import {
   parseSecurityTransitionWirePayload,
   revokeDeviceTransitionToWire,
   type AddDeviceTransition,
-  type CreateProjectTransition,
-  type ProjectKeyRotationEnvelope,
+  type CreateWorkspaceTransition,
+  type WorkspaceKeyRotationEnvelope,
   type RevokeDeviceTransition,
   type SecurityState,
   type SecurityTransition,
@@ -26,7 +26,7 @@ export class SecurityCoordinatorClient {
   }
 
   async getSecurityState(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<SecurityState> {
     const response = await fetch(
       new URL(
@@ -41,7 +41,7 @@ export class SecurityCoordinatorClient {
   }
 
   async getSecurityTransitions(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     afterSequence: number,
   ): Promise<readonly SecurityTransition[]> {
     if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) {
@@ -91,7 +91,7 @@ export class SecurityCoordinatorClient {
   }
 
   async commitAddDevice(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     transition: AddDeviceTransition,
   ): Promise<SecurityState> {
     return this.#commitTransition(
@@ -101,9 +101,9 @@ export class SecurityCoordinatorClient {
   }
 
   async commitRevokeDevice(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     transition: RevokeDeviceTransition,
-    keyEnvelopes: readonly ProjectKeyRotationEnvelope[],
+    keyEnvelopes: readonly WorkspaceKeyRotationEnvelope[],
   ): Promise<SecurityState> {
     return this.#commitTransition(projectId, {
       ...revokeDeviceTransitionToWire(transition),
@@ -121,10 +121,10 @@ export class SecurityCoordinatorClient {
   }
 
   async getProjectKeyEnvelope(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     keyEpoch: number,
     recipientDeviceId: DeviceId,
-  ): Promise<ProjectKeyRotationEnvelope> {
+  ): Promise<WorkspaceKeyRotationEnvelope> {
     if (!Number.isSafeInteger(keyEpoch) || keyEpoch < 1) {
       throw new TypeError("keyEpoch must be a positive safe integer");
     }
@@ -162,14 +162,14 @@ export class SecurityCoordinatorClient {
       throw new TypeError("Invalid ProjectKey envelope response");
     }
 
-    const parsedProjectId = parseProjectId(payload.projectId);
-    if (parsedProjectId !== projectId) {
-      throw new TypeError("ProjectKey envelope ProjectId does not match request");
+    const parsedWorkspaceId = parseWorkspaceId(payload.projectId);
+    if (parsedWorkspaceId !== projectId) {
+      throw new TypeError("ProjectKey envelope WorkspaceId does not match request");
     }
 
     return {
       protocolVersion: 1,
-      projectId: parsedProjectId,
+      projectId: parsedWorkspaceId,
       keyEpoch,
       securityHead: hexToBytes(payload.securityHead),
       recipientDeviceId: parseDeviceId(payload.recipientDeviceId),
@@ -179,9 +179,9 @@ export class SecurityCoordinatorClient {
     };
   }
 
-  async commitCreateProject(
-    projectId: ProjectId,
-    transition: CreateProjectTransition,
+  async commitCreateWorkspace(
+    projectId: WorkspaceId,
+    transition: CreateWorkspaceTransition,
   ): Promise<SecurityState> {
     return this.#commitTransition(
       projectId,
@@ -190,7 +190,7 @@ export class SecurityCoordinatorClient {
   }
 
   async #commitTransition(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     payload: unknown,
   ): Promise<SecurityState> {
     const response = await fetch(

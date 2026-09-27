@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 
-import { createDeviceId, createProjectId } from "@floe-note/domain";
+import { createDeviceId, createWorkspaceId } from "@floe-note/domain";
 import {
   attachAddDeviceSignature,
-  attachCreateProjectSignature,
+  attachCreateWorkspaceSignature,
   attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
-  createUnsignedCreateProjectTransition,
+  createUnsignedCreateWorkspaceTransition,
   createUnsignedRevokeDeviceTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
@@ -39,11 +39,11 @@ function bytesToHex(value: Uint8Array): string {
 
 describe("invitation creation authorization", () => {
   it("allocates an invitation for a currently authorized device at the current head", async () => {
-    const projectId = createProjectId();
+    const projectId = createWorkspaceId();
     const deviceA = device(1);
     const state = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(projectId, deviceA),
         signature(1),
       ),
       head(1),
@@ -66,12 +66,12 @@ describe("invitation creation authorization", () => {
   });
 
   it("does not allocate from a presence socket with a stale security head", async () => {
-    const projectId = createProjectId();
+    const projectId = createWorkspaceId();
     const deviceA = device(10);
     const deviceB = device(20);
     const initial = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(projectId, deviceA),
         signature(2),
       ),
       head(2),
@@ -105,12 +105,12 @@ describe("invitation creation authorization", () => {
   });
 
   it("does not allocate an invitation for a revoked device", async () => {
-    const projectId = createProjectId();
+    const projectId = createWorkspaceId();
     const deviceA = device(30);
     const deviceB = device(40);
     const initial = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(projectId, deviceA),
         signature(4),
       ),
       head(4),
@@ -166,7 +166,7 @@ describe("invitation creation authorization", () => {
     );
 
     expect(coordinatorSource).not.toContain("parseCreateInviteRoute");
-    expect(coordinatorSource).not.toContain("createInviteProjectId");
+    expect(coordinatorSource).not.toContain("createInviteWorkspaceId");
     expect(publicWorker).not.toContain("createInvitation(");
   });
 });

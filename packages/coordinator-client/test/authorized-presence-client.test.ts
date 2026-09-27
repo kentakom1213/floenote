@@ -1,6 +1,6 @@
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
 } from "@floe-note/domain";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
@@ -76,7 +76,7 @@ class FakeWebSocket {
   }
 }
 
-const PROJECT_ID = parseProjectId(
+const PROJECT_ID = parseWorkspaceId(
   "00000000-0000-7000-8000-000000000010",
 );
 const DEVICE_ID = parseDeviceId(

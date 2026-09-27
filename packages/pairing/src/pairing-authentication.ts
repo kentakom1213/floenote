@@ -3,7 +3,7 @@ import type {
   PairingSecret,
   SessionId,
 } from "@floe-note/coordinator-client";
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import type { Transport } from "@floe-note/transport";
 
 export const PAIRING_PROTOCOL_VERSION = 1 as const;
@@ -13,7 +13,7 @@ export type PairingRole = "host" | "join";
 export type PairingAuthenticationOptions = {
   role: PairingRole;
   inviteId: InviteId;
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   sessionId: SessionId;
   pairingSecret: PairingSecret;
   transport: Transport;
@@ -218,7 +218,7 @@ export async function authenticatePairingChannel(
 
 function transcript(input: {
   inviteId: InviteId;
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   sessionId: SessionId;
   hostNonce: string;
   joinNonce: string;

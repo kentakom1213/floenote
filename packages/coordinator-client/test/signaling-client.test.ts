@@ -1,4 +1,4 @@
-import { parseProjectId } from "@floe-note/domain";
+import { parseWorkspaceId } from "@floe-note/domain";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CoordinatorSignalingClient } from "../src/signaling-client.js";
@@ -63,7 +63,7 @@ class FakeWebSocket {
   }
 }
 
-const PROJECT_ID = parseProjectId(
+const PROJECT_ID = parseWorkspaceId(
   "00000000-0000-7000-8000-000000000010",
 );
 const SESSION_ID = parseSessionId(

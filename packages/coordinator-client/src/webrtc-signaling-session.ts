@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 
 import {
@@ -14,7 +14,7 @@ export type WebRtcSignalingRole = "host" | "join";
 export type WebRtcSignalingSessionOptions = {
   role: WebRtcSignalingRole;
   coordinatorBaseUrl: string;
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   sessionId: SessionId;
   transport: WebRtcTransport;
   debugLogger?: SignalingDebugLogger;

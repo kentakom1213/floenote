@@ -1,9 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
   type DeviceId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
@@ -13,14 +13,14 @@ import {
   deriveRevokeDeviceSecurityState,
   encodeAuthorizedPresenceProof,
   encodeAddDeviceTransition,
-  encodeCreateProjectTransition,
+  encodeCreateWorkspaceTransition,
   encodeUnsignedAddDeviceTransition,
-  encodeUnsignedCreateProjectTransition,
-  encodeUnsignedProjectKeyRotationEnvelope,
+  encodeUnsignedCreateWorkspaceTransition,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
   encodeRevokeDeviceTransition,
   encodeUnsignedRevokeDeviceTransition,
   parseAddDeviceWirePayload,
-  parseCreateProjectWirePayload,
+  parseCreateWorkspaceWirePayload,
   parseRevokeDeviceWirePayload,
   parseSecurityStateWirePayload,
   securityStateToWire,
@@ -57,11 +57,11 @@ type SocketAttachment =
   | PresenceSocketAttachment;
 
 type SecurityTransitionRoute = {
-  projectId: ProjectId;
+  projectId: WorkspaceId;
 };
 
 type ProjectKeyEnvelopeRoute = {
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   keyEpoch: number;
   deviceId: DeviceId;
 };
@@ -272,7 +272,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #openPresenceSocket(projectId: ProjectId): Promise<Response> {
+  async #openPresenceSocket(projectId: WorkspaceId): Promise<Response> {
     const state = await this.#loadSecurityState(projectId);
     if (state instanceof Response) return state;
 
@@ -302,7 +302,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #getSecurityState(projectId: ProjectId): Promise<Response> {
+  async #getSecurityState(projectId: WorkspaceId): Promise<Response> {
     const storedWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
     if (!storedWire) {
@@ -323,7 +323,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #getSecurityTransitions(
     request: Request,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<Response> {
     const url = new URL(request.url);
     const rawAfter = url.searchParams.get("after");
@@ -378,7 +378,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitSecurityTransition(
     request: Request,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<Response> {
     let payload: unknown;
     try {
@@ -400,36 +400,36 @@ export class ProjectCoordinator extends DurableObject<Env> {
       }
     }
 
-    return this.#commitCreateProject(payload, projectId);
+    return this.#commitCreateWorkspace(payload, projectId);
   }
 
-  async #commitCreateProject(
+  async #commitCreateWorkspace(
     payload: unknown,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     try {
-      transition = parseCreateProjectWirePayload(payload, projectId);
+      transition = parseCreateWorkspaceWirePayload(payload, projectId);
     } catch (error: unknown) {
       return new Response(
-        error instanceof Error ? error.message : "Invalid CreateProject payload",
+        error instanceof Error ? error.message : "Invalid CreateWorkspace payload",
         { status: 400 },
       );
     }
 
-    const signingBytes = encodeUnsignedCreateProjectTransition(transition);
+    const signingBytes = encodeUnsignedCreateWorkspaceTransition(transition);
     const verified = await verifyEd25519(
       signingBytes,
       transition.signature,
       transition.initialDevice.signingPublicKey,
     );
     if (!verified) {
-      return new Response("CreateProject signature verification failed", {
+      return new Response("CreateWorkspace signature verification failed", {
         status: 403,
       });
     }
 
-    const headHash = await sha256(encodeCreateProjectTransition(transition));
+    const headHash = await sha256(encodeCreateWorkspaceTransition(transition));
     const candidateState = deriveInitialSecurityState(transition, headHash);
     const candidateWire = securityStateToWire(candidateState);
 
@@ -487,7 +487,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitAddDevice(
     payload: unknown,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     try {
@@ -604,7 +604,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitRevokeDevice(
     payload: unknown,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     let keyEnvelopes: RevokeKeyEnvelopeWirePayload[];
@@ -711,7 +711,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
         );
       }
 
-      const envelopeSigningBytes = encodeUnsignedProjectKeyRotationEnvelope({
+      const envelopeSigningBytes = encodeUnsignedWorkspaceKeyRotationEnvelope({
         protocolVersion: SECURITY_PROTOCOL_VERSION,
         projectId: candidateState.projectId,
         keyEpoch: candidateState.keyEpoch,
@@ -954,9 +954,9 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    let projectId: ProjectId;
+    let projectId: WorkspaceId;
     try {
-      projectId = parseProjectId(attachment.projectId);
+      projectId = parseWorkspaceId(attachment.projectId);
     } catch {
       socket.close(1011, "Invalid Project coordinator identity");
       return;
@@ -1057,11 +1057,11 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    let projectId: ProjectId;
+    let projectId: WorkspaceId;
     let senderDeviceId: DeviceId;
     let peerDeviceId: DeviceId;
     try {
-      projectId = parseProjectId(attachment.projectId);
+      projectId = parseWorkspaceId(attachment.projectId);
       senderDeviceId = parseDeviceId(attachment.deviceId);
       peerDeviceId = parseDeviceId(payload.peerDeviceId);
     } catch {
@@ -1129,10 +1129,10 @@ export class ProjectCoordinator extends DurableObject<Env> {
     attachment: PresenceSocketAttachment & { deviceId: string },
     requestId: number,
   ): Promise<void> {
-    let projectId: ProjectId;
+    let projectId: WorkspaceId;
     let deviceId: DeviceId;
     try {
-      projectId = parseProjectId(attachment.projectId);
+      projectId = parseWorkspaceId(attachment.projectId);
       deviceId = parseDeviceId(attachment.deviceId);
     } catch {
       socket.close(1008, "Invalid authorized-presence invitation identity");
@@ -1152,8 +1152,8 @@ export class ProjectCoordinator extends DurableObject<Env> {
         deviceId,
         securityHead: attachment.securityHead,
       },
-      (authorizedProjectId) =>
-        createInvitation(this.env, authorizedProjectId),
+      (authorizedWorkspaceId) =>
+        createInvitation(this.env, authorizedWorkspaceId),
     );
     if (allocation.kind === "stale-security-head") {
       socket.close(1008, "SecurityState changed during authorized presence");
@@ -1228,7 +1228,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
   }
 
   async #loadSecurityState(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<SecurityState | Response> {
     const storedWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
@@ -1498,11 +1498,11 @@ function parseSecurityStateRoute(
   const match = /^\/projects\/([^/]+)\/security$/.exec(pathname);
   if (!match) return null;
 
-  const rawProjectId = match[1];
-  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+  const rawWorkspaceId = match[1];
+  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseProjectId(rawProjectId.toLowerCase()),
+    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
@@ -1512,11 +1512,11 @@ function parseSecurityTransitionRoute(
   const match = /^\/projects\/([^/]+)\/security\/transitions$/.exec(pathname);
   if (!match) return null;
 
-  const rawProjectId = match[1];
-  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+  const rawWorkspaceId = match[1];
+  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseProjectId(rawProjectId.toLowerCase()),
+    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
@@ -1527,10 +1527,10 @@ function parseProjectKeyEnvelopeRoute(
     /^\/projects\/([^/]+)\/project-keys\/(\d+)\/([^/]+)$/.exec(pathname);
   if (!match) return null;
 
-  const [, rawProjectId, rawKeyEpoch, rawDeviceId] = match;
+  const [, rawWorkspaceId, rawKeyEpoch, rawDeviceId] = match;
   if (
-    !rawProjectId ||
-    !PROJECT_ID_PATTERN.test(rawProjectId) ||
+    !rawWorkspaceId ||
+    !PROJECT_ID_PATTERN.test(rawWorkspaceId) ||
     !rawKeyEpoch ||
     !/^\d+$/.test(rawKeyEpoch) ||
     !rawDeviceId
@@ -1543,7 +1543,7 @@ function parseProjectKeyEnvelopeRoute(
 
   try {
     return {
-      projectId: parseProjectId(rawProjectId.toLowerCase()),
+      projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
       keyEpoch,
       deviceId: parseDeviceId(rawDeviceId),
     };
@@ -1554,15 +1554,15 @@ function parseProjectKeyEnvelopeRoute(
 
 function parsePresenceRoute(
   pathname: string,
-): { projectId: ProjectId } | null {
+): { projectId: WorkspaceId } | null {
   const match = /^\/projects\/([^/]+)\/presence$/.exec(pathname);
   if (!match) return null;
 
-  const rawProjectId = match[1];
-  if (!rawProjectId || !PROJECT_ID_PATTERN.test(rawProjectId)) return null;
+  const rawWorkspaceId = match[1];
+  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseProjectId(rawProjectId.toLowerCase()),
+    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
@@ -1639,7 +1639,7 @@ function parseRevokeKeyEnvelopes(
     }
     seen.add(recipientDeviceId);
 
-    parseProjectId(value.projectId);
+    parseWorkspaceId(value.projectId);
     parseDeviceId(value.signerDeviceId);
     hexToBytes(value.securityHead, 32, "ProjectKey rotation security head");
     hexToBytes(

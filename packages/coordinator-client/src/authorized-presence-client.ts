@@ -1,7 +1,7 @@
 import {
   parseDeviceId,
   type DeviceId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 
 import { parseInviteId, type CreatedInvitation } from "./invitation.js";
@@ -26,7 +26,7 @@ export type ReconnectTransportMode = "direct" | "relay";
 
 export type AuthorizedPresenceClientOptions = {
   coordinatorBaseUrl: string;
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   deviceId: DeviceId;
   securityHead: Uint8Array;
   sign: (message: Uint8Array) => Promise<Uint8Array>;
@@ -43,7 +43,7 @@ export const AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS = [
 
 export class AuthorizedPresenceClient {
   readonly #url: URL;
-  readonly #projectId: ProjectId;
+  readonly #projectId: WorkspaceId;
   readonly #deviceId: DeviceId;
   readonly #securityHead: Uint8Array;
   readonly #sign: (message: Uint8Array) => Promise<Uint8Array>;
@@ -557,7 +557,7 @@ function isRetryablePresenceCloseCode(code: number): boolean {
 
 function createPresenceWebSocketUrl(
   coordinatorBaseUrl: string,
-  projectId: ProjectId,
+  projectId: WorkspaceId,
 ): URL {
   const url = new URL(coordinatorBaseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
