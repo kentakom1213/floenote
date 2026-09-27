@@ -326,7 +326,7 @@ export class AutomaticPeerSyncManager {
     const signaling = new WebRtcSignalingSession({
       role,
       coordinatorBaseUrl: this.#coordinatorBaseUrl,
-      projectId: this.#project.id,
+      workspaceId: this.#project.id,
       sessionId,
       transport,
       debugLogger: createConsoleDebugLogger(`auto-${role}-signal`),

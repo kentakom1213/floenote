@@ -9,15 +9,15 @@ import {
 } from "@floe-note/security";
 import type { Transport } from "@floe-note/transport";
 
-const MESSAGE_PREFIX = "floe-note:project-key-delivery:v1:";
+const MESSAGE_PREFIX = "floe-note:workspace-key-delivery:v1:";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_MESSAGE_BYTES = 64 * 1024;
 const MAX_SEALED_ENVELOPE_BYTES = 4 * 1024;
 
-type ProjectKeyDeliveryMessage = {
+type WorkspaceKeyDeliveryMessage = {
   protocolVersion: 1;
-  type: "project-key-delivery";
-  projectId: string;
+  type: "workspace-key-delivery";
+  workspaceId: string;
   keyEpoch: number;
   recipientDeviceId: string;
   securityHead: string;
@@ -25,25 +25,25 @@ type ProjectKeyDeliveryMessage = {
   sealedEnvelope: string;
 };
 
-type ProjectKeyStoredMessage = {
+type WorkspaceKeyStoredMessage = {
   protocolVersion: 1;
-  type: "project-key-stored";
-  projectId: string;
+  type: "workspace-key-stored";
+  workspaceId: string;
   keyEpoch: number;
   recipientDeviceId: string;
   securityHead: string;
 };
 
-type ProjectKeyMessage =
-  | ProjectKeyDeliveryMessage
-  | ProjectKeyStoredMessage;
+type WorkspaceKeyMessage =
+  | WorkspaceKeyDeliveryMessage
+  | WorkspaceKeyStoredMessage;
 
-export type ProjectKeyDelivery = {
+export type WorkspaceKeyDelivery = {
   securityState: SecurityState;
   sealedEnvelope: Uint8Array;
 };
 
-export type SendProjectKeyDeliveryOptions = {
+export type SendWorkspaceKeyDeliveryOptions = {
   transport: Transport;
   securityState: SecurityState;
   recipientDeviceId: DeviceId;
@@ -52,17 +52,17 @@ export type SendProjectKeyDeliveryOptions = {
   timeoutMs?: number;
 };
 
-export type ReceiveProjectKeyDeliveryOptions = {
+export type ReceiveWorkspaceKeyDeliveryOptions = {
   transport: Transport;
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   recipientIdentity: DevicePublicIdentity;
-  onDelivery: (delivery: ProjectKeyDelivery) => Promise<void>;
+  onDelivery: (delivery: WorkspaceKeyDelivery) => Promise<void>;
   signal?: AbortSignal;
   timeoutMs?: number;
 };
 
-export async function sendProjectKeyDelivery(
-  options: SendProjectKeyDeliveryOptions,
+export async function sendWorkspaceKeyDelivery(
+  options: SendWorkspaceKeyDeliveryOptions,
 ): Promise<void> {
   const {
     transport,
@@ -74,27 +74,27 @@ export async function sendProjectKeyDelivery(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (signal?.aborted) {
-    throw new Error("ProjectKey delivery aborted");
+    throw new Error("WorkspaceKey delivery aborted");
   }
   if (
     sealedEnvelope.byteLength === 0 ||
     sealedEnvelope.byteLength > MAX_SEALED_ENVELOPE_BYTES
   ) {
-    throw new Error("Invalid sealed ProjectKey envelope size");
+    throw new Error("Invalid sealed WorkspaceKey envelope size");
   }
 
   const recipient = securityState.devices.find(
     (device) => device.deviceId === recipientDeviceId,
   );
   if (!recipient) {
-    throw new Error("ProjectKey recipient is not authorized");
+    throw new Error("WorkspaceKey recipient is not authorized");
   }
 
   const securityHead = bytesToHex(securityState.headHash);
-  const message: ProjectKeyDeliveryMessage = {
+  const message: WorkspaceKeyDeliveryMessage = {
     protocolVersion: 1,
-    type: "project-key-delivery",
-    projectId: securityState.workspaceId,
+    type: "workspace-key-delivery",
+    workspaceId: securityState.workspaceId,
     keyEpoch: securityState.keyEpoch,
     recipientDeviceId,
     securityHead,
@@ -106,16 +106,16 @@ export async function sendProjectKeyDelivery(
     let finished = false;
 
     const timeout = setTimeout(() => {
-      fail(new Error("ProjectKey delivery acknowledgement timed out"));
+      fail(new Error("WorkspaceKey delivery acknowledgement timed out"));
     }, timeoutMs);
 
     const stopMessages = transport.onMessage((data) => {
       try {
         const received = decodeMessage(data);
-        if (!received || received.type !== "project-key-stored") return;
+        if (!received || received.type !== "workspace-key-stored") return;
 
         if (
-          received.projectId !== securityState.workspaceId ||
+          received.workspaceId !== securityState.workspaceId ||
           received.keyEpoch !== securityState.keyEpoch ||
           received.recipientDeviceId !== recipientDeviceId ||
           received.securityHead !== securityHead
@@ -128,12 +128,12 @@ export async function sendProjectKeyDelivery(
         fail(
           error instanceof Error
             ? error
-            : new Error("Invalid ProjectKey acknowledgement"),
+            : new Error("Invalid WorkspaceKey acknowledgement"),
         );
       }
     });
 
-    const onAbort = () => fail(new Error("ProjectKey delivery aborted"));
+    const onAbort = () => fail(new Error("WorkspaceKey delivery aborted"));
     signal?.addEventListener("abort", onAbort, { once: true });
 
     transport.send(encodeMessage(message));
@@ -154,12 +154,12 @@ export async function sendProjectKeyDelivery(
   });
 }
 
-export async function receiveProjectKeyDelivery(
-  options: ReceiveProjectKeyDeliveryOptions,
+export async function receiveWorkspaceKeyDelivery(
+  options: ReceiveWorkspaceKeyDeliveryOptions,
 ): Promise<SecurityState> {
   const {
     transport,
-    projectId,
+    workspaceId,
     recipientIdentity,
     onDelivery,
     signal,
@@ -167,7 +167,7 @@ export async function receiveProjectKeyDelivery(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (signal?.aborted) {
-    throw new Error("ProjectKey delivery aborted");
+    throw new Error("WorkspaceKey delivery aborted");
   }
 
   return new Promise<SecurityState>((resolve, reject) => {
@@ -175,52 +175,52 @@ export async function receiveProjectKeyDelivery(
     let handling = false;
 
     const timeout = setTimeout(() => {
-      fail(new Error("ProjectKey delivery timed out"));
+      fail(new Error("WorkspaceKey delivery timed out"));
     }, timeoutMs);
 
     const stopMessages = transport.onMessage((data) => {
       if (handling || finished) return;
 
-      let message: ProjectKeyMessage | null;
+      let message: WorkspaceKeyMessage | null;
       try {
         message = decodeMessage(data);
       } catch (error: unknown) {
         fail(
           error instanceof Error
             ? error
-            : new Error("Invalid ProjectKey delivery"),
+            : new Error("Invalid WorkspaceKey delivery"),
         );
         return;
       }
 
-      if (!message || message.type !== "project-key-delivery") return;
+      if (!message || message.type !== "workspace-key-delivery") return;
       handling = true;
 
       void handleDelivery(message).catch((error: unknown) => {
         fail(
           error instanceof Error
             ? error
-            : new Error("Could not store delivered ProjectKey"),
+            : new Error("Could not store delivered WorkspaceKey"),
         );
       });
     });
 
-    const onAbort = () => fail(new Error("ProjectKey delivery aborted"));
+    const onAbort = () => fail(new Error("WorkspaceKey delivery aborted"));
     signal?.addEventListener("abort", onAbort, { once: true });
 
     async function handleDelivery(
-      message: ProjectKeyDeliveryMessage,
+      message: WorkspaceKeyDeliveryMessage,
     ): Promise<void> {
       if (
-        message.projectId !== projectId ||
+        message.workspaceId !== workspaceId ||
         message.recipientDeviceId !== recipientIdentity.deviceId
       ) {
-        throw new Error("ProjectKey delivery does not target this device");
+        throw new Error("WorkspaceKey delivery does not target this device");
       }
 
       const securityState = parseSecurityStateWirePayload(
         message.securityState,
-        projectId,
+        workspaceId,
       );
       const securityHead = hexToBytes(
         message.securityHead,
@@ -232,7 +232,7 @@ export async function receiveProjectKeyDelivery(
         securityState.keyEpoch !== message.keyEpoch ||
         !bytesEqual(securityState.headHash, securityHead)
       ) {
-        throw new Error("ProjectKey delivery SecurityState does not match");
+        throw new Error("WorkspaceKey delivery SecurityState does not match");
       }
 
       const authorizedRecipient = securityState.devices.find(
@@ -257,10 +257,10 @@ export async function receiveProjectKeyDelivery(
       const sealedEnvelope = hexToBytes(
         message.sealedEnvelope,
         null,
-        "sealed ProjectKey envelope",
+        "sealed WorkspaceKey envelope",
       );
       if (sealedEnvelope.byteLength > MAX_SEALED_ENVELOPE_BYTES) {
-        throw new Error("Sealed ProjectKey envelope is too large");
+        throw new Error("Sealed WorkspaceKey envelope is too large");
       }
 
       await onDelivery({
@@ -271,8 +271,8 @@ export async function receiveProjectKeyDelivery(
       transport.send(
         encodeMessage({
           protocolVersion: 1,
-          type: "project-key-stored",
-          projectId,
+          type: "workspace-key-stored",
+          workspaceId,
           keyEpoch: securityState.keyEpoch,
           recipientDeviceId: recipientIdentity.deviceId,
           securityHead: message.securityHead,
@@ -298,13 +298,13 @@ export async function receiveProjectKeyDelivery(
   });
 }
 
-function encodeMessage(message: ProjectKeyMessage): Uint8Array {
+function encodeMessage(message: WorkspaceKeyMessage): Uint8Array {
   return new TextEncoder().encode(MESSAGE_PREFIX + JSON.stringify(message));
 }
 
-function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
+function decodeMessage(data: Uint8Array): WorkspaceKeyMessage | null {
   if (data.byteLength > MAX_MESSAGE_BYTES) {
-    throw new Error("ProjectKey delivery message is too large");
+    throw new Error("WorkspaceKey delivery message is too large");
   }
 
   const text = new TextDecoder().decode(data);
@@ -314,7 +314,7 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
   try {
     parsed = JSON.parse(text.slice(MESSAGE_PREFIX.length));
   } catch {
-    throw new Error("Invalid ProjectKey delivery message");
+    throw new Error("Invalid WorkspaceKey delivery message");
   }
 
   if (
@@ -324,8 +324,8 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
     parsed.protocolVersion !== 1 ||
     !("type" in parsed) ||
     typeof parsed.type !== "string" ||
-    !("projectId" in parsed) ||
-    typeof parsed.projectId !== "string" ||
+    !("workspaceId" in parsed) ||
+    typeof parsed.workspaceId !== "string" ||
     !("keyEpoch" in parsed) ||
     typeof parsed.keyEpoch !== "number" ||
     !Number.isSafeInteger(parsed.keyEpoch) ||
@@ -335,14 +335,14 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
     !("securityHead" in parsed) ||
     typeof parsed.securityHead !== "string"
   ) {
-    throw new Error("Invalid ProjectKey delivery message");
+    throw new Error("Invalid WorkspaceKey delivery message");
   }
 
-  if (parsed.type === "project-key-stored") {
+  if (parsed.type === "workspace-key-stored") {
     return {
       protocolVersion: 1,
-      type: "project-key-stored",
-      projectId: parsed.projectId,
+      type: "workspace-key-stored",
+      workspaceId: parsed.workspaceId,
       keyEpoch: parsed.keyEpoch,
       recipientDeviceId: parsed.recipientDeviceId,
       securityHead: parsed.securityHead,
@@ -350,7 +350,7 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
   }
 
   if (
-    parsed.type === "project-key-delivery" &&
+    parsed.type === "workspace-key-delivery" &&
     "securityState" in parsed &&
     typeof parsed.securityState === "object" &&
     parsed.securityState !== null &&
@@ -359,8 +359,8 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
   ) {
     return {
       protocolVersion: 1,
-      type: "project-key-delivery",
-      projectId: parsed.projectId,
+      type: "workspace-key-delivery",
+      workspaceId: parsed.workspaceId,
       keyEpoch: parsed.keyEpoch,
       recipientDeviceId: parsed.recipientDeviceId,
       securityHead: parsed.securityHead,
@@ -369,7 +369,7 @@ function decodeMessage(data: Uint8Array): ProjectKeyMessage | null {
     };
   }
 
-  throw new Error("Unknown ProjectKey delivery message");
+  throw new Error("Unknown WorkspaceKey delivery message");
 }
 
 function bytesToHex(value: Uint8Array): string {

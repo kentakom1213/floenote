@@ -17,7 +17,7 @@ export type DeviceAuthorizationUiState =
   | "authorized"
   | "error";
 
-export type ProjectKeyDeliveryUiState =
+export type WorkspaceKeyDeliveryUiState =
   | "waiting"
   | "delivering"
   | "delivered"
@@ -32,10 +32,10 @@ type InvitationHostPanelProps = {
   joiningDeviceId: DeviceId | null;
   joiningDeviceName: string | null;
   authorizationState: DeviceAuthorizationUiState;
-  projectKeyDeliveryState: ProjectKeyDeliveryUiState;
+  workspaceKeyDeliveryState: WorkspaceKeyDeliveryUiState;
   error: string | null;
   onConfirm: () => Promise<void>;
-  onRetryProjectKeyDelivery: () => Promise<void>;
+  onRetryWorkspaceKeyDelivery: () => Promise<void>;
   onCancel: () => Promise<void>;
 };
 
@@ -52,10 +52,10 @@ export function InvitationHostPanel({
   joiningDeviceId,
   joiningDeviceName,
   authorizationState,
-  projectKeyDeliveryState,
+  workspaceKeyDeliveryState,
   error,
   onConfirm,
-  onRetryProjectKeyDelivery,
+  onRetryWorkspaceKeyDelivery,
   onCancel,
 }: InvitationHostPanelProps) {
   const [status, setStatus] = useState<WebRtcStatus>(transport.status);
@@ -95,7 +95,7 @@ export function InvitationHostPanel({
     }
   }
 
-  const pairingComplete = projectKeyDeliveryState === "delivered";
+  const pairingComplete = workspaceKeyDeliveryState === "delivered";
 
   return (
     <section className="invitation-host-view">
@@ -197,19 +197,19 @@ export function InvitationHostPanel({
         )}
 
         {authorizationState === "authorized" &&
-        projectKeyDeliveryState !== "delivered" ? (
+        workspaceKeyDeliveryState !== "delivered" ? (
           <div className="invitation-progress-row">
             <span className="invitation-pulse" aria-hidden="true" />
             <p>
-              {projectKeyDeliveryState === "error"
+              {workspaceKeyDeliveryState === "error"
                 ? "Project access could not be delivered."
                 : "Securely delivering Project access…"}
             </p>
-            {projectKeyDeliveryState === "error" ? (
+            {workspaceKeyDeliveryState === "error" ? (
               <button
                 className="settings-primary-action"
                 type="button"
-                onClick={() => void onRetryProjectKeyDelivery()}
+                onClick={() => void onRetryWorkspaceKeyDelivery()}
               >
                 Retry
               </button>

@@ -55,7 +55,7 @@ Workspace is the only top-level security identity. Subsystem names that still us
 ```text
                          Cloudflare
 
-                ProjectCoordinatorDO(P)
+                WorkspaceCoordinatorDO(W)
               ┌─────────────────────────┐
               │ Security sequencer      │
               │ Invite / rendezvous     │
@@ -396,7 +396,7 @@ the underlying WebRTC DataChannel are preserved.
 After successful WorkspaceKey delivery during pairing, both peers may replace the
 pairing protocol on that same DataChannel with encrypted Workspace synchronization.
 The joining side starts its encrypted listener before sending the
-`project-key-stored` acknowledgement; after receiving that acknowledgement,
+`workspace-key-stored` acknowledgement; after receiving that acknowledgement,
 the inviter starts its encrypted SyncEngine and sends full state. This ordering
 avoids requiring a second WebRTC connection for the initial synchronization.
 
@@ -407,9 +407,9 @@ WebRTC DataChannels carry project synchronization data directly between devices.
 Floe Note does not require or maintain a particular peer-to-peer graph topology. In particular, it does not require a full mesh and does not implement peer-relayed signaling as part of the core protocol.
 
 Each online authorized device maintains an authenticated presence connection to
-the Project coordinator after Device Vault unlock and SecurityState freshness
+the Workspace coordinator after Device Vault unlock and SecurityState freshness
 verification. Presence authentication uses a fresh coordinator challenge signed
-by the device signing key; the proof binds ProjectId, DeviceId, the current
+by the device signing key; the proof binds WorkspaceId, DeviceId, the current
 SecurityState head, and the challenge. The coordinator verifies the signature
 against the authorized device public key in its current SecurityState before the
 device is included in the online-device set.
@@ -428,13 +428,13 @@ repair, peer introduction, or a durable full-mesh membership protocol.
 
 WebRTC offer, answer, and ICE messages are relayed through Cloudflare
 separately. Once the DataChannel is available, the existing
-`EncryptedSyncTransport` and `ProjectSyncEngine` perform ProjectKey-protected
+`EncryptedSyncTransport` and `ProjectSyncEngine` perform WorkspaceKey-protected
 synchronization.
 
 ```text
 Device A ---- WebSocket ----┐
                             │
-                     ProjectCoordinatorDO(P)
+                     WorkspaceCoordinatorDO(W)
                             │
 Device B ---- WebSocket ----┘
 
@@ -455,21 +455,21 @@ Additional device pairs can establish direct WebRTC connections as needed. The a
 Cloudflare Workers and Durable Objects provide the coordination plane.
 
 The official production client uses the Floe Note coordinator deployment
-(`https://floe-coordinate.pwll.dev`). v1 does not expose per-Project
+(`https://floe-coordinate.pwll.dev`). v1 does not expose per-Workspace
 coordinator selection or coordinator migration as user-facing features.
 Development builds may use an environment-specific endpoint.
 
 Coordinator availability is required for online coordination operations, but it
-must not gate read/edit/export of a Project whose verified state, ProjectKey,
+must not gate read/edit/export of a Project whose verified state, WorkspaceKey,
 and data are already available locally.
 
-Each Project maps to one logical coordinator:
+Each Workspace maps to one logical coordinator:
 
 ```text
-ProjectId P
+WorkspaceId W
    |
    v
-ProjectCoordinatorDO(P)
+WorkspaceCoordinatorDO(W)
 ```
 
 The Durable Object has two distinct responsibilities.
@@ -504,18 +504,18 @@ Ephemeral coordination includes:
 - WebRTC offer/answer/ICE forwarding.
 
 For normal authorized-device discovery, a client opens
-`/projects/:projectId/presence`. The coordinator returns a random 256-bit
+`/workspaces/:workspaceId/presence`. The coordinator returns a random 256-bit
 challenge and its current SecurityState head. The client signs the deterministic
 authorized-presence proof with its Device Vault signing key. Only after the
 coordinator verifies that signature against a DeviceId in the current
 SecurityState does the socket contribute to the online-device list. The list is
 deduplicated by DeviceId and broadcast to authenticated presence sockets.
 
-The authenticated presence socket also carries Project-scoped control commands
+The authenticated presence socket also carries Workspace-scoped control commands
 that require an already authorized device, including invitation creation. Before
 executing such a mutation, the coordinator reloads the current SecurityState and
 requires the socket DeviceId to remain authorized under the same security head.
-Possession of a ProjectId alone is not sufficient to allocate invitation state.
+Possession of a WorkspaceId alone is not sufficient to allocate invitation state.
 
 Presence is ephemeral Durable Object/WebSocket state. It is not persisted as an
 authorization record and does not change SecurityState.
@@ -528,7 +528,7 @@ transport mode (`direct` or `relay`) to one matching authenticated presence
 socket. The mode is connection metadata only; it carries no key material or
 authorization authority. The signaling SessionId therefore remains an
 unguessable short-lived capability rather than a deterministic value derived
-from public Project/device metadata.
+from public Workspace/device metadata.
 
 Automatic sync starts with a direct STUN-only attempt. When a device has a TURN
 credential endpoint configured and the initiating side has not connected within
@@ -537,15 +537,15 @@ SessionId, and requests `relay` mode. Both peers then create fresh
 relay-only PeerConnections. A failed relay attempt returns to the normal
 reconnect backoff and the next attempt starts direct again.
 
-Project-scoped signaling remains in `ProjectCoordinatorDO(ProjectId)`. Because a
-join URL intentionally does not expose `ProjectId`, short-lived invitation
+Workspace-scoped signaling remains in `WorkspaceCoordinatorDO(WorkspaceId)`. Because a
+join URL intentionally does not expose `WorkspaceId`, short-lived invitation
 lookup is handled by a separate `InvitationCoordinatorDO(InviteId)`. That
 object stores only the bootstrap mapping and lifecycle metadata needed to
 resolve an invite:
 
 ```text
 InviteId
-  -> ProjectId
+  -> WorkspaceId
   -> SessionId
   -> waiting / claimed / consumed / cancelled / expired
   -> expiresAt
@@ -559,7 +559,7 @@ WebSocket Hibernation should be used where appropriate so idle connections do no
 
 The Durable Object must not store:
 
-- ProjectKeys;
+- WorkspaceKeys;
 - device private keys;
 - note contents;
 - Loro document states;
@@ -644,7 +644,7 @@ pairing context.
 
 The sealed envelope is transported only after AddDevice has committed. The
 receiving device persists the WorkspaceKey in its encrypted Device Vault and the
-matching committed SecurityState locally before returning a `project-key-stored`
+matching committed SecurityState locally before returning a `workspace-key-stored`
 acknowledgement. The inviter consumes the one-time invitation only after that
 acknowledgement arrives.
 
@@ -984,7 +984,7 @@ SecurityState are already present locally may be opened immediately from that
 local state.
 
 Coordinator freshness reconciliation then runs as an online/background concern
-through `GET /projects/:projectId/security`. Failure to reach the coordinator
+through `GET /workspaces/:workspaceId/security`. Failure to reach the coordinator
 does not invalidate the locally verified state and must not block local
 read/edit/export.
 
@@ -1035,17 +1035,17 @@ sorting.
 
 A locally generated and verified `CreateWorkspace` is only a bootstrap
 candidate. It is not persisted as the authoritative `SecurityState` until the
-Project coordinator accepts and commits it. This keeps locally constructed but
+Workspace coordinator accepts and commits it. This keeps locally constructed but
 uncommitted security state distinct from committed authorization state.
 
 The HTTP transport representation is separate from the signed representation.
 Security transitions and SecurityState are carried as JSON with binary fields
-encoded as canonical base64url strings. The Project coordinator parses and
+encoded as canonical base64url strings. The Workspace coordinator parses and
 validates that logical object, reconstructs the deterministic CBOR signing
 bytes, verifies the Ed25519 signature, recomputes the signed-transition
 SHA-256 head hash, and derives the materialized SecurityState itself.
 
-For the initial `CreateWorkspace`, `ProjectCoordinatorDO(WorkspaceId)` atomically
+For the initial `CreateWorkspace`, `WorkspaceCoordinatorDO(WorkspaceId)` atomically
 stores the resulting materialized state only when no state exists yet. Repeating
 the exact same CreateWorkspace is idempotent and returns the existing state.
 Attempting to initialize the same WorkspaceId with a different head is rejected.
@@ -1067,7 +1067,7 @@ The invitation server issues only a rendezvous identifier. The existing authoriz
 
 ```text
 Existing device A:
-  authenticate its Project presence
+  authenticate its Workspace presence
   request InviteId over the authenticated presence channel
   generate PairingSecret locally
 ```
@@ -1084,7 +1084,7 @@ Where:
 - `PairingSecret` is a random 256-bit secret generated by the inviter;
 - the fragment is not sent in the normal HTTP request to the server.
 
-The fragment should contain only capability secret material. ProjectKey, ProjectId, SDP, ICE candidates, and device keys do not belong in the fragment.
+The fragment should contain only capability secret material. WorkspaceKey, WorkspaceId, SDP, ICE candidates, and device keys do not belong in the fragment.
 
 ### 19.1 Pairing flow
 
@@ -1113,13 +1113,13 @@ Durable Object commits transition
   |
 A verifies and stores committed SecurityState
   |
-A seals current ProjectKey envelope to B
+A seals current WorkspaceKey envelope to B
   |
-B opens envelope and validates ProjectId / epoch / DeviceId / security head
+B opens envelope and validates WorkspaceId / epoch / DeviceId / security head
   |
-B stores ProjectKey + committed SecurityState
+B stores WorkspaceKey + committed SecurityState
   |
-B sends project-key-stored ACK
+B sends workspace-key-stored ACK
   |
 A consumes invite
   |
@@ -1135,23 +1135,23 @@ observed by Cloudflare during invite claim. Such metadata is only contextual
 information for the user and is not part of device identity or the signed
 SecurityTransition.
 
-Before any Project synchronization or device-key exchange, both peers authenticate
+Before any Workspace synchronization or device-key exchange, both peers authenticate
 the WebRTC pairing channel using `PairingSecret`. The initial protocol uses
 HMAC-SHA-256 challenge-response with fresh nonces from both peers. The proof
-transcript binds the InviteId, ProjectId, SessionId, both nonces, and prover role,
+transcript binds the InviteId, WorkspaceId, SessionId, both nonces, and prover role,
 so a proof from another invitation or signaling session cannot be replayed.
 Pairing authentication is separate from device authorization: a peer that knows
-the PairingSecret is still not an authorized Project device until `AddDevice`
+the PairingSecret is still not an authorized Workspace device until `AddDevice`
 has been committed.
 
 Before authorization succeeds, the joining device must not adopt the claimed
 Project as its persistent local Project. The joining side uses its already
 unlocked local Device Vault identity during pairing, but it does not create or
 synchronize Project data during this stage. Persistent Project adoption and
-normal synchronization begin only after authorization and ProjectKey delivery
+normal synchronization begin only after authorization and WorkspaceKey delivery
 succeed.
 
-After the joining device has durably stored the ProjectKey and committed
+After the joining device has durably stored the WorkspaceKey and committed
 SecurityState, the browser may replace the one-time join URL in history, but it
 does not immediately reload the application. The completion UI provides an
 explicit "Open Floe Note" action that navigates to the normal application URL.
@@ -1168,7 +1168,7 @@ Invitations should be:
 
 The first version uses `waiting -> claimed -> consumed`, with
 `cancelled` and `expired` as terminal states. Claim is atomic: once one
-device has claimed an InviteId, another claimant must not receive its ProjectId
+device has claimed an InviteId, another claimant must not receive its WorkspaceId
 or SessionId.
 
 ## 20. Key rotation and revocation
@@ -1202,7 +1202,7 @@ envelope context even if a later AddDevice advances SecurityState.headHash
 without changing keyEpoch.
 
 The RevokeDevice transition and the signed sealed envelopes are submitted
-together. The ProjectCoordinator verifies the RevokeDevice signature, derives
+together. The WorkspaceCoordinator verifies the RevokeDevice signature, derives
 the candidate SecurityState, verifies that exactly every remaining authorized
 device has one correctly signed envelope, and stores the new SecurityState,
 transition, and envelopes in one Durable Object transaction. The coordinator
@@ -1415,7 +1415,7 @@ visible rather than being implied away by the use of modern primitives.
   metadata remain observable even though SyncMessage type, DocumentId, and Loro
   bytes are encrypted.
 - **The coordinator observes authorized-device presence metadata.** Presence
-  authentication necessarily reveals WorkspaceId and DeviceId to the Project
+  authentication necessarily reveals WorkspaceId and DeviceId to the Workspace
   coordinator while a device is online, together with connection timing. It
   does not reveal WorkspaceKey, note contents, or device private keys. Hiding the
   online-device graph from the coordination service is not a goal of the

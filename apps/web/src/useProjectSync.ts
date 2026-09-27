@@ -91,7 +91,7 @@ export function useAuthorizedProjectSync({
 
     const presence = new AuthorizedPresenceClient({
       coordinatorBaseUrl,
-      projectId: project.id,
+      workspaceId: project.id,
       deviceId: localDeviceId,
       securityHead: securityState.headHash,
       sign: (message) => vaultSession.sign(message),

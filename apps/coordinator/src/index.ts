@@ -33,7 +33,7 @@ import {
 import { allocateInvitationForAuthorizedPresence } from "./invitation-authorization.js";
 
 interface Env {
-  PROJECT_COORDINATOR: DurableObjectNamespace<ProjectCoordinator>;
+  WORKSPACE_COORDINATOR: DurableObjectNamespace<WorkspaceCoordinator>;
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
   FLOE_VERSION: string;
   FLOE_BUILD: string;
@@ -46,7 +46,7 @@ type SignalingSocketAttachment = {
 
 type PresenceSocketAttachment = {
   kind: "presence";
-  projectId: string;
+  workspaceId: string;
   challenge: string;
   securityHead: string;
   deviceId?: string;
@@ -57,18 +57,18 @@ type SocketAttachment =
   | PresenceSocketAttachment;
 
 type SecurityTransitionRoute = {
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
 };
 
-type ProjectKeyEnvelopeRoute = {
-  projectId: WorkspaceId;
+type WorkspaceKeyEnvelopeRoute = {
+  workspaceId: WorkspaceId;
   keyEpoch: number;
   deviceId: DeviceId;
 };
 
 type RevokeKeyEnvelopeWirePayload = {
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   keyEpoch: number;
   securityHead: string;
   recipientDeviceId: string;
@@ -86,7 +86,7 @@ type InvitationState =
 
 type InvitationRecord = {
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sessionId: string;
   state: InvitationState;
   expiresAt: number;
@@ -96,7 +96,7 @@ type InvitationRecord = {
   cancelledAt?: number;
 };
 
-const PROJECT_ID_PATTERN =
+const WORKSPACE_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SESSION_ID_PATTERN = /^[0-9a-f]{32}$/i;
 const INVITE_ID_PATTERN = /^[0-9a-f]{32}$/i;
@@ -152,8 +152,8 @@ export default {
         return withCors(new Response("Method not allowed", { status: 405 }));
       }
 
-      const id = env.PROJECT_COORDINATOR.idFromName(securityStateRoute.projectId);
-      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      const id = env.WORKSPACE_COORDINATOR.idFromName(securityStateRoute.workspaceId);
+      const response = await env.WORKSPACE_COORDINATOR.get(id).fetch(request);
       return withCors(response);
     }
 
@@ -163,21 +163,21 @@ export default {
         return withCors(new Response("Method not allowed", { status: 405 }));
       }
 
-      const id = env.PROJECT_COORDINATOR.idFromName(securityRoute.projectId);
-      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      const id = env.WORKSPACE_COORDINATOR.idFromName(securityRoute.workspaceId);
+      const response = await env.WORKSPACE_COORDINATOR.get(id).fetch(request);
       return withCors(response);
     }
 
-    const projectKeyEnvelopeRoute = parseProjectKeyEnvelopeRoute(url.pathname);
-    if (projectKeyEnvelopeRoute) {
+    const workspaceKeyEnvelopeRoute = parseWorkspaceKeyEnvelopeRoute(url.pathname);
+    if (workspaceKeyEnvelopeRoute) {
       if (request.method !== "GET") {
         return withCors(new Response("Method not allowed", { status: 405 }));
       }
 
-      const id = env.PROJECT_COORDINATOR.idFromName(
-        projectKeyEnvelopeRoute.projectId,
+      const id = env.WORKSPACE_COORDINATOR.idFromName(
+        workspaceKeyEnvelopeRoute.workspaceId,
       );
-      const response = await env.PROJECT_COORDINATOR.get(id).fetch(request);
+      const response = await env.WORKSPACE_COORDINATOR.get(id).fetch(request);
       return withCors(response);
     }
 
@@ -191,17 +191,17 @@ export default {
       return withCors(new Response("Expected WebSocket upgrade", { status: 426 }));
     }
 
-    const projectId = presenceRoute?.projectId ?? signalRoute?.projectId;
-    if (!projectId) {
+    const workspaceId = presenceRoute?.workspaceId ?? signalRoute?.workspaceId;
+    if (!workspaceId) {
       return withCors(new Response("Not found", { status: 404 }));
     }
 
-    const id = env.PROJECT_COORDINATOR.idFromName(projectId);
-    return env.PROJECT_COORDINATOR.get(id).fetch(request);
+    const id = env.WORKSPACE_COORDINATOR.idFromName(workspaceId);
+    return env.WORKSPACE_COORDINATOR.get(id).fetch(request);
   },
 } satisfies ExportedHandler<Env>;
 
-export class ProjectCoordinator extends DurableObject<Env> {
+export class WorkspaceCoordinator extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const securityStateRoute = parseSecurityStateRoute(url.pathname);
@@ -209,38 +209,38 @@ export class ProjectCoordinator extends DurableObject<Env> {
       if (request.method !== "GET") {
         return new Response("Method not allowed", { status: 405 });
       }
-      return this.#getSecurityState(securityStateRoute.projectId);
+      return this.#getSecurityState(securityStateRoute.workspaceId);
     }
 
     const securityRoute = parseSecurityTransitionRoute(url.pathname);
 
     if (securityRoute) {
       if (request.method === "GET") {
-        return this.#getSecurityTransitions(request, securityRoute.projectId);
+        return this.#getSecurityTransitions(request, securityRoute.workspaceId);
       }
       if (request.method === "POST") {
-        return this.#commitSecurityTransition(request, securityRoute.projectId);
+        return this.#commitSecurityTransition(request, securityRoute.workspaceId);
       }
       return new Response("Method not allowed", { status: 405 });
     }
 
-    const projectKeyEnvelopeRoute = parseProjectKeyEnvelopeRoute(url.pathname);
-    if (projectKeyEnvelopeRoute) {
+    const workspaceKeyEnvelopeRoute = parseWorkspaceKeyEnvelopeRoute(url.pathname);
+    if (workspaceKeyEnvelopeRoute) {
       if (request.method !== "GET") {
         return new Response("Method not allowed", { status: 405 });
       }
-      return this.#getProjectKeyEnvelope(projectKeyEnvelopeRoute);
+      return this.#getWorkspaceKeyEnvelope(workspaceKeyEnvelopeRoute);
     }
 
     const presenceRoute = parsePresenceRoute(url.pathname);
     if (presenceRoute) {
-      return this.#openPresenceSocket(presenceRoute.projectId);
+      return this.#openPresenceSocket(presenceRoute.workspaceId);
     }
 
     const route = parseSignalRoute(url.pathname);
 
     if (!route) {
-      return new Response("Invalid ProjectCoordinator route", { status: 404 });
+      return new Response("Invalid WorkspaceCoordinator route", { status: 404 });
     }
 
     const tag = sessionTag(route.sessionId);
@@ -272,8 +272,8 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #openPresenceSocket(projectId: WorkspaceId): Promise<Response> {
-    const state = await this.#loadSecurityState(projectId);
+  async #openPresenceSocket(workspaceId: WorkspaceId): Promise<Response> {
+    const state = await this.#loadSecurityState(workspaceId);
     if (state instanceof Response) return state;
 
     const challenge = randomHex(AUTHORIZED_PRESENCE_CHALLENGE_BYTES);
@@ -284,7 +284,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
     server.serializeAttachment({
       kind: "presence",
-      projectId,
+      workspaceId,
       challenge,
       securityHead,
     } satisfies PresenceSocketAttachment);
@@ -302,18 +302,18 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #getSecurityState(projectId: WorkspaceId): Promise<Response> {
+  async #getSecurityState(workspaceId: WorkspaceId): Promise<Response> {
     const storedWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
     if (!storedWire) {
-      return new Response("Project security is not initialized", {
+      return new Response("Workspace security is not initialized", {
         status: 404,
       });
     }
 
     let state: SecurityState;
     try {
-      state = parseSecurityStateWirePayload(storedWire, projectId);
+      state = parseSecurityStateWirePayload(storedWire, workspaceId);
     } catch {
       return new Response("Stored SecurityState is invalid", { status: 500 });
     }
@@ -323,7 +323,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #getSecurityTransitions(
     request: Request,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<Response> {
     const url = new URL(request.url);
     const rawAfter = url.searchParams.get("after");
@@ -340,7 +340,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       });
     }
 
-    const state = await this.#loadSecurityState(projectId);
+    const state = await this.#loadSecurityState(workspaceId);
     if (state instanceof Response) return state;
 
     if (afterSequence > state.sequence) {
@@ -378,7 +378,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitSecurityTransition(
     request: Request,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<Response> {
     let payload: unknown;
     try {
@@ -393,23 +393,23 @@ export class ProjectCoordinator extends DurableObject<Env> {
       "type" in payload
     ) {
       if (payload.type === "add-device") {
-        return this.#commitAddDevice(payload, projectId);
+        return this.#commitAddDevice(payload, workspaceId);
       }
       if (payload.type === "revoke-device") {
-        return this.#commitRevokeDevice(payload, projectId);
+        return this.#commitRevokeDevice(payload, workspaceId);
       }
     }
 
-    return this.#commitCreateWorkspace(payload, projectId);
+    return this.#commitCreateWorkspace(payload, workspaceId);
   }
 
   async #commitCreateWorkspace(
     payload: unknown,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     try {
-      transition = parseCreateWorkspaceWirePayload(payload, projectId);
+      transition = parseCreateWorkspaceWirePayload(payload, workspaceId);
     } catch (error: unknown) {
       return new Response(
         error instanceof Error ? error.message : "Invalid CreateWorkspace payload",
@@ -442,7 +442,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       if (existingWire) {
         let existing;
         try {
-          existing = parseSecurityStateWirePayload(existingWire, projectId);
+          existing = parseSecurityStateWirePayload(existingWire, workspaceId);
         } catch {
           response = new Response("Stored SecurityState is invalid", {
             status: 500,
@@ -451,7 +451,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
         }
 
         if (!bytesEqual(existing.headHash, candidateState.headHash)) {
-          response = new Response("Project security is already initialized", {
+          response = new Response("Workspace security is already initialized", {
             status: 409,
           });
           return;
@@ -487,11 +487,11 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitAddDevice(
     payload: unknown,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     try {
-      transition = parseAddDeviceWirePayload(payload, projectId);
+      transition = parseAddDeviceWirePayload(payload, workspaceId);
     } catch (error: unknown) {
       return new Response(
         error instanceof Error ? error.message : "Invalid AddDevice payload",
@@ -502,14 +502,14 @@ export class ProjectCoordinator extends DurableObject<Env> {
     const existingWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
     if (!existingWire) {
-      return new Response("Project security is not initialized", {
+      return new Response("Workspace security is not initialized", {
         status: 409,
       });
     }
 
     let currentState: SecurityState;
     try {
-      currentState = parseSecurityStateWirePayload(existingWire, projectId);
+      currentState = parseSecurityStateWirePayload(existingWire, workspaceId);
     } catch {
       return new Response("Stored SecurityState is invalid", { status: 500 });
     }
@@ -568,7 +568,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       const latestWire =
         await transaction.get<SecurityStateWirePayload>("security-state");
       if (!latestWire) {
-        response = new Response("Project security is not initialized", {
+        response = new Response("Workspace security is not initialized", {
           status: 409,
         });
         return;
@@ -576,7 +576,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
       let latestState: SecurityState;
       try {
-        latestState = parseSecurityStateWirePayload(latestWire, projectId);
+        latestState = parseSecurityStateWirePayload(latestWire, workspaceId);
       } catch {
         response = new Response("Stored SecurityState is invalid", {
           status: 500,
@@ -604,12 +604,12 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
   async #commitRevokeDevice(
     payload: unknown,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<Response> {
     let transition;
     let keyEnvelopes: RevokeKeyEnvelopeWirePayload[];
     try {
-      transition = parseRevokeDeviceWirePayload(payload, projectId);
+      transition = parseRevokeDeviceWirePayload(payload, workspaceId);
       keyEnvelopes = parseRevokeKeyEnvelopes(payload);
     } catch (error: unknown) {
       return new Response(
@@ -621,12 +621,12 @@ export class ProjectCoordinator extends DurableObject<Env> {
     const existingWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
     if (!existingWire) {
-      return new Response("Project security is not initialized", { status: 409 });
+      return new Response("Workspace security is not initialized", { status: 409 });
     }
 
     let currentState: SecurityState;
     try {
-      currentState = parseSecurityStateWirePayload(existingWire, projectId);
+      currentState = parseSecurityStateWirePayload(existingWire, workspaceId);
     } catch {
       return new Response("Stored SecurityState is invalid", { status: 500 });
     }
@@ -700,13 +700,13 @@ export class ProjectCoordinator extends DurableObject<Env> {
     for (const envelope of keyEnvelopes) {
       if (
         envelope.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-        envelope.projectId !== candidateState.workspaceId ||
+        envelope.workspaceId !== candidateState.workspaceId ||
         envelope.keyEpoch !== candidateState.keyEpoch ||
         envelope.securityHead !== bytesToHex(candidateState.headHash) ||
         envelope.signerDeviceId !== transition.signerDeviceId
       ) {
         return new Response(
-          "ProjectKey rotation envelope context does not match RevokeDevice",
+          "WorkspaceKey rotation envelope context does not match RevokeDevice",
           { status: 400 },
         );
       }
@@ -720,14 +720,14 @@ export class ProjectCoordinator extends DurableObject<Env> {
         sealedEnvelope: hexToBytes(
           envelope.sealedEnvelope,
           null,
-          "sealed ProjectKey envelope",
+          "sealed WorkspaceKey envelope",
         ),
         signerDeviceId: transition.signerDeviceId,
       });
       const envelopeSignature = hexToBytes(
         envelope.signature,
         64,
-        "ProjectKey rotation envelope signature",
+        "WorkspaceKey rotation envelope signature",
       );
       if (
         !(await verifyEd25519(
@@ -737,7 +737,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
         ))
       ) {
         return new Response(
-          "ProjectKey rotation envelope signature verification failed",
+          "WorkspaceKey rotation envelope signature verification failed",
           { status: 403 },
         );
       }
@@ -751,7 +751,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       const latestWire =
         await transaction.get<SecurityStateWirePayload>("security-state");
       if (!latestWire) {
-        response = new Response("Project security is not initialized", {
+        response = new Response("Workspace security is not initialized", {
           status: 409,
         });
         return;
@@ -759,7 +759,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
       let latestState: SecurityState;
       try {
-        latestState = parseSecurityStateWirePayload(latestWire, projectId);
+        latestState = parseSecurityStateWirePayload(latestWire, workspaceId);
       } catch {
         response = new Response("Stored SecurityState is invalid", {
           status: 500,
@@ -780,7 +780,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       for (const envelope of keyEnvelopes) {
         const recipientDeviceId = parseDeviceId(envelope.recipientDeviceId);
         await transaction.put(
-          projectKeyEnvelopeKey(transition.newKeyEpoch, recipientDeviceId),
+          workspaceKeyEnvelopeKey(transition.newKeyEpoch, recipientDeviceId),
           JSON.stringify(envelope),
         );
       }
@@ -797,26 +797,26 @@ export class ProjectCoordinator extends DurableObject<Env> {
     });
   }
 
-  async #getProjectKeyEnvelope(
-    route: ProjectKeyEnvelopeRoute,
+  async #getWorkspaceKeyEnvelope(
+    route: WorkspaceKeyEnvelopeRoute,
   ): Promise<Response> {
-    const state = await this.#loadSecurityState(route.projectId);
+    const state = await this.#loadSecurityState(route.workspaceId);
     if (state instanceof Response) return state;
 
     if (
       state.keyEpoch !== route.keyEpoch ||
       !state.devices.some((device) => device.deviceId === route.deviceId)
     ) {
-      return new Response("ProjectKey envelope is not available", {
+      return new Response("WorkspaceKey envelope is not available", {
         status: 404,
       });
     }
 
     const envelope = await this.ctx.storage.get<string>(
-      projectKeyEnvelopeKey(route.keyEpoch, route.deviceId),
+      workspaceKeyEnvelopeKey(route.keyEpoch, route.deviceId),
     );
     if (!envelope) {
-      return new Response("ProjectKey envelope is not available", {
+      return new Response("WorkspaceKey envelope is not available", {
         status: 404,
       });
     }
@@ -825,7 +825,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     try {
       parsedEnvelope = JSON.parse(envelope) as RevokeKeyEnvelopeWirePayload;
     } catch {
-      return new Response("Stored ProjectKey envelope is invalid", {
+      return new Response("Stored WorkspaceKey envelope is invalid", {
         status: 500,
       });
     }
@@ -954,17 +954,17 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    let projectId: WorkspaceId;
+    let workspaceId: WorkspaceId;
     try {
-      projectId = parseWorkspaceId(attachment.projectId);
+      workspaceId = parseWorkspaceId(attachment.workspaceId);
     } catch {
-      socket.close(1011, "Invalid Project coordinator identity");
+      socket.close(1011, "Invalid Workspace coordinator identity");
       return;
     }
 
-    const state = await this.#loadSecurityState(projectId);
+    const state = await this.#loadSecurityState(workspaceId);
     if (state instanceof Response) {
-      socket.close(1011, "Project SecurityState is unavailable");
+      socket.close(1011, "Workspace SecurityState is unavailable");
       return;
     }
 
@@ -977,7 +977,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       (device) => device.deviceId === deviceId,
     );
     if (!authorizedDevice) {
-      socket.close(1008, "Device is not authorized for this Project");
+      socket.close(1008, "Device is not authorized for this Workspace");
       return;
     }
 
@@ -988,7 +988,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     );
     const signingBytes = encodeAuthorizedPresenceProof({
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      workspaceId: projectId,
+      workspaceId,
       deviceId,
       securityHead: state.headHash,
       challenge,
@@ -1057,11 +1057,11 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    let projectId: WorkspaceId;
+    let workspaceId: WorkspaceId;
     let senderDeviceId: DeviceId;
     let peerDeviceId: DeviceId;
     try {
-      projectId = parseWorkspaceId(attachment.projectId);
+      workspaceId = parseWorkspaceId(attachment.workspaceId);
       senderDeviceId = parseDeviceId(attachment.deviceId);
       peerDeviceId = parseDeviceId(payload.peerDeviceId);
     } catch {
@@ -1084,9 +1084,9 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
 
-    const state = await this.#loadSecurityState(projectId);
+    const state = await this.#loadSecurityState(workspaceId);
     if (state instanceof Response) {
-      socket.close(1011, "Project SecurityState is unavailable");
+      socket.close(1011, "Workspace SecurityState is unavailable");
       return;
     }
 
@@ -1129,26 +1129,26 @@ export class ProjectCoordinator extends DurableObject<Env> {
     attachment: PresenceSocketAttachment & { deviceId: string },
     requestId: number,
   ): Promise<void> {
-    let projectId: WorkspaceId;
+    let workspaceId: WorkspaceId;
     let deviceId: DeviceId;
     try {
-      projectId = parseWorkspaceId(attachment.projectId);
+      workspaceId = parseWorkspaceId(attachment.workspaceId);
       deviceId = parseDeviceId(attachment.deviceId);
     } catch {
       socket.close(1008, "Invalid authorized-presence invitation identity");
       return;
     }
 
-    const state = await this.#loadSecurityState(projectId);
+    const state = await this.#loadSecurityState(workspaceId);
     if (state instanceof Response) {
-      socket.close(1011, "Project SecurityState is unavailable");
+      socket.close(1011, "Workspace SecurityState is unavailable");
       return;
     }
 
     const allocation = await allocateInvitationForAuthorizedPresence(
       state,
       {
-        projectId,
+        workspaceId,
         deviceId,
         securityHead: attachment.securityHead,
       },
@@ -1160,7 +1160,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
       return;
     }
     if (allocation.kind === "unauthorized-device") {
-      socket.close(1008, "Device is not authorized for this Project");
+      socket.close(1008, "Device is not authorized for this Workspace");
       return;
     }
 
@@ -1228,16 +1228,16 @@ export class ProjectCoordinator extends DurableObject<Env> {
   }
 
   async #loadSecurityState(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<SecurityState | Response> {
     const storedWire =
       await this.ctx.storage.get<SecurityStateWirePayload>("security-state");
     if (!storedWire) {
-      return new Response("Project security is not initialized", { status: 404 });
+      return new Response("Workspace security is not initialized", { status: 404 });
     }
 
     try {
-      return parseSecurityStateWirePayload(storedWire, projectId);
+      return parseSecurityStateWirePayload(storedWire, workspaceId);
     } catch {
       return new Response("Stored SecurityState is invalid", { status: 500 });
     }
@@ -1271,8 +1271,8 @@ export class InvitationCoordinator extends DurableObject<Env> {
     const payload = (await request.json()) as Partial<InvitationRecord>;
     if (
       payload.protocolVersion !== 1 ||
-      typeof payload.projectId !== "string" ||
-      !PROJECT_ID_PATTERN.test(payload.projectId) ||
+      typeof payload.workspaceId !== "string" ||
+      !WORKSPACE_ID_PATTERN.test(payload.workspaceId) ||
       typeof payload.sessionId !== "string" ||
       !SESSION_ID_PATTERN.test(payload.sessionId) ||
       typeof payload.expiresAt !== "number"
@@ -1287,7 +1287,7 @@ export class InvitationCoordinator extends DurableObject<Env> {
 
     const record: InvitationRecord = {
       protocolVersion: 1,
-      projectId: payload.projectId,
+      workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
       state: "waiting",
       expiresAt: payload.expiresAt,
@@ -1295,7 +1295,7 @@ export class InvitationCoordinator extends DurableObject<Env> {
     await this.ctx.storage.put("invite", record);
 
     return Response.json({
-      projectId: record.projectId,
+      workspaceId: record.workspaceId,
       sessionId: record.sessionId,
       state: record.state,
       expiresAt: record.expiresAt,
@@ -1430,7 +1430,7 @@ export class InvitationCoordinator extends DurableObject<Env> {
 
 async function createInvitation(
   env: Env,
-  projectId: string,
+  workspaceId: string,
 ): Promise<Response> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const inviteId = randomHex(16);
@@ -1444,7 +1444,7 @@ async function createInvitation(
           method: "POST",
           body: JSON.stringify({
             protocolVersion: 1,
-            projectId,
+            workspaceId,
             sessionId,
             expiresAt,
           }),
@@ -1495,42 +1495,42 @@ function parseInviteActionRoute(
 function parseSecurityStateRoute(
   pathname: string,
 ): SecurityTransitionRoute | null {
-  const match = /^\/projects\/([^/]+)\/security$/.exec(pathname);
+  const match = /^\/workspaces\/([^/]+)\/security$/.exec(pathname);
   if (!match) return null;
 
   const rawWorkspaceId = match[1];
-  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
+  if (!rawWorkspaceId || !WORKSPACE_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+    workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
 function parseSecurityTransitionRoute(
   pathname: string,
 ): SecurityTransitionRoute | null {
-  const match = /^\/projects\/([^/]+)\/security\/transitions$/.exec(pathname);
+  const match = /^\/workspaces\/([^/]+)\/security\/transitions$/.exec(pathname);
   if (!match) return null;
 
   const rawWorkspaceId = match[1];
-  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
+  if (!rawWorkspaceId || !WORKSPACE_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+    workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
-function parseProjectKeyEnvelopeRoute(
+function parseWorkspaceKeyEnvelopeRoute(
   pathname: string,
-): ProjectKeyEnvelopeRoute | null {
+): WorkspaceKeyEnvelopeRoute | null {
   const match =
-    /^\/projects\/([^/]+)\/project-keys\/(\d+)\/([^/]+)$/.exec(pathname);
+    /^\/workspaces\/([^/]+)\/workspace-keys\/(\d+)\/([^/]+)$/.exec(pathname);
   if (!match) return null;
 
   const [, rawWorkspaceId, rawKeyEpoch, rawDeviceId] = match;
   if (
     !rawWorkspaceId ||
-    !PROJECT_ID_PATTERN.test(rawWorkspaceId) ||
+    !WORKSPACE_ID_PATTERN.test(rawWorkspaceId) ||
     !rawKeyEpoch ||
     !/^\d+$/.test(rawKeyEpoch) ||
     !rawDeviceId
@@ -1543,7 +1543,7 @@ function parseProjectKeyEnvelopeRoute(
 
   try {
     return {
-      projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+      workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
       keyEpoch,
       deviceId: parseDeviceId(rawDeviceId),
     };
@@ -1554,41 +1554,44 @@ function parseProjectKeyEnvelopeRoute(
 
 function parsePresenceRoute(
   pathname: string,
-): { projectId: WorkspaceId } | null {
-  const match = /^\/projects\/([^/]+)\/presence$/.exec(pathname);
+): { workspaceId: WorkspaceId } | null {
+  const match = /^\/workspaces\/([^/]+)\/presence$/.exec(pathname);
   if (!match) return null;
 
   const rawWorkspaceId = match[1];
-  if (!rawWorkspaceId || !PROJECT_ID_PATTERN.test(rawWorkspaceId)) return null;
+  if (!rawWorkspaceId || !WORKSPACE_ID_PATTERN.test(rawWorkspaceId)) return null;
 
   return {
-    projectId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+    workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
   };
 }
 
 function parseSignalRoute(
   pathname: string,
-): { projectId: string; sessionId: string } | null {
-  const match = /^\/projects\/([^/]+)\/sessions\/([^/]+)$/.exec(pathname);
+): { workspaceId: WorkspaceId; sessionId: string } | null {
+  const match = /^\/workspaces\/([^/]+)\/sessions\/([^/]+)$/.exec(pathname);
   if (!match) return null;
 
-  const [, projectId, sessionId] = match;
-  if (!projectId || !sessionId) return null;
-  if (!PROJECT_ID_PATTERN.test(projectId)) return null;
+  const [, rawWorkspaceId, sessionId] = match;
+  if (!rawWorkspaceId || !sessionId) return null;
+  if (!WORKSPACE_ID_PATTERN.test(rawWorkspaceId)) return null;
   if (!SESSION_ID_PATTERN.test(sessionId)) return null;
 
-  return { projectId, sessionId };
+  return {
+    workspaceId: parseWorkspaceId(rawWorkspaceId.toLowerCase()),
+    sessionId,
+  };
 }
 
 function securityTransitionKey(sequence: number): string {
   return `security-transition:${sequence}`;
 }
 
-function projectKeyEnvelopeKey(
+function workspaceKeyEnvelopeKey(
   keyEpoch: number,
   deviceId: DeviceId,
 ): string {
-  return `project-key-envelope:${keyEpoch}:${deviceId}`;
+  return `workspace-key-envelope:${keyEpoch}:${deviceId}`;
 }
 
 function parseRevokeKeyEnvelopes(
@@ -1610,8 +1613,8 @@ function parseRevokeKeyEnvelopes(
       value === null ||
       !("protocolVersion" in value) ||
       value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-      !("projectId" in value) ||
-      typeof value.projectId !== "string" ||
+      !("workspaceId" in value) ||
+      typeof value.workspaceId !== "string" ||
       !("keyEpoch" in value) ||
       typeof value.keyEpoch !== "number" ||
       !Number.isSafeInteger(value.keyEpoch) ||
@@ -1630,27 +1633,27 @@ function parseRevokeKeyEnvelopes(
       !("signature" in value) ||
       typeof value.signature !== "string"
     ) {
-      throw new TypeError("Invalid RevokeDevice ProjectKey envelope");
+      throw new TypeError("Invalid RevokeDevice WorkspaceKey envelope");
     }
 
     const recipientDeviceId = parseDeviceId(value.recipientDeviceId);
     if (seen.has(recipientDeviceId)) {
-      throw new TypeError("Duplicate RevokeDevice ProjectKey recipient");
+      throw new TypeError("Duplicate RevokeDevice WorkspaceKey recipient");
     }
     seen.add(recipientDeviceId);
 
-    parseWorkspaceId(value.projectId);
+    parseWorkspaceId(value.workspaceId);
     parseDeviceId(value.signerDeviceId);
-    hexToBytes(value.securityHead, 32, "ProjectKey rotation security head");
+    hexToBytes(value.securityHead, 32, "WorkspaceKey rotation security head");
     hexToBytes(
       value.signature,
       64,
-      "ProjectKey rotation envelope signature",
+      "WorkspaceKey rotation envelope signature",
     );
 
     return {
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      projectId: value.projectId,
+      workspaceId: value.workspaceId,
       keyEpoch: value.keyEpoch,
       securityHead: value.securityHead,
       recipientDeviceId,
@@ -1686,7 +1689,7 @@ function isSignalEnvelope(message: string): boolean {
 
 function claimedInvitationResponse(record: InvitationRecord): Response {
   return Response.json({
-    projectId: record.projectId,
+    workspaceId: record.workspaceId,
     sessionId: record.sessionId,
     state: record.state,
     expiresAt: record.expiresAt,

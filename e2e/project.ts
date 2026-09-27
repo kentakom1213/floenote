@@ -31,7 +31,7 @@ export async function createSecuredProject(
     const url = new URL(response.url());
     return (
       url.origin === "http://127.0.0.1:8787" &&
-      /^\/projects\/[^/]+\/security\/transitions$/.test(url.pathname) &&
+      /^\/workspaces\/[^/]+\/security\/transitions$/.test(url.pathname) &&
       response.request().method() === "POST"
     );
   });
