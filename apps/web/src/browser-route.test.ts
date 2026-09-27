@@ -40,6 +40,23 @@ describe("browser routes", () => {
     });
   });
 
+  it.each([
+    ["", { kind: "workspace", workspaceId: WORKSPACE_ID }],
+    ["/n", { kind: "note", workspaceId: WORKSPACE_ID, noteId: NOTE_ID }],
+    [
+      "/trash",
+      { kind: "trash-note", workspaceId: WORKSPACE_ID, noteId: NOTE_ID },
+    ],
+  ])("canonicalizes uppercase IDs in %s routes", (prefix, expected) => {
+    const noteSuffix = prefix ? `/${NOTE_ID.toUpperCase()}` : "";
+    expect(
+      parseLocation({
+        pathname: `/w/${WORKSPACE_ID.toUpperCase()}${prefix}${noteSuffix}`,
+        hash: "",
+      } as Location),
+    ).toEqual(expected);
+  });
+
   it("parses invitation secrets only from the fragment", () => {
     expect(
       parseLocation({

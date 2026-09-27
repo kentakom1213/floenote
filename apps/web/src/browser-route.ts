@@ -44,7 +44,7 @@ export function parseLocation(
 
   let workspaceId: WorkspaceId;
   try {
-    workspaceId = parseWorkspaceId(segments[1]!);
+    workspaceId = parseWorkspaceId(segments[1]!.toLowerCase());
   } catch {
     return { kind: "not-found" };
   }
@@ -62,7 +62,7 @@ export function parseLocation(
       return {
         kind: "trash-note",
         workspaceId,
-        noteId: parseDocumentId(segments[3]!),
+        noteId: parseDocumentId(segments[3]!.toLowerCase()),
       };
     } catch {
       return { kind: "not-found" };
@@ -74,7 +74,7 @@ export function parseLocation(
       return {
         kind: "note",
         workspaceId,
-        noteId: parseDocumentId(segments[3]!),
+        noteId: parseDocumentId(segments[3]!.toLowerCase()),
       };
     } catch {
       return { kind: "not-found" };
