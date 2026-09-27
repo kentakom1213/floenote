@@ -36,16 +36,18 @@ If multi-user collaboration becomes a requirement, it should be treated as a sep
 
 The following decisions are considered architectural invariants unless there is a strong reason to revisit them.
 
-1. A **Project** is the synchronization and cryptographic boundary.
-2. A Project primarily owns a **set of documents**.
+Workspace is the only top-level security identity. Subsystem names that still use `Project` during the Workspace migration do not introduce a separate Project-level authorization, key, or cryptographic boundary.
+
+1. A **Workspace** is the synchronization, authorization, and cryptographic boundary.
+2. A Workspace currently owns the synchronized **set of documents**; a future work-organization Project is not a security boundary.
 3. One **Document** is one independent **LoroDoc**.
 4. Document bodies are Markdown stored in **LoroText**.
 5. Collaborative metadata is stored in Loro containers, primarily **LoroMap**.
 6. Collaborative conflict resolution is delegated to **Loro**.
 7. Security authorization state is **not** a CRDT.
-8. Project data is encrypted with a Project-level symmetric key.
+8. Workspace data is encrypted with a Workspace-level symmetric key (`WorkspaceKey`).
 9. Device authorization changes are represented by signed, linearly ordered security transitions.
-10. Cloudflare coordinates signaling, rendezvous, invitations, and security-state ordering, but never receives plaintext project data or ProjectKeys.
+10. Cloudflare coordinates signaling, rendezvous, invitations, and security-state ordering, but never receives plaintext Workspace data or WorkspaceKeys.
 11. Decentralization is not a goal by itself. Coordination remains centralized when decentralizing it would make the implementation or protocol less natural without improving the privacy boundary.
 
 ## 3. System overview
@@ -90,7 +92,7 @@ The control plane and data plane are deliberately separated.
 Long-lived domain identities use UUIDv7.
 
 ```text
-ProjectId     -> UUIDv7
+WorkspaceId   -> UUIDv7
 DocumentId    -> UUIDv7
 DeviceId      -> UUIDv7
 AttachmentId  -> UUIDv7
@@ -336,7 +338,7 @@ The SyncEngine should depend on the abstraction, not on `RTCPeerConnection` dire
 
 ### 9.3 Encrypted synchronization transport
 
-Normal Project synchronization is encrypted below `ProjectSyncEngine`.
+Normal synchronization within a Workspace is encrypted below `ProjectSyncEngine`.
 The engine continues to encode and decode the existing plaintext Loro sync
 protocol, while an `EncryptedSyncTransport` wraps the underlying transport:
 
@@ -353,7 +355,7 @@ WebRTC DataChannel
 ```
 
 This keeps CRDT synchronization independent from the cryptographic transport
-policy and avoids passing raw ProjectKey bytes into the sync package.
+policy and avoids passing raw WorkspaceKey bytes into the sync package.
 
 Protocol version 1 encrypts the complete encoded sync message, including the
 message type and DocumentId when present. The application-layer envelope carries
@@ -369,26 +371,26 @@ EncryptedSyncEnvelope
     └── complete encoded SyncMessage
 ```
 
-AEAD associated data binds a domain-separation string, ProjectId, and keyEpoch.
+AEAD associated data binds a domain-separation string, WorkspaceId, and keyEpoch.
 The key epoch is therefore visible on the wire but cannot be changed without
-causing authentication failure. ProjectId is supplied by the local Project
+causing authentication failure. WorkspaceId is supplied by the local Workspace
 context rather than repeated in the envelope, so a ciphertext copied between
-Projects does not authenticate.
+Workspaces does not authenticate.
 
 For live synchronization, the receiver requires the envelope keyEpoch to equal
-the current committed `SecurityState.keyEpoch`. Older ProjectKeys may remain in
+the current committed `SecurityState.keyEpoch`. Older WorkspaceKeys may remain in
 the Vault for future lazy storage migration, but they are not accepted for
 network sync after the security state advances. This prevents a device that
 knows only a revoked/old epoch key from continuing to inject otherwise valid
-sync ciphertext into the current Project session.
+sync ciphertext into the current Workspace session.
 
-The Device Vault exposes encrypt/decrypt capabilities for a Project and epoch;
-higher layers do not receive raw ProjectKey bytes. The encrypted transport
+The Device Vault exposes encrypt/decrypt capabilities for a Workspace and epoch;
+higher layers do not receive raw WorkspaceKey bytes. The encrypted transport
 serializes asynchronous encrypt/decrypt operations so the ordered semantics of
 the underlying WebRTC DataChannel are preserved.
 
-After successful ProjectKey delivery during pairing, both peers may replace the
-pairing protocol on that same DataChannel with encrypted Project synchronization.
+After successful WorkspaceKey delivery during pairing, both peers may replace the
+pairing protocol on that same DataChannel with encrypted Workspace synchronization.
 The joining side starts its encrypted listener before sending the
 `project-key-stored` acknowledgement; after receiving that acknowledgement,
 the inviter starts its encrypted SyncEngine and sends full state. This ordering
@@ -567,7 +569,7 @@ Each device has two long-lived asymmetric key pairs.
 Device
 ├── DeviceId
 ├── encryption key pair
-│   └── ProjectKey delivery / wrapping
+│   └── WorkspaceKey delivery / wrapping
 └── signing key pair
     └── SecurityTransition signatures
 ```
@@ -585,59 +587,59 @@ must never leave the device.
 
 Device display names such as "Laptop" or "Phone" are not security-critical identity and should not be part of the signed authorization state unless needed later.
 
-## 13. Project keys
+## 13. Workspace keys
 
-Each Project has a symmetric ProjectKey.
+Each Workspace has a symmetric WorkspaceKey.
 
 ```text
 Project
 ├── keyEpoch = n
-└── ProjectKey Kn
+└── WorkspaceKey Kn
 ```
 
-The ProjectKey encrypts:
+The WorkspaceKey encrypts:
 
-- Project manifest persistence;
+- Workspace manifest persistence;
 - Document persistence and synchronization payloads;
 - attachments.
 
-ProjectKeys are random symmetric keys. They are not derived from a user password.
+WorkspaceKeys are random symmetric keys. They are not derived from a user password.
 
 The current intended AEAD is XChaCha20-Poly1305 through libsodium.
 
-### 13.1 ProjectKey storage and delivery
+### 13.1 WorkspaceKey storage and delivery
 
-The Device Vault stores ProjectKeys as a key ring keyed by
-`(ProjectId, keyEpoch)`. Retaining the epoch explicitly allows old keys to
+The Device Vault stores WorkspaceKeys as a key ring keyed by
+`(WorkspaceId, keyEpoch)`. Retaining the epoch explicitly allows old keys to
 remain available for lazy ciphertext migration after a future rotation without
 making old-key garbage collection part of the initial protocol.
 
 For epoch 1, the root device (`addedAtSequence = 0`) creates a random 256-bit
-ProjectKey if its Vault does not already contain one. A non-root device must
-never invent a missing ProjectKey for an existing Project; it receives the key
+WorkspaceKey if its Vault does not already contain one. A non-root device must
+never invent a missing WorkspaceKey for an existing Workspace; it receives the key
 from an already authorized device.
 
-After `AddDevice(B)` is committed, the sender constructs a ProjectKey
+After `AddDevice(B)` is committed, the sender constructs a WorkspaceKey
 envelope containing:
 
 ```text
-ProjectKeyEnvelope
+WorkspaceKeyEnvelope
 ├── protocolVersion
-├── ProjectId
+├── WorkspaceId
 ├── keyEpoch
 ├── recipientDeviceId
 ├── committed SecurityState headHash
-└── ProjectKey
+└── WorkspaceKey
 ```
 
 The complete envelope is encrypted with
 `crypto_box_seal(envelope, B.encryptionPublicKey)`. The recipient opens it
-with its own device encryption key pair and rejects it unless ProjectId,
+with its own device encryption key pair and rejects it unless WorkspaceId,
 keyEpoch, recipientDeviceId, and the committed security head all match the
 pairing context.
 
 The sealed envelope is transported only after AddDevice has committed. The
-receiving device persists the ProjectKey in its encrypted Device Vault and the
+receiving device persists the WorkspaceKey in its encrypted Device Vault and the
 matching committed SecurityState locally before returning a `project-key-stored`
 acknowledgement. The inviter consumes the one-time invitation only after that
 acknowledgement arrives.
@@ -645,19 +647,19 @@ acknowledgement arrives.
 If a pairing is retried for a DeviceId that is already authorized with the
 exact same encryption and signing public keys, the inviter must not submit a
 second AddDevice transition. After the same explicit local confirmation, it may
-resume ProjectKey delivery against the current committed SecurityState. If the
+resume WorkspaceKey delivery against the current committed SecurityState. If the
 same DeviceId appears with different public keys, the pairing is rejected.
 
 `crypto_box_seal` provides recipient confidentiality but not sender
 authentication. Floe Note therefore does not treat a sealed box as proof of who
-sent the ProjectKey. Sender authenticity comes from the already
+sent the WorkspaceKey. Sender authenticity comes from the already
 PairingSecret-authenticated WebRTC pairing channel together with the committed
 AddDevice authorization state.
 
 Encrypted envelopes should authenticate unencrypted routing metadata, such as:
 
 - protocol version;
-- ProjectId;
+- WorkspaceId;
 - key epoch;
 - object type;
 - DocumentId or AttachmentId when applicable.
@@ -678,14 +680,14 @@ OS / WebAuthn authentication
      Device Vault
      ├── device encryption private key
      ├── device signing private key
-     ├── ProjectKey A
-     ├── ProjectKey B
+     ├── WorkspaceKey A
+     ├── WorkspaceKey B
      └── ...
 ```
 
 The web application requires WebAuthn support. Environments that cannot provide the required WebAuthn-based vault unlock are unsupported rather than routed through a separate password-based fallback.
 
-WebAuthn PRF is used to derive or unlock the vault key. The vault boundary remains abstract so a native application can use an equivalent platform-backed mechanism without changing the Project or synchronization model.
+WebAuthn PRF is used to derive or unlock the vault key. The vault boundary remains abstract so a native application can use an equivalent platform-backed mechanism without changing the Workspace or synchronization model.
 
 ### 14.1 Browser vault
 
@@ -706,13 +708,13 @@ WebAuthn assertion to evaluate the PRF.
 The PRF output is passed through HKDF-SHA-256 with a Floe Note device-vault
 context to derive the 256-bit VaultKey. The vault payload is encrypted with
 XChaCha20-Poly1305. The payload contains the long-lived DeviceId, the device
-encryption/signing key pairs, and ProjectKey entries keyed by ProjectId and key
+encryption/signing key pairs, and WorkspaceKey entries keyed by WorkspaceId and key
 epoch.
 
-Vault payload version 2 adds the ProjectKey key ring. Version-1 payloads remain
+Vault payload version 2 adds the WorkspaceKey key ring. Version-1 payloads remain
 readable and are interpreted as having an empty key ring; the next Vault
 mutation rewrites the encrypted payload in version-2 form. The unlocked runtime
-retains the VaultKey in memory so ProjectKeys can be added without prompting
+retains the VaultKey in memory so WorkspaceKeys can be added without prompting
 WebAuthn for every Vault write. The VaultKey and all in-memory private/project
 keys are cleared when the session closes.
 
@@ -761,7 +763,7 @@ The table is a UX model, not a replacement for the underlying security checks. I
 - a revoked device may still be able to unlock its local vault, but must be rejected as unauthorized for the Project;
 - one synchronized passkey may unlock multiple independent local vaults, each with a distinct DeviceId and device key pairs.
 
-When no local vault exists, the browser onboarding UX prefers reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or ProjectKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
+When no local vault exists, the browser onboarding UX prefers reusing an existing discoverable Floe Note passkey when one is available, instead of requiring a new WebAuthn credential for every physical device. Reusing the passkey does not copy vault contents or WorkspaceKeys; the new device still creates its own local device identity and completes the normal pairing and AddDevice flow.
 
 v1 does not provide a recovery credential or recovery secret. If a local vault
 still exists but its passkey has been deleted or is permanently unavailable,
@@ -776,11 +778,11 @@ the reset can permanently lose the only accessible copy of local Project data.
 
 A future temporary-session mode may allow a Project to be opened without creating a persistent Device Vault on that browser profile.
 
-The intended property is that sensitive session material, including any temporary device key material and ProjectKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or project storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
+The intended property is that sensitive session material, including any temporary device key material and WorkspaceKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or project storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
 
 This mode is intentionally separate from private-browsing detection. The application should not infer security semantics from whether the browser reports a private window; a user may choose an ephemeral session in a normal window, and private-browsing storage behavior differs across browsers.
 
-Ephemeral sessions are not part of the initial MVP protocol. Their exact authorization and ProjectKey-delivery rules must be specified before implementation so they do not weaken the normal SecurityState device-authorization boundary.
+Ephemeral sessions are not part of the initial MVP protocol. Their exact authorization and WorkspaceKey-delivery rules must be specified before implementation so they do not weaken the normal SecurityState device-authorization boundary.
 
 ### 14.4 Unlock lifetime
 
@@ -802,7 +804,7 @@ keys discarded from memory
 
 The initial web design treats one JavaScript runtime as one unlocked session. Keys are not broadcast between tabs.
 
-Higher-level application code should preferably request cryptographic operations through an abstraction rather than receiving raw ProjectKey bytes directly.
+Higher-level application code should preferably request cryptographic operations through an abstraction rather than receiving raw WorkspaceKey bytes directly.
 
 ## 15. Security state
 
@@ -811,7 +813,7 @@ Authorization state is not a CRDT.
 It is represented by signed transitions that are applied in a single linear order to a materialized current state. A permanent server-side transition history is not required.
 
 ```text
-CreateProject(A)
+CreateWorkspace(A)
       |
       v
 AddDevice(B)
@@ -833,7 +835,7 @@ Conceptually:
 ```ts
 type SecurityState = {
   protocolVersion: 1;
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
   sequence: number;
   headHash: Uint8Array;
   keyEpoch: number;
@@ -859,7 +861,7 @@ Presence in the current device set means authorized. Revoked devices do not need
 The initial protocol has only three security transitions:
 
 ```text
-CreateProject
+CreateWorkspace
 AddDevice
 RevokeDevice
 ```
@@ -867,19 +869,19 @@ RevokeDevice
 Each transition includes at least:
 
 - protocol version;
-- ProjectId;
+- WorkspaceId;
 - sequence;
 - previous transition hash;
 - operation-specific fields;
 - signer DeviceId, except where the initial transition defines the first device;
 - signature.
 
-### 16.1 CreateProject
+### 16.1 CreateWorkspace
 
 The first transition creates the root of trust.
 
 ```text
-CreateProject
+CreateWorkspace
 ├── sequence = 0
 ├── previousHash = null
 ├── keyEpoch = 1
@@ -906,7 +908,7 @@ The signer must be present in the current authorized-device set. The new
 DeviceId must not already be authorized. AddDevice does not advance keyEpoch.
 
 The unsigned AddDevice logical object is encoded with the same RFC 8949
-deterministic CBOR rules as CreateProject and signed with the authorized
+deterministic CBOR rules as CreateWorkspace and signed with the authorized
 signer's Ed25519 key. The new head is SHA-256 of the deterministic-CBOR
 encoding of the complete signed AddDevice transition.
 
@@ -915,7 +917,7 @@ keyEpoch, adds the new device with `addedAtSequence = sequence`, and stores
 authorized devices sorted by DeviceId because the device collection is
 logically unordered.
 
-Adding a device does not require rotating the ProjectKey. The current ProjectKey
+Adding a device does not require rotating the WorkspaceKey. The current WorkspaceKey
 is delivered to the newly authorized device only after the transition has been
 committed.
 
@@ -971,7 +973,7 @@ This prevents two concurrent security changes from silently creating divergent a
 The server determines ordering but cannot forge valid transitions because transitions are signed by authorized device keys.
 
 Devices remember the latest locally verified SecurityState sequence/head. After
-Device Vault unlock, a Project whose encrypted data, ProjectKey, and verified
+Device Vault unlock, a Workspace whose encrypted data, WorkspaceKey, and verified
 SecurityState are already present locally may be opened immediately from that
 local state.
 
@@ -989,7 +991,7 @@ state, and only then adopts the newer SecurityState.
 
 A coordination error may disable operations which require current online
 membership, such as AddDevice, RevokeDevice, presence authentication, or new
-peer rendezvous, while leaving the local Project usable.
+peer rendezvous, while leaving the local Workspace usable.
 
 ## 18. Canonical security encoding
 
@@ -998,16 +1000,16 @@ Signed security data must have one deterministic byte representation.
 Protocol version 1 uses RFC 8949 deterministic CBOR. The implementation uses
 `cborg` with `rfc8949EncodeOptions`.
 
-For `CreateProject`, the signing and head-hash rules are:
+For `CreateWorkspace`, the signing and head-hash rules are:
 
 ```text
-CreateProject without signature
+CreateWorkspace without signature
         |
 deterministic CBOR
         |
 Ed25519 sign with initial device
         |
-Signed CreateProject
+Signed CreateWorkspace
         |
 deterministic CBOR
         |
@@ -1016,16 +1018,16 @@ SHA-256
 SecurityState.headHash
 ```
 
-The initial device is implicitly the signer of `CreateProject`; the transition
+The initial device is implicitly the signer of `CreateWorkspace`; the transition
 does not carry a separate `signerDeviceId`. The signature covers every other
 field in the transition, including the initial device public identity.
 
 Normalization includes rules such as sorting logically unordered device
 collections by DeviceId before encoding when such collections are introduced.
-`CreateProject` contains only one device and therefore needs no collection
+`CreateWorkspace` contains only one device and therefore needs no collection
 sorting.
 
-A locally generated and verified `CreateProject` is only a bootstrap
+A locally generated and verified `CreateWorkspace` is only a bootstrap
 candidate. It is not persisted as the authoritative `SecurityState` until the
 Project coordinator accepts and commits it. This keeps locally constructed but
 uncommitted security state distinct from committed authorization state.
@@ -1037,10 +1039,10 @@ validates that logical object, reconstructs the deterministic CBOR signing
 bytes, verifies the Ed25519 signature, recomputes the signed-transition
 SHA-256 head hash, and derives the materialized SecurityState itself.
 
-For the initial `CreateProject`, `ProjectCoordinatorDO(ProjectId)` atomically
+For the initial `CreateWorkspace`, `ProjectCoordinatorDO(WorkspaceId)` atomically
 stores the resulting materialized state only when no state exists yet. Repeating
-the exact same CreateProject is idempotent and returns the existing state.
-Attempting to initialize the same ProjectId with a different head is rejected.
+the exact same CreateWorkspace is idempotent and returns the existing state.
+Attempting to initialize the same WorkspaceId with a different head is rejected.
 
 The client accepts the coordinator response only when it exactly matches the
 locally derived candidate state. Only then is the committed SecurityState stored
@@ -1165,7 +1167,7 @@ or SessionId.
 
 ## 20. Key rotation and revocation
 
-Revoking a device creates a new ProjectKey and increments the key epoch.
+Revoking a device creates a new WorkspaceKey and increments the key epoch.
 
 ```text
 Before:
@@ -1186,7 +1188,7 @@ Only remaining authorized devices receive K5.
 The revoking device prepares K5 ephemerally inside the unlocked Device Vault
 and seals it independently to every device remaining in the candidate
 SecurityState, including itself. Raw K5 is zeroed without first being persisted.
-Each sealed envelope is bound to ProjectId, keyEpoch, recipient DeviceId, and
+Each sealed envelope is bound to WorkspaceId, keyEpoch, recipient DeviceId, and
 the security head of the RevokeDevice state that created that key epoch. The
 revoking device additionally signs the complete sealed-envelope record with its
 device signing key. That rotation-time security head remains part of the
@@ -1199,10 +1201,10 @@ the candidate SecurityState, verifies that exactly every remaining authorized
 device has one correctly signed envelope, and stores the new SecurityState,
 transition, and envelopes in one Durable Object transaction. The coordinator
 therefore acts only as an opaque mailbox and never receives the plaintext
-ProjectKey.
+WorkspaceKey.
 
 After commit, each remaining device fetches only its own signed sealed envelope,
-verifies that it targets the current Project and key epoch and that its signer
+verifies that it targets the current Workspace and key epoch and that its signer
 is currently authorized, then verifies the complete envelope signature. The
 Device Vault opens the sealed key with the authenticated rotation-time security
 head carried by the envelope, not the latest SecurityState head, and then
@@ -1214,9 +1216,9 @@ A revoked device may retain data and keys it obtained before revocation. Cryptog
 
 Therefore revocation means:
 
-> A revoked device must not gain access to project data protected under future key epochs.
+> A revoked device must not gain access to Workspace data protected under future key epochs.
 
-Existing data may be migrated lazily to the new key epoch instead of re-encrypting the entire Project immediately.
+Existing data may be migrated lazily to the new key epoch instead of re-encrypting the entire Workspace immediately.
 
 The exact old-key retention and lazy re-encryption policy remains to be specified.
 
@@ -1340,14 +1342,14 @@ A future full backup/restore format would need the data and cryptographic materi
 
 The initial security model assumes:
 
-- Cloudflare is not trusted with project plaintext or project keys.
+- Cloudflare is not trusted with Workspace plaintext or Workspace keys.
 - Signaling/rendezvous information is not inherently trusted.
 - Peer identity is verified using the authorized device keys in SecurityState.
-- Project-scoped control-plane mutations such as invitation creation require a
-  currently authorized device; knowledge of ProjectId alone is not authority.
-- Device private keys and ProjectKeys are trusted while the Device Vault is unlocked.
+- Workspace-scoped control-plane mutations such as invitation creation require a
+  currently authorized device; knowledge of WorkspaceId alone is not authority.
+- Device private keys and WorkspaceKeys are trusted while the Device Vault is unlocked.
 - A revoked device may retain all information it obtained before revocation.
-- Encryption at rest protects against direct extraction of stored encrypted project blobs.
+- Encryption at rest protects against direct extraction of stored encrypted Workspace blobs.
 - A compromised origin or malicious JavaScript executing inside an unlocked session is outside what storage encryption alone can prevent.
 - Availability attacks by the coordination service are possible; confidentiality and authorization should not depend on trusting that service.
 
@@ -1360,29 +1362,29 @@ visible rather than being implied away by the use of modern primitives.
   encryption public key can create a valid `crypto_box_seal` ciphertext for
   that device. Floe Note relies on the PairingSecret-authenticated pairing
   channel and committed authorization state for sender context.
-- **ProjectKey delivery does not provide forward secrecy against later recipient
-  device-key compromise.** If an attacker records a sealed ProjectKey envelope
+- **WorkspaceKey delivery does not provide forward secrecy against later recipient
+  device-key compromise.** If an attacker records a sealed WorkspaceKey envelope
   and later obtains that recipient's device encryption private key, the
   recorded envelope can be opened. This is accepted for the initial
   single-user design because compromise of an unlocked or extracted Device
-  Vault already exposes stored ProjectKeys.
+  Vault already exposes stored WorkspaceKeys.
 - **Authorization and key delivery are two separate durable events.** A crash or
   network failure can occur after AddDevice commits but before the new device
-  durably stores the ProjectKey. The stored acknowledgement prevents the
+  durably stores the WorkspaceKey. The stored acknowledgement prevents the
   invitation from being consumed too early. A later pairing with the same
-  DeviceId and exact same public keys can resume ProjectKey delivery without a
+  DeviceId and exact same public keys can resume WorkspaceKey delivery without a
   second AddDevice transition, but broader recovery policy after lost or
   replaced device keys still requires separate design.
 - **Revocation cannot erase information already disclosed.** A revoked device
-  may retain plaintext, old ProjectKeys, and old ciphertext. Rotation only
+  may retain plaintext, old WorkspaceKeys, and old ciphertext. Rotation only
   prevents access to data encrypted under future key epochs.
-- **An authorized device is trusted with the current ProjectKey.** Such a device
+- **An authorized device is trusted with the current WorkspaceKey.** Such a device
   can deliberately disclose that key outside Floe Note. Cryptographic
   authorization prevents unauthorized protocol participants from obtaining the
   key through the intended flow; it cannot constrain a device that is already
   legitimately authorized and compromised or malicious.
 - **SecurityTransition catch-up requires a complete retained chain from the
-  locally verified head.** Normal Project open fetches the coordinator's current
+  locally verified head.** Normal Workspace open fetches the coordinator's current
   SecurityState. If it is newer, the client fetches every retained signed
   transition after its local sequence, verifies each signer against the
   previously verified state, verifies the signature, checks sequence and
@@ -1391,9 +1393,9 @@ visible rather than being implied away by the use of modern primitives.
   materialized state before persisting it. If any required transition predates
   transition retention or has been pruned, catch-up fails safely. AddDevice and
   RevokeDevice transitions are both applied through this verified chain.
-- **Encrypted sync authenticates possession of a ProjectKey, not an individual
+- **Encrypted sync authenticates possession of a WorkspaceKey, not an individual
   DeviceId.** All devices authorized for the current epoch share the same
-  symmetric ProjectKey, so any such device can construct a valid encrypted sync
+  symmetric WorkspaceKey, so any such device can construct a valid encrypted sync
   message. Per-message device signatures are not part of the initial
   single-user protocol.
 - **Encrypted sync does not currently reject replayed valid ciphertexts.** A
@@ -1407,9 +1409,9 @@ visible rather than being implied away by the use of modern primitives.
   metadata remain observable even though SyncMessage type, DocumentId, and Loro
   bytes are encrypted.
 - **The coordinator observes authorized-device presence metadata.** Presence
-  authentication necessarily reveals ProjectId and DeviceId to the Project
+  authentication necessarily reveals WorkspaceId and DeviceId to the Project
   coordinator while a device is online, together with connection timing. It
-  does not reveal ProjectKey, note contents, or device private keys. Hiding the
+  does not reveal WorkspaceKey, note contents, or device private keys. Hiding the
   online-device graph from the coordination service is not a goal of the
   current reconnect design.
 - **Automatic reconnect is currently best-effort while presence is stable.**
@@ -1418,7 +1420,7 @@ visible rather than being implied away by the use of modern primitives.
   terminal failed/closed state is cleaned up, but repeated ICE retry/backoff
   while both presence sockets remain continuously online is not yet a separate
   recovery protocol.
-- **Encrypted local persistence still exposes storage metadata.** ProjectId,
+- **Encrypted local persistence still exposes storage metadata.** WorkspaceId,
   DocumentId, local-slot metadata, record counts, ciphertext sizes, and the
   storage envelope keyEpoch remain observable in IndexedDB. Note titles,
   document bodies, manifest state, and serialized Loro snapshots are inside the
@@ -1427,10 +1429,10 @@ visible rather than being implied away by the use of modern primitives.
 - **Legacy manual WebRTC development transports remain plaintext.** The manual
   SDP/signaling paths predate the security bootstrap and are exposed only in
   development builds. The old manual join paths no longer have a plaintext
-  persistence fallback: persistent Project adoption requires an unlocked Device
-  Vault and ProjectKey. They must not be treated as the normal authorized-device
+  persistence fallback: persistent Workspace adoption requires an unlocked Device
+  Vault and WorkspaceKey. They must not be treated as the normal authorized-device
   synchronization path. Normal same-browser BroadcastChannel synchronization
-  and production WebRTC synchronization are both wrapped in ProjectKey-protected
+  and production WebRTC synchronization are both wrapped in WorkspaceKey-protected
   application-layer encryption.
 
 This threat model should be revisited before a security-sensitive public release.
