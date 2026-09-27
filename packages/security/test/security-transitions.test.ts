@@ -117,6 +117,31 @@ describe("SecurityState transitions", () => {
     ).toThrow("AddDevice does not extend current SecurityState");
   });
 
+  it("rejects AddDevice transitions from another Workspace", () => {
+    const workspaceId = createWorkspaceId();
+    const deviceA = device(31);
+    const deviceB = device(32);
+    const initial = deriveInitialSecurityState(
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
+        signature(9),
+      ),
+      head(9),
+    );
+    const transition = attachAddDeviceSignature(
+      createUnsignedAddDeviceTransition(initial, deviceB, deviceA.deviceId),
+      signature(10),
+    );
+
+    expect(() =>
+      deriveAddDeviceSecurityState(
+        { ...initial, workspaceId: createWorkspaceId() },
+        transition,
+        head(10),
+      ),
+    ).toThrow("AddDevice does not extend current SecurityState");
+  });
+
   it("rejects AddDevice for an already authorized DeviceId", () => {
     const workspaceId = createWorkspaceId();
     const deviceA = device(35);
@@ -139,6 +164,43 @@ describe("SecurityState transitions", () => {
         deviceA.deviceId,
       ),
     ).toThrow("Device is already authorized");
+  });
+
+  it("rejects RevokeDevice transitions from another Workspace", () => {
+    const workspaceId = createWorkspaceId();
+    const deviceA = device(36);
+    const deviceB = device(37);
+    const initial = deriveInitialSecurityState(
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
+        signature(11),
+      ),
+      head(11),
+    );
+    const afterAdd = deriveAddDeviceSecurityState(
+      initial,
+      attachAddDeviceSignature(
+        createUnsignedAddDeviceTransition(initial, deviceB, deviceA.deviceId),
+        signature(12),
+      ),
+      head(12),
+    );
+    const transition = attachRevokeDeviceSignature(
+      createUnsignedRevokeDeviceTransition(
+        afterAdd,
+        deviceB.deviceId,
+        deviceA.deviceId,
+      ),
+      signature(13),
+    );
+
+    expect(() =>
+      deriveRevokeDeviceSecurityState(
+        { ...afterAdd, workspaceId: createWorkspaceId() },
+        transition,
+        head(13),
+      ),
+    ).toThrow("RevokeDevice does not extend current SecurityState");
   });
 
   it("rejects self revocation", () => {

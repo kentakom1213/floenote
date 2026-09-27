@@ -67,6 +67,18 @@ describe("WorkspaceKey delivery", () => {
       ),
     ).rejects.toThrow("WorkspaceKey envelope context does not match pairing");
 
+    await expect(
+      openSealedWorkspaceKeyForDevice(
+        sealed,
+        {
+          ...context,
+          workspaceId: createWorkspaceId(),
+        },
+        recipient.publicIdentity.encryptionPublicKey,
+        recipient.encryptionPrivateKey,
+      ),
+    ).rejects.toThrow("WorkspaceKey envelope context does not match pairing");
+
     workspaceKey.fill(0);
     opened.fill(0);
   });
@@ -149,6 +161,16 @@ describe("encrypted Workspace storage", () => {
         workspaceId,
         5,
         { kind: "manifest" },
+        workspaceKey,
+        envelope,
+      ),
+    ).rejects.toThrow("Could not authenticate encrypted Workspace storage payload");
+
+    await expect(
+      decryptWorkspaceStoragePayload(
+        createWorkspaceId(),
+        5,
+        context,
         workspaceKey,
         envelope,
       ),
