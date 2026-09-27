@@ -6,7 +6,7 @@ import {
   PROJECT_KEY_BYTES,
   generateDeviceKeyMaterial,
 } from "@floe-note/crypto";
-import { createDeviceId, createProjectId } from "@floe-note/domain";
+import { createDeviceId, createWorkspaceId } from "@floe-note/domain";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -42,28 +42,28 @@ describe("Device Vault payload compatibility", () => {
     );
 
     expect(contents.displayName).toBe("My device");
-    expect(contents.projectKeys).toEqual([]);
+    expect(contents.workspaceKeys).toEqual([]);
   });
 
-  it("loads v2 ProjectKeys and supplies the legacy default device name", () => {
-    const projectId = createProjectId();
+  it("loads v2 WorkspaceKeys and supplies the legacy default device name", () => {
+    const workspaceId = createWorkspaceId();
     const contents = deserializeDeviceVaultPayload(
       encodedPayload({
         ...keyMaterialPayload(2),
-        projectKeys: [
+        workspaceKeys: [
           {
-            projectId,
+            workspaceId,
             keyEpoch: 2,
-            projectKey: "55".repeat(PROJECT_KEY_BYTES),
+            workspaceKey: "55".repeat(PROJECT_KEY_BYTES),
           },
         ],
       }),
     );
 
     expect(contents.displayName).toBe("My device");
-    expect(contents.projectKeys).toHaveLength(1);
-    expect(contents.projectKeys[0]?.projectId).toBe(projectId);
-    expect(contents.projectKeys[0]?.keyEpoch).toBe(2);
+    expect(contents.workspaceKeys).toHaveLength(1);
+    expect(contents.workspaceKeys[0]?.workspaceId).toBe(workspaceId);
+    expect(contents.workspaceKeys[0]?.keyEpoch).toBe(2);
   });
 
   it("loads and normalizes the v3 display name", () => {
@@ -71,28 +71,28 @@ describe("Device Vault payload compatibility", () => {
       encodedPayload({
         ...keyMaterialPayload(3),
         displayName: "  Kenta's Laptop  ",
-        projectKeys: [],
+        workspaceKeys: [],
       }),
     );
 
     expect(contents.displayName).toBe("Kenta's Laptop");
   });
 
-  it("rejects duplicate ProjectKeys in a persisted payload", () => {
-    const projectId = createProjectId();
-    const projectKey = "66".repeat(PROJECT_KEY_BYTES);
+  it("rejects duplicate WorkspaceKeys in a persisted payload", () => {
+    const workspaceId = createWorkspaceId();
+    const workspaceKey = "66".repeat(PROJECT_KEY_BYTES);
 
     expect(() =>
       deserializeDeviceVaultPayload(
         encodedPayload({
           ...keyMaterialPayload(2),
-          projectKeys: [
-            { projectId, keyEpoch: 1, projectKey },
-            { projectId, keyEpoch: 1, projectKey },
+          workspaceKeys: [
+            { workspaceId, keyEpoch: 1, workspaceKey },
+            { workspaceId, keyEpoch: 1, workspaceKey },
           ],
         }),
       ),
-    ).toThrow("Duplicate ProjectKey entry in Device Vault");
+    ).toThrow("Duplicate WorkspaceKey entry in Device Vault");
   });
 });
 
@@ -104,7 +104,7 @@ describe("DeviceVaultSession", () => {
       {
         keyMaterial,
         displayName: "Laptop",
-        projectKeys: [],
+        workspaceKeys: [],
       },
       new Uint8Array(32).fill(7),
       async (_nextKeyMaterial, displayName) => {
@@ -125,7 +125,7 @@ describe("DeviceVaultSession", () => {
       {
         keyMaterial,
         displayName: "Laptop",
-        projectKeys: [],
+        workspaceKeys: [],
       },
       new Uint8Array(32).fill(7),
       async () => {
@@ -140,33 +140,33 @@ describe("DeviceVaultSession", () => {
     expect(session.displayName).toBe("Laptop");
   });
 
-  it("removes only ProjectKeys belonging to the selected Project", async () => {
+  it("removes only WorkspaceKeys belonging to the selected Workspace", async () => {
     const keyMaterial = await generateDeviceKeyMaterial();
-    const firstProjectId = createProjectId();
-    const secondProjectId = createProjectId();
-    const persistedProjects: string[][] = [];
+    const firstWorkspaceId = createWorkspaceId();
+    const secondWorkspaceId = createWorkspaceId();
+    const persistedWorkspaces: string[][] = [];
 
     const session = new DeviceVaultSession(
       {
         keyMaterial,
         displayName: "Laptop",
-        projectKeys: [],
+        workspaceKeys: [],
       },
       new Uint8Array(32).fill(7),
-      async (_nextKeyMaterial, _displayName, projectKeys) => {
-        persistedProjects.push(
-          projectKeys.map((entry) => entry.projectId),
+      async (_nextKeyMaterial, _displayName, workspaceKeys) => {
+        persistedWorkspaces.push(
+          workspaceKeys.map((entry) => entry.workspaceId),
         );
       },
     );
     sessions.push(session);
 
-    await session.createProjectKeyIfMissing(firstProjectId, 1);
-    await session.createProjectKeyIfMissing(secondProjectId, 1);
-    await session.removeProjectKeys(firstProjectId);
+    await session.createWorkspaceKeyIfMissing(firstWorkspaceId, 1);
+    await session.createWorkspaceKeyIfMissing(secondWorkspaceId, 1);
+    await session.removeWorkspaceKeys(firstWorkspaceId);
 
-    expect(session.hasProjectKey(firstProjectId, 1)).toBe(false);
-    expect(session.hasProjectKey(secondProjectId, 1)).toBe(true);
-    expect(persistedProjects.at(-1)).toEqual([secondProjectId]);
+    expect(session.hasWorkspaceKey(firstWorkspaceId, 1)).toBe(false);
+    expect(session.hasWorkspaceKey(secondWorkspaceId, 1)).toBe(true);
+    expect(persistedWorkspaces.at(-1)).toEqual([secondWorkspaceId]);
   });
 });
