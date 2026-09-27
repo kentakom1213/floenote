@@ -2606,6 +2606,7 @@ input:focus-visible {
 }
 
 .settings-header h1 {
+  overflow-wrap: anywhere;
   font-size: 30px;
   letter-spacing: -0.03em;
 }
