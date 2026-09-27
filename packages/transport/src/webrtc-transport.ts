@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 
 import type { Transport } from "./transport.js";
 
@@ -31,7 +31,7 @@ export type WebRtcDebugEvent = {
 export type WebRtcDebugLogger = (event: WebRtcDebugEvent) => void;
 
 export class WebRtcTransport implements Transport {
-  readonly #projectId: ProjectId;
+  readonly #projectId: WorkspaceId;
   readonly #peerConnection: RTCPeerConnection;
   readonly #messageHandlers = new Set<(data: Uint8Array) => void>();
   readonly #stateHandlers = new Set<(state: WebRtcConnectionState) => void>();
@@ -49,7 +49,7 @@ export class WebRtcTransport implements Transport {
   #error: string | null = null;
 
   constructor(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     configuration: RTCConfiguration = { iceServers: DEFAULT_ICE_SERVERS },
     debugLogger: WebRtcDebugLogger | null = null,
   ) {

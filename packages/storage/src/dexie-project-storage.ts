@@ -1,9 +1,9 @@
 import { NoteDocument, NoteProject } from "@floe-note/document";
 import {
   parseDocumentId,
-  parseProjectId,
+  parseWorkspaceId,
   type DocumentId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import {
   parseSecurityStateWirePayload,
@@ -23,7 +23,7 @@ import type {
   OpenProjectResult,
   ProjectStorage,
   ProjectStorageCrypto,
-  ProjectStorageRecordContext,
+  WorkspaceStorageRecordContext,
   StoredProjectSummary,
 } from "./project-storage.js";
 
@@ -105,9 +105,9 @@ export class DexieProjectStorage implements ProjectStorage {
       records
         .filter((record) => record.bootstrapState !== "bootstrapping")
         .map(async (record) => ({
-          id: parseProjectId(record.id),
+          id: parseWorkspaceId(record.id),
           name: await this.#loadProjectName(
-            parseProjectId(record.id),
+            parseWorkspaceId(record.id),
             crypto,
           ),
           createdAt: record.createdAt,
@@ -117,7 +117,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async openProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult> {
     const record = await this.#db.projects.get(projectId);
@@ -174,7 +174,7 @@ export class DexieProjectStorage implements ProjectStorage {
       project.getAllDocuments().map(async (document) => ({
         projectId: project.id,
         documentId: document.id,
-        encryptedSnapshot: await crypto.encryptProjectStoragePayload(
+        encryptedSnapshot: await crypto.encryptWorkspaceStoragePayload(
           project.id,
           state.keyEpoch,
           documentContext(document.id),
@@ -182,7 +182,7 @@ export class DexieProjectStorage implements ProjectStorage {
         ),
       })),
     );
-    const encryptedManifest = await crypto.encryptProjectStoragePayload(
+    const encryptedManifest = await crypto.encryptWorkspaceStoragePayload(
       project.id,
       state.keyEpoch,
       manifestContext(),
@@ -231,13 +231,13 @@ export class DexieProjectStorage implements ProjectStorage {
     return { project, isNew: false };
   }
 
-  async removeProject(projectId: ProjectId): Promise<ProjectId | null> {
+  async removeProject(projectId: WorkspaceId): Promise<WorkspaceId | null> {
     await this.#writeQueue;
 
     const record = await this.#db.projects.get(projectId);
     if (!record) return null;
 
-    let nextProjectId: ProjectId | null = null;
+    let nextWorkspaceId: WorkspaceId | null = null;
 
     await this.#db.transaction(
       "rw",
@@ -263,12 +263,12 @@ export class DexieProjectStorage implements ProjectStorage {
           await this.#db.projects.update(remaining[0].id, {
             localSlot: LOCAL_PROJECT_SLOT,
           });
-          nextProjectId = parseProjectId(remaining[0].id);
+          nextWorkspaceId = parseWorkspaceId(remaining[0].id);
         }
       },
     );
 
-    return nextProjectId;
+    return nextWorkspaceId;
   }
 
   async eraseAllLocalData(): Promise<void> {
@@ -278,7 +278,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async initializeJoinedProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto?: ProjectStorageCrypto,
     keyEpoch?: number,
   ): Promise<NoteProject> {
@@ -298,7 +298,7 @@ export class DexieProjectStorage implements ProjectStorage {
 
     const emptyProject = NoteProject.create(projectId);
     const emptyEncryptedManifest =
-      await crypto.encryptProjectStoragePayload(
+      await crypto.encryptWorkspaceStoragePayload(
         projectId,
         keyEpoch,
         manifestContext(),
@@ -337,7 +337,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async completeJoinedProjectBootstrap(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<void> {
     await this.#writeQueue;
 
@@ -374,7 +374,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async loadSecurityState(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): Promise<SecurityState | null> {
     const record = await this.#db.security.get(projectId);
     return record ? parseSecurityStateWirePayload(record, projectId) : null;
@@ -459,14 +459,14 @@ export class DexieProjectStorage implements ProjectStorage {
 
     return {
       project: await this.#loadProject(
-        parseProjectId(existing.id),
+        parseWorkspaceId(existing.id),
         crypto,
       ),
       isNew: false,
     };
   }
 
-  async #activateProject(projectId: ProjectId): Promise<void> {
+  async #activateProject(projectId: WorkspaceId): Promise<void> {
     await this.#db.transaction("rw", this.#db.projects, async () => {
       const current = await this.#db.projects
         .where("localSlot")
@@ -486,7 +486,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #loadProjectName(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto: ProjectStorageCrypto,
   ): Promise<string> {
     const manifest = await this.#db.manifests.get(projectId);
@@ -505,7 +505,7 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #loadProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto: ProjectStorageCrypto,
   ): Promise<NoteProject> {
     const manifest = await this.#db.manifests.get(projectId);
@@ -553,8 +553,8 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #readSnapshot(
-    projectId: ProjectId,
-    context: ProjectStorageRecordContext,
+    projectId: WorkspaceId,
+    context: WorkspaceStorageRecordContext,
     record: {
       snapshot?: Uint8Array;
       encryptedSnapshot?: Uint8Array;
@@ -562,7 +562,7 @@ export class DexieProjectStorage implements ProjectStorage {
     crypto: ProjectStorageCrypto,
   ): Promise<Uint8Array> {
     if (record.encryptedSnapshot) {
-      const decrypted = await crypto.decryptProjectStoragePayload(
+      const decrypted = await crypto.decryptWorkspaceStoragePayload(
         projectId,
         context,
         record.encryptedSnapshot,
@@ -599,7 +599,7 @@ export class DexieProjectStorage implements ProjectStorage {
       project.getAllDocuments().map(async (document) => ({
         projectId: project.id,
         documentId: document.id,
-        encryptedSnapshot: await crypto.encryptProjectStoragePayload(
+        encryptedSnapshot: await crypto.encryptWorkspaceStoragePayload(
           project.id,
           keyEpoch,
           documentContext(document.id),
@@ -609,7 +609,7 @@ export class DexieProjectStorage implements ProjectStorage {
     );
 
     const encryptedManifest =
-      await crypto.encryptProjectStoragePayload(
+      await crypto.encryptWorkspaceStoragePayload(
         project.id,
         keyEpoch,
         manifestContext(),
@@ -649,13 +649,13 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 
   async #saveDocument(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     document: NoteDocument,
     crypto: ProjectStorageCrypto,
     keyEpoch: number,
   ): Promise<void> {
     const encryptedSnapshot =
-      await crypto.encryptProjectStoragePayload(
+      await crypto.encryptWorkspaceStoragePayload(
         projectId,
         keyEpoch,
         documentContext(document.id),
@@ -670,12 +670,12 @@ export class DexieProjectStorage implements ProjectStorage {
   }
 }
 
-function manifestContext(): ProjectStorageRecordContext {
+function manifestContext(): WorkspaceStorageRecordContext {
   return { kind: "manifest" };
 }
 
 function documentContext(
   documentId: DocumentId,
-): ProjectStorageRecordContext {
+): WorkspaceStorageRecordContext {
   return { kind: "document", documentId };
 }

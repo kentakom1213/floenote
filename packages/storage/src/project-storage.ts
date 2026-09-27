@@ -1,5 +1,5 @@
 import type { NoteProject } from "@floe-note/document";
-import type { DocumentId, ProjectId } from "@floe-note/domain";
+import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 
 export type OpenProjectResult = {
@@ -8,13 +8,13 @@ export type OpenProjectResult = {
 };
 
 export type StoredProjectSummary = {
-  id: ProjectId;
+  id: WorkspaceId;
   name: string;
   createdAt: number;
   isActive: boolean;
 };
 
-export type ProjectStorageRecordContext =
+export type WorkspaceStorageRecordContext =
   | {
       kind: "manifest";
     }
@@ -24,16 +24,16 @@ export type ProjectStorageRecordContext =
     };
 
 export interface ProjectStorageCrypto {
-  encryptProjectStoragePayload(
-    projectId: ProjectId,
+  encryptWorkspaceStoragePayload(
+    projectId: WorkspaceId,
     keyEpoch: number,
-    context: ProjectStorageRecordContext,
+    context: WorkspaceStorageRecordContext,
     plaintext: Uint8Array,
   ): Promise<Uint8Array>;
 
-  decryptProjectStoragePayload(
-    projectId: ProjectId,
-    context: ProjectStorageRecordContext,
+  decryptWorkspaceStoragePayload(
+    projectId: WorkspaceId,
+    context: WorkspaceStorageRecordContext,
     envelope: Uint8Array,
   ): Promise<{ keyEpoch: number; plaintext: Uint8Array }>;
 }
@@ -48,7 +48,7 @@ export interface ProjectStorage {
   ): Promise<readonly StoredProjectSummary[]>;
 
   openProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult>;
 
@@ -60,21 +60,21 @@ export interface ProjectStorage {
     crypto: ProjectStorageCrypto,
   ): Promise<OpenProjectResult>;
 
-  removeProject(projectId: ProjectId): Promise<ProjectId | null>;
+  removeProject(projectId: WorkspaceId): Promise<WorkspaceId | null>;
 
   eraseAllLocalData(): Promise<void>;
 
   initializeJoinedProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     crypto?: ProjectStorageCrypto,
     keyEpoch?: number,
   ): Promise<NoteProject>;
 
-  completeJoinedProjectBootstrap(projectId: ProjectId): Promise<void>;
+  completeJoinedProjectBootstrap(projectId: WorkspaceId): Promise<void>;
 
   flushPendingWrites(): Promise<void>;
 
-  loadSecurityState(projectId: ProjectId): Promise<SecurityState | null>;
+  loadSecurityState(projectId: WorkspaceId): Promise<SecurityState | null>;
   saveCommittedSecurityState(state: SecurityState): Promise<void>;
 
   watchProject(

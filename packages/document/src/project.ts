@@ -1,12 +1,12 @@
 import {
   createCheckpointId,
   createDocumentId,
-  createProjectId,
+  createWorkspaceId,
   parseCheckpointId,
   parseDocumentId,
   type CheckpointId,
   type DocumentId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import { LoroDoc } from "loro-crdt";
 
@@ -56,13 +56,13 @@ const DEFAULT_PROJECT_NAME = "Personal";
 type Listener = () => void;
 
 export class NoteProject {
-  readonly id: ProjectId;
+  readonly id: WorkspaceId;
   readonly #manifest: LoroDoc;
   readonly #documents: Map<DocumentId, NoteDocument>;
   readonly #listeners = new Set<Listener>();
 
   private constructor(
-    id: ProjectId,
+    id: WorkspaceId,
     manifest: LoroDoc,
     documents: readonly NoteDocument[],
   ) {
@@ -78,7 +78,7 @@ export class NoteProject {
     );
   }
 
-  static create(id: ProjectId = createProjectId()): NoteProject {
+  static create(id: WorkspaceId = createWorkspaceId()): NoteProject {
     const manifest = new LoroDoc();
     manifest.getMap("documents");
     manifest.getMap("purgedDocuments");
@@ -91,7 +91,7 @@ export class NoteProject {
   }
 
   static fromSnapshot(
-    id: ProjectId,
+    id: WorkspaceId,
     manifestSnapshot: Uint8Array,
     documents: readonly NoteDocument[],
   ): NoteProject {
