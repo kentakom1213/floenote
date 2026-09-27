@@ -4,7 +4,7 @@ import { expect } from "./fixtures.js";
 
 export async function createSecuredProject(
   page: Page,
-  projectName = "Playwright Project",
+  projectName = "Personal",
 ): Promise<{ projectId: string; documentId: string }> {
   await page.goto("/");
 
@@ -12,21 +12,13 @@ export async function createSecuredProject(
     page.getByRole("heading", { name: "Choose how to begin" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Create a Project" }).click();
+  await page.getByRole("button", { name: "Start writing" }).click();
 
   await expect(
     page.getByRole("heading", { name: "Secure this device" }),
   ).toBeVisible();
 
   await page.getByLabel("Device name").fill("Playwright Chromium");
-  await page.getByRole("button", { name: "Create new passkey" }).click();
-
-  await expect(
-    page.getByRole("heading", { name: "Create a Project" }),
-  ).toBeVisible();
-
-  await page.getByLabel("Project name").fill(projectName);
-
   const projectSecurityCommit = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return (
@@ -36,7 +28,7 @@ export async function createSecuredProject(
     );
   });
 
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Create new passkey" }).click();
   const projectSecurityResponse = await projectSecurityCommit;
   expect(projectSecurityResponse.status()).toBe(201);
 
@@ -48,6 +40,16 @@ export async function createSecuredProject(
   const match = /^\/w\/([^/]+)\/n\/([^/]+)$/.exec(new URL(page.url()).pathname);
   if (!match) {
     throw new Error("Expected canonical Workspace note URL");
+  }
+
+  if (projectName !== "Personal") {
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("navigation", { name: "Settings sections" })
+      .getByRole("button", { name: "Workspace" }).click();
+    await page.getByLabel("Workspace name").fill(projectName);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("navigation", { name: "Notes" })
+      .getByRole("button", { name: "Welcome to Floe Note" }).click();
   }
 
   return {

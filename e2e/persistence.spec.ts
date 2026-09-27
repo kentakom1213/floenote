@@ -223,15 +223,15 @@ test("does not open another Workspace's encrypted manifest", async ({
     page,
     "Source Workspace",
   );
-  await page.getByLabel("Switch project").click();
-  await page.getByRole("button", { name: "New project" }).click();
-  await page.getByRole("button", { name: /Blank project/ }).click();
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "New workspace" }).click();
+  await page.getByRole("button", { name: /Blank workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Target Workspace");
   const commit = page.waitForResponse((response) =>
     /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) &&
     response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("button", { name: "Create workspace" }).click();
   expect((await commit).status()).toBe(201);
   await expect(page).toHaveURL(/\/w\/[0-9a-f-]+\/n\/[0-9a-f-]+$/);
   const targetWorkspaceId = new URL(page.url()).pathname.split("/")[2]!;

@@ -1537,6 +1537,13 @@ navigation state has stable URLs:
 /join/v1/:inviteId#s=:secret       device invitation
 ```
 
+The sidebar keeps notes as the everyday surface: the compact top-left context
+switches Workspaces, while the lower device/sync status opens quick device
+actions. The Settings entry connects general device preferences at `/settings`
+with Workspace name, authorized devices, portable export, and local-only removal
+at `/w/:workspaceId/settings`. First-run note creation uses a default `Personal`
+Workspace without a separate naming step. The current UI has no inner Project.
+
 Workspace and note path components are their immutable UUIDv7 identifiers;
 titles and note contents never appear in URLs. Unknown local Workspaces,
 notes, purged notes, and malformed identifiers are handled as

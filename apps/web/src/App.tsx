@@ -463,7 +463,7 @@ function NoteApp({
             setSecurityCoordinationError(
               error instanceof Error
                 ? error.message
-                : "Could not refresh Project coordination state",
+                : "Could not refresh Workspace coordination state",
             );
             return;
           }
@@ -993,7 +993,7 @@ function NoteApp({
           <p className="not-found-eyebrow">404 · Drifted off course</p>
           <h1 id="not-found-title">Page not found</h1>
           <p className="not-found-copy">
-            This Project or note is not available on this device, or the
+            This Workspace or note is not available on this device, or the
             address may have changed.
           </p>
           <button
@@ -1045,7 +1045,7 @@ function NoteApp({
       return (
         <main className="onboarding-loading-screen" aria-live="polite">
           <img src="/favicon.svg" alt="" aria-hidden="true" />
-          <span>Loading local Projects…</span>
+          <span>Loading local Workspaces…</span>
         </main>
       );
     }
@@ -1257,7 +1257,7 @@ function NoteApp({
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      throw new Error("Device Vault must be unlocked before switching Project");
+      throw new Error("Device Vault must be unlocked before switching Workspace");
     }
 
     setProjectSwitching(true);
@@ -1284,7 +1284,7 @@ function NoteApp({
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      throw new Error("Device Vault must be unlocked before creating a Project");
+      throw new Error("Device Vault must be unlocked before creating a Workspace");
     }
 
     setProjectSwitching(true);
@@ -1312,12 +1312,12 @@ function NoteApp({
 
   async function importFloeExport(archive: Uint8Array): Promise<void> {
     if (projectSwitching) {
-      throw new Error("Another Project operation is already in progress");
+      throw new Error("Another Workspace operation is already in progress");
     }
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      throw new Error("Device Vault must be unlocked before importing a Project");
+      throw new Error("Device Vault must be unlocked before importing a Workspace");
     }
 
     setProjectSwitching(true);
@@ -1346,12 +1346,12 @@ function NoteApp({
     files: readonly File[],
   ): Promise<void> {
     if (projectSwitching) {
-      throw new Error("Another Project operation is already in progress");
+      throw new Error("Another Workspace operation is already in progress");
     }
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      throw new Error("Device Vault must be unlocked before importing a Project");
+      throw new Error("Device Vault must be unlocked before importing a Workspace");
     }
 
     setProjectSwitching(true);
@@ -1379,7 +1379,7 @@ function NoteApp({
   async function removeActiveProjectFromDevice(): Promise<void> {
     const session = deviceVaultSessionRef.current;
     if (!session || !project) {
-      throw new Error("Project and Device Vault must be available");
+      throw new Error("Workspace and Device Vault must be available");
     }
 
     const projectId = project.id;
@@ -1463,7 +1463,7 @@ function NoteApp({
   async function renameLocalDevice(displayName: string): Promise<void> {
     const session = deviceVaultSessionRef.current;
     if (!session || !localDeviceId || !project) {
-      throw new Error("Device Vault and Project must be available");
+      throw new Error("Device Vault and Workspace must be available");
     }
 
     await session.renameDevice(displayName);
@@ -1488,7 +1488,6 @@ function NoteApp({
     setInvitationHostActive(false);
     setWebRtcTransport(null);
     setSignalingState("idle");
-    setMainView("project-settings");
   }
 
   async function authorizeJoiningDevice(): Promise<void> {
@@ -1973,15 +1972,13 @@ function NoteApp({
   const syncDevices: SyncDeviceUi[] = authorizedDeviceIds
     .flatMap((deviceId): SyncDeviceUi[] => {
       const isCurrent = deviceId === localDeviceId;
-      const state: SyncDeviceUi["state"] | null = isCurrent
+      const state: SyncDeviceUi["state"] = isCurrent
         ? "this-device"
         : connectedDeviceIds.has(deviceId)
           ? "connected"
           : onlineDeviceIds.has(deviceId)
             ? "online"
-            : null;
-
-      if (!state) return [];
+            : "offline";
 
       return [
         {
@@ -1996,7 +1993,7 @@ function NoteApp({
       ];
     })
     .sort((left, right) => {
-      const rank = { "this-device": 0, connected: 1, online: 2 } as const;
+      const rank = { "this-device": 0, connected: 1, online: 2, offline: 3 } as const;
       return rank[left.state] - rank[right.state];
     });
 
@@ -2017,11 +2014,34 @@ function NoteApp({
       onCreateProject={createProject}
       onImportFloeExport={importFloeExport}
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
-      onOpenProjectSettings={() => {
-        setMainView("project-settings");
-        pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
-      }}
     />
+  );
+
+  const settingsScopeNavigation = (
+    <nav className="settings-scope-nav" aria-label="Settings sections">
+      <button
+        type="button"
+        aria-current={mainView === "app-settings" ? "page" : undefined}
+        onClick={() => {
+          if (mainView === "app-settings") return;
+          setMainView("app-settings");
+          pushRoute("/settings");
+        }}
+      >
+        General
+      </button>
+      <button
+        type="button"
+        aria-current={mainView === "project-settings" ? "page" : undefined}
+        onClick={() => {
+          if (mainView === "project-settings") return;
+          setMainView("project-settings");
+          pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
+        }}
+      >
+        Workspace
+      </button>
+    </nav>
   );
 
   const invitationContent =
@@ -2059,7 +2079,7 @@ function NoteApp({
       ) : coordinationError ? (
         <section className="invitation-host-view">
           <header className="settings-header invitation-host-header">
-            <p className="settings-eyebrow">Project devices</p>
+            <p className="settings-eyebrow">Devices</p>
             <h1>Add a device</h1>
             <p>Device invitations require the coordinator.</p>
           </header>
@@ -2070,14 +2090,14 @@ function NoteApp({
               type="button"
               onClick={() => exitInvitationHost()}
             >
-              Back to Project
+              Back to Workspace
             </button>
           </div>
         </section>
       ) : (
         <section className="invitation-host-view">
           <header className="settings-header invitation-host-header">
-            <p className="settings-eyebrow">Project devices</p>
+            <p className="settings-eyebrow">Devices</p>
             <h1>Add a device</h1>
             <p>Creating a secure invitation…</p>
           </header>
@@ -2097,6 +2117,7 @@ function NoteApp({
         onThemeChange={setThemePreference}
         onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
+        scopeNavigation={settingsScopeNavigation}
       />
         ) : mainView === "project-settings" ? (
       <ProjectSettingsView
@@ -2132,6 +2153,7 @@ function NoteApp({
           setSecurityRefreshToken((value) => value + 1)
         }
         onRemoveDevice={revokeDevice}
+        scopeNavigation={settingsScopeNavigation}
       />
     ) : undefined);
 
@@ -2159,7 +2181,7 @@ function NoteApp({
     pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
     window.setTimeout(() => {
       document
-        .getElementById("project-devices")
+        .getElementById("workspace-devices")
         ?.scrollIntoView({ block: "start" });
     }, 0);
   }
@@ -2174,6 +2196,12 @@ function NoteApp({
         <SyncStatus
           state={syncUiState}
           devices={syncDevices}
+          canAddDevice={
+            localSecurityState !== null && projectCoordinationState === "ready"
+          }
+          onAddDevice={() => {
+            setInvitationHostActive(true);
+          }}
           onManageDevices={openProjectDeviceSettings}
         />
         <button

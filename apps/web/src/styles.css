@@ -338,14 +338,13 @@ input:focus-visible {
   min-height: 34px;
   display: flex;
   align-items: center;
+  gap: 4px;
   padding-right: 30px;
 }
 
-.brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding-inline: 8px;
+.workspace-context {
+  min-width: 0;
+  flex: 1;
 }
 
 .floe-mark {
@@ -354,14 +353,13 @@ input:focus-visible {
   transform: rotate(12deg);
 }
 
-.brand-name {
-  font-size: 15px;
-  font-weight: 680;
-  letter-spacing: -0.01em;
-}
-
-.project-slot {
-  margin-top: 22px;
+.sidebar-section-label {
+  margin: 19px 10px 0;
+  color: var(--color-text-faint);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .project-switcher {
@@ -380,10 +378,9 @@ input:focus-visible {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 9px;
   border-radius: 10px;
-  padding: 9px 10px;
+  padding: 7px 8px;
   cursor: pointer;
   user-select: none;
 }
@@ -395,21 +392,12 @@ input:focus-visible {
 
 .project-switcher-copy {
   min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.project-switcher-label {
-  color: var(--color-text-faint);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  flex: 1;
 }
 
 .project-switcher-name {
   overflow: hidden;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -425,7 +413,7 @@ input:focus-visible {
   z-index: 30;
   top: calc(100% + 7px);
   left: 0;
-  width: 100%;
+  width: max(220px, 100%);
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: 13px;
@@ -2142,6 +2130,21 @@ input:focus-visible {
   background: var(--color-surface-hover);
 }
 
+.sync-manage-devices:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.sync-manage-devices:disabled:hover {
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.sync-manage-devices + .sync-manage-devices {
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 8px 8px;
+}
+
 .appearance-picker {
   display: grid;
   gap: 14px;
@@ -2533,6 +2536,32 @@ input:focus-visible {
 
 .settings-header {
   margin-bottom: 36px;
+}
+
+.settings-scope-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -16px 0 24px;
+}
+
+.settings-scope-nav button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: 12px;
+}
+
+.settings-scope-nav button:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.settings-scope-nav button[aria-current="page"] {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
 }
 
 .project-security-error {
@@ -3970,7 +3999,7 @@ h1 {
     padding-right: 42px;
   }
 
-  .project-slot {
+  .sidebar-section-label {
     margin-top: 14px;
   }
 
