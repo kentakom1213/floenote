@@ -4,7 +4,7 @@ import { encode, rfc8949EncodeOptions } from "cborg";
 import {
   SECURITY_HEAD_HASH_BYTES,
   SECURITY_SIGNATURE_BYTES,
-} from "./create-project.js";
+} from "./create-workspace.js";
 import {
   SECURITY_PROTOCOL_VERSION,
   type SecurityState,
@@ -28,7 +28,7 @@ export function createUnsignedRevokeDeviceTransition(
   return {
     type: "revoke-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: currentState.projectId,
+    workspaceId: currentState.workspaceId,
     sequence: currentState.sequence + 1,
     previousHash: currentState.headHash.slice(),
     revokedDeviceId,
@@ -92,7 +92,7 @@ export function deriveRevokeDeviceSecurityState(
 
   return {
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: currentState.projectId,
+    workspaceId: currentState.workspaceId,
     sequence: transition.sequence,
     headHash: headHash.slice(),
     keyEpoch: transition.newKeyEpoch,
@@ -154,7 +154,7 @@ function validateTransitionAgainstCurrentState(
 
   if (
     transition.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-    transition.projectId !== currentState.projectId ||
+    transition.workspaceId !== currentState.workspaceId ||
     transition.sequence !== currentState.sequence + 1 ||
     transition.newKeyEpoch !== currentState.keyEpoch + 1 ||
     !bytesEqual(transition.previousHash, currentState.headHash)
@@ -168,7 +168,7 @@ function createUnsignedWireValue(
 ): {
   type: "revoke-device";
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: number;
   previousHash: Uint8Array;
   revokedDeviceId: string;
@@ -189,7 +189,7 @@ function createUnsignedWireValue(
   return {
     type: "revoke-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: transition.sequence,
     previousHash: transition.previousHash,
     revokedDeviceId: transition.revokedDeviceId,

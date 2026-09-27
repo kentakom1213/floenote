@@ -1,4 +1,4 @@
-import { createProjectId } from "@floe-note/domain";
+import { createWorkspaceId } from "@floe-note/domain";
 import {
   destroyDeviceKeyMaterial,
   generateDeviceKeyMaterial,
@@ -8,18 +8,18 @@ import {
 } from "@floe-note/crypto";
 import {
   attachAddDeviceSignature,
-  attachCreateProjectSignature,
+  attachCreateWorkspaceSignature,
   attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
-  createUnsignedCreateProjectTransition,
+  createUnsignedCreateWorkspaceTransition,
   createUnsignedRevokeDeviceTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
   encodeAddDeviceTransition,
-  encodeCreateProjectTransition,
+  encodeCreateWorkspaceTransition,
   encodeRevokeDeviceTransition,
   encodeUnsignedAddDeviceTransition,
-  encodeUnsignedCreateProjectTransition,
+  encodeUnsignedCreateWorkspaceTransition,
   encodeUnsignedRevokeDeviceTransition,
 } from "@floe-note/security";
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,20 +33,20 @@ afterEach(async () => {
 });
 
 async function createInitialState(device: DeviceKeyMaterial) {
-  const unsigned = createUnsignedCreateProjectTransition(
-    createProjectId(),
+  const unsigned = createUnsignedCreateWorkspaceTransition(
+    createWorkspaceId(),
     device.publicIdentity,
   );
-  const transition = attachCreateProjectSignature(
+  const transition = attachCreateWorkspaceSignature(
     unsigned,
     await signEd25519(
-      encodeUnsignedCreateProjectTransition(unsigned),
+      encodeUnsignedCreateWorkspaceTransition(unsigned),
       device.signingPrivateKey,
     ),
   );
   return deriveInitialSecurityState(
     transition,
-    await sha256(encodeCreateProjectTransition(transition)),
+    await sha256(encodeCreateWorkspaceTransition(transition)),
   );
 }
 

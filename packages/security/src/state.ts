@@ -1,4 +1,4 @@
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 
 export const SECURITY_PROTOCOL_VERSION = 1 as const;
 
@@ -16,7 +16,7 @@ export type AuthorizedDevice = DevicePublicIdentity & {
 
 export type SecurityState = {
   protocolVersion: SecurityProtocolVersion;
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
   sequence: number;
   headHash: Uint8Array;
   keyEpoch: number;

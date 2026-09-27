@@ -3,12 +3,12 @@ export {
   createCheckpointId,
   createDeviceId,
   createDocumentId,
-  createProjectId,
+  createWorkspaceId,
   parseAttachmentId,
   parseCheckpointId,
   parseDeviceId,
   parseDocumentId,
-  parseProjectId,
+  parseWorkspaceId,
 } from "./identifiers.js";
 
 export type {
@@ -16,5 +16,5 @@ export type {
   CheckpointId,
   DeviceId,
   DocumentId,
-  ProjectId,
+  WorkspaceId,
 } from "./identifiers.js";

@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 
 import {
   decodeServerMessage,
@@ -50,7 +50,7 @@ export class CoordinatorSignalingClient {
 
   constructor(
     coordinatorBaseUrl: string,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     sessionId: SessionId,
     debugLogger: SignalingDebugLogger | null = null,
   ) {
@@ -248,7 +248,7 @@ function isRetryableCloseCode(code: number): boolean {
 
 function createWebSocketUrl(
   coordinatorBaseUrl: string,
-  projectId: ProjectId,
+  projectId: WorkspaceId,
   sessionId: SessionId,
 ): URL {
   const url = new URL(coordinatorBaseUrl);

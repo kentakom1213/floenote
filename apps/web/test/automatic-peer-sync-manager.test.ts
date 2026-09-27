@@ -1,6 +1,6 @@
 import {
   parseDeviceId,
-  parseProjectId,
+  parseWorkspaceId,
   type DeviceId,
 } from "@floe-note/domain";
 import { NoteProject } from "@floe-note/document";
@@ -111,7 +111,7 @@ const LOCAL_DEVICE_ID = parseDeviceId(
 const PEER_DEVICE_ID = parseDeviceId(
   "00000000-0000-7000-8000-000000000002",
 );
-const PROJECT_ID = parseProjectId(
+const PROJECT_ID = parseWorkspaceId(
   "00000000-0000-7000-8000-000000000010",
 );
 
@@ -171,12 +171,12 @@ function createManager(
 ) {
   const project = NoteProject.create(PROJECT_ID);
   const vaultSession = {
-    encryptProjectSyncPayload: async (
+    encryptWorkspaceSyncPayload: async (
       _projectId: unknown,
       _keyEpoch: unknown,
       plaintext: Uint8Array,
     ) => plaintext.slice(),
-    decryptProjectSyncPayload: async (
+    decryptWorkspaceSyncPayload: async (
       _projectId: unknown,
       _keyEpoch: unknown,
       envelope: Uint8Array,

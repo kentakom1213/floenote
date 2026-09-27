@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { NoteProject } from "@floe-note/document";
-import { parseProjectId } from "@floe-note/domain";
+import { parseWorkspaceId } from "@floe-note/domain";
 import { DexieProjectStorage } from "@floe-note/storage";
 import { ProjectSyncEngine } from "@floe-note/sync";
 import {
@@ -27,7 +27,7 @@ type WebRtcJoinPageProps = {
 };
 
 export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
-  const [projectIdInput, setProjectIdInput] = useState("");
+  const [projectIdInput, setWorkspaceIdInput] = useState("");
   const [offer, setOffer] = useState("");
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<WebRtcStatus>(INITIAL_STATUS);
@@ -59,7 +59,7 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
     };
 
     try {
-      const projectId = parseProjectId(projectIdInput.trim());
+      const projectId = parseWorkspaceId(projectIdInput.trim());
       const transport = new WebRtcTransport(
         projectId,
         undefined,
@@ -117,8 +117,8 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
           <span>Project ID</span>
           <input
             value={projectIdInput}
-            onChange={(event) => setProjectIdInput(event.target.value)}
-            placeholder="UUIDv7 ProjectId"
+            onChange={(event) => setWorkspaceIdInput(event.target.value)}
+            placeholder="UUIDv7 WorkspaceId"
           />
         </label>
 

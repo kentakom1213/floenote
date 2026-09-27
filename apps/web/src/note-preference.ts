@@ -1,14 +1,14 @@
-import type { DocumentId, ProjectId } from "@floe-note/domain";
+import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 
 const STORAGE_PREFIX = "floe-note-last-document:";
 
-export function readLastDocumentId(projectId: ProjectId): DocumentId | null {
+export function readLastDocumentId(projectId: WorkspaceId): DocumentId | null {
   const value = window.localStorage.getItem(storageKey(projectId));
   return value as DocumentId | null;
 }
 
 export function writeLastDocumentId(
-  projectId: ProjectId,
+  projectId: WorkspaceId,
   documentId: DocumentId | null,
 ): void {
   const key = storageKey(projectId);
@@ -32,6 +32,6 @@ export function clearAllLastDocumentPreferences(): void {
   }
 }
 
-function storageKey(projectId: ProjectId): string {
+function storageKey(projectId: WorkspaceId): string {
   return `${STORAGE_PREFIX}${projectId}`;
 }

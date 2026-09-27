@@ -9,7 +9,7 @@ export type {
 
 export type {
   AddDeviceTransition,
-  CreateProjectTransition,
+  CreateWorkspaceTransition,
   UnsignedAddDeviceTransition,
   UnsignedRevokeDeviceTransition,
   RevokeDeviceTransition,
@@ -19,20 +19,20 @@ export type {
 export {
   SECURITY_HEAD_HASH_BYTES,
   SECURITY_SIGNATURE_BYTES,
-  attachCreateProjectSignature,
-  createUnsignedCreateProjectTransition,
+  attachCreateWorkspaceSignature,
+  createUnsignedCreateWorkspaceTransition,
   deriveInitialSecurityState,
-  encodeCreateProjectTransition,
-  encodeUnsignedCreateProjectTransition,
-} from "./create-project.js";
+  encodeCreateWorkspaceTransition,
+  encodeUnsignedCreateWorkspaceTransition,
+} from "./create-workspace.js";
 
-export type { UnsignedCreateProjectTransition } from "./transition.js";
+export type { UnsignedCreateWorkspaceTransition } from "./transition.js";
 
 export {
   addDeviceTransitionToWire,
-  createProjectTransitionToWire,
+  createWorkspaceTransitionToWire,
   parseAddDeviceWirePayload,
-  parseCreateProjectWirePayload,
+  parseCreateWorkspaceWirePayload,
   parseRevokeDeviceWirePayload,
   parseSecurityStateWirePayload,
   parseSecurityTransitionWirePayload,
@@ -43,7 +43,7 @@ export {
 
 export type {
   AddDeviceWirePayload,
-  CreateProjectWirePayload,
+  CreateWorkspaceWirePayload,
   RevokeDeviceWirePayload,
   SecurityStateWirePayload,
   SecurityTransitionWirePayload,
@@ -74,11 +74,11 @@ export {
 export type { AuthorizedPresenceProof } from "./authorized-presence.js";
 
 export {
-  attachProjectKeyRotationEnvelopeSignature,
-  encodeUnsignedProjectKeyRotationEnvelope,
+  attachWorkspaceKeyRotationEnvelopeSignature,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
 } from "./key-rotation-envelope.js";
 
 export type {
-  ProjectKeyRotationEnvelope,
-  UnsignedProjectKeyRotationEnvelope,
+  WorkspaceKeyRotationEnvelope,
+  UnsignedWorkspaceKeyRotationEnvelope,
 } from "./key-rotation-envelope.js";

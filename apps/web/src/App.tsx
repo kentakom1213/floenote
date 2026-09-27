@@ -16,7 +16,7 @@ import type { NoteProject } from "@floe-note/document";
 import type {
   DeviceId,
   DocumentId,
-  ProjectId,
+  WorkspaceId,
 } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
@@ -26,21 +26,21 @@ import {
 } from "@floe-note/pairing";
 import {
   attachAddDeviceSignature,
-  attachCreateProjectSignature,
-  attachProjectKeyRotationEnvelopeSignature,
+  attachCreateWorkspaceSignature,
+  attachWorkspaceKeyRotationEnvelopeSignature,
   attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
   createUnsignedRevokeDeviceTransition,
-  createUnsignedCreateProjectTransition,
+  createUnsignedCreateWorkspaceTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
   deriveRevokeDeviceSecurityState,
   encodeAddDeviceTransition,
-  encodeCreateProjectTransition,
+  encodeCreateWorkspaceTransition,
   encodeRevokeDeviceTransition,
-  encodeUnsignedProjectKeyRotationEnvelope,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
   encodeUnsignedAddDeviceTransition,
-  encodeUnsignedCreateProjectTransition,
+  encodeUnsignedCreateWorkspaceTransition,
   encodeUnsignedRevokeDeviceTransition,
   type SecurityState,
 } from "@floe-note/security";
@@ -191,7 +191,7 @@ export function App() {
 
   function handoffJoinedDeviceVaultSession(
     session: DeviceVaultSession,
-    projectId: ProjectId,
+    projectId: WorkspaceId,
   ): void {
     if (deviceVaultSessionOwner.current) {
       throw new Error("A Device Vault session is already active");
@@ -425,7 +425,7 @@ function NoteApp({
 
           if (!projectKeyReady && verifiedState.keyEpoch > 1) {
             const envelope = await securityCoordinator.getProjectKeyEnvelope(
-              verifiedState.projectId,
+              verifiedState.workspaceId,
               verifiedState.keyEpoch,
               localDeviceId,
             );
@@ -478,14 +478,14 @@ function NoteApp({
         throw new Error("Unlocked Device Vault identity changed unexpectedly");
       }
 
-      const unsignedTransition = createUnsignedCreateProjectTransition(
+      const unsignedTransition = createUnsignedCreateWorkspaceTransition(
         project.id,
         identity,
       );
       const signingBytes =
-        encodeUnsignedCreateProjectTransition(unsignedTransition);
+        encodeUnsignedCreateWorkspaceTransition(unsignedTransition);
       const signature = await session.sign(signingBytes);
-      const transition = attachCreateProjectSignature(
+      const transition = attachCreateWorkspaceSignature(
         unsignedTransition,
         signature,
       );
@@ -496,24 +496,24 @@ function NoteApp({
         transition.initialDevice.signingPublicKey,
       );
       if (!verified) {
-        throw new Error("CreateProject signature verification failed");
+        throw new Error("CreateWorkspace signature verification failed");
       }
 
       const headHash = await sha256(
-        encodeCreateProjectTransition(transition),
+        encodeCreateWorkspaceTransition(transition),
       );
       const candidateState = deriveInitialSecurityState(
         transition,
         headHash,
       );
-      const committedState = await securityCoordinator.commitCreateProject(
+      const committedState = await securityCoordinator.commitCreateWorkspace(
         project.id,
         transition,
       );
 
       if (!securityStatesEqual(candidateState, committedState)) {
         throw new Error(
-          "Coordinator committed a SecurityState that does not match CreateProject",
+          "Coordinator committed a SecurityState that does not match CreateWorkspace",
         );
       }
 
@@ -887,18 +887,18 @@ function NoteApp({
       return;
     }
 
-    const requestedProjectId = projectIdFromRoute(browserRoute);
-    if (!requestedProjectId) return;
+    const requestedWorkspaceId = projectIdFromRoute(browserRoute);
+    if (!requestedWorkspaceId) return;
 
-    if (!projectSummaries.some((summary) => summary.id === requestedProjectId)) {
+    if (!projectSummaries.some((summary) => summary.id === requestedWorkspaceId)) {
       setRouteError(true);
       return;
     }
 
-    if (!project || requestedProjectId !== project.id) {
+    if (!project || requestedWorkspaceId !== project.id) {
       setRouteError(false);
       if (!projectSwitching) {
-        void selectProject(requestedProjectId, false).catch(() => {
+        void selectProject(requestedWorkspaceId, false).catch(() => {
           setRouteError(true);
         });
       }
@@ -1098,14 +1098,14 @@ function NoteApp({
 
     const summaries = await projectStorage.listProjects(session);
     const requestedRoute = parseLocation();
-    const requestedProjectId = projectIdFromRoute(requestedRoute);
+    const requestedWorkspaceId = projectIdFromRoute(requestedRoute);
     let result: OpenedProject | null = null;
 
     if (requestedRoute.kind === "not-found") {
       setRouteError(true);
-    } else if (requestedProjectId) {
-      if (summaries.some((summary) => summary.id === requestedProjectId)) {
-        result = await projectStorage.openProject(requestedProjectId, session);
+    } else if (requestedWorkspaceId) {
+      if (summaries.some((summary) => summary.id === requestedWorkspaceId)) {
+        result = await projectStorage.openProject(requestedWorkspaceId, session);
 
         if (
           requestedRoute.kind === "document" &&
@@ -1113,7 +1113,7 @@ function NoteApp({
         ) {
           if (result.project.getDeletedDocument(requestedRoute.documentId)) {
             replaceRoute(
-              buildTrashDocumentUrl(requestedProjectId, requestedRoute.documentId),
+              buildTrashDocumentUrl(requestedWorkspaceId, requestedRoute.documentId),
             );
           } else {
             setRouteError(true);
@@ -1253,7 +1253,7 @@ function NoteApp({
   }
 
   async function selectProject(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     updateHistory = true,
   ): Promise<void> {
     if (projectId === project?.id || projectSwitching) return;
@@ -1395,13 +1395,13 @@ function NoteApp({
     await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
     try {
-      const nextProjectId = await projectStorage.removeProject(projectId);
-      await session.removeProjectKeys(projectId);
+      const nextWorkspaceId = await projectStorage.removeProject(projectId);
+      await session.removeWorkspaceKeys(projectId);
       writeLastDocumentId(projectId, null);
 
       const summaries = await projectStorage.listProjects(session);
-      if (nextProjectId) {
-        const next = await projectStorage.openProject(nextProjectId, session);
+      if (nextWorkspaceId) {
+        const next = await projectStorage.openProject(nextWorkspaceId, session);
         setOpenedProject(next);
         setProjectSummaries(
           withActiveProjectSummary(summaries, next.project),
@@ -1512,8 +1512,8 @@ function NoteApp({
     }
 
     if (
-      !session.hasProjectKey(
-        localSecurityState.projectId,
+      !session.hasWorkspaceKey(
+        localSecurityState.workspaceId,
         localSecurityState.keyEpoch,
       )
     ) {
@@ -1704,8 +1704,8 @@ function NoteApp({
         headHash,
       );
 
-      const preparedEnvelopes = await session.prepareProjectKeyRotation(
-        candidateState.projectId,
+      const preparedEnvelopes = await session.prepareWorkspaceKeyRotation(
+        candidateState.workspaceId,
         candidateState.keyEpoch,
         candidateState.headHash,
         candidateState.devices,
@@ -1715,7 +1715,7 @@ function NoteApp({
         preparedEnvelopes.map(async (prepared) => {
           const unsignedEnvelope = {
             protocolVersion: 1 as const,
-            projectId: candidateState.projectId,
+            workspaceId: candidateState.workspaceId,
             keyEpoch: candidateState.keyEpoch,
             securityHead: candidateState.headHash,
             recipientDeviceId: prepared.recipientDeviceId,
@@ -1723,9 +1723,9 @@ function NoteApp({
             signerDeviceId: localDeviceId,
           };
           const envelopeSignature = await session.sign(
-            encodeUnsignedProjectKeyRotationEnvelope(unsignedEnvelope),
+            encodeUnsignedWorkspaceKeyRotationEnvelope(unsignedEnvelope),
           );
-          return attachProjectKeyRotationEnvelopeSignature(
+          return attachWorkspaceKeyRotationEnvelopeSignature(
             unsignedEnvelope,
             envelopeSignature,
           );
@@ -1733,7 +1733,7 @@ function NoteApp({
       );
 
       const committedState = await securityCoordinator.commitRevokeDevice(
-        candidateState.projectId,
+        candidateState.workspaceId,
         transition,
         keyEnvelopes,
       );
@@ -1744,7 +1744,7 @@ function NoteApp({
       }
 
       const localEnvelope = await securityCoordinator.getProjectKeyEnvelope(
-        committedState.projectId,
+        committedState.workspaceId,
         committedState.keyEpoch,
         localDeviceId,
       );
@@ -1818,8 +1818,8 @@ function NoteApp({
     setCoordinationError(null);
 
     try {
-      const sealedEnvelope = await session.sealProjectKeyForRecipient(
-        committedState.projectId,
+      const sealedEnvelope = await session.sealWorkspaceKeyForRecipient(
+        committedState.workspaceId,
         committedState.keyEpoch,
         joiningDevice.deviceId,
         joiningDevice.encryptionPublicKey,
@@ -1873,14 +1873,14 @@ function NoteApp({
       webRtcTransport,
       {
         encrypt: (plaintext) =>
-          session.encryptProjectSyncPayload(
-            committedState.projectId,
+          session.encryptWorkspaceSyncPayload(
+            committedState.workspaceId,
             committedState.keyEpoch,
             plaintext,
           ),
         decrypt: (envelope) =>
-          session.decryptProjectSyncPayload(
-            committedState.projectId,
+          session.decryptWorkspaceSyncPayload(
+            committedState.workspaceId,
             committedState.keyEpoch,
             envelope,
           ),
@@ -2296,7 +2296,7 @@ async function ensureInitialProjectKey(
   state: SecurityState,
   localDeviceId: DeviceId,
 ): Promise<boolean> {
-  if (session.hasProjectKey(state.projectId, state.keyEpoch)) {
+  if (session.hasWorkspaceKey(state.workspaceId, state.keyEpoch)) {
     return true;
   }
 
@@ -2307,7 +2307,7 @@ async function ensureInitialProjectKey(
     state.keyEpoch === 1 &&
     localDevice?.addedAtSequence === 0
   ) {
-    await session.createProjectKeyIfMissing(state.projectId, state.keyEpoch);
+    await session.createWorkspaceKeyIfMissing(state.workspaceId, state.keyEpoch);
     return true;
   }
 
@@ -2327,7 +2327,7 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return true;
 }
 
-function projectIdFromRoute(route: BrowserRoute): ProjectId | null {
+function projectIdFromRoute(route: BrowserRoute): WorkspaceId | null {
   switch (route.kind) {
     case "project":
     case "document":

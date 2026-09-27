@@ -1,10 +1,10 @@
-import type { DocumentId, ProjectId } from "@floe-note/domain";
+import type { DocumentId, WorkspaceId } from "@floe-note/domain";
 
 const STORAGE_PREFIX = "floe-note-note-recency:";
 const MAX_STORED_NOTES = 200;
 
 export function readNoteRecency(
-  projectId: ProjectId,
+  projectId: WorkspaceId,
 ): Map<DocumentId, number> {
   try {
     const stored = window.localStorage.getItem(storageKey(projectId));
@@ -28,7 +28,7 @@ export function readNoteRecency(
 }
 
 export function recordNoteOpened(
-  projectId: ProjectId,
+  projectId: WorkspaceId,
   documentId: DocumentId,
   openedAt = Date.now(),
 ): void {
@@ -64,6 +64,6 @@ export function clearAllNoteRecency(): void {
   }
 }
 
-function storageKey(projectId: ProjectId): string {
+function storageKey(projectId: WorkspaceId): string {
   return `${STORAGE_PREFIX}${projectId}`;
 }

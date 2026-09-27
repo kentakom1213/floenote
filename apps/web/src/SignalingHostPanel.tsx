@@ -2,7 +2,7 @@ import type {
   SessionId,
   SignalingConnectionState,
 } from "@floe-note/coordinator-client";
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import type {
   WebRtcStatus,
   WebRtcTransport,
@@ -10,7 +10,7 @@ import type {
 import { useEffect, useMemo, useState } from "react";
 
 type SignalingHostPanelProps = {
-  projectId: ProjectId;
+  projectId: WorkspaceId;
   sessionId: SessionId;
   transport: WebRtcTransport;
   signalingState: SignalingConnectionState;

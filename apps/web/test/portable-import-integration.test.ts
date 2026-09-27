@@ -7,11 +7,11 @@ import {
 import {
   createDeviceId,
   type DocumentId,
-  type ProjectId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 import {
   deriveInitialSecurityState,
-  type CreateProjectTransition,
+  type CreateWorkspaceTransition,
   type DevicePublicIdentity,
   type SecurityState,
 } from "@floe-note/security";
@@ -83,18 +83,18 @@ describe("portable Floe import integration", () => {
     expect(result.isNew).toBe(false);
 
     expect(coordinator.transitions).toHaveLength(1);
-    expect(coordinator.transitions[0]!.projectId).toBe(result.project.id);
+    expect(coordinator.transitions[0]!.workspaceId).toBe(result.project.id);
     expect(coordinator.transitions[0]!.initialDevice.deviceId).toBe(
       session.publicIdentity.deviceId,
     );
     expect(storage.initializeCalls).toBe(1);
     expect(session.createdKeys).toEqual([
-      { projectId: result.project.id, keyEpoch: 1 },
+      { workspaceId: result.project.id, keyEpoch: 1 },
     ]);
 
     const state = storage.securityStates.get(result.project.id);
     expect(state).toMatchObject({
-      projectId: result.project.id,
+      workspaceId: result.project.id,
       sequence: 0,
       keyEpoch: 1,
     });
@@ -185,8 +185,8 @@ describe("portable Floe import integration", () => {
 
     expect(storage.projects.size).toBe(0);
     expect(session.createdKeys).toHaveLength(1);
-    expect(session.removedProjectIds).toHaveLength(1);
-    expect(session.hasProjectKey(session.createdKeys[0]!.projectId, 1)).toBe(
+    expect(session.removedWorkspaceIds).toHaveLength(1);
+    expect(session.hasWorkspaceKey(session.createdKeys[0]!.workspaceId, 1)).toBe(
       false,
     );
   });
@@ -289,48 +289,48 @@ class FakeSession implements ProjectGenesisSession {
     signingPublicKey: new Uint8Array(32).fill(2),
   };
   readonly displayName = "Import device";
-  readonly createdKeys: Array<{ projectId: ProjectId; keyEpoch: number }> = [];
-  readonly removedProjectIds: ProjectId[] = [];
+  readonly createdKeys: Array<{ workspaceId: WorkspaceId; keyEpoch: number }> = [];
+  readonly removedWorkspaceIds: WorkspaceId[] = [];
   readonly #keys = new Set<string>();
 
   async sign(): Promise<Uint8Array> {
     return new Uint8Array(64);
   }
 
-  async createProjectKeyIfMissing(
-    projectId: ProjectId,
+  async createWorkspaceKeyIfMissing(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
   ): Promise<boolean> {
-    const key = `${projectId}:${keyEpoch}`;
+    const key = `${workspaceId}:${keyEpoch}`;
     if (this.#keys.has(key)) return false;
     this.#keys.add(key);
-    this.createdKeys.push({ projectId, keyEpoch });
+    this.createdKeys.push({ workspaceId, keyEpoch });
     return true;
   }
 
-  hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean {
-    return this.#keys.has(`${projectId}:${keyEpoch}`);
+  hasWorkspaceKey(workspaceId: WorkspaceId, keyEpoch: number): boolean {
+    return this.#keys.has(`${workspaceId}:${keyEpoch}`);
   }
 
-  async removeProjectKeys(projectId: ProjectId): Promise<void> {
-    this.removedProjectIds.push(projectId);
+  async removeWorkspaceKeys(workspaceId: WorkspaceId): Promise<void> {
+    this.removedWorkspaceIds.push(workspaceId);
     for (const key of [...this.#keys]) {
-      if (key.startsWith(`${projectId}:`)) this.#keys.delete(key);
+      if (key.startsWith(`${workspaceId}:`)) this.#keys.delete(key);
     }
   }
 
-  async encryptProjectStoragePayload(
-    _projectId: ProjectId,
+  async encryptWorkspaceStoragePayload(
+    _workspaceId: WorkspaceId,
     _keyEpoch: number,
-    _context: Parameters<ProjectStorageCrypto["encryptProjectStoragePayload"]>[2],
+    _context: Parameters<ProjectStorageCrypto["encryptWorkspaceStoragePayload"]>[2],
     plaintext: Uint8Array,
   ): Promise<Uint8Array> {
     return plaintext.slice();
   }
 
-  async decryptProjectStoragePayload(
-    _projectId: ProjectId,
-    _context: Parameters<ProjectStorageCrypto["decryptProjectStoragePayload"]>[1],
+  async decryptWorkspaceStoragePayload(
+    _workspaceId: WorkspaceId,
+    _context: Parameters<ProjectStorageCrypto["decryptWorkspaceStoragePayload"]>[1],
     envelope: Uint8Array,
   ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
     return { keyEpoch: 1, plaintext: envelope.slice() };
@@ -338,12 +338,12 @@ class FakeSession implements ProjectGenesisSession {
 }
 
 class FakeCoordinator implements ProjectGenesisCoordinator {
-  readonly transitions: CreateProjectTransition[] = [];
+  readonly transitions: CreateWorkspaceTransition[] = [];
   constructor(readonly failure: Error | null = null) {}
 
-  async commitCreateProject(
-    _projectId: ProjectId,
-    transition: CreateProjectTransition,
+  async commitCreateWorkspace(
+    _workspaceId: WorkspaceId,
+    transition: CreateWorkspaceTransition,
   ): Promise<SecurityState> {
     this.transitions.push(transition);
     if (this.failure) throw this.failure;
@@ -357,8 +357,8 @@ type StoredSnapshot = {
 };
 
 class FakeStorage implements ProjectGenesisStorage {
-  readonly projects = new Map<ProjectId, StoredSnapshot>();
-  readonly securityStates = new Map<ProjectId, SecurityState>();
+  readonly projects = new Map<WorkspaceId, StoredSnapshot>();
+  readonly securityStates = new Map<WorkspaceId, SecurityState>();
   initializeCalls = 0;
   failure: Error | null = null;
 
@@ -378,12 +378,12 @@ class FakeStorage implements ProjectGenesisStorage {
     this.projects.set(project.id, snapshot(project));
   }
 
-  reload(projectId: ProjectId): NoteProject {
-    const stored = this.projects.get(projectId);
+  reload(workspaceId: WorkspaceId): NoteProject {
+    const stored = this.projects.get(workspaceId);
     if (!stored) throw new Error("Project not found");
 
     return NoteProject.fromSnapshot(
-      projectId,
+      workspaceId,
       stored.manifest,
       stored.documents.map(({ id, snapshot: documentSnapshot }) =>
         NoteDocument.fromSnapshot(id, documentSnapshot),

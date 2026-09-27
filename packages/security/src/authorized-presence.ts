@@ -1,17 +1,17 @@
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import { encode, rfc8949EncodeOptions } from "cborg";
 
 import {
   SECURITY_HEAD_HASH_BYTES,
   SECURITY_SIGNATURE_BYTES,
-} from "./create-project.js";
+} from "./create-workspace.js";
 import { SECURITY_PROTOCOL_VERSION } from "./state.js";
 
 export const AUTHORIZED_PRESENCE_CHALLENGE_BYTES = 32;
 
 export type AuthorizedPresenceProof = {
   protocolVersion: typeof SECURITY_PROTOCOL_VERSION;
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
   deviceId: DeviceId;
   securityHead: Uint8Array;
   challenge: Uint8Array;
@@ -38,7 +38,7 @@ export function encodeAuthorizedPresenceProof(
     {
       type: "authorized-presence",
       protocolVersion: proof.protocolVersion,
-      projectId: proof.projectId,
+      workspaceId: proof.workspaceId,
       deviceId: proof.deviceId,
       securityHead: proof.securityHead,
       challenge: proof.challenge,

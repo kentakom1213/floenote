@@ -1,4 +1,4 @@
-import { createProjectId } from "@floe-note/domain";
+import { createWorkspaceId } from "@floe-note/domain";
 import { LoroDoc } from "loro-crdt";
 import { describe, expect, it, vi } from "vitest";
 
@@ -151,7 +151,7 @@ describe("NoteProject metadata", () => {
     manifest.commit();
 
     const project = NoteProject.fromSnapshot(
-      createProjectId(),
+      createWorkspaceId(),
       manifest.export({ mode: "snapshot" }),
       [],
     );

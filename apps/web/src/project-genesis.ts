@@ -1,13 +1,13 @@
 import { sha256, verifyEd25519Signature } from "@floe-note/crypto";
 import type { NoteProject } from "@floe-note/document";
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import {
-  attachCreateProjectSignature,
-  createUnsignedCreateProjectTransition,
+  attachCreateWorkspaceSignature,
+  createUnsignedCreateWorkspaceTransition,
   deriveInitialSecurityState,
-  encodeCreateProjectTransition,
-  encodeUnsignedCreateProjectTransition,
-  type CreateProjectTransition,
+  encodeCreateWorkspaceTransition,
+  encodeUnsignedCreateWorkspaceTransition,
+  type CreateWorkspaceTransition,
   type DevicePublicIdentity,
   type SecurityState,
 } from "@floe-note/security";
@@ -22,18 +22,18 @@ export type ProjectGenesisSession = ProjectStorageCrypto & {
   publicIdentity: DevicePublicIdentity;
   displayName: string;
   sign(message: Uint8Array): Promise<Uint8Array>;
-  createProjectKeyIfMissing(
-    projectId: ProjectId,
+  createWorkspaceKeyIfMissing(
+    projectId: WorkspaceId,
     keyEpoch: number,
   ): Promise<boolean>;
-  hasProjectKey(projectId: ProjectId, keyEpoch: number): boolean;
-  removeProjectKeys(projectId: ProjectId): Promise<void>;
+  hasWorkspaceKey(projectId: WorkspaceId, keyEpoch: number): boolean;
+  removeWorkspaceKeys(projectId: WorkspaceId): Promise<void>;
 };
 
 export type ProjectGenesisCoordinator = {
-  commitCreateProject(
-    projectId: ProjectId,
-    transition: CreateProjectTransition,
+  commitCreateWorkspace(
+    projectId: WorkspaceId,
+    transition: CreateWorkspaceTransition,
   ): Promise<SecurityState>;
 };
 
@@ -69,14 +69,14 @@ export async function commitNewProjectGenesis(
   const identity = session.publicIdentity;
   project.setDeviceDisplayName(identity.deviceId, session.displayName);
 
-  const unsignedTransition = createUnsignedCreateProjectTransition(
+  const unsignedTransition = createUnsignedCreateWorkspaceTransition(
     project.id,
     identity,
   );
   const signingBytes =
-    encodeUnsignedCreateProjectTransition(unsignedTransition);
+    encodeUnsignedCreateWorkspaceTransition(unsignedTransition);
   const signature = await session.sign(signingBytes);
-  const transition = attachCreateProjectSignature(
+  const transition = attachCreateWorkspaceSignature(
     unsignedTransition,
     signature,
   );
@@ -87,32 +87,32 @@ export async function commitNewProjectGenesis(
     transition.initialDevice.signingPublicKey,
   );
   if (!verified) {
-    throw new Error("CreateProject signature verification failed");
+    throw new Error("CreateWorkspace signature verification failed");
   }
 
   const headHash = await runtime.hash(
-    encodeCreateProjectTransition(transition),
+    encodeCreateWorkspaceTransition(transition),
   );
   const candidateState = deriveInitialSecurityState(
     transition,
     headHash,
   );
-  const committedState = await coordinator.commitCreateProject(
+  const committedState = await coordinator.commitCreateWorkspace(
     project.id,
     transition,
   );
 
   if (!securityStatesEqual(candidateState, committedState)) {
     throw new Error(
-      "Coordinator committed a SecurityState that does not match CreateProject",
+      "Coordinator committed a SecurityState that does not match CreateWorkspace",
     );
   }
 
-  const createdProjectKey = await session.createProjectKeyIfMissing(
+  const createdProjectKey = await session.createWorkspaceKeyIfMissing(
     project.id,
     committedState.keyEpoch,
   );
-  if (!session.hasProjectKey(project.id, committedState.keyEpoch)) {
+  if (!session.hasWorkspaceKey(project.id, committedState.keyEpoch)) {
     throw new Error("New ProjectKey is not available on this device");
   }
 
@@ -125,7 +125,7 @@ export async function commitNewProjectGenesis(
   } catch (error) {
     if (createdProjectKey) {
       try {
-        await session.removeProjectKeys(project.id);
+        await session.removeWorkspaceKeys(project.id);
       } catch {
         // The Project itself was not persisted. Preserve the original error;
         // a leftover key is safer than masking the failed local transaction.

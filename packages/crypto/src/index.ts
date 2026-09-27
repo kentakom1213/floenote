@@ -27,27 +27,27 @@ export {
 } from "./security-crypto.js";
 
 export {
-  PROJECT_KEY_BYTES,
-  PROJECT_KEY_ENVELOPE_VERSION,
-  generateProjectKey,
-  openSealedProjectKeyForDevice,
-  sealProjectKeyForDevice,
-} from "./project-key.js";
+  WORKSPACE_KEY_BYTES,
+  WORKSPACE_KEY_ENVELOPE_VERSION,
+  generateWorkspaceKey,
+  openSealedWorkspaceKeyForDevice,
+  sealWorkspaceKeyForDevice,
+} from "./workspace-key.js";
 
-export type { ProjectKeyEnvelopeContext } from "./project-key.js";
-
-export {
-  decryptProjectSyncPayload,
-  encryptProjectSyncPayload,
-  PROJECT_SYNC_ENVELOPE_VERSION,
-  readProjectSyncPayloadKeyEpoch,
-} from "./project-sync-crypto.js";
+export type { WorkspaceKeyEnvelopeContext } from "./workspace-key.js";
 
 export {
-  decryptProjectStoragePayload,
-  encryptProjectStoragePayload,
-  PROJECT_STORAGE_ENVELOPE_VERSION,
-  readProjectStoragePayloadKeyEpoch,
-} from "./project-storage-crypto.js";
+  decryptWorkspaceSyncPayload,
+  encryptWorkspaceSyncPayload,
+  WORKSPACE_SYNC_ENVELOPE_VERSION,
+  readWorkspaceSyncPayloadKeyEpoch,
+} from "./workspace-sync-crypto.js";
 
-export type { ProjectStorageRecordContext } from "./project-storage-crypto.js";
+export {
+  decryptWorkspaceStoragePayload,
+  encryptWorkspaceStoragePayload,
+  WORKSPACE_STORAGE_ENVELOPE_VERSION,
+  readWorkspaceStoragePayloadKeyEpoch,
+} from "./workspace-storage-crypto.js";
+
+export type { WorkspaceStorageRecordContext } from "./workspace-storage-crypto.js";

@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
 
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 
 import { parseInvitationUrl } from "./invitation-url.js";
 import { Modal } from "./Modal.js";
 import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 export type ProjectSwitcherItem = {
-  id: ProjectId;
+  id: WorkspaceId;
   name: string;
   isCurrent: boolean;
 };
@@ -21,7 +21,7 @@ type NewProjectSource =
 type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
   disabled?: boolean;
-  onSelectProject: (projectId: ProjectId) => Promise<void>;
+  onSelectProject: (projectId: WorkspaceId) => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
@@ -46,15 +46,15 @@ export function ProjectSwitcher({
     useState<NewProjectSource | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
-  const [pendingProjectId, setPendingProjectId] =
-    useState<ProjectId | null>(null);
+  const [pendingWorkspaceId, setPendingWorkspaceId] =
+    useState<WorkspaceId | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function selectProject(projectId: ProjectId): Promise<void> {
-    if (disabled || pendingProjectId || projectId === current?.id) return;
+  async function selectProject(projectId: WorkspaceId): Promise<void> {
+    if (disabled || pendingWorkspaceId || projectId === current?.id) return;
 
-    setPendingProjectId(projectId);
+    setPendingWorkspaceId(projectId);
     setError(null);
 
     try {
@@ -65,7 +65,7 @@ export function ProjectSwitcher({
         caught instanceof Error ? caught.message : "Could not open Project",
       );
     } finally {
-      setPendingProjectId(null);
+      setPendingWorkspaceId(null);
     }
   }
 
@@ -193,7 +193,7 @@ export function ProjectSwitcher({
                 className="project-switcher-item"
                 type="button"
                 key={project.id}
-                disabled={disabled || pendingProjectId !== null}
+                disabled={disabled || pendingWorkspaceId !== null}
                 onClick={() => void selectProject(project.id)}
               >
                 <span
@@ -205,7 +205,7 @@ export function ProjectSwitcher({
                 <span className="project-switcher-item-name">
                   {project.name}
                 </span>
-                {pendingProjectId === project.id ? (
+                {pendingWorkspaceId === project.id ? (
                   <span className="project-switcher-pending">…</span>
                 ) : null}
               </button>

@@ -1,4 +1,4 @@
-import { parseProjectId } from "@floe-note/domain";
+import { parseWorkspaceId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,7 +8,7 @@ import {
 
 const ORIGIN = "https://floe.pwll.dev";
 const INVITE_ID = "0123456789abcdef0123456789abcdef";
-const PROJECT_ID = parseProjectId("00000000-0000-7000-8000-000000000010");
+const PROJECT_ID = parseWorkspaceId("00000000-0000-7000-8000-000000000010");
 
 describe("parseInvitationUrl", () => {
   it("accepts an invitation URL on the app origin", () => {
