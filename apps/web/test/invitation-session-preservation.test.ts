@@ -127,7 +127,7 @@ describe("invitation session preservation", () => {
   it("opens the normal application without a successful-join hard reload", () => {
     expect(joinSource).toContain("handoffDeviceVaultSession(");
     expect(joinSource).not.toContain('window.location.replace("/")');
-    expect(appSource).toContain("replaceInvitationUrlWithProject(window.history, projectId)");
+    expect(appSource).toContain("replaceInvitationUrlWithWorkspace(window.history, workspaceId)");
   });
 
   it("does not persist the unlock session in browser storage", () => {

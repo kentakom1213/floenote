@@ -8,11 +8,11 @@ import {
 export type BrowserRoute =
   | { kind: "root" }
   | { kind: "device-settings" }
-  | { kind: "project"; projectId: WorkspaceId }
-  | { kind: "document"; projectId: WorkspaceId; documentId: DocumentId }
-  | { kind: "project-settings"; projectId: WorkspaceId }
-  | { kind: "trash"; projectId: WorkspaceId }
-  | { kind: "trash-document"; projectId: WorkspaceId; documentId: DocumentId }
+  | { kind: "workspace"; workspaceId: WorkspaceId }
+  | { kind: "note"; workspaceId: WorkspaceId; noteId: DocumentId }
+  | { kind: "workspace-settings"; workspaceId: WorkspaceId }
+  | { kind: "trash"; workspaceId: WorkspaceId }
+  | { kind: "trash-note"; workspaceId: WorkspaceId; noteId: DocumentId }
   | { kind: "invitation"; inviteId: string; pairingSecret: string | null }
   | { kind: "not-found" };
 
@@ -38,43 +38,43 @@ export function parseLocation(
     };
   }
 
-  if (segments[0] !== "p" || segments.length < 2 || segments.length > 4) {
+  if (segments[0] !== "w" || segments.length < 2 || segments.length > 4) {
     return { kind: "not-found" };
   }
 
-  let projectId: WorkspaceId;
+  let workspaceId: WorkspaceId;
   try {
-    projectId = parseWorkspaceId(segments[1]!);
+    workspaceId = parseWorkspaceId(segments[1]!);
   } catch {
     return { kind: "not-found" };
   }
 
-  if (segments.length === 2) return { kind: "project", projectId };
+  if (segments.length === 2) return { kind: "workspace", workspaceId };
   if (segments.length === 3 && segments[2] === "settings") {
-    return { kind: "project-settings", projectId };
+    return { kind: "workspace-settings", workspaceId };
   }
   if (segments.length === 3 && segments[2] === "trash") {
-    return { kind: "trash", projectId };
+    return { kind: "trash", workspaceId };
   }
 
   if (segments.length === 4 && segments[2] === "trash") {
     try {
       return {
-        kind: "trash-document",
-        projectId,
-        documentId: parseDocumentId(segments[3]!),
+        kind: "trash-note",
+        workspaceId,
+        noteId: parseDocumentId(segments[3]!),
       };
     } catch {
       return { kind: "not-found" };
     }
   }
 
-  if (segments.length === 3) {
+  if (segments.length === 4 && segments[2] === "n") {
     try {
       return {
-        kind: "document",
-        projectId,
-        documentId: parseDocumentId(segments[2]!),
+        kind: "note",
+        workspaceId,
+        noteId: parseDocumentId(segments[3]!),
       };
     } catch {
       return { kind: "not-found" };
@@ -84,29 +84,28 @@ export function parseLocation(
   return { kind: "not-found" };
 }
 
-export function buildProjectUrl(projectId: WorkspaceId): string {
-  return `/p/${projectId}`;
+export function buildWorkspaceUrl(workspaceId: WorkspaceId): string {
+  return `/w/${workspaceId}`;
 }
 
-export function buildDocumentUrl(
-  projectId: WorkspaceId,
-  documentId: DocumentId,
+export function buildNoteUrl(
+  workspaceId: WorkspaceId,
+  noteId: DocumentId,
 ): string {
-  return `${buildProjectUrl(projectId)}/${documentId}`;
+  return `${buildWorkspaceUrl(workspaceId)}/n/${noteId}`;
 }
 
-export function buildProjectSettingsUrl(projectId: WorkspaceId): string {
-  return `${buildProjectUrl(projectId)}/settings`;
+export function buildWorkspaceSettingsUrl(workspaceId: WorkspaceId): string {
+  return `${buildWorkspaceUrl(workspaceId)}/settings`;
 }
 
-export function buildTrashUrl(projectId: WorkspaceId): string {
-  return `${buildProjectUrl(projectId)}/trash`;
+export function buildTrashUrl(workspaceId: WorkspaceId): string {
+  return `${buildWorkspaceUrl(workspaceId)}/trash`;
 }
 
-export function buildTrashDocumentUrl(
-  projectId: WorkspaceId,
-  documentId: DocumentId,
+export function buildTrashNoteUrl(
+  workspaceId: WorkspaceId,
+  noteId: DocumentId,
 ): string {
-  return `${buildTrashUrl(projectId)}/${documentId}`;
+  return `${buildTrashUrl(workspaceId)}/${noteId}`;
 }
-

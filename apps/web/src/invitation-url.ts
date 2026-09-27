@@ -1,4 +1,5 @@
 import type { WorkspaceId } from "@floe-note/domain";
+import { buildWorkspaceUrl } from "./browser-route.js";
 
 const INVITATION_PATH_PATTERN = /^\/join\/v1\/[0-9a-f]{32}$/iu;
 const INVALID_INVITATION_MESSAGE = "Paste a valid Floe Note invitation link.";
@@ -27,9 +28,9 @@ export function parseInvitationUrl(
   return url;
 }
 
-export function replaceInvitationUrlWithProject(
+export function replaceInvitationUrlWithWorkspace(
   history: Pick<History, "replaceState">,
-  projectId: WorkspaceId,
+  workspaceId: WorkspaceId,
 ): void {
-  history.replaceState(null, "", `/p/${projectId}`);
+  history.replaceState(null, "", buildWorkspaceUrl(workspaceId));
 }

@@ -1,28 +1,43 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildDocumentUrl,
-  buildProjectSettingsUrl,
-  buildProjectUrl,
-  buildTrashDocumentUrl,
+  buildNoteUrl,
+  buildTrashNoteUrl,
   buildTrashUrl,
+  buildWorkspaceSettingsUrl,
+  buildWorkspaceUrl,
   parseLocation,
 } from "./browser-route.js";
 
-const PROJECT_ID = "0199a000-0000-7000-8000-000000000001";
-const DOCUMENT_ID = "0199a000-0000-7000-8000-000000000002";
+const WORKSPACE_ID = "0199a000-0000-7000-8000-000000000001";
+const NOTE_ID = "0199a000-0000-7000-8000-000000000002";
 
 describe("browser routes", () => {
   it.each([
     ["/", "root"],
     ["/settings", "device-settings"],
-    [`/p/${PROJECT_ID}`, "project"],
-    [`/p/${PROJECT_ID}/${DOCUMENT_ID}`, "document"],
-    [`/p/${PROJECT_ID}/settings`, "project-settings"],
-    [`/p/${PROJECT_ID}/trash`, "trash"],
-    [`/p/${PROJECT_ID}/trash/${DOCUMENT_ID}`, "trash-document"],
+    [`/w/${WORKSPACE_ID}`, "workspace"],
+    [`/w/${WORKSPACE_ID}/n/${NOTE_ID}`, "note"],
+    [`/w/${WORKSPACE_ID}/settings`, "workspace-settings"],
+    [`/w/${WORKSPACE_ID}/trash`, "trash"],
+    [`/w/${WORKSPACE_ID}/trash/${NOTE_ID}`, "trash-note"],
   ])("parses %s", (pathname, kind) => {
-    expect(parseLocation({ pathname, hash: "" } as Location)).toMatchObject({ kind });
+    expect(parseLocation({ pathname, hash: "" } as Location)).toMatchObject({
+      kind,
+    });
+  });
+
+  it("preserves Workspace and note identity in parsed canonical routes", () => {
+    expect(
+      parseLocation({
+        pathname: `/w/${WORKSPACE_ID}/n/${NOTE_ID}`,
+        hash: "",
+      } as Location),
+    ).toEqual({
+      kind: "note",
+      workspaceId: WORKSPACE_ID,
+      noteId: NOTE_ID,
+    });
   });
 
   it("parses invitation secrets only from the fragment", () => {
@@ -39,9 +54,12 @@ describe("browser routes", () => {
   });
 
   it.each([
-    "/p/not-a-uuid",
-    `/p/${PROJECT_ID}/not-a-uuid`,
-    `/p/${PROJECT_ID}/trash/not-a-uuid`,
+    "/w/not-a-uuid",
+    `/w/${WORKSPACE_ID}/n/not-a-uuid`,
+    `/w/${WORKSPACE_ID}/trash/not-a-uuid`,
+    `/w/${WORKSPACE_ID}/${NOTE_ID}`,
+    `/p/${WORKSPACE_ID}`,
+    `/p/${WORKSPACE_ID}/${NOTE_ID}`,
     "/unknown",
   ])("maps malformed or unknown route %s to not-found", (pathname) => {
     expect(parseLocation({ pathname, hash: "" } as Location)).toEqual({
@@ -49,19 +67,19 @@ describe("browser routes", () => {
     });
   });
 
-  it("builds canonical project and document URLs", () => {
-    const projectId = PROJECT_ID as never;
-    const documentId = DOCUMENT_ID as never;
-    expect(buildProjectUrl(projectId)).toBe(`/p/${PROJECT_ID}`);
-    expect(buildDocumentUrl(projectId, documentId)).toBe(
-      `/p/${PROJECT_ID}/${DOCUMENT_ID}`,
+  it("builds canonical Workspace and note URLs", () => {
+    const workspaceId = WORKSPACE_ID as never;
+    const noteId = NOTE_ID as never;
+    expect(buildWorkspaceUrl(workspaceId)).toBe(`/w/${WORKSPACE_ID}`);
+    expect(buildNoteUrl(workspaceId, noteId)).toBe(
+      `/w/${WORKSPACE_ID}/n/${NOTE_ID}`,
     );
-    expect(buildProjectSettingsUrl(projectId)).toBe(
-      `/p/${PROJECT_ID}/settings`,
+    expect(buildWorkspaceSettingsUrl(workspaceId)).toBe(
+      `/w/${WORKSPACE_ID}/settings`,
     );
-    expect(buildTrashUrl(projectId)).toBe(`/p/${PROJECT_ID}/trash`);
-    expect(buildTrashDocumentUrl(projectId, documentId)).toBe(
-      `/p/${PROJECT_ID}/trash/${DOCUMENT_ID}`,
+    expect(buildTrashUrl(workspaceId)).toBe(`/w/${WORKSPACE_ID}/trash`);
+    expect(buildTrashNoteUrl(workspaceId, noteId)).toBe(
+      `/w/${WORKSPACE_ID}/trash/${NOTE_ID}`,
     );
   });
 });

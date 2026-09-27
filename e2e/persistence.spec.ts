@@ -233,7 +233,7 @@ test("does not open another Workspace's encrypted manifest", async ({
   );
   await page.getByRole("button", { name: "Create project" }).click();
   expect((await commit).status()).toBe(201);
-  await expect(page).toHaveURL(/\/p\/[0-9a-f-]+\/[0-9a-f-]+$/);
+  await expect(page).toHaveURL(/\/w\/[0-9a-f-]+\/n\/[0-9a-f-]+$/);
   const targetWorkspaceId = new URL(page.url()).pathname.split("/")[2]!;
   expect(targetWorkspaceId).not.toBe(sourceWorkspaceId);
 

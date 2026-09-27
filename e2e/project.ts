@@ -43,11 +43,11 @@ export async function createSecuredProject(
   await expect(page.getByLabel("Note title")).toHaveValue(
     "Welcome to Floe Note",
   );
-  await expect(page).toHaveURL(/\/p\/[0-9a-f-]+\/[0-9a-f-]+$/);
+  await expect(page).toHaveURL(/\/w\/[0-9a-f-]+\/n\/[0-9a-f-]+$/);
 
-  const match = /^\/p\/([^/]+)\/([^/]+)$/.exec(new URL(page.url()).pathname);
+  const match = /^\/w\/([^/]+)\/n\/([^/]+)$/.exec(new URL(page.url()).pathname);
   if (!match) {
-    throw new Error("Expected canonical Project document URL");
+    throw new Error("Expected canonical Workspace note URL");
   }
 
   return {
