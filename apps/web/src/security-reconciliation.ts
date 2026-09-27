@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import type {
   SecurityState,
   SecurityTransition,
@@ -7,9 +7,9 @@ import type {
 import { applyVerifiedSecurityTransitions } from "./security-catch-up.js";
 
 export type SecurityStateCoordinatorReader = {
-  getSecurityState(projectId: ProjectId): Promise<SecurityState>;
+  getSecurityState(projectId: WorkspaceId): Promise<SecurityState>;
   getSecurityTransitions(
-    projectId: ProjectId,
+    projectId: WorkspaceId,
     afterSequence: number,
   ): Promise<readonly SecurityTransition[]>;
 };

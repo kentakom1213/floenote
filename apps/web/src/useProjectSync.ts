@@ -259,13 +259,13 @@ export function useEncryptedLocalTabSync({
     const transport = new BroadcastChannelTransport(project.id);
     const encryptedTransport = new EncryptedSyncTransport(transport, {
       encrypt: (plaintext) =>
-        vaultSession.encryptProjectSyncPayload(
+        vaultSession.encryptWorkspaceSyncPayload(
           securityState.projectId,
           securityState.keyEpoch,
           plaintext,
         ),
       decrypt: (envelope) =>
-        vaultSession.decryptProjectSyncPayload(
+        vaultSession.decryptWorkspaceSyncPayload(
           securityState.projectId,
           securityState.keyEpoch,
           envelope,

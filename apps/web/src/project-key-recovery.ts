@@ -1,19 +1,19 @@
 import { verifyEd25519Signature } from "@floe-note/crypto";
 import type { DeviceId } from "@floe-note/domain";
 import {
-  encodeUnsignedProjectKeyRotationEnvelope,
-  type ProjectKeyRotationEnvelope,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
+  type WorkspaceKeyRotationEnvelope,
   type SecurityState,
 } from "@floe-note/security";
 import type { DeviceVaultSession } from "@floe-note/vault";
 
-type ProjectKeyStore = Pick<DeviceVaultSession, "storeSealedProjectKey">;
+type ProjectKeyStore = Pick<DeviceVaultSession, "storeSealedWorkspaceKey">;
 
 export async function storeVerifiedRotatedProjectKey(
   session: ProjectKeyStore,
   state: SecurityState,
   localDeviceId: DeviceId,
-  envelope: ProjectKeyRotationEnvelope,
+  envelope: WorkspaceKeyRotationEnvelope,
 ): Promise<void> {
   if (
     envelope.projectId !== state.projectId ||
@@ -31,7 +31,7 @@ export async function storeVerifiedRotatedProjectKey(
   }
 
   const verified = await verifyEd25519Signature(
-    encodeUnsignedProjectKeyRotationEnvelope(envelope),
+    encodeUnsignedWorkspaceKeyRotationEnvelope(envelope),
     envelope.signature,
     signer.signingPublicKey,
   );
@@ -39,7 +39,7 @@ export async function storeVerifiedRotatedProjectKey(
     throw new Error("ProjectKey rotation envelope signature verification failed");
   }
 
-  await session.storeSealedProjectKey(
+  await session.storeSealedWorkspaceKey(
     envelope.sealedEnvelope,
     envelope.projectId,
     envelope.keyEpoch,
