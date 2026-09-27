@@ -700,7 +700,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     for (const envelope of keyEnvelopes) {
       if (
         envelope.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-        envelope.projectId !== candidateState.projectId ||
+        envelope.projectId !== candidateState.workspaceId ||
         envelope.keyEpoch !== candidateState.keyEpoch ||
         envelope.securityHead !== bytesToHex(candidateState.headHash) ||
         envelope.signerDeviceId !== transition.signerDeviceId
@@ -713,7 +713,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
 
       const envelopeSigningBytes = encodeUnsignedWorkspaceKeyRotationEnvelope({
         protocolVersion: SECURITY_PROTOCOL_VERSION,
-        projectId: candidateState.projectId,
+        workspaceId: candidateState.workspaceId,
         keyEpoch: candidateState.keyEpoch,
         securityHead: candidateState.headHash,
         recipientDeviceId: parseDeviceId(envelope.recipientDeviceId),
@@ -988,7 +988,7 @@ export class ProjectCoordinator extends DurableObject<Env> {
     );
     const signingBytes = encodeAuthorizedPresenceProof({
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      projectId,
+      workspaceId: projectId,
       deviceId,
       securityHead: state.headHash,
       challenge,
@@ -1799,7 +1799,7 @@ function stateMatchesCommittedRevoke(
   transition: ReturnType<typeof parseRevokeDeviceWirePayload>,
 ): boolean {
   return (
-    state.projectId === transition.projectId &&
+    state.workspaceId === transition.workspaceId &&
     state.sequence === transition.sequence &&
     state.keyEpoch === transition.newKeyEpoch &&
     !state.devices.some(
@@ -1816,7 +1816,7 @@ function stateMatchesCommittedAdd(
   transition: ReturnType<typeof parseAddDeviceWirePayload>,
 ): boolean {
   if (
-    state.projectId !== transition.projectId ||
+    state.workspaceId !== transition.workspaceId ||
     state.sequence !== transition.sequence
   ) {
     return false;

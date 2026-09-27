@@ -6,7 +6,7 @@ import {
 } from "@floe-note/domain";
 import {
   addDeviceTransitionToWire,
-  createProjectTransitionToWire,
+  createWorkspaceTransitionToWire,
   parseSecurityStateWirePayload,
   parseSecurityTransitionWirePayload,
   revokeDeviceTransitionToWire,
@@ -109,7 +109,7 @@ export class SecurityCoordinatorClient {
       ...revokeDeviceTransitionToWire(transition),
       keyEnvelopes: keyEnvelopes.map((envelope) => ({
         protocolVersion: envelope.protocolVersion,
-        projectId: envelope.projectId,
+        projectId: envelope.workspaceId,
         keyEpoch: envelope.keyEpoch,
         securityHead: bytesToHex(envelope.securityHead),
         recipientDeviceId: envelope.recipientDeviceId,
@@ -169,7 +169,7 @@ export class SecurityCoordinatorClient {
 
     return {
       protocolVersion: 1,
-      projectId: parsedWorkspaceId,
+      workspaceId: parsedWorkspaceId,
       keyEpoch,
       securityHead: hexToBytes(payload.securityHead),
       recipientDeviceId: parseDeviceId(payload.recipientDeviceId),
@@ -185,7 +185,7 @@ export class SecurityCoordinatorClient {
   ): Promise<SecurityState> {
     return this.#commitTransition(
       projectId,
-      createProjectTransitionToWire(transition),
+      createWorkspaceTransitionToWire(transition),
     );
   }
 

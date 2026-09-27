@@ -361,7 +361,7 @@ export class AuthorizedPresenceClient {
 
     const signingBytes = encodeAuthorizedPresenceProof({
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      projectId: this.#projectId,
+      workspaceId: this.#projectId,
       deviceId: this.#deviceId,
       securityHead,
       challenge,
