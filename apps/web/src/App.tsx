@@ -60,11 +60,11 @@ import {
 
 import { useBrowserNavigation } from "./browser-navigation.js";
 import {
-  buildDocumentUrl,
-  buildProjectSettingsUrl,
-  buildProjectUrl,
-  buildTrashDocumentUrl,
+  buildNoteUrl,
+  buildTrashNoteUrl,
   buildTrashUrl,
+  buildWorkspaceSettingsUrl,
+  buildWorkspaceUrl,
   parseLocation,
   type BrowserRoute,
 } from "./browser-route.js";
@@ -84,7 +84,7 @@ import {
   closeOwnedDeviceVaultSession,
   type DeviceVaultSessionOwner,
 } from "./device-vault-session-owner.js";
-import { replaceInvitationUrlWithProject } from "./invitation-url.js";
+import { replaceInvitationUrlWithWorkspace } from "./invitation-url.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
 import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
@@ -191,13 +191,13 @@ export function App() {
 
   function handoffJoinedDeviceVaultSession(
     session: DeviceVaultSession,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): void {
     if (deviceVaultSessionOwner.current) {
       throw new Error("A Device Vault session is already active");
     }
 
-    replaceInvitationUrlWithProject(window.history, projectId);
+    replaceInvitationUrlWithWorkspace(window.history, workspaceId);
     deviceVaultSessionOwner.current = session;
     setInvitationJoinRoute(null);
   }
@@ -858,9 +858,9 @@ function NoteApp({
         project ? readLastDocumentId(project.id) : null,
       );
 
-      if (rootResolution.kind === "open-project") {
+      if (rootResolution.kind === "open-workspace") {
         if (!projectSwitching) {
-          void selectProject(rootResolution.projectId, false).catch(() => {
+          void selectProject(rootResolution.workspaceId, false).catch(() => {
             setRouteError(true);
           });
         }
@@ -869,25 +869,19 @@ function NoteApp({
 
       if (rootResolution.kind === "empty") return;
 
-      setSelectedId(rootResolution.documentId);
-      writeLastDocumentId(
-        rootResolution.projectId,
-        rootResolution.documentId,
-      );
+      setSelectedId(rootResolution.noteId);
+      writeLastDocumentId(rootResolution.workspaceId, rootResolution.noteId);
       setMainView("note");
       setTrashDocumentId(null);
       replaceRoute(
-        rootResolution.documentId
-          ? buildDocumentUrl(
-              rootResolution.projectId,
-              rootResolution.documentId,
-            )
-          : buildProjectUrl(rootResolution.projectId),
+        rootResolution.noteId
+          ? buildNoteUrl(rootResolution.workspaceId, rootResolution.noteId)
+          : buildWorkspaceUrl(rootResolution.workspaceId),
       );
       return;
     }
 
-    const requestedWorkspaceId = projectIdFromRoute(browserRoute);
+    const requestedWorkspaceId = workspaceIdFromRoute(browserRoute);
     if (!requestedWorkspaceId) return;
 
     if (!projectSummaries.some((summary) => summary.id === requestedWorkspaceId)) {
@@ -907,7 +901,7 @@ function NoteApp({
 
     setRouteError(false);
 
-    if (browserRoute.kind === "project") {
+    if (browserRoute.kind === "workspace") {
       const rememberedId = readLastDocumentId(project.id);
       const nextId =
         rememberedId && project.getDocument(rememberedId)
@@ -920,12 +914,12 @@ function NoteApp({
       setTrashDocumentId(null);
 
       if (nextId) {
-        replaceRoute(buildDocumentUrl(project.id, nextId));
+        replaceRoute(buildNoteUrl(project.id, nextId));
       }
       return;
     }
 
-    if (browserRoute.kind === "project-settings") {
+    if (browserRoute.kind === "workspace-settings") {
       setMainView("project-settings");
       setTrashDocumentId(null);
       return;
@@ -937,28 +931,28 @@ function NoteApp({
       return;
     }
 
-    if (browserRoute.kind === "trash-document") {
-      if (!project.getDeletedDocument(browserRoute.documentId)) {
+    if (browserRoute.kind === "trash-note") {
+      if (!project.getDeletedDocument(browserRoute.noteId)) {
         setRouteError(true);
         return;
       }
 
       setMainView("trash");
-      setTrashDocumentId(browserRoute.documentId);
+      setTrashDocumentId(browserRoute.noteId);
       return;
     }
 
-    if (browserRoute.kind === "document") {
-      if (project.getDocument(browserRoute.documentId)) {
-        setSelectedId(browserRoute.documentId);
-        writeLastDocumentId(project.id, browserRoute.documentId);
+    if (browserRoute.kind === "note") {
+      if (project.getDocument(browserRoute.noteId)) {
+        setSelectedId(browserRoute.noteId);
+        writeLastDocumentId(project.id, browserRoute.noteId);
         setMainView("note");
         setTrashDocumentId(null);
         return;
       }
 
-      if (project.getDeletedDocument(browserRoute.documentId)) {
-        replaceRoute(buildTrashDocumentUrl(project.id, browserRoute.documentId));
+      if (project.getDeletedDocument(browserRoute.noteId)) {
+        replaceRoute(buildTrashNoteUrl(project.id, browserRoute.noteId));
         return;
       }
 
@@ -1098,7 +1092,7 @@ function NoteApp({
 
     const summaries = await workspaceStorage.listWorkspaces(session);
     const requestedRoute = parseLocation();
-    const requestedWorkspaceId = projectIdFromRoute(requestedRoute);
+    const requestedWorkspaceId = workspaceIdFromRoute(requestedRoute);
     let result: OpenedProject | null = null;
 
     if (requestedRoute.kind === "not-found") {
@@ -1111,19 +1105,19 @@ function NoteApp({
         );
 
         if (
-          requestedRoute.kind === "document" &&
-          !result.project.getDocument(requestedRoute.documentId)
+          requestedRoute.kind === "note" &&
+          !result.project.getDocument(requestedRoute.noteId)
         ) {
-          if (result.project.getDeletedDocument(requestedRoute.documentId)) {
+          if (result.project.getDeletedDocument(requestedRoute.noteId)) {
             replaceRoute(
-              buildTrashDocumentUrl(requestedWorkspaceId, requestedRoute.documentId),
+              buildTrashNoteUrl(requestedWorkspaceId, requestedRoute.noteId),
             );
           } else {
             setRouteError(true);
           }
         } else if (
-          requestedRoute.kind === "trash-document" &&
-          !result.project.getDeletedDocument(requestedRoute.documentId)
+          requestedRoute.kind === "trash-note" &&
+          !result.project.getDeletedDocument(requestedRoute.noteId)
         ) {
           setRouteError(true);
         }
@@ -1138,16 +1132,16 @@ function NoteApp({
       syncLocalDeviceName(result.project, session);
 
       if (
-        requestedRoute.kind === "document" &&
-        requestedRoute.projectId === result.project.id &&
-        result.project.getDocument(requestedRoute.documentId)
+        requestedRoute.kind === "note" &&
+        requestedRoute.workspaceId === result.project.id &&
+        result.project.getDocument(requestedRoute.noteId)
       ) {
-        setSelectedId(requestedRoute.documentId);
-        writeLastDocumentId(result.project.id, requestedRoute.documentId);
+        setSelectedId(requestedRoute.noteId);
+        writeLastDocumentId(result.project.id, requestedRoute.noteId);
       } else if (
         requestedRoute.kind === "root" ||
-        (requestedRoute.kind === "project" &&
-          requestedRoute.projectId === result.project.id)
+        (requestedRoute.kind === "workspace" &&
+          requestedRoute.workspaceId === result.project.id)
       ) {
         const rememberedId = readLastDocumentId(result.project.id);
         const initialDocumentId =
@@ -1279,7 +1273,7 @@ function NoteApp({
         withActiveProjectSummary(summaries, result.project),
       );
       setProjectCatalogReady(true);
-      if (updateHistory) pushRoute(buildProjectUrl(result.project.id));
+      if (updateHistory) pushRoute(buildWorkspaceUrl(result.project.id));
     } finally {
       setProjectSwitching(false);
     }
@@ -1305,7 +1299,7 @@ function NoteApp({
       setFocusTitleDocumentId(null);
       writeLastDocumentId(result.project.id, document.id);
       setMainView("note");
-      pushRoute(buildDocumentUrl(result.project.id, document.id));
+      pushRoute(buildNoteUrl(result.project.id, document.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1337,7 +1331,7 @@ function NoteApp({
       const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      pushRoute(buildProjectUrl(result.project.id));
+      pushRoute(buildWorkspaceUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1371,7 +1365,7 @@ function NoteApp({
       const summaries = await workspaceStorage.listWorkspaces(session);
       resetProjectSecurityUiState();
       setMainView("note");
-      pushRoute(buildProjectUrl(result.project.id));
+      pushRoute(buildWorkspaceUrl(result.project.id));
       setOpenedProject(result);
       setProjectSummaries(
         withActiveProjectSummary(summaries, result.project),
@@ -1409,7 +1403,7 @@ function NoteApp({
         setProjectSummaries(
           withActiveProjectSummary(summaries, next.project),
         );
-        replaceRoute(buildProjectUrl(next.project.id));
+        replaceRoute(buildWorkspaceUrl(next.project.id));
       } else {
         setProjectSummaries(summaries);
         replaceRoute("/");
@@ -1914,7 +1908,7 @@ function NoteApp({
     setFocusTitleDocumentId(document.id);
     writeLastDocumentId(activeProject.id, document.id);
     setMainView("note");
-    pushRoute(buildDocumentUrl(activeProject.id, document.id));
+    pushRoute(buildNoteUrl(activeProject.id, document.id));
   }
 
   function deleteDocument(documentId: DocumentId) {
@@ -1940,8 +1934,8 @@ function NoteApp({
     writeLastDocumentId(activeProject.id, nextId);
     replaceRoute(
       nextId
-        ? buildDocumentUrl(activeProject.id, nextId)
-        : buildProjectUrl(activeProject.id),
+        ? buildNoteUrl(activeProject.id, nextId)
+        : buildWorkspaceUrl(activeProject.id),
     );
   }
 
@@ -2025,7 +2019,7 @@ function NoteApp({
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       onOpenProjectSettings={() => {
         setMainView("project-settings");
-        pushRoute(buildProjectSettingsUrl(activeProject.id));
+        pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
       }}
     />
   );
@@ -2162,7 +2156,7 @@ function NoteApp({
 
   function openProjectDeviceSettings(): void {
     setMainView("project-settings");
-    pushRoute(buildProjectSettingsUrl(activeProject.id));
+    pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
     window.setTimeout(() => {
       document
         .getElementById("project-devices")
@@ -2214,7 +2208,7 @@ function NoteApp({
         setFocusTitleDocumentId(null);
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
-        pushRoute(buildDocumentUrl(activeProject.id, documentId));
+        pushRoute(buildNoteUrl(activeProject.id, documentId));
       }}
       onRenameDocument={(title) => {
         if (selectedDocument) {
@@ -2232,7 +2226,7 @@ function NoteApp({
         writeLastDocumentId(activeProject.id, documentId);
         setMainView("note");
         setTrashDocumentId(null);
-        replaceRoute(buildDocumentUrl(activeProject.id, documentId));
+        replaceRoute(buildNoteUrl(activeProject.id, documentId));
       }}
       onPurgeDocument={(documentId) => {
         activeProject.purgeDocument(documentId);
@@ -2250,7 +2244,7 @@ function NoteApp({
         setMainView("trash");
         setTrashDocumentId(documentId);
         if (documentId) {
-          pushRoute(buildTrashDocumentUrl(activeProject.id, documentId));
+          pushRoute(buildTrashNoteUrl(activeProject.id, documentId));
         }
       }}
     />
@@ -2334,14 +2328,14 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return true;
 }
 
-function projectIdFromRoute(route: BrowserRoute): WorkspaceId | null {
+function workspaceIdFromRoute(route: BrowserRoute): WorkspaceId | null {
   switch (route.kind) {
-    case "project":
-    case "document":
-    case "project-settings":
+    case "workspace":
+    case "note":
+    case "workspace-settings":
     case "trash":
-    case "trash-document":
-      return route.projectId;
+    case "trash-note":
+      return route.workspaceId;
     default:
       return null;
   }

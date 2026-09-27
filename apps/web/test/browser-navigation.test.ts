@@ -10,7 +10,7 @@ import {
   useBrowserNavigation,
   type BrowserNavigation,
 } from "../src/browser-navigation.js";
-import { buildDocumentUrl } from "../src/browser-route.js";
+import { buildNoteUrl, buildWorkspaceUrl } from "../src/browser-route.js";
 import { resolveRootRoute } from "../src/root-route.js";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -66,14 +66,14 @@ describe("browser navigation state", () => {
 
     act(() => {
       currentNavigation?.pushRoute(
-        `/p/${PROJECT_ID}/${DOCUMENT_A}`,
+        `/w/${PROJECT_ID}/n/${DOCUMENT_A}`,
       );
     });
 
     expect(window.location.pathname).toBe(
-      `/p/${PROJECT_ID}/${DOCUMENT_A}`,
+      `/w/${PROJECT_ID}/n/${DOCUMENT_A}`,
     );
-    expect(container?.textContent).toBe("document");
+    expect(container?.textContent).toBe("note");
     expect(popstate).not.toHaveBeenCalled();
 
     window.removeEventListener("popstate", popstate);
@@ -85,14 +85,14 @@ describe("browser navigation state", () => {
 
     act(() => {
       currentNavigation?.replaceRoute(
-        `/p/${PROJECT_ID}/${DOCUMENT_B}`,
+        `/w/${PROJECT_ID}/n/${DOCUMENT_B}`,
       );
     });
 
     expect(window.location.pathname).toBe(
-      `/p/${PROJECT_ID}/${DOCUMENT_B}`,
+      `/w/${PROJECT_ID}/n/${DOCUMENT_B}`,
     );
-    expect(container?.textContent).toBe("document");
+    expect(container?.textContent).toBe("note");
     expect(popstate).not.toHaveBeenCalled();
 
     window.removeEventListener("popstate", popstate);
@@ -101,10 +101,10 @@ describe("browser navigation state", () => {
   it("restores route state from a browser popstate without adding history", () => {
     act(() => {
       currentNavigation?.pushRoute(
-        `/p/${PROJECT_ID}/${DOCUMENT_A}`,
+        `/w/${PROJECT_ID}/n/${DOCUMENT_A}`,
       );
       currentNavigation?.pushRoute(
-        `/p/${PROJECT_ID}/${DOCUMENT_B}`,
+        `/w/${PROJECT_ID}/n/${DOCUMENT_B}`,
       );
     });
 
@@ -115,20 +115,20 @@ describe("browser navigation state", () => {
       window.history.replaceState(
         null,
         "",
-        `/p/${PROJECT_ID}/${DOCUMENT_A}`,
+        `/w/${PROJECT_ID}/n/${DOCUMENT_A}`,
       );
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
 
-    expect(container?.textContent).toBe("document");
+    expect(container?.textContent).toBe("note");
     expect(window.location.pathname).toBe(
-      `/p/${PROJECT_ID}/${DOCUMENT_A}`,
+      `/w/${PROJECT_ID}/n/${DOCUMENT_A}`,
     );
     expect(pushState).not.toHaveBeenCalled();
     expect(replaceState).toHaveBeenCalledOnce();
   });
 
-  it("recovers from a 404 through root to the active local Project and canonical note URL", () => {
+  it("recovers from a 404 through root to the active Workspace and canonical note URL", () => {
     const project = NoteProject.create(PROJECT_ID as WorkspaceId);
     const document = project.createDocument("Recovered note");
     const summaries = [
@@ -158,8 +158,8 @@ describe("browser navigation state", () => {
 
     const openResolution = resolveRootRoute(null, summaries, null);
     expect(openResolution).toEqual({
-      kind: "open-project",
-      projectId: project.id,
+      kind: "open-workspace",
+      workspaceId: project.id,
     });
 
     const canonicalResolution = resolveRootRoute(
@@ -168,30 +168,49 @@ describe("browser navigation state", () => {
       document.id,
     );
     expect(canonicalResolution).toEqual({
-      kind: "canonical-project",
-      projectId: project.id,
-      documentId: document.id,
+      kind: "canonical-workspace",
+      workspaceId: project.id,
+      noteId: document.id,
     });
 
-    if (canonicalResolution.kind !== "canonical-project") {
-      throw new Error("Expected canonical Project resolution");
+    if (canonicalResolution.kind !== "canonical-workspace") {
+      throw new Error("Expected canonical Workspace resolution");
     }
 
     act(() => {
       currentNavigation?.replaceRoute(
-        canonicalResolution.documentId
-          ? buildDocumentUrl(
-              canonicalResolution.projectId,
-              canonicalResolution.documentId,
+        canonicalResolution.noteId
+          ? buildNoteUrl(
+              canonicalResolution.workspaceId,
+              canonicalResolution.noteId,
             )
-          : `/p/${canonicalResolution.projectId}`,
+          : buildWorkspaceUrl(canonicalResolution.workspaceId),
       );
     });
 
     expect(window.location.pathname).toBe(
-      buildDocumentUrl(project.id, document.id),
+      buildNoteUrl(project.id, document.id),
     );
-    expect(container?.textContent).toBe("document");
+    expect(container?.textContent).toBe("note");
+  });
+
+  it("uses Workspace home when the selected Workspace has no note", () => {
+    const project = NoteProject.create(PROJECT_ID as WorkspaceId);
+    expect(resolveRootRoute(project, [], null)).toEqual({
+      kind: "canonical-workspace",
+      workspaceId: project.id,
+      noteId: null,
+    });
+  });
+
+  it("falls back to the first note when the remembered note no longer exists", () => {
+    const project = NoteProject.create(PROJECT_ID as WorkspaceId);
+    const note = project.createDocument("Available note");
+    expect(resolveRootRoute(project, [], DOCUMENT_B as never)).toEqual({
+      kind: "canonical-workspace",
+      workspaceId: project.id,
+      noteId: note.id,
+    });
   });
 
   it("clears stale application 404 state on application and browser navigation", () => {
@@ -203,7 +222,7 @@ describe("browser navigation state", () => {
     ).toBe("true");
 
     act(() => {
-      currentNavigation?.pushRoute(`/p/${PROJECT_ID}`);
+      currentNavigation?.pushRoute(`/w/${PROJECT_ID}`);
     });
     expect(
       container?.querySelector("output")?.getAttribute("data-route-error"),
