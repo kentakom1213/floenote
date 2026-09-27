@@ -50,11 +50,11 @@ export class CoordinatorSignalingClient {
 
   constructor(
     coordinatorBaseUrl: string,
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     sessionId: SessionId,
     debugLogger: SignalingDebugLogger | null = null,
   ) {
-    this.#url = createWebSocketUrl(coordinatorBaseUrl, projectId, sessionId);
+    this.#url = createWebSocketUrl(coordinatorBaseUrl, workspaceId, sessionId);
     this.#debugLogger = debugLogger;
   }
 
@@ -248,12 +248,12 @@ function isRetryableCloseCode(code: number): boolean {
 
 function createWebSocketUrl(
   coordinatorBaseUrl: string,
-  projectId: WorkspaceId,
+  workspaceId: WorkspaceId,
   sessionId: SessionId,
 ): URL {
   const url = new URL(coordinatorBaseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = `/projects/${projectId}/sessions/${sessionId}`;
+  url.pathname = `/workspaces/${workspaceId}/sessions/${sessionId}`;
   url.search = "";
   url.hash = "";
   return url;

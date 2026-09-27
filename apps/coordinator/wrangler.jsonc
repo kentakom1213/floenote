@@ -13,8 +13,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "PROJECT_COORDINATOR",
-        "class_name": "ProjectCoordinator",
+        "name": "WORKSPACE_COORDINATOR",
+        "class_name": "WorkspaceCoordinator",
       },
       {
         "name": "INVITATION_COORDINATOR",
@@ -23,9 +23,13 @@
     ],
   },
   "exports": {
-    "ProjectCoordinator": {
+    "WorkspaceCoordinator": {
       "type": "durable-object",
       "storage": "sqlite",
+    },
+    "ProjectCoordinator": {
+      "type": "durable-object",
+      "state": "deleted",
     },
     "InvitationCoordinator": {
       "type": "durable-object",
@@ -43,8 +47,8 @@
     "durable_objects": {
       "bindings": [
         {
-          "name": "PROJECT_COORDINATOR",
-          "class_name": "ProjectCoordinator",
+          "name": "WORKSPACE_COORDINATOR",
+          "class_name": "WorkspaceCoordinator",
         },
         {
           "name": "INVITATION_COORDINATOR",

@@ -76,7 +76,7 @@ class FakeWebSocket {
   }
 }
 
-const PROJECT_ID = parseWorkspaceId(
+const WORKSPACE_ID = parseWorkspaceId(
   "00000000-0000-7000-8000-000000000010",
 );
 const DEVICE_ID = parseDeviceId(
@@ -92,7 +92,7 @@ function bytesToHex(value: Uint8Array): string {
 function createClient() {
   return new AuthorizedPresenceClient({
     coordinatorBaseUrl: "https://coordinator.example",
-    projectId: PROJECT_ID,
+    workspaceId: WORKSPACE_ID,
     deviceId: DEVICE_ID,
     securityHead: SECURITY_HEAD,
     sign: async () => new Uint8Array(64).fill(2),

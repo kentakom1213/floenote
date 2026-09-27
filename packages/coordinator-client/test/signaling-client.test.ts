@@ -63,8 +63,11 @@ class FakeWebSocket {
   }
 }
 
-const PROJECT_ID = parseWorkspaceId(
+const WORKSPACE_ID = parseWorkspaceId(
   "00000000-0000-7000-8000-000000000010",
+);
+const OTHER_WORKSPACE_ID = parseWorkspaceId(
+  "00000000-0000-7000-8000-000000000011",
 );
 const SESSION_ID = parseSessionId(
   "00000000000070008000000000000020",
@@ -82,6 +85,32 @@ describe("CoordinatorSignalingClient reconnect", () => {
     vi.useRealTimers();
   });
 
+  it("uses separate Workspace signaling routes for the same session", () => {
+    const first = new CoordinatorSignalingClient(
+      "https://coordinator.example",
+      WORKSPACE_ID,
+      SESSION_ID,
+    );
+    const second = new CoordinatorSignalingClient(
+      "https://coordinator.example",
+      OTHER_WORKSPACE_ID,
+      SESSION_ID,
+    );
+
+    first.start();
+    second.start();
+
+    expect(new URL(FakeWebSocket.instances[0]!.url).pathname).toBe(
+      `/workspaces/${WORKSPACE_ID}/sessions/${SESSION_ID}`,
+    );
+    expect(new URL(FakeWebSocket.instances[1]!.url).pathname).toBe(
+      `/workspaces/${OTHER_WORKSPACE_ID}/sessions/${SESSION_ID}`,
+    );
+
+    first.close();
+    second.close();
+  });
+
   it("reconnects after an abnormal 1006 close", async () => {
     const debugEvents: Array<{
       event: string;
@@ -89,7 +118,7 @@ describe("CoordinatorSignalingClient reconnect", () => {
     }> = [];
     const client = new CoordinatorSignalingClient(
       "https://coordinator.example",
-      PROJECT_ID,
+      WORKSPACE_ID,
       SESSION_ID,
       ({ event, details }) => debugEvents.push({ event, details }),
     );
@@ -131,7 +160,7 @@ describe("CoordinatorSignalingClient reconnect", () => {
   it("does not reconnect after an intentional close", async () => {
     const client = new CoordinatorSignalingClient(
       "https://coordinator.example",
-      PROJECT_ID,
+      WORKSPACE_ID,
       SESSION_ID,
     );
 
@@ -148,7 +177,7 @@ describe("CoordinatorSignalingClient reconnect", () => {
   it("does not reconnect after a non-retryable protocol close", async () => {
     const client = new CoordinatorSignalingClient(
       "https://coordinator.example",
-      PROJECT_ID,
+      WORKSPACE_ID,
       SESSION_ID,
     );
 

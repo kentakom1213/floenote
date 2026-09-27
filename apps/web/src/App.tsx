@@ -21,7 +21,7 @@ import type {
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
-  sendProjectKeyDelivery,
+  sendWorkspaceKeyDelivery,
   type JoiningDeviceInfo,
 } from "@floe-note/pairing";
 import {
@@ -292,7 +292,7 @@ function NoteApp({
   const [localProjectKeyReady, setLocalProjectKeyReady] =
     useState<boolean | null>(null);
   const [securityRefreshToken, setSecurityRefreshToken] = useState(0);
-  const [projectKeyDeliveryState, setProjectKeyDeliveryState] = useState<
+  const [workspaceKeyDeliveryState, setWorkspaceKeyDeliveryState] = useState<
     "waiting" | "delivering" | "delivered" | "error"
   >("waiting");
   const {
@@ -424,7 +424,7 @@ function NoteApp({
           );
 
           if (!projectKeyReady && verifiedState.keyEpoch > 1) {
-            const envelope = await securityCoordinator.getProjectKeyEnvelope(
+            const envelope = await securityCoordinator.getWorkspaceKeyEnvelope(
               verifiedState.workspaceId,
               verifiedState.keyEpoch,
               localDeviceId,
@@ -440,7 +440,7 @@ function NoteApp({
 
           if (!projectKeyReady) {
             throw new Error(
-              "Current ProjectKey is not available on this device",
+              "Current WorkspaceKey is not available on this device",
             );
           }
 
@@ -622,7 +622,7 @@ function NoteApp({
     setCoordinationError(null);
     setJoiningDevice(null);
     setDeviceAuthorizationState("waiting");
-    setProjectKeyDeliveryState("waiting");
+    setWorkspaceKeyDeliveryState("waiting");
     invitationSyncEngineRef.current?.stop();
     invitationSyncEngineRef.current = null;
 
@@ -650,7 +650,7 @@ function NoteApp({
           const signaling = new WebRtcSignalingSession({
             role: "host",
             coordinatorBaseUrl,
-            projectId: project.id,
+            workspaceId: project.id,
             sessionId: invitation.sessionId,
             transport,
             debugLogger: createConsoleDebugLogger("invite-host-signal"),
@@ -681,7 +681,7 @@ function NoteApp({
           void authenticatePairingChannel({
             role: "host",
             inviteId: invitation.inviteId,
-            projectId: project.id,
+            workspaceId: project.id,
             sessionId: invitation.sessionId,
             pairingSecret,
             transport,
@@ -774,7 +774,7 @@ function NoteApp({
       const signaling = new WebRtcSignalingSession({
         role: "host",
         coordinatorBaseUrl,
-        projectId: project.id,
+        workspaceId: project.id,
         sessionId: signalSessionId,
         transport,
         debugLogger: createConsoleDebugLogger("signal-host"),
@@ -804,7 +804,7 @@ function NoteApp({
   useEffect(() => {
     if (
       !invitationHostActive ||
-      projectKeyDeliveryState !== "delivered" ||
+      workspaceKeyDeliveryState !== "delivered" ||
       !webRtcTransport
     ) {
       return;
@@ -828,7 +828,7 @@ function NoteApp({
     });
   }, [
     invitationHostActive,
-    projectKeyDeliveryState,
+    workspaceKeyDeliveryState,
     webRtcTransport,
   ]);
 
@@ -1518,7 +1518,7 @@ function NoteApp({
       )
     ) {
       setCoordinationError(
-        "Current ProjectKey is not available on this authorized device",
+        "Current WorkspaceKey is not available on this authorized device",
       );
       return;
     }
@@ -1552,7 +1552,7 @@ function NoteApp({
         joiningDevice.displayName,
       );
       setDeviceAuthorizationState("authorized");
-      await deliverProjectKey(localSecurityState);
+      await deliverWorkspaceKey(localSecurityState);
       return;
     }
 
@@ -1635,7 +1635,7 @@ function NoteApp({
         return;
       }
 
-      await deliverProjectKey(committedState);
+      await deliverWorkspaceKey(committedState);
     } finally {
       securityMutationInFlightRef.current = false;
     }
@@ -1743,7 +1743,7 @@ function NoteApp({
         );
       }
 
-      const localEnvelope = await securityCoordinator.getProjectKeyEnvelope(
+      const localEnvelope = await securityCoordinator.getWorkspaceKeyEnvelope(
         committedState.workspaceId,
         committedState.keyEpoch,
         localDeviceId,
@@ -1769,27 +1769,27 @@ function NoteApp({
     }
   }
 
-  async function retryProjectKeyDelivery(): Promise<void> {
+  async function retryWorkspaceKeyDelivery(): Promise<void> {
     if (!localSecurityState) {
       setCoordinationError("Committed SecurityState is not available");
       return;
     }
-    await deliverProjectKey(localSecurityState);
+    await deliverWorkspaceKey(localSecurityState);
   }
 
-  async function deliverProjectKey(
+  async function deliverWorkspaceKey(
     committedState: SecurityState,
   ): Promise<void> {
     if (!joiningDevice || !webRtcTransport || !invitationHost) {
-      setProjectKeyDeliveryState("error");
-      setCoordinationError("Pairing session is not available for ProjectKey delivery");
+      setWorkspaceKeyDeliveryState("error");
+      setCoordinationError("Pairing session is not available for WorkspaceKey delivery");
       return;
     }
 
     const session = deviceVaultSessionRef.current;
     if (!session) {
-      setProjectKeyDeliveryState("error");
-      setCoordinationError("Device Vault must be unlocked for ProjectKey delivery");
+      setWorkspaceKeyDeliveryState("error");
+      setCoordinationError("Device Vault must be unlocked for WorkspaceKey delivery");
       return;
     }
 
@@ -1807,14 +1807,14 @@ function NoteApp({
         joiningDevice.signingPublicKey,
       )
     ) {
-      setProjectKeyDeliveryState("error");
+      setWorkspaceKeyDeliveryState("error");
       setCoordinationError(
         "Committed SecurityState does not match the joining device",
       );
       return;
     }
 
-    setProjectKeyDeliveryState("delivering");
+    setWorkspaceKeyDeliveryState("delivering");
     setCoordinationError(null);
 
     try {
@@ -1826,7 +1826,7 @@ function NoteApp({
         committedState.headHash,
       );
 
-      await sendProjectKeyDelivery({
+      await sendWorkspaceKeyDelivery({
         transport: webRtcTransport,
         securityState: committedState,
         recipientDeviceId: joiningDevice.deviceId,
@@ -1842,16 +1842,16 @@ function NoteApp({
       } catch (error: unknown) {
         console.warn(
           error instanceof Error
-            ? `ProjectKey stored, but invite consume failed: ${error.message}`
-            : "ProjectKey stored, but invite consume failed",
+            ? `WorkspaceKey stored, but invite consume failed: ${error.message}`
+            : "WorkspaceKey stored, but invite consume failed",
         );
       }
 
-      setProjectKeyDeliveryState("delivered");
+      setWorkspaceKeyDeliveryState("delivered");
     } catch (error: unknown) {
-      setProjectKeyDeliveryState("error");
+      setWorkspaceKeyDeliveryState("error");
       setCoordinationError(
-        error instanceof Error ? error.message : "Failed to deliver ProjectKey",
+        error instanceof Error ? error.message : "Failed to deliver WorkspaceKey",
       );
     }
   }
@@ -2035,10 +2035,10 @@ function NoteApp({
           joiningDeviceId={joiningDevice?.deviceId ?? null}
           joiningDeviceName={joiningDevice?.displayName ?? null}
           authorizationState={deviceAuthorizationState}
-          projectKeyDeliveryState={projectKeyDeliveryState}
+          workspaceKeyDeliveryState={workspaceKeyDeliveryState}
           error={coordinationError}
           onConfirm={authorizeJoiningDevice}
-          onRetryProjectKeyDelivery={retryProjectKeyDelivery}
+          onRetryWorkspaceKeyDelivery={retryWorkspaceKeyDelivery}
           onCancel={async () => {
             try {
               await new InvitationClient(coordinatorBaseUrl).cancelInvite(

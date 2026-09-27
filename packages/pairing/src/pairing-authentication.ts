@@ -13,7 +13,7 @@ export type PairingRole = "host" | "join";
 export type PairingAuthenticationOptions = {
   role: PairingRole;
   inviteId: InviteId;
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   sessionId: SessionId;
   pairingSecret: PairingSecret;
   transport: Transport;
@@ -54,7 +54,7 @@ export async function authenticatePairingChannel(
   const {
     role,
     inviteId,
-    projectId,
+    workspaceId,
     sessionId,
     pairingSecret,
     transport,
@@ -133,7 +133,7 @@ export async function authenticatePairingChannel(
                   hmacKey,
                   transcript({
                     inviteId,
-                    projectId,
+                    workspaceId,
                     sessionId,
                     hostNonce: role === "host" ? localNonce : remoteNonce,
                     joinNonce: role === "join" ? localNonce : remoteNonce,
@@ -157,7 +157,7 @@ export async function authenticatePairingChannel(
             hmacKey,
             transcript({
               inviteId,
-              projectId,
+              workspaceId,
               sessionId,
               hostNonce: remoteRole === "host" ? remoteNonce : localNonce,
               joinNonce: remoteRole === "join" ? remoteNonce : localNonce,
@@ -218,7 +218,7 @@ export async function authenticatePairingChannel(
 
 function transcript(input: {
   inviteId: InviteId;
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   sessionId: SessionId;
   hostNonce: string;
   joinNonce: string;
@@ -228,7 +228,7 @@ function transcript(input: {
     [
       "floe-note-pairing-v1",
       input.inviteId,
-      input.projectId,
+      input.workspaceId,
       input.sessionId,
       input.hostNonce,
       input.joinNonce,

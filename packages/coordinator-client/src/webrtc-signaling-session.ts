@@ -14,7 +14,7 @@ export type WebRtcSignalingRole = "host" | "join";
 export type WebRtcSignalingSessionOptions = {
   role: WebRtcSignalingRole;
   coordinatorBaseUrl: string;
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   sessionId: SessionId;
   transport: WebRtcTransport;
   debugLogger?: SignalingDebugLogger;
@@ -47,7 +47,7 @@ export class WebRtcSignalingSession {
     ];
     this.#client = new CoordinatorSignalingClient(
       options.coordinatorBaseUrl,
-      options.projectId,
+      options.workspaceId,
       options.sessionId,
       this.#debugLogger,
     );
