@@ -1281,9 +1281,9 @@ manifests
 
 documents
   [WorkspaceId, DocumentId] -> encrypted serialized note Loro state
+```
 
 Future attachments and derived indexes must use the same Workspace boundary.
-```
 
 Workspace discovery metadata and verified SecurityState are not manifest or note
 content and remain outside the WorkspaceKey-encrypted snapshot blobs.
