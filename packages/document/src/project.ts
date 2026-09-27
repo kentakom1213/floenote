@@ -112,7 +112,7 @@ export class NoteProject {
   renameProject(name: string): void {
     const normalized = name.trim();
     if (!normalized) {
-      throw new TypeError("Project name must not be empty");
+      throw new TypeError("Workspace name must not be empty");
     }
 
     this.#manifest.getMap("metadata").set("name", normalized);

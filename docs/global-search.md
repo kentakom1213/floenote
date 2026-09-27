@@ -82,13 +82,13 @@ Floe Note keeps both:
 Recent notes are ordered primarily by `lastOpenedAt`, then by `updatedAt`.
 Notes with no local open history may still appear after previously opened notes.
 
-`lastOpenedAt` is not synchronized across devices and is not project content.
+`lastOpenedAt` is not synchronized across devices and is not Workspace content.
 
 ## UI
 
 Global search opens from:
 
-- a search button next to the Floe Note brand in the upper-left area;
+- a search button next to the Workspace context in the upper-left area;
 - `Ctrl+K` or `Cmd+K`.
 
 It appears as a Spotlight-style modal. Arrow keys move the active result,
@@ -101,10 +101,10 @@ by title and tags only.
 
 v1 uses no persistent full-text index.
 
-After Project unlock, the application builds a disposable in-memory search
-cache containing normalized title, tags, and body for each active note. The
-cache is derived from authoritative decrypted document state and must never be
-required for persistence or synchronization.
+After Device Vault unlock and Workspace open, the application builds a
+disposable in-memory search cache containing normalized title, tags, and body
+for each active note. The cache is derived from authoritative decrypted document
+state and must never be required for persistence or synchronization.
 
 The cache is updated incrementally at note/field granularity:
 
@@ -114,7 +114,7 @@ The cache is updated incrementally at note/field granularity:
 - note creation -> add the note;
 - note deletion -> remove the note from active search;
 - note restoration -> add the note back;
-- Project change/unlock -> rebuild the cache.
+- Workspace change/unlock -> rebuild the cache.
 
 v1 intentionally does not attempt substring-level incremental Unicode
 normalization inside a Markdown body. Re-normalizing the changed note body keeps
@@ -130,9 +130,9 @@ changing the query or UI semantics defined here.
 
 ## Security and persistence
 
-The normalized search cache contains plaintext Project content. It is therefore
+The normalized search cache contains plaintext Workspace content. It is therefore
 memory-only and disposable.
 
 Floe Note must not persist a plaintext full-text-search cache to IndexedDB. Any
 future persistent search index would need to preserve the encrypted-at-rest
-boundary defined by the Project storage architecture.
+boundary defined by the Workspace storage architecture.

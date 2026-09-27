@@ -11,7 +11,7 @@ describe("exportProjectToBrowser", () => {
     vi.restoreAllMocks();
   });
 
-  it("downloads a .floe.zip generated from the current local Project", async () => {
+  it("downloads a .floe.zip generated from the current local Workspace", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
     const project = NoteProject.create();
     project.renameProject("Research / notes");

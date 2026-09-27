@@ -16,11 +16,11 @@ The generated service worker precaches only build-time frontend resources:
 
 There is deliberately no runtime API cache. The service worker does not cache
 coordinator, signaling, invitation, presence, SecurityTransition, or other
-network application-data responses. It also does not store Project data,
-Device Vault contents, ProjectKeys, private keys, pairing secrets, or decrypted
+network application-data responses. It also does not store Workspace data,
+Device Vault contents, WorkspaceKeys, private keys, pairing secrets, or decrypted
 notes.
 
-Project data continues to use the existing encrypted IndexedDB / CRDT storage
+Workspace data continues to use the existing encrypted IndexedDB / CRDT storage
 path. The architectural boundary remains:
 
 > Local work is coordinator-independent; cross-device coordination is
@@ -30,12 +30,12 @@ path. The architectural boundary remains:
 
 After the production application has been loaded online at least once, the
 precache can start the Floe Note frontend without a network connection. An
-existing local Project can then follow the normal Device Vault and IndexedDB
+existing local Workspace can then follow the normal Device Vault and IndexedDB
 path for local read, edit, note creation, Trash/restore, encrypted persistence,
 and portable export.
 
 Operations that require the coordinator or another device remain network
-operations. Project creation, device authorization/revocation, a new invitation
+operations. Workspace creation, device authorization/revocation, a new invitation
 join, presence, and WebRTC signaling may report their existing offline/error
 states. The PWA layer never returns a cached success for those operations.
 
@@ -82,9 +82,9 @@ and verify:
 1. DevTools **Application > Manifest** shows `Floe Note`, standalone display,
    and valid 192px / 512px icons, and the browser offers installation.
 2. Install the application and confirm that it opens in a standalone window.
-3. Open/unlock an already-local Project once online. In DevTools **Network**,
+3. Open/unlock an already-local Workspace once online. In DevTools **Network**,
    select **Offline**, then reload or relaunch the installed PWA. The frontend
-   shell should start and the existing local Project should remain available
+   shell should start and the existing local Workspace should remain available
    through the normal Device Vault / IndexedDB path.
 4. While offline, local edits should continue to persist locally. Coordinator
    operations are allowed to show their normal network/error state and must not

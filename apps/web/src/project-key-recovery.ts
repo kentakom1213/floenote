@@ -20,14 +20,14 @@ export async function storeVerifiedRotatedProjectKey(
     envelope.keyEpoch !== state.keyEpoch ||
     envelope.recipientDeviceId !== localDeviceId
   ) {
-    throw new Error("ProjectKey rotation envelope does not match SecurityState");
+    throw new Error("WorkspaceKey rotation envelope does not match SecurityState");
   }
 
   const signer = state.devices.find(
     (device) => device.deviceId === envelope.signerDeviceId,
   );
   if (!signer) {
-    throw new Error("ProjectKey rotation envelope signer is not authorized");
+    throw new Error("WorkspaceKey rotation envelope signer is not authorized");
   }
 
   const verified = await verifyEd25519Signature(
@@ -36,7 +36,7 @@ export async function storeVerifiedRotatedProjectKey(
     signer.signingPublicKey,
   );
   if (!verified) {
-    throw new Error("ProjectKey rotation envelope signature verification failed");
+    throw new Error("WorkspaceKey rotation envelope signature verification failed");
   }
 
   await session.storeSealedWorkspaceKey(

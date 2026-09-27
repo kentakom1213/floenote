@@ -92,7 +92,7 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
     } catch (caught: unknown) {
       transportHolder.transport?.close();
       setError(
-        caught instanceof Error ? caught.message : "Failed to join Project",
+        caught instanceof Error ? caught.message : "Failed to join Workspace",
       );
     } finally {
       setBusy(false);
@@ -104,17 +104,17 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
   return (
     <main className="join-page">
       <section className="join-card">
-        <p className="eyebrow">Manual Project join</p>
-        <h1>Join an existing Floe Note Project</h1>
+        <p className="eyebrow">Manual Workspace join</p>
+        <h1>Join an existing Floe Note Workspace</h1>
         <p className="join-description">
-          This is a Step 4A debug flow. Paste the Project ID and WebRTC offer
-          from an existing browser. The selected Project becomes this
-          browser&apos;s default local Project; previous local Project data is
+          This is a Step 4A debug flow. Paste the Workspace ID and WebRTC offer
+          from an existing browser. The selected Workspace becomes this
+          browser&apos;s default local Workspace; previous local Workspace data is
           retained but detached from the default slot.
         </p>
 
         <label className="webrtc-field">
-          <span>Project ID</span>
+          <span>Workspace ID</span>
           <input
             value={projectIdInput}
             onChange={(event) => setWorkspaceIdInput(event.target.value)}
@@ -140,7 +140,7 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
             busy || projectIdInput.trim() === "" || offer.trim() === ""
           }
         >
-          {busy ? "Preparing join…" : "Join Project + create answer"}
+          {busy ? "Preparing join…" : "Join Workspace + create answer"}
         </button>
 
         <p className="webrtc-status">
@@ -179,7 +179,7 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
             </p>
             <p className="join-live-hint">
               Keep this page open while testing live WebRTC sync. The editor
-              below uses the same joined Project and connection, so edits here
+              below uses the same joined Workspace and connection, so edits here
               should propagate back to the existing browser immediately.
             </p>
             <JoinedProjectEditor project={project} />

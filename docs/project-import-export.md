@@ -1,4 +1,4 @@
-# Project import and export
+# Portable Floe import and export
 
 Status: proposed v1 specification.
 
@@ -10,37 +10,40 @@ The format is intentionally a content/interoperability format, not an internal
 storage dump and not a cryptographic restoration image. Import always creates a
 new Workspace security identity.
 
-## 1. Project creation sources
+## 1. Workspace creation sources
 
-Creating a Project has three equivalent entry points:
+First-run note creation starts a default Workspace without a naming step.
+Creating an additional Workspace has three source choices:
 
 ```text
-Create Project
-├── Blank Project
+New workspace
+├── Blank workspace
 ├── Import Floe export
 └── Import Markdown directory
 ```
 
-All three initialize a new Workspace around the current Project-named content
-model with:
+The import choices are also available during first-run onboarding.
+
+All three initialize a new Workspace around the current `NoteProject` content
+implementation with:
 
 - a new WorkspaceId;
 - a new WorkspaceKey;
 - a new CreateWorkspace root;
 - the current Device as the initial authorized device.
 
-The source only determines the initial Project content. Project creation still
+The source only determines the initial Workspace content. Workspace creation still
 uses the normal coordinator-backed CreateWorkspace commit flow.
 
-This keeps Project content creation separate from the Workspace authorization
-identity of its source without introducing a separate offline-genesis mode.
+This does not restore the source Workspace's authorization identity or introduce
+a separate offline-genesis mode.
 
 ## 2. Portable Floe export
 
 The v1 Floe export is a ZIP archive named:
 
 ```text
-<project-name>.floe.zip
+<name>.floe.zip
 ```
 
 Example:
@@ -88,7 +91,8 @@ Deleted/tombstoned notes are not exported in v1.
 
 ## 4. manifest.json
 
-`manifest.json` stores Project-level metadata and note metadata.
+`manifest.json` stores a content name and note metadata. Its `project` field
+is part of the portable format, not a Workspace security identity.
 
 The v1 logical schema is:
 
@@ -165,7 +169,7 @@ Archive paths always use forward slashes.
 
 v1 preserves the logical content data needed for portability and interoperability:
 
-- Project name;
+- source content name (used as the new Workspace name on import);
 - active note titles;
 - Markdown bodies;
 - createdAt;
@@ -175,7 +179,7 @@ v1 preserves the logical content data needed for portability and interoperabilit
 When attachments are implemented, a later format version may add an
 `attachments/` directory and attachment metadata.
 
-The export format should evolve from the logical Project model, not from the
+The export format should evolve from the logical content model, not from the
 IndexedDB schema.
 
 ## 7. Data deliberately excluded
@@ -183,7 +187,7 @@ IndexedDB schema.
 A portable export must not contain:
 
 - edit-history checkpoints or historical note versions;
-- presentation metadata such as Project tag colors;
+- presentation metadata such as tag colors;
 - original WorkspaceId;
 - DeviceId or authorized-device membership;
 - Device Vault contents;
@@ -201,7 +205,7 @@ These values are either Floe Note-specific presentation/runtime metadata or
 belong to the original Workspace's cryptographic and synchronization identity.
 
 Consequently, importing an export does not resume synchronization with the
-original Project. Tag strings are preserved, but Project tag colors are not;
+original Workspace. Tag strings are preserved, but tag colors are not;
 imported tags therefore use the default gray until the user explicitly chooses
 a color. Imported notes also start with fresh edit history; portable v1 export
 carries only the current logical note state.
@@ -213,7 +217,7 @@ Export is a local operation.
 It requires:
 
 - an unlocked Device Vault;
-- access to the local Project data.
+- access to the local Workspace data.
 
 It does not require:
 
@@ -230,7 +234,7 @@ at export time, not as a distributed snapshot of every peer.
 
 ## 9. Importing a Floe export
 
-Import validates the complete archive before creating persistent Project state.
+Import validates the complete archive before creating persistent Workspace state.
 
 At minimum it validates:
 
@@ -252,7 +256,7 @@ new WorkspaceId
 new WorkspaceKey
 new CreateWorkspace
     |
-    +-- Project name
+    +-- source content name as the new Workspace name
     +-- new DocumentId for each note
     +-- title
     +-- Markdown body
@@ -260,14 +264,14 @@ new CreateWorkspace
     +-- tags
 ```
 
-Import never overwrites or merges into an existing Project in v1.
+Import never overwrites or merges into an existing Workspace in v1.
 
-If any required import step fails, the newly created Project must not be left
+If any required import step fails, the newly created Workspace must not be left
 partially persisted.
 
 ## 10. Importing a Markdown directory
 
-Floe Note also supports creating a Project from an ordinary directory of
+Floe Note also supports creating a Workspace from an ordinary directory of
 Markdown files.
 
 Example source:
@@ -290,14 +294,14 @@ Hidden files/directories and tool-specific directories such as `.obsidian` and
 `.git` are ignored.
 
 Directory hierarchy is intentionally discarded during Markdown directory
-import. All imported Markdown files become ordinary notes in the new Project,
+import. All imported Markdown files become ordinary notes in the new Workspace,
 regardless of their source directory depth.
 
 Duplicate note titles are allowed.
 
-### 10.1 Project name
+### 10.1 Workspace name
 
-The selected directory name becomes the initial Project name after normal Floe
+The selected directory name becomes the initial Workspace name after normal Floe
 Note name validation.
 
 If a usable directory name is unavailable, the fallback name is
@@ -343,7 +347,7 @@ times, but that is a separate compatibility feature.
 ### 10.5 Empty directories and invalid files
 
 If no importable Markdown files are found, creation should stop before creating
-the Project and report that no Markdown files were found.
+the Workspace and report that no Markdown files were found.
 
 Unreadable or invalid UTF-8 Markdown files should be listed to the user before
 creation rather than silently skipped.
@@ -368,7 +372,7 @@ replace the portable export.
 ## 12. Coordinator dependency of import
 
 Export is deliberately coordinator-independent, but importing into Floe Note
-creates a new Project and therefore follows the normal Project creation flow.
+creates a new Workspace and therefore follows the normal Workspace creation flow.
 
 Conceptually:
 
@@ -382,18 +386,18 @@ sign CreateWorkspace
         |
 coordinator verifies and commits genesis
         |
-persist committed Project locally
+persist committed Workspace locally
 ```
 
 If the coordinator is unavailable, the source files remain readable and
-portable, but Floe Note does not create a partially initialized Project which is
+portable, but Floe Note does not create a partially initialized Workspace which is
 waiting for later coordinator registration.
 
 This keeps import/export separate from the authorization protocol:
 
 - exporting existing local data does not require coordinator availability;
-- creating a new Floe Note Project, including through import, does require the
-  normal coordinator-backed Project bootstrap in v1.
+- creating a new Floe Note Workspace, including through import, does require the
+  normal coordinator-backed Workspace bootstrap in v1.
 
 ## 13. UI model
 
@@ -424,14 +428,14 @@ it does not restore Workspace security identity or keys.
 v1 does not implement:
 
 - restore with the original WorkspaceId;
-- importing into/merging with an existing Project;
+- importing into/merging with an existing Workspace;
 - round-tripping Loro history;
 - preserving device authorization;
 - coordinator migration;
 - encrypted backup containers;
 - frontmatter metadata parsing;
 - folder semantics;
-- conflict resolution between an export and its source Project;
+- conflict resolution between an export and its source Workspace;
 - automatic filesystem synchronization.
 
 These can be introduced independently if later product requirements justify

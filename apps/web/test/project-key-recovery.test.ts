@@ -91,7 +91,7 @@ async function createScenario(): Promise<{
   };
 }
 
-describe("rotated ProjectKey recovery", () => {
+describe("rotated WorkspaceKey recovery", () => {
   it("uses the authenticated rotation head after a same-epoch SecurityState update", async () => {
     const { state, envelope, localDeviceId } = await createScenario();
 
@@ -133,7 +133,7 @@ describe("rotated ProjectKey recovery", () => {
     });
   });
 
-  it("still rejects mismatched Project, epoch, and recipient contexts", async () => {
+  it("still rejects mismatched Workspace, epoch, and recipient contexts", async () => {
     const { state, envelope, localDeviceId, otherDeviceId } =
       await createScenario();
     const session: Pick<DeviceVaultSession, "storeSealedWorkspaceKey"> = {
@@ -153,7 +153,7 @@ describe("rotated ProjectKey recovery", () => {
           mismatchedEnvelope,
         ),
       ).rejects.toThrow(
-        "ProjectKey rotation envelope does not match SecurityState",
+        "WorkspaceKey rotation envelope does not match SecurityState",
       );
     }
   });
@@ -172,7 +172,7 @@ describe("rotated ProjectKey recovery", () => {
         securityHead,
       }),
     ).rejects.toThrow(
-      "ProjectKey rotation envelope signature verification failed",
+      "WorkspaceKey rotation envelope signature verification failed",
     );
   });
 
@@ -190,7 +190,7 @@ describe("rotated ProjectKey recovery", () => {
         signature,
       }),
     ).rejects.toThrow(
-      "ProjectKey rotation envelope signature verification failed",
+      "WorkspaceKey rotation envelope signature verification failed",
     );
   });
 });
