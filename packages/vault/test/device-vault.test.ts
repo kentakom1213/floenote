@@ -3,7 +3,7 @@ import {
   DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES,
   DEVICE_SIGNING_PRIVATE_KEY_BYTES,
   DEVICE_SIGNING_PUBLIC_KEY_BYTES,
-  PROJECT_KEY_BYTES,
+  WORKSPACE_KEY_BYTES,
   generateDeviceKeyMaterial,
 } from "@floe-note/crypto";
 import { createDeviceId, createWorkspaceId } from "@floe-note/domain";
@@ -24,73 +24,75 @@ function encodedPayload(value: unknown): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(value));
 }
 
-function keyMaterialPayload(version: 1 | 2 | 3) {
+function workspaceVaultPayload(overrides: Record<string, unknown> = {}) {
   return {
-    version,
+    version: 4,
     deviceId: createDeviceId(),
+    displayName: "Laptop",
     encryptionPublicKey: "11".repeat(DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES),
     encryptionPrivateKey: "22".repeat(DEVICE_ENCRYPTION_PRIVATE_KEY_BYTES),
     signingPublicKey: "33".repeat(DEVICE_SIGNING_PUBLIC_KEY_BYTES),
     signingPrivateKey: "44".repeat(DEVICE_SIGNING_PRIVATE_KEY_BYTES),
+    workspaceKeys: [],
+    ...overrides,
   };
 }
 
-describe("Device Vault payload compatibility", () => {
-  it("loads v1 payloads with the legacy default device name", () => {
-    const contents = deserializeDeviceVaultPayload(
-      encodedPayload(keyMaterialPayload(1)),
-    );
-
-    expect(contents.displayName).toBe("My device");
-    expect(contents.workspaceKeys).toEqual([]);
-  });
-
-  it("loads v2 WorkspaceKeys and supplies the legacy default device name", () => {
+describe("Device Vault payload", () => {
+  it("loads Workspace-era payloads", () => {
     const workspaceId = createWorkspaceId();
     const contents = deserializeDeviceVaultPayload(
-      encodedPayload({
-        ...keyMaterialPayload(2),
-        workspaceKeys: [
-          {
-            workspaceId,
-            keyEpoch: 2,
-            workspaceKey: "55".repeat(PROJECT_KEY_BYTES),
-          },
-        ],
-      }),
+      encodedPayload(
+        workspaceVaultPayload({
+          displayName: "  Kenta's Laptop  ",
+          workspaceKeys: [
+            {
+              workspaceId,
+              keyEpoch: 2,
+              workspaceKey: "55".repeat(WORKSPACE_KEY_BYTES),
+            },
+          ],
+        }),
+      ),
     );
 
-    expect(contents.displayName).toBe("My device");
+    expect(contents.displayName).toBe("Kenta's Laptop");
     expect(contents.workspaceKeys).toHaveLength(1);
     expect(contents.workspaceKeys[0]?.workspaceId).toBe(workspaceId);
     expect(contents.workspaceKeys[0]?.keyEpoch).toBe(2);
   });
 
-  it("loads and normalizes the v3 display name", () => {
-    const contents = deserializeDeviceVaultPayload(
-      encodedPayload({
-        ...keyMaterialPayload(3),
-        displayName: "  Kenta's Laptop  ",
-        workspaceKeys: [],
-      }),
-    );
-
-    expect(contents.displayName).toBe("Kenta's Laptop");
+  it("rejects a pre-Workspace Project-era payload", () => {
+    expect(() =>
+      deserializeDeviceVaultPayload(
+        encodedPayload({
+          version: 3,
+          deviceId: createDeviceId(),
+          displayName: "Legacy device",
+          encryptionPublicKey: "11".repeat(DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES),
+          encryptionPrivateKey: "22".repeat(DEVICE_ENCRYPTION_PRIVATE_KEY_BYTES),
+          signingPublicKey: "33".repeat(DEVICE_SIGNING_PUBLIC_KEY_BYTES),
+          signingPrivateKey: "44".repeat(DEVICE_SIGNING_PRIVATE_KEY_BYTES),
+          projectKeys: [],
+        }),
+      ),
+    ).toThrow("Invalid Device Vault payload");
   });
 
   it("rejects duplicate WorkspaceKeys in a persisted payload", () => {
     const workspaceId = createWorkspaceId();
-    const workspaceKey = "66".repeat(PROJECT_KEY_BYTES);
+    const workspaceKey = "66".repeat(WORKSPACE_KEY_BYTES);
 
     expect(() =>
       deserializeDeviceVaultPayload(
-        encodedPayload({
-          ...keyMaterialPayload(2),
-          workspaceKeys: [
-            { workspaceId, keyEpoch: 1, workspaceKey },
-            { workspaceId, keyEpoch: 1, workspaceKey },
-          ],
-        }),
+        encodedPayload(
+          workspaceVaultPayload({
+            workspaceKeys: [
+              { workspaceId, keyEpoch: 1, workspaceKey },
+              { workspaceId, keyEpoch: 1, workspaceKey },
+            ],
+          }),
+        ),
       ),
     ).toThrow("Duplicate WorkspaceKey entry in Device Vault");
   });

@@ -83,18 +83,18 @@ describe("portable Floe import integration", () => {
     expect(result.isNew).toBe(false);
 
     expect(coordinator.transitions).toHaveLength(1);
-    expect(coordinator.transitions[0]!.projectId).toBe(result.project.id);
+    expect(coordinator.transitions[0]!.workspaceId).toBe(result.project.id);
     expect(coordinator.transitions[0]!.initialDevice.deviceId).toBe(
       session.publicIdentity.deviceId,
     );
     expect(storage.initializeCalls).toBe(1);
     expect(session.createdKeys).toEqual([
-      { projectId: result.project.id, keyEpoch: 1 },
+      { workspaceId: result.project.id, keyEpoch: 1 },
     ]);
 
     const state = storage.securityStates.get(result.project.id);
     expect(state).toMatchObject({
-      projectId: result.project.id,
+      workspaceId: result.project.id,
       sequence: 0,
       keyEpoch: 1,
     });
@@ -186,7 +186,7 @@ describe("portable Floe import integration", () => {
     expect(storage.projects.size).toBe(0);
     expect(session.createdKeys).toHaveLength(1);
     expect(session.removedWorkspaceIds).toHaveLength(1);
-    expect(session.hasWorkspaceKey(session.createdKeys[0]!.projectId, 1)).toBe(
+    expect(session.hasWorkspaceKey(session.createdKeys[0]!.workspaceId, 1)).toBe(
       false,
     );
   });
@@ -289,7 +289,7 @@ class FakeSession implements ProjectGenesisSession {
     signingPublicKey: new Uint8Array(32).fill(2),
   };
   readonly displayName = "Import device";
-  readonly createdKeys: Array<{ projectId: WorkspaceId; keyEpoch: number }> = [];
+  readonly createdKeys: Array<{ workspaceId: WorkspaceId; keyEpoch: number }> = [];
   readonly removedWorkspaceIds: WorkspaceId[] = [];
   readonly #keys = new Set<string>();
 
@@ -298,29 +298,29 @@ class FakeSession implements ProjectGenesisSession {
   }
 
   async createWorkspaceKeyIfMissing(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     keyEpoch: number,
   ): Promise<boolean> {
-    const key = `${projectId}:${keyEpoch}`;
+    const key = `${workspaceId}:${keyEpoch}`;
     if (this.#keys.has(key)) return false;
     this.#keys.add(key);
-    this.createdKeys.push({ projectId, keyEpoch });
+    this.createdKeys.push({ workspaceId, keyEpoch });
     return true;
   }
 
-  hasWorkspaceKey(projectId: WorkspaceId, keyEpoch: number): boolean {
-    return this.#keys.has(`${projectId}:${keyEpoch}`);
+  hasWorkspaceKey(workspaceId: WorkspaceId, keyEpoch: number): boolean {
+    return this.#keys.has(`${workspaceId}:${keyEpoch}`);
   }
 
-  async removeWorkspaceKeys(projectId: WorkspaceId): Promise<void> {
-    this.removedWorkspaceIds.push(projectId);
+  async removeWorkspaceKeys(workspaceId: WorkspaceId): Promise<void> {
+    this.removedWorkspaceIds.push(workspaceId);
     for (const key of [...this.#keys]) {
-      if (key.startsWith(`${projectId}:`)) this.#keys.delete(key);
+      if (key.startsWith(`${workspaceId}:`)) this.#keys.delete(key);
     }
   }
 
   async encryptWorkspaceStoragePayload(
-    _projectId: WorkspaceId,
+    _workspaceId: WorkspaceId,
     _keyEpoch: number,
     _context: Parameters<ProjectStorageCrypto["encryptWorkspaceStoragePayload"]>[2],
     plaintext: Uint8Array,
@@ -329,7 +329,7 @@ class FakeSession implements ProjectGenesisSession {
   }
 
   async decryptWorkspaceStoragePayload(
-    _projectId: WorkspaceId,
+    _workspaceId: WorkspaceId,
     _context: Parameters<ProjectStorageCrypto["decryptWorkspaceStoragePayload"]>[1],
     envelope: Uint8Array,
   ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
@@ -342,7 +342,7 @@ class FakeCoordinator implements ProjectGenesisCoordinator {
   constructor(readonly failure: Error | null = null) {}
 
   async commitCreateWorkspace(
-    _projectId: WorkspaceId,
+    _workspaceId: WorkspaceId,
     transition: CreateWorkspaceTransition,
   ): Promise<SecurityState> {
     this.transitions.push(transition);
@@ -378,12 +378,12 @@ class FakeStorage implements ProjectGenesisStorage {
     this.projects.set(project.id, snapshot(project));
   }
 
-  reload(projectId: WorkspaceId): NoteProject {
-    const stored = this.projects.get(projectId);
+  reload(workspaceId: WorkspaceId): NoteProject {
+    const stored = this.projects.get(workspaceId);
     if (!stored) throw new Error("Project not found");
 
     return NoteProject.fromSnapshot(
-      projectId,
+      workspaceId,
       stored.manifest,
       stored.documents.map(({ id, snapshot: documentSnapshot }) =>
         NoteDocument.fromSnapshot(id, documentSnapshot),
