@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { NoteProject } from "@floe-note/document";
 import { parseWorkspaceId } from "@floe-note/domain";
-import { DexieProjectStorage } from "@floe-note/storage";
-import { ProjectSyncEngine } from "@floe-note/sync";
+import { DexieWorkspaceStorage } from "@floe-note/storage";
+import { WorkspaceSyncEngine } from "@floe-note/sync";
 import {
   WebRtcTransport,
   type WebRtcStatus,
@@ -23,7 +23,7 @@ const INITIAL_STATUS: WebRtcStatus = {
 };
 
 type WebRtcJoinPageProps = {
-  storage: DexieProjectStorage;
+  storage: DexieWorkspaceStorage;
 };
 
 export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
@@ -70,12 +70,12 @@ export function WebRtcJoinPage({ storage }: WebRtcJoinPageProps) {
       const stopStatus = transport.onStatusChange(setStatus);
       const localAnswer = await transport.acceptOffer(offer.trim());
 
-      const joinedProject = await storage.initializeJoinedProject(projectId);
-      const stopPersistence = storage.watchProject(joinedProject);
+      const joinedProject = await storage.initializeJoinedWorkspace(projectId);
+      const stopPersistence = storage.watchWorkspace(joinedProject);
       const stopProject = joinedProject.subscribe(() => {
         setRevision((value) => value + 1);
       });
-      const syncEngine = new ProjectSyncEngine(joinedProject, transport, {
+      const syncEngine = new WorkspaceSyncEngine(joinedProject, transport, {
         debugLogger: createConsoleDebugLogger("join-sync"),
       });
       syncEngine.start();

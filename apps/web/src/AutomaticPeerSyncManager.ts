@@ -11,7 +11,7 @@ import type { DeviceId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 import {
   EncryptedSyncTransport,
-  ProjectSyncEngine,
+  WorkspaceSyncEngine,
 } from "@floe-note/sync";
 import { WebRtcTransport } from "@floe-note/transport/webrtc";
 import type { DeviceVaultSession } from "@floe-note/vault";
@@ -22,7 +22,7 @@ type AutomaticPeerConnection = {
   sessionId: SessionId;
   mode: ReconnectTransportMode;
   signaling: WebRtcSignalingSession;
-  syncEngine: ProjectSyncEngine;
+  syncEngine: WorkspaceSyncEngine;
   stopConnectionState: () => void;
   stopTransportStatus: () => void;
   connectionTimer: ReturnType<typeof setTimeout> | null;
@@ -316,7 +316,7 @@ export class AutomaticPeerSyncManager {
         },
       },
     );
-    const syncEngine = new ProjectSyncEngine(
+    const syncEngine = new WorkspaceSyncEngine(
       this.#project,
       encryptedTransport,
       {

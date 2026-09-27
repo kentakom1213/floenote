@@ -1,5 +1,5 @@
 import type { NoteProject } from "@floe-note/document";
-import type { OpenProjectResult } from "@floe-note/storage";
+import type { OpenWorkspaceResult } from "@floe-note/storage";
 
 import {
   commitNewProjectGenesis,
@@ -20,7 +20,7 @@ export async function commitValidatedImportedProject(
   project: NoteProject,
   dependencies: ProjectImportDependencies,
   sourceLabel: "Floe export" | "Markdown directory",
-): Promise<OpenProjectResult> {
+): Promise<OpenWorkspaceResult> {
   try {
     return await commitNewProjectGenesis(
       project,

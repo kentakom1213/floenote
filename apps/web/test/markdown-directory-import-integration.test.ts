@@ -10,8 +10,8 @@ import {
   type SecurityState,
 } from "@floe-note/security";
 import type {
-  OpenProjectResult,
-  ProjectStorageCrypto,
+  OpenWorkspaceResult,
+  WorkspaceStorageCrypto,
 } from "@floe-note/storage";
 import { describe, expect, it } from "vitest";
 
@@ -348,7 +348,7 @@ class FakeSession implements ProjectGenesisSession {
   async encryptWorkspaceStoragePayload(
     _workspaceId: WorkspaceId,
     _keyEpoch: number,
-    _context: Parameters<ProjectStorageCrypto["encryptWorkspaceStoragePayload"]>[2],
+    _context: Parameters<WorkspaceStorageCrypto["encryptWorkspaceStoragePayload"]>[2],
     plaintext: Uint8Array,
   ): Promise<Uint8Array> {
     return plaintext.slice();
@@ -356,7 +356,7 @@ class FakeSession implements ProjectGenesisSession {
 
   async decryptWorkspaceStoragePayload(
     _workspaceId: WorkspaceId,
-    _context: Parameters<ProjectStorageCrypto["decryptWorkspaceStoragePayload"]>[1],
+    _context: Parameters<WorkspaceStorageCrypto["decryptWorkspaceStoragePayload"]>[1],
     envelope: Uint8Array,
   ): Promise<{ keyEpoch: number; plaintext: Uint8Array }> {
     return { keyEpoch: 1, plaintext: envelope.slice() };
@@ -384,10 +384,10 @@ class FakeStorage implements ProjectGenesisStorage {
   initializeCalls = 0;
   failure: Error | null = null;
 
-  async initializeCommittedProject(
+  async initializeCommittedWorkspace(
     project: NoteProject,
     state: SecurityState,
-  ): Promise<OpenProjectResult> {
+  ): Promise<OpenWorkspaceResult> {
     this.initializeCalls += 1;
     if (this.failure) throw this.failure;
 

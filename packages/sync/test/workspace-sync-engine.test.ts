@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   decodeSyncMessage,
   encodeSyncMessage,
-  ProjectSyncEngine,
+  WorkspaceSyncEngine,
 } from "../src/index.js";
 
 class MemoryTransport implements Transport {
@@ -62,14 +62,14 @@ function cloneProject(source: NoteProject): NoteProject {
   );
 }
 
-describe("ProjectSyncEngine", () => {
+describe("WorkspaceSyncEngine", () => {
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
     const left = cloneProject(base);
     const right = cloneProject(base);
     const [leftTransport, rightTransport] = createTransportPair();
-    const leftEngine = new ProjectSyncEngine(left, leftTransport);
-    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
 
     leftEngine.start();
     rightEngine.start();
@@ -91,8 +91,8 @@ describe("ProjectSyncEngine", () => {
     const left = cloneProject(base);
     const right = cloneProject(base);
     const [leftTransport, rightTransport] = createTransportPair();
-    const leftEngine = new ProjectSyncEngine(left, leftTransport);
-    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
 
     leftEngine.start();
     rightEngine.start();
@@ -121,8 +121,8 @@ describe("ProjectSyncEngine", () => {
     const left = cloneProject(base);
     const right = cloneProject(base);
     const [leftTransport, rightTransport] = createTransportPair();
-    const leftEngine = new ProjectSyncEngine(left, leftTransport);
-    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
 
     leftEngine.start();
     rightEngine.start();
@@ -147,7 +147,7 @@ describe("ProjectSyncEngine", () => {
     project.purgeDocument(document.id);
 
     const transport = new MemoryTransport();
-    const engine = new ProjectSyncEngine(project, transport);
+    const engine = new WorkspaceSyncEngine(project, transport);
     engine.start();
 
     const messages = transport.sent.map((data) => decodeSyncMessage(data));
@@ -169,7 +169,7 @@ describe("ProjectSyncEngine", () => {
     const project = NoteProject.create();
     const document = project.createDocument("Stale local object");
     const transport = new MemoryTransport();
-    const engine = new ProjectSyncEngine(project, transport);
+    const engine = new WorkspaceSyncEngine(project, transport);
     engine.start();
 
     project.deleteDocument(document.id);
@@ -194,11 +194,11 @@ describe("ProjectSyncEngine", () => {
     stale.renameDocument(document.id, "Edited while offline");
 
     const [purgingTransport, staleTransport] = createTransportPair();
-    const purgingEngine = new ProjectSyncEngine(
+    const purgingEngine = new WorkspaceSyncEngine(
       purging,
       purgingTransport,
     );
-    const staleEngine = new ProjectSyncEngine(stale, staleTransport);
+    const staleEngine = new WorkspaceSyncEngine(stale, staleTransport);
 
     purgingEngine.start();
     staleEngine.start();
@@ -223,8 +223,8 @@ describe("ProjectSyncEngine", () => {
     const left = cloneProject(base);
     const right = cloneProject(base);
     const [leftTransport, rightTransport] = createTransportPair();
-    const leftEngine = new ProjectSyncEngine(left, leftTransport);
-    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
 
     leftEngine.start();
     rightEngine.start();
@@ -281,8 +281,8 @@ describe("ProjectSyncEngine", () => {
     right.createDocument("Right only");
 
     const [leftTransport, rightTransport] = createTransportPair();
-    const leftEngine = new ProjectSyncEngine(left, leftTransport);
-    const rightEngine = new ProjectSyncEngine(right, rightTransport);
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
 
     leftEngine.start();
     rightEngine.start();
@@ -314,8 +314,8 @@ describe("ProjectSyncEngine", () => {
     const [sourceTransport, joinedTransport] = createTransportPair();
     let completionCount = 0;
 
-    const sourceEngine = new ProjectSyncEngine(source, sourceTransport);
-    const joinedEngine = new ProjectSyncEngine(joined, joinedTransport, {
+    const sourceEngine = new WorkspaceSyncEngine(source, sourceTransport);
+    const joinedEngine = new WorkspaceSyncEngine(joined, joinedTransport, {
       onInitialRemoteStateReceived: () => {
         completionCount += 1;
       },
@@ -343,7 +343,7 @@ describe("ProjectSyncEngine", () => {
     let completionCount = 0;
     let errorCount = 0;
 
-    const joinedEngine = new ProjectSyncEngine(joined, joinedTransport, {
+    const joinedEngine = new WorkspaceSyncEngine(joined, joinedTransport, {
       onInitialRemoteStateReceived: () => {
         completionCount += 1;
       },

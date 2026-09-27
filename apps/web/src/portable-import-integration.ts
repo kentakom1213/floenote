@@ -3,7 +3,7 @@ import {
   parsePortableProjectImport,
   type ImportedPortableProject,
 } from "@floe-note/document";
-import type { OpenProjectResult } from "@floe-note/storage";
+import type { OpenWorkspaceResult } from "@floe-note/storage";
 
 import {
   commitValidatedImportedProject,
@@ -15,8 +15,8 @@ export type PortableImportDependencies = ProjectImportDependencies;
 export async function importPortableProjectArchive(
   archive: Uint8Array,
   dependencies: PortableImportDependencies,
-): Promise<OpenProjectResult> {
-  // Validation must finish before a Project identity or document identity is
+): Promise<OpenWorkspaceResult> {
+  // Validation must finish before a Workspace identity or document identity is
   // allocated.
   const imported = parsePortableProjectImport(archive);
   const project = prepareImportedProject(imported);
