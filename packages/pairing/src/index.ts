@@ -17,12 +17,12 @@ export type {
 } from "./device-bootstrap.js";
 
 export {
-  receiveProjectKeyDelivery,
-  sendProjectKeyDelivery,
-} from "./project-key-delivery.js";
+  receiveWorkspaceKeyDelivery,
+  sendWorkspaceKeyDelivery,
+} from "./workspace-key-delivery.js";
 
 export type {
-  ProjectKeyDelivery,
-  ReceiveProjectKeyDeliveryOptions,
-  SendProjectKeyDeliveryOptions,
-} from "./project-key-delivery.js";
+  WorkspaceKeyDelivery,
+  ReceiveWorkspaceKeyDeliveryOptions,
+  SendWorkspaceKeyDeliveryOptions,
+} from "./workspace-key-delivery.js";

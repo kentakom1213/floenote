@@ -2,7 +2,7 @@ import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 
 export type AuthorizedPresenceInvitationContext = {
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   deviceId: DeviceId;
   securityHead: string;
 };
@@ -22,8 +22,12 @@ export type AuthorizedInvitationAllocationResult =
 export async function allocateInvitationForAuthorizedPresence(
   state: SecurityState,
   context: AuthorizedPresenceInvitationContext,
-  allocate: (projectId: WorkspaceId) => Promise<Response>,
+  allocate: (workspaceId: WorkspaceId) => Promise<Response>,
 ): Promise<AuthorizedInvitationAllocationResult> {
+  if (context.workspaceId !== state.workspaceId) {
+    return { kind: "unauthorized-device" };
+  }
+
   if (context.securityHead !== bytesToHex(state.headHash)) {
     return { kind: "stale-security-head" };
   }
@@ -37,7 +41,7 @@ export async function allocateInvitationForAuthorizedPresence(
 
   return {
     kind: "allocated",
-    response: await allocate(context.projectId),
+    response: await allocate(context.workspaceId),
   };
 }
 

@@ -10,7 +10,7 @@ import type { DeviceId } from "@floe-note/domain";
 import {
   authenticatePairingChannel,
   exchangeJoiningDeviceIdentity,
-  receiveProjectKeyDelivery,
+  receiveWorkspaceKeyDelivery,
 } from "@floe-note/pairing";
 import type { ProjectStorage } from "@floe-note/storage";
 import {
@@ -178,7 +178,7 @@ export function InvitationJoinPage({
         setExpiresAt(claimed.expiresAt);
 
         const transport = new WebRtcTransport(
-          claimed.projectId,
+          claimed.workspaceId,
           await resolveRtcConfiguration(turnCredentialEndpoint),
           createConsoleDebugLogger("invite-join-webrtc"),
         );
@@ -188,7 +188,7 @@ export function InvitationJoinPage({
         const signaling = new WebRtcSignalingSession({
           role: "join",
           coordinatorBaseUrl,
-          projectId: claimed.projectId,
+          workspaceId: claimed.workspaceId,
           sessionId: claimed.sessionId,
           transport,
           debugLogger: createConsoleDebugLogger("invite-join-signal"),
@@ -222,7 +222,7 @@ export function InvitationJoinPage({
         await authenticatePairingChannel({
           role: "join",
           inviteId: parsedInviteId,
-          projectId: claimed.projectId,
+          workspaceId: claimed.workspaceId,
           sessionId: claimed.sessionId,
           pairingSecret: parsedPairingSecret,
           transport,
@@ -230,9 +230,9 @@ export function InvitationJoinPage({
         });
         if (disposed) return;
 
-        const deliveryPromise = receiveProjectKeyDelivery({
+        const deliveryPromise = receiveWorkspaceKeyDelivery({
           transport,
-          projectId: claimed.projectId,
+          workspaceId: claimed.workspaceId,
           recipientIdentity: session.publicIdentity,
           signal: abortPairing.signal,
           timeoutMs: Math.max(1_000, claimed.expiresAt - Date.now()),

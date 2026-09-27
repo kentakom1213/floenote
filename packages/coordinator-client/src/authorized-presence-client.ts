@@ -26,7 +26,7 @@ export type ReconnectTransportMode = "direct" | "relay";
 
 export type AuthorizedPresenceClientOptions = {
   coordinatorBaseUrl: string;
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   deviceId: DeviceId;
   securityHead: Uint8Array;
   sign: (message: Uint8Array) => Promise<Uint8Array>;
@@ -43,7 +43,7 @@ export const AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS = [
 
 export class AuthorizedPresenceClient {
   readonly #url: URL;
-  readonly #projectId: WorkspaceId;
+  readonly #workspaceId: WorkspaceId;
   readonly #deviceId: DeviceId;
   readonly #securityHead: Uint8Array;
   readonly #sign: (message: Uint8Array) => Promise<Uint8Array>;
@@ -79,9 +79,9 @@ export class AuthorizedPresenceClient {
   constructor(options: AuthorizedPresenceClientOptions) {
     this.#url = createPresenceWebSocketUrl(
       options.coordinatorBaseUrl,
-      options.projectId,
+      options.workspaceId,
     );
-    this.#projectId = options.projectId;
+    this.#workspaceId = options.workspaceId;
     this.#deviceId = options.deviceId;
     this.#securityHead = options.securityHead.slice();
     this.#sign = options.sign;
@@ -361,7 +361,7 @@ export class AuthorizedPresenceClient {
 
     const signingBytes = encodeAuthorizedPresenceProof({
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      workspaceId: this.#projectId,
+      workspaceId: this.#workspaceId,
       deviceId: this.#deviceId,
       securityHead,
       challenge,
@@ -557,11 +557,11 @@ function isRetryablePresenceCloseCode(code: number): boolean {
 
 function createPresenceWebSocketUrl(
   coordinatorBaseUrl: string,
-  projectId: WorkspaceId,
+  workspaceId: WorkspaceId,
 ): URL {
   const url = new URL(coordinatorBaseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = `/projects/${projectId}/presence`;
+  url.pathname = `/workspaces/${workspaceId}/presence`;
   url.search = "";
   url.hash = "";
   return url;

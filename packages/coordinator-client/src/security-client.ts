@@ -26,22 +26,22 @@ export class SecurityCoordinatorClient {
   }
 
   async getSecurityState(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
   ): Promise<SecurityState> {
     const response = await fetch(
       new URL(
-        `/projects/${encodeURIComponent(projectId)}/security`,
+        `/workspaces/${encodeURIComponent(workspaceId)}/security`,
         this.#baseUrl,
       ),
     );
 
     await ensureOk(response);
     const responsePayload = (await response.json()) as unknown;
-    return parseSecurityStateWirePayload(responsePayload, projectId);
+    return parseSecurityStateWirePayload(responsePayload, workspaceId);
   }
 
   async getSecurityTransitions(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     afterSequence: number,
   ): Promise<readonly SecurityTransition[]> {
     if (!Number.isSafeInteger(afterSequence) || afterSequence < 0) {
@@ -49,7 +49,7 @@ export class SecurityCoordinatorClient {
     }
 
     const url = new URL(
-      `/projects/${encodeURIComponent(projectId)}/security/transitions`,
+      `/workspaces/${encodeURIComponent(workspaceId)}/security/transitions`,
       this.#baseUrl,
     );
     url.searchParams.set("after", String(afterSequence));
@@ -74,7 +74,7 @@ export class SecurityCoordinatorClient {
     }
 
     const transitions = payload.transitions.map((transition) =>
-      parseSecurityTransitionWirePayload(transition, projectId),
+      parseSecurityTransitionWirePayload(transition, workspaceId),
     );
 
     if (transitions.length !== payload.toSequence - afterSequence) {
@@ -91,25 +91,25 @@ export class SecurityCoordinatorClient {
   }
 
   async commitAddDevice(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     transition: AddDeviceTransition,
   ): Promise<SecurityState> {
     return this.#commitTransition(
-      projectId,
+      workspaceId,
       addDeviceTransitionToWire(transition),
     );
   }
 
   async commitRevokeDevice(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     transition: RevokeDeviceTransition,
     keyEnvelopes: readonly WorkspaceKeyRotationEnvelope[],
   ): Promise<SecurityState> {
-    return this.#commitTransition(projectId, {
+    return this.#commitTransition(workspaceId, {
       ...revokeDeviceTransitionToWire(transition),
       keyEnvelopes: keyEnvelopes.map((envelope) => ({
         protocolVersion: envelope.protocolVersion,
-        projectId: envelope.workspaceId,
+        workspaceId: envelope.workspaceId,
         keyEpoch: envelope.keyEpoch,
         securityHead: bytesToHex(envelope.securityHead),
         recipientDeviceId: envelope.recipientDeviceId,
@@ -120,8 +120,8 @@ export class SecurityCoordinatorClient {
     });
   }
 
-  async getProjectKeyEnvelope(
-    projectId: WorkspaceId,
+  async getWorkspaceKeyEnvelope(
+    workspaceId: WorkspaceId,
     keyEpoch: number,
     recipientDeviceId: DeviceId,
   ): Promise<WorkspaceKeyRotationEnvelope> {
@@ -131,7 +131,7 @@ export class SecurityCoordinatorClient {
 
     const response = await fetch(
       new URL(
-        `/projects/${encodeURIComponent(projectId)}/project-keys/${keyEpoch}/${encodeURIComponent(recipientDeviceId)}`,
+        `/workspaces/${encodeURIComponent(workspaceId)}/workspace-keys/${keyEpoch}/${encodeURIComponent(recipientDeviceId)}`,
         this.#baseUrl,
       ),
     );
@@ -143,8 +143,8 @@ export class SecurityCoordinatorClient {
       payload === null ||
       !("protocolVersion" in payload) ||
       payload.protocolVersion !== 1 ||
-      !("projectId" in payload) ||
-      typeof payload.projectId !== "string" ||
+      !("workspaceId" in payload) ||
+      typeof payload.workspaceId !== "string" ||
       !("keyEpoch" in payload) ||
       payload.keyEpoch !== keyEpoch ||
       !("securityHead" in payload) ||
@@ -159,12 +159,12 @@ export class SecurityCoordinatorClient {
       !("signature" in payload) ||
       typeof payload.signature !== "string"
     ) {
-      throw new TypeError("Invalid ProjectKey envelope response");
+      throw new TypeError("Invalid WorkspaceKey envelope response");
     }
 
-    const parsedWorkspaceId = parseWorkspaceId(payload.projectId);
-    if (parsedWorkspaceId !== projectId) {
-      throw new TypeError("ProjectKey envelope WorkspaceId does not match request");
+    const parsedWorkspaceId = parseWorkspaceId(payload.workspaceId);
+    if (parsedWorkspaceId !== workspaceId) {
+      throw new TypeError("WorkspaceKey envelope WorkspaceId does not match request");
     }
 
     return {
@@ -180,22 +180,22 @@ export class SecurityCoordinatorClient {
   }
 
   async commitCreateWorkspace(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     transition: CreateWorkspaceTransition,
   ): Promise<SecurityState> {
     return this.#commitTransition(
-      projectId,
+      workspaceId,
       createWorkspaceTransitionToWire(transition),
     );
   }
 
   async #commitTransition(
-    projectId: WorkspaceId,
+    workspaceId: WorkspaceId,
     payload: unknown,
   ): Promise<SecurityState> {
     const response = await fetch(
       new URL(
-        `/projects/${encodeURIComponent(projectId)}/security/transitions`,
+        `/workspaces/${encodeURIComponent(workspaceId)}/security/transitions`,
         this.#baseUrl,
       ),
       {
@@ -209,7 +209,7 @@ export class SecurityCoordinatorClient {
 
     await ensureOk(response);
     const responsePayload = (await response.json()) as unknown;
-    return parseSecurityStateWirePayload(responsePayload, projectId);
+    return parseSecurityStateWirePayload(responsePayload, workspaceId);
   }
 }
 
@@ -235,7 +235,7 @@ function hexToBytes(value: string): Uint8Array {
     value.length % 2 !== 0 ||
     !/^[0-9a-f]+$/u.test(value)
   ) {
-    throw new TypeError("Invalid ProjectKey envelope encoding");
+    throw new TypeError("Invalid WorkspaceKey envelope encoding");
   }
 
   const bytes = new Uint8Array(value.length / 2);

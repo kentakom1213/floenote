@@ -25,7 +25,7 @@ export type CreatedInvitation = {
 };
 
 export type ClaimedInvitation = {
-  projectId: WorkspaceId;
+  workspaceId: WorkspaceId;
   sessionId: SessionId;
   expiresAt: number;
 };
@@ -61,7 +61,7 @@ export class InvitationClient {
 
     const payload = (await response.json()) as Record<string, unknown>;
     if (
-      typeof payload.projectId !== "string" ||
+      typeof payload.workspaceId !== "string" ||
       typeof payload.sessionId !== "string" ||
       typeof payload.expiresAt !== "number"
     ) {
@@ -69,7 +69,7 @@ export class InvitationClient {
     }
 
     return {
-      projectId: parseWorkspaceId(payload.projectId),
+      workspaceId: parseWorkspaceId(payload.workspaceId),
       sessionId: parseSessionId(payload.sessionId),
       expiresAt: payload.expiresAt,
     };

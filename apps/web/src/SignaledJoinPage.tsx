@@ -85,7 +85,7 @@ export function SignaledJoinPage({
         const signaling = new WebRtcSignalingSession({
           role: "join",
           coordinatorBaseUrl,
-          projectId: parsedWorkspaceId,
+          workspaceId: parsedWorkspaceId,
           sessionId: parsedSessionId,
           transport,
           debugLogger: createConsoleDebugLogger("signal-join"),
