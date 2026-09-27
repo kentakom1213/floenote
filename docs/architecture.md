@@ -126,13 +126,15 @@ The UI converts these values to the user's local timezone.
 
 Timestamps are used for display and sorting only. They must not be used to resolve CRDT conflicts or determine causality.
 
-## 6. Project model
+## 6. Workspace-scoped content model
 
-A Project is conceptually:
+The current `NoteProject` and `Project manifest` names are legacy implementation
+names for content owned directly by a Workspace. They do not represent the
+future work-organization Project inside a Workspace. The current model is:
 
 ```text
-Project
-├── ProjectId
+Workspace
+├── WorkspaceId
 ├── SecurityState
 ├── Manifest: LoroDoc
 │   ├── document membership / lifecycle
@@ -145,11 +147,13 @@ Project
     └── ...
 ```
 
-The Project itself is intentionally small. It does not contain all note contents in one CRDT document.
+The Workspace-scoped content model is intentionally small. It does not contain
+all note contents in one CRDT document.
 
 ### 6.1 Project manifest
 
-The Project manifest is a LoroDoc that tracks the document set.
+The current `Project manifest` is a LoroDoc that tracks the Workspace's document
+set.
 
 Conceptually:
 
@@ -169,7 +173,7 @@ The manifest should contain as little duplicated document metadata as possible.
 In particular, the document title should not be authoritative in both the manifest and the document itself. Local indexes may cache titles for efficient listing, but those indexes are derived state.
 
 Edit-history checkpoints are an exception only in the sense that they are
-Project-level references to Document history, not duplicated Document content.
+Workspace-scoped references to Document history, not duplicated Document content.
 A checkpoint stores a DocumentId, encoded Loro Frontiers, a display timestamp,
 and optional restore-source metadata. It does not store a copy of the title,
 tags, or Markdown body. Checkpoint records are immutable after creation and are
