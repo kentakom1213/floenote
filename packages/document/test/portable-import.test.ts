@@ -68,7 +68,7 @@ describe("portable Floe import", () => {
         securityState: { sequence: 99 },
         project: {
           name: "Imported",
-          originalWorkspaceId: "SOURCE-PROJECT-ID",
+          originalProjectId: "SOURCE-PROJECT-ID",
         },
         documents: [
           {

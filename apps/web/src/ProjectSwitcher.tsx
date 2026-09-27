@@ -22,7 +22,7 @@ type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
   disabled?: boolean;
   onSelectProject: (projectId: WorkspaceId) => Promise<void>;
-  onCreateWorkspace: (name: string) => Promise<void>;
+  onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
   onOpenProjectSettings: () => void;
@@ -32,7 +32,7 @@ export function ProjectSwitcher({
   projects,
   disabled = false,
   onSelectProject,
-  onCreateWorkspace,
+  onCreateProject,
   onImportFloeExport,
   onImportMarkdownDirectory,
   onOpenProjectSettings,
@@ -77,7 +77,7 @@ export function ProjectSwitcher({
     setError(null);
 
     try {
-      await onCreateWorkspace(name);
+      await onCreateProject(name);
       setNewProjectName("");
       setInviteUrl("");
       setNewProjectSource(null);

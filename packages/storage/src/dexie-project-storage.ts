@@ -74,13 +74,13 @@ class FloeNoteDatabase extends Dexie {
       security: "&projectId",
     });
 
-    // v3 changes the manifest/document value format without changing indexes.
-    // Existing v1/v2 plaintext rows are migrated lazily after Device Vault unlock.
+    // The current schema keys Workspace security state by WorkspaceId.
+    // Pre-Workspace development data is not migrated here.
     this.version(3).stores({
       projects: "&id,&localSlot,createdAt",
       manifests: "&projectId",
       documents: "[projectId+documentId],projectId,documentId",
-      security: "&projectId",
+      security: "&workspaceId",
     });
   }
 }

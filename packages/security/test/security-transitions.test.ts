@@ -91,6 +91,71 @@ describe("SecurityState transitions", () => {
     ]);
   });
 
+  it("keeps authorization and key epochs independent across Workspaces", () => {
+    const deviceA = device(14);
+    const deviceB = device(16);
+    const workspaceA = deriveInitialSecurityState(
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(createWorkspaceId(), deviceA),
+        signature(14),
+      ),
+      head(14),
+    );
+    const workspaceB = deriveInitialSecurityState(
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(createWorkspaceId(), deviceA),
+        signature(15),
+      ),
+      head(15),
+    );
+    const afterAddA = deriveAddDeviceSecurityState(
+      workspaceA,
+      attachAddDeviceSignature(
+        createUnsignedAddDeviceTransition(
+          workspaceA,
+          deviceB,
+          deviceA.deviceId,
+        ),
+        signature(16),
+      ),
+      head(16),
+    );
+    const afterAddB = deriveAddDeviceSecurityState(
+      workspaceB,
+      attachAddDeviceSignature(
+        createUnsignedAddDeviceTransition(
+          workspaceB,
+          deviceB,
+          deviceA.deviceId,
+        ),
+        signature(17),
+      ),
+      head(17),
+    );
+
+    const afterRevokeA = deriveRevokeDeviceSecurityState(
+      afterAddA,
+      attachRevokeDeviceSignature(
+        createUnsignedRevokeDeviceTransition(
+          afterAddA,
+          deviceB.deviceId,
+          deviceA.deviceId,
+        ),
+        signature(18),
+      ),
+      head(18),
+    );
+
+    expect(afterRevokeA.keyEpoch).toBe(2);
+    expect(afterRevokeA.devices.map((entry) => entry.deviceId)).toEqual([
+      deviceA.deviceId,
+    ]);
+    expect(afterAddB.keyEpoch).toBe(1);
+    expect(afterAddB.devices.map((entry) => entry.deviceId).sort()).toEqual(
+      [deviceA.deviceId, deviceB.deviceId].sort(),
+    );
+  });
+
   it("rejects transitions that do not extend the current head", () => {
     const workspaceId = createWorkspaceId();
     const deviceA = device(20);
