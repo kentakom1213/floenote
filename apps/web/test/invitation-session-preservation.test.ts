@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 const appSource = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const joinSource = readFileSync(new URL("../src/InvitationJoinPage.tsx", import.meta.url), "utf8");
 const projectSyncSource = readFileSync(
-  new URL("../src/useProjectSync.ts", import.meta.url),
+  new URL("../src/useWorkspaceSync.ts", import.meta.url),
   "utf8",
 );
-const storageSource = readFileSync(new URL("../../../packages/storage/src/dexie-project-storage.ts", import.meta.url), "utf8");
+const storageSource = readFileSync(new URL("../../../packages/storage/src/dexie-workspace-storage.ts", import.meta.url), "utf8");
 const syncProtocolSource = readFileSync(new URL("../../../packages/sync/src/protocol.ts", import.meta.url), "utf8");
 
 describe("invitation session preservation", () => {
@@ -65,7 +65,7 @@ describe("invitation session preservation", () => {
   it("hands off only after persistence flush and bootstrap completion", () => {
     const start = joinSource.indexOf("onInitialRemoteStateReceived: () =>");
     const flush = joinSource.indexOf("await storage.flushPendingWrites()", start);
-    const complete = joinSource.indexOf("await storage.completeJoinedProjectBootstrap(", start);
+    const complete = joinSource.indexOf("await storage.completeJoinedWorkspaceBootstrap(", start);
     const handoff = joinSource.indexOf("handoffDeviceVaultSession(", start);
     const cleanup = joinSource.indexOf("cleanup?.();", handoff);
     expect(start).toBeGreaterThanOrEqual(0);
@@ -94,7 +94,7 @@ describe("invitation session preservation", () => {
     );
     const failureGate = joinSource.indexOf("initialSyncFailed", completion);
     const complete = joinSource.indexOf(
-      "await storage.completeJoinedProjectBootstrap(",
+      "await storage.completeJoinedWorkspaceBootstrap(",
       completion,
     );
 

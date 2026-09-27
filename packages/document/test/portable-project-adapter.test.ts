@@ -71,7 +71,7 @@ describe("createPortableProjectSnapshot", () => {
     expect(JSON.stringify(snapshot)).not.toContain("purgedDocuments");
   });
 
-  it("does not expose Project or Document identity", () => {
+  it("does not expose Workspace or Document identity", () => {
     vi.spyOn(Date, "now").mockReturnValue(100);
     const project = NoteProject.create();
     const document = project.createDocument("Portable");
@@ -80,6 +80,7 @@ describe("createPortableProjectSnapshot", () => {
 
     expect(snapshot).not.toHaveProperty("id");
     expect(snapshot).not.toHaveProperty("projectId");
+    expect(snapshot).not.toHaveProperty("workspaceId");
     expect(snapshot.documents[0]).not.toHaveProperty("id");
     expect(JSON.stringify(snapshot)).not.toContain(project.id);
     expect(JSON.stringify(snapshot)).not.toContain(document.id);

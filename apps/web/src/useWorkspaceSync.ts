@@ -10,7 +10,7 @@ import type { DeviceId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 import {
   EncryptedSyncTransport,
-  ProjectSyncEngine,
+  WorkspaceSyncEngine,
 } from "@floe-note/sync";
 import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import type { DeviceVaultSession } from "@floe-note/vault";
@@ -21,7 +21,7 @@ import {
 } from "./AutomaticPeerSyncManager.js";
 import { resolveRelayRtcConfiguration } from "./turn-credentials.js";
 
-type AuthorizedProjectSyncOptions = {
+type AuthorizedWorkspaceSyncOptions = {
   coordinatorBaseUrl: string;
   project: NoteProject | null;
   localDeviceId: DeviceId | null;
@@ -33,7 +33,7 @@ type AuthorizedProjectSyncOptions = {
   onSecurityStateChanged: () => void;
 };
 
-export type AuthorizedProjectSyncState = {
+export type AuthorizedWorkspaceSyncState = {
   presenceState: AuthorizedPresenceConnectionState;
   onlineDeviceIds: readonly DeviceId[];
   connectedDeviceIds: readonly DeviceId[];
@@ -49,7 +49,7 @@ const IDLE_AUTOMATIC_SYNC_STATUS: AutomaticPeerSyncStatus = {
   error: null,
 };
 
-export function useAuthorizedProjectSync({
+export function useAuthorizedWorkspaceSync({
   coordinatorBaseUrl,
   project,
   localDeviceId,
@@ -59,7 +59,7 @@ export function useAuthorizedProjectSync({
   automaticReconnectEnabled,
   turnCredentialEndpoint,
   onSecurityStateChanged,
-}: AuthorizedProjectSyncOptions): AuthorizedProjectSyncState {
+}: AuthorizedWorkspaceSyncOptions): AuthorizedWorkspaceSyncState {
   const [presenceState, setPresenceState] =
     useState<AuthorizedPresenceConnectionState>("idle");
   const [onlineDeviceIds, setOnlineDeviceIds] =
@@ -271,7 +271,7 @@ export function useEncryptedLocalTabSync({
           envelope,
         ),
     });
-    const syncEngine = new ProjectSyncEngine(project, encryptedTransport);
+    const syncEngine = new WorkspaceSyncEngine(project, encryptedTransport);
     syncEngine.start();
 
     return () => syncEngine.stop();

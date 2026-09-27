@@ -342,12 +342,12 @@ The SyncEngine should depend on the abstraction, not on `RTCPeerConnection` dire
 
 ### 9.3 Encrypted synchronization transport
 
-Normal synchronization within a Workspace is encrypted below `ProjectSyncEngine`.
+Normal synchronization within a Workspace is encrypted below `WorkspaceSyncEngine`.
 The engine continues to encode and decode the existing plaintext Loro sync
 protocol, while an `EncryptedSyncTransport` wraps the underlying transport:
 
 ```text
-ProjectSyncEngine
+WorkspaceSyncEngine
       |
 plaintext sync message
       |
@@ -428,7 +428,7 @@ repair, peer introduction, or a durable full-mesh membership protocol.
 
 WebRTC offer, answer, and ICE messages are relayed through Cloudflare
 separately. Once the DataChannel is available, the existing
-`EncryptedSyncTransport` and `ProjectSyncEngine` perform WorkspaceKey-protected
+`EncryptedSyncTransport` and `WorkspaceSyncEngine` perform WorkspaceKey-protected
 synchronization.
 
 ```text
@@ -1233,9 +1233,9 @@ The exact old-key retention and lazy re-encryption policy remains to be specifie
 The persistent source of truth on a device is encrypted serialized application
 state. IndexedDB is accessed through Dexie.
 
-Manifest and document Loro snapshots are encrypted with the ProjectKey using
+Manifest and document Loro snapshots are encrypted with the WorkspaceKey using
 XChaCha20-Poly1305. Storage encryption is exposed to the persistence layer only
-as a capability of an unlocked Device Vault session; raw ProjectKey bytes are
+as a capability of an unlocked Device Vault session; raw WorkspaceKey bytes are
 not passed into the storage package.
 
 The v1 encrypted storage envelope is:
@@ -1252,7 +1252,7 @@ The AEAD additional authenticated data binds:
 
 ```text
 domain separation
-ProjectId
+WorkspaceId
 keyEpoch
 record kind = manifest | document
 DocumentId for document records
@@ -1260,50 +1260,46 @@ DocumentId for document records
 
 The envelope carries keyEpoch so records written under an older epoch remain
 self-describing after key rotation. An unlocked Device Vault may decrypt such a
-record using the corresponding retained ProjectKey, while subsequent persistence
+record using the corresponding retained WorkspaceKey, while subsequent persistence
 rewrites it under the active epoch. This is the basis for lazy key-rotation
 migration; exact old-key garbage collection remains a separate decision.
 
 Conceptually:
 
 ```text
-vault
-  device-vault -> encrypted vault blob
+device-vault (separate IndexedDB database)
+  device identity and encrypted WorkspaceKey entries
 
-projects
-  ProjectId -> local project metadata
+workspaces (floe-note-workspaces IndexedDB database)
+  WorkspaceId -> local Workspace metadata and active/detached/bootstrap state
 
 security
-  ProjectId -> latest verified SecurityState
-  ProjectId -> latest verified head
+  WorkspaceId -> latest verified SecurityState and head
 
 manifests
-  ProjectId -> encrypted serialized Loro state
+  WorkspaceId -> encrypted serialized Workspace manifest Loro state
 
 documents
-  [ProjectId, DocumentId] -> encrypted serialized Loro state
-
-attachments
-  [ProjectId, AttachmentId] -> encrypted blob
-
-indexes
-  [ProjectId, DocumentId] -> derived title / updatedAt / etc.
+  [WorkspaceId, DocumentId] -> encrypted serialized note Loro state
 ```
 
-Project discovery metadata and verified SecurityState are not Project content and
-remain outside the ProjectKey-encrypted snapshot blobs.
+Future attachments and derived indexes must use the same Workspace boundary.
 
-The browser schema is versioned independently from network protocols. Dexie
-schema v3 introduces encrypted manifest/document values while retaining read
-compatibility with the earlier plaintext `snapshot` rows. Migration is lazy:
-legacy plaintext is read only after Device Vault unlock, then the normal
-persistence path immediately rewrites the loaded Project as encrypted v3 rows.
-No plaintext fallback is used before unlock.
+Workspace discovery metadata and verified SecurityState are not manifest or note
+content and remain outside the WorkspaceKey-encrypted snapshot blobs.
 
-A Project is not loaded, rendered, edited, or watched for persistence until the
-Device Vault has been unlocked. For a newly created Project, cleartext Project
-metadata may be created first, but the first manifest/document snapshot is not
-persisted until SecurityState bootstrap and ProjectKey creation complete.
+The browser schema is versioned independently from network protocols. The
+Workspace-era Dexie database starts at schema v1 under `floe-note-workspaces`.
+The old `floe-note` Project-era database, including its plaintext `snapshot`
+rows and transitional v3 schema, is never opened as Workspace data. No local
+data migration or plaintext fallback is provided for this v0 boundary. The
+separate Device Vault database is unaffected.
+
+A Workspace is not loaded, rendered, edited, or watched for persistence until
+the Device Vault has been unlocked. For a newly created Workspace, cleartext
+Workspace metadata may be created first, but the first manifest/document
+snapshot is not persisted until SecurityState bootstrap and WorkspaceKey
+creation complete.
 
 Indexes are disposable derived data. They must be reconstructable from
 authoritative decrypted document state.
@@ -1330,18 +1326,18 @@ encrypted binary blob
 
 Each attachment is addressed by its UUIDv7 `AttachmentId` and maps to an encrypted blob. Content-addressing, deduplication, and attachment garbage collection are outside the core design.
 
-## 23. Backup, import/export, and project identity
+## 23. Backup, import/export, and Workspace identity
 
-Floe Note does not define a standalone key-recovery mechanism without project data. If every device and every copy of the project data are lost, recovering only encryption keys would not recover the Project.
+Floe Note does not define a standalone key-recovery mechanism without content data. If every device and every copy of the content data are lost, recovering only encryption keys would not recover the Workspace content.
 
-Portable import/export is treated as a data portability and survivability concern rather than as part of device pairing or authorization. The v1 portable Floe export uses ordinary Markdown plus a JSON manifest and can be produced entirely from an already-local unlocked Project without coordinator availability. Importing that export always creates a new Project identity and therefore uses the normal coordinator-backed Project creation flow. Creating a Project from a raw Markdown directory follows the same new-Project semantics. See `project-import-export.md`.
+Portable import/export is treated as a data portability and survivability concern rather than as part of device pairing or authorization. The v1 portable Floe export uses ordinary Markdown plus a JSON manifest and can be produced entirely from already-local unlocked content without coordinator availability. Its existing `PortableProject` and `project` field names describe the portable content format, not Workspace security identity. The archive contains no WorkspaceId, WorkspaceKey, SecurityState, DeviceId authorization state, key epoch, or coordinator runtime state. Importing it creates a fresh WorkspaceId and SecurityState through the normal coordinator-backed creation flow. Creating content from a raw Markdown directory follows the same flow. See `project-import-export.md`.
 
 Identity semantics are:
 
-- **Portable export/import or duplicate/copy:** generate a new ProjectId.
-- **Future full restore from backup:** preserve ProjectId.
+- **Portable export/import or duplicate/copy:** generate a new WorkspaceId.
+- **Future full restore from backup:** preserving WorkspaceId would require a separate format and design.
 
-A future full backup/restore format would need the data and cryptographic material required to restore the original Project identity and should remain independent from the internal IndexedDB schema. That is intentionally separate from the v1 portable export.
+A future full backup/restore format would need the data and cryptographic material required to restore the original Workspace identity and should remain independent from the internal IndexedDB schema. That is intentionally separate from the v1 portable export.
 
 
 ## 24. Threat model

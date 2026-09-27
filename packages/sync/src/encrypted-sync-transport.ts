@@ -1,6 +1,6 @@
 import type { Transport } from "@floe-note/transport";
 
-export type ProjectSyncCipher = {
+export type WorkspaceSyncCipher = {
   encrypt(plaintext: Uint8Array): Promise<Uint8Array>;
   decrypt(envelope: Uint8Array): Promise<Uint8Array>;
 };
@@ -16,7 +16,7 @@ export type EncryptedSyncTransportOptions = {
 
 export class EncryptedSyncTransport implements Transport {
   readonly #transport: Transport;
-  readonly #cipher: ProjectSyncCipher;
+  readonly #cipher: WorkspaceSyncCipher;
   readonly #onError:
     | ((
         error: Error,
@@ -31,7 +31,7 @@ export class EncryptedSyncTransport implements Transport {
 
   constructor(
     transport: Transport,
-    cipher: ProjectSyncCipher,
+    cipher: WorkspaceSyncCipher,
     options: EncryptedSyncTransportOptions = {},
   ) {
     this.#transport = transport;

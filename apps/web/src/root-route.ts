@@ -1,6 +1,6 @@
 import type { NoteProject } from "@floe-note/document";
 import type { DocumentId, WorkspaceId } from "@floe-note/domain";
-import type { StoredProjectSummary } from "@floe-note/storage";
+import type { StoredWorkspaceSummary } from "@floe-note/storage";
 
 export type RootRouteResolution =
   | { kind: "open-project"; projectId: WorkspaceId }
@@ -13,7 +13,7 @@ export type RootRouteResolution =
 
 export function resolveRootRoute(
   project: NoteProject | null,
-  projectSummaries: readonly StoredProjectSummary[],
+  projectSummaries: readonly StoredWorkspaceSummary[],
   rememberedDocumentId: DocumentId | null,
 ): RootRouteResolution {
   if (!project) {
