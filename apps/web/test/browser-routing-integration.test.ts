@@ -30,7 +30,7 @@ describe("browser routing integration invariants", () => {
     expect(noteAppTail).not.toContain("useCallback(");
   });
 
-  it("creates the Welcome note once as part of Project creation", () => {
+  it("creates the Welcome note once as part of Workspace creation", () => {
     const createProjectStart = appSource.indexOf(
       "async function createProject(name: string)",
     );

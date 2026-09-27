@@ -40,18 +40,18 @@ export function JoinedProjectEditor({ project }: JoinedProjectEditorProps) {
     <div className="join-editor">
       <aside className="join-editor-sidebar">
         <div className="join-editor-sidebar-header">
-          <strong>Joined Project</strong>
+          <strong>Joined Workspace</strong>
           <button
             className="icon-button"
             type="button"
             onClick={createDocument}
-            aria-label="Create note in joined Project"
+            aria-label="Create note in joined Workspace"
           >
             +
           </button>
         </div>
 
-        <nav className="note-list" aria-label="Joined Project notes">
+        <nav className="note-list" aria-label="Joined Workspace notes">
           {summaries.map((summary) => (
             <button
               className={

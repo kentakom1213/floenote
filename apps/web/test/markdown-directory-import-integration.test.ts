@@ -38,7 +38,7 @@ const runtime: ProjectGenesisRuntime = {
 };
 
 describe("Markdown directory import integration", () => {
-  it("creates and opens a new coordinator-backed Project", async () => {
+  it("creates and opens a new coordinator-backed Workspace", async () => {
     const session = new FakeSession();
     const coordinator = new FakeCoordinator();
     const storage = new FakeStorage();
@@ -197,7 +197,7 @@ describe("Markdown directory import integration", () => {
     expect(session.createdKeys).toHaveLength(0);
   });
 
-  it("leaves no partial local Project when coordinator commit fails", async () => {
+  it("leaves no partial local Workspace when coordinator commit fails", async () => {
     const session = new FakeSession();
     const coordinator = new FakeCoordinator(
       new Error("Coordinator unavailable"),
@@ -243,7 +243,7 @@ describe("Markdown directory import integration", () => {
     expect(session.createdKeys).toHaveLength(0);
   });
 
-  it("cleans up the new ProjectKey when persistence fails", async () => {
+  it("cleans up the new WorkspaceKey when persistence fails", async () => {
     const session = new FakeSession();
     const storage = new FakeStorage();
     storage.failure = new Error("Local persistence failed");
@@ -271,7 +271,7 @@ describe("Markdown directory import integration", () => {
     expect(storage.projects.size).toBe(0);
   });
 
-  it("preserves existing Projects when import succeeds", async () => {
+  it("preserves existing Workspaces when import succeeds", async () => {
     const storage = new FakeStorage();
     const existing = NoteProject.create();
     existing.renameProject("Existing");

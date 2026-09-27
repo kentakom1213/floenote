@@ -113,7 +113,7 @@ export async function commitNewProjectGenesis(
     committedState.keyEpoch,
   );
   if (!session.hasWorkspaceKey(project.id, committedState.keyEpoch)) {
-    throw new Error("New ProjectKey is not available on this device");
+    throw new Error("New WorkspaceKey is not available on this device");
   }
 
   try {
@@ -127,7 +127,7 @@ export async function commitNewProjectGenesis(
       try {
         await session.removeWorkspaceKeys(project.id);
       } catch {
-        // The Project itself was not persisted. Preserve the original error;
+        // The Workspace itself was not persisted. Preserve the original error;
         // a leftover key is safer than masking the failed local transaction.
       }
     }

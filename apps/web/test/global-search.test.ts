@@ -200,7 +200,7 @@ describe("global search", () => {
       .toEqual([recentlyOpened.id, recentlyUpdated.id, neverOpened.id]);
   });
 
-  it("stores recent-open history as a device-local project preference", () => {
+  it("stores recent-open history as a device-local Workspace preference", () => {
     const values = new Map<string, string>();
     const localStorage = {
       getItem: vi.fn((key: string) => values.get(key) ?? null),

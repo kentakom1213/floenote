@@ -70,7 +70,7 @@ Open Settings -> Network and paste the complete URL into
 credentials can be fetched, then save it.
 
 The endpoint is stored only on that browser/device and is shared by all Floe
-Projects on the device. It is not synchronized to other devices.
+Workspaces on the device. It is not synchronized to other devices.
 
 If the setting is absent, Floe uses its default STUN-only WebRTC
 configuration. When a TURN endpoint is configured, automatic device sync first

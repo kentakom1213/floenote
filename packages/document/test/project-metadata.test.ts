@@ -93,7 +93,7 @@ describe("NoteProject metadata", () => {
     const project = NoteProject.create();
 
     expect(() => project.renameProject("   ")).toThrow(
-      "Project name must not be empty",
+      "Workspace name must not be empty",
     );
   });
 
