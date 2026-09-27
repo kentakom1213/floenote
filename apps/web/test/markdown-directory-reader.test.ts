@@ -8,7 +8,7 @@ import {
 const IMPORTED_AT = 1_800_000_000_000;
 
 describe("browser Markdown directory reader", () => {
-  it("derives the Project name from webkitRelativePath and strips the selected root", async () => {
+  it("derives the Workspace name from webkitRelativePath and strips the selected root", async () => {
     const imported = await readMarkdownDirectorySelection(
       [
         browserFile("paper.md", "research/paper.md", "# Paper"),

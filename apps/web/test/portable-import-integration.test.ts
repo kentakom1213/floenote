@@ -42,7 +42,7 @@ const runtime: ProjectGenesisRuntime = {
 };
 
 describe("portable Floe import integration", () => {
-  it("creates a new independent Project and preserves portable content", async () => {
+  it("creates a new independent Workspace and preserves portable content", async () => {
     const source = sourceProject();
     const sourceDocumentIds = source.getAllDocuments().map(({ id }) => id);
     const archive = exportProject(source);
@@ -147,7 +147,7 @@ describe("portable Floe import integration", () => {
     expect(session.createdKeys).toHaveLength(0);
   });
 
-  it("does not persist a partial Project when coordinator commit fails", async () => {
+  it("does not persist a partial Workspace when coordinator commit fails", async () => {
     const session = new FakeSession();
     const coordinator = new FakeCoordinator(
       new Error("Coordinator unavailable"),
@@ -168,7 +168,7 @@ describe("portable Floe import integration", () => {
     expect(session.createdKeys).toHaveLength(0);
   });
 
-  it("removes a newly generated local ProjectKey if persistence fails", async () => {
+  it("removes a newly generated local WorkspaceKey if persistence fails", async () => {
     const session = new FakeSession();
     const coordinator = new FakeCoordinator();
     const storage = new FakeStorage();
@@ -191,7 +191,7 @@ describe("portable Floe import integration", () => {
     );
   });
 
-  it("keeps existing Projects while adding the imported Project", async () => {
+  it("keeps existing Workspaces while adding the imported Workspace", async () => {
     const storage = new FakeStorage();
     const existing = NoteProject.create();
     existing.renameProject("Existing");
@@ -212,7 +212,7 @@ describe("portable Floe import integration", () => {
     expect(storage.projects.size).toBe(2);
   });
 
-  it("reloads the imported Project from persisted snapshots", async () => {
+  it("reloads the imported Workspace from persisted snapshots", async () => {
     const storage = new FakeStorage();
     const result = await importPortableProjectArchive(
       exportProject(sourceProject()),

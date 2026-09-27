@@ -11,9 +11,9 @@ Floe Note is a privacy-oriented, local-first note application for one person usi
 The core goals are:
 
 - Notes remain available offline.
-- Project data synchronizes directly between devices over peer-to-peer connections.
+- Workspace data synchronizes directly between devices over peer-to-peer connections.
 - Central coordination is used where it keeps the protocol and implementation simple.
-- The coordination service does not store note contents or project encryption keys.
+- The coordination service does not store note contents or WorkspaceKeys.
 - Concurrent edits are merged by a CRDT rather than by application-specific conflict resolution.
 - Persistent data is encrypted at rest and in transit at the application layer.
 - The architecture should remain usable from the web first, while allowing native wrappers later.
@@ -36,7 +36,9 @@ If multi-user collaboration becomes a requirement, it should be treated as a sep
 
 The following decisions are considered architectural invariants unless there is a strong reason to revisit them.
 
-Workspace is the only top-level security identity. Subsystem names that still use `Project` during the Workspace migration do not introduce a separate Project-level authorization, key, or cryptographic boundary.
+Workspace is the only top-level security identity. Legacy implementation names
+that still use `Project` do not introduce a separate Project-level
+authorization, key, or cryptographic boundary.
 
 1. A **Workspace** is the synchronization, authorization, and cryptographic boundary.
 2. A Workspace currently owns the synchronized **set of documents**; a future work-organization Project is not a security boundary.
@@ -71,7 +73,7 @@ Workspace is the only top-level security identity. Subsystem names that still us
                       ╲         ╱
                        Device C
 
-Project data:
+Workspace data:
   encrypted Loro updates / snapshots
   encrypted attachments
 
@@ -150,10 +152,10 @@ Workspace
 The Workspace-scoped content model is intentionally small. It does not contain
 all note contents in one CRDT document.
 
-### 6.1 Project manifest
+### 6.1 Workspace manifest
 
-The current `Project manifest` is a LoroDoc that tracks the Workspace's document
-set.
+The Workspace manifest (still called `Project manifest` in some implementation
+names) is a LoroDoc that tracks the Workspace's document set.
 
 Conceptually:
 
@@ -253,7 +255,7 @@ Application code should not add its own last-write-wins rules on top of Loro.
 User-facing edit history is distinct from editor Undo/Redo.
 
 Undo/Redo uses Loro `UndoManager` for local editing history. Persistent edit
-history instead records selected Loro `Frontiers` as shared Project-manifest
+history instead records selected Loro `Frontiers` as shared Workspace-manifest
 checkpoints. Historical preview reconstructs a read-only state from the
 Document's retained Loro history, while restore applies historical title, tags,
 and body to the current Document as new CRDT operations.
@@ -282,7 +284,7 @@ This applies to:
 
 - document bodies;
 - collaborative metadata;
-- the project document manifest.
+- the Workspace document manifest.
 
 Security authorization is explicitly excluded from this rule and is handled separately.
 
@@ -291,27 +293,27 @@ Security authorization is explicitly excluded from this rule and is handled sepa
 Synchronization operates at three object classes:
 
 ```text
-Project Manifest
+Workspace Manifest
   └── includes edit-history checkpoint metadata
 Document
 Attachment
 ```
 
 Edit history does not add a fourth synchronization object or a separate
-protocol. Checkpoint metadata converges through the existing Project manifest
+protocol. Checkpoint metadata converges through the existing Workspace manifest
 Loro synchronization, while the referenced historical content remains in each
 Document's Loro history.
 
 A typical synchronization flow is:
 
 ```text
-1. synchronize Project manifest
+1. synchronize Workspace manifest
 2. discover differences in the document set
 3. synchronize required Document Loro states
 4. synchronize required attachments
 ```
 
-Documents are independent synchronization units. Opening a Project does not require loading every document into memory.
+Documents are independent synchronization units. Opening a Workspace does not require loading every document into memory.
 
 ### 9.1 Loro synchronization
 
@@ -402,7 +404,7 @@ avoids requiring a second WebRTC connection for the initial synchronization.
 
 ## 10. Peer-to-peer connectivity
 
-WebRTC DataChannels carry project synchronization data directly between devices.
+WebRTC DataChannels carry Workspace synchronization data directly between devices.
 
 Floe Note does not require or maintain a particular peer-to-peer graph topology. In particular, it does not require a full mesh and does not implement peer-relayed signaling as part of the core protocol.
 
@@ -444,7 +446,7 @@ Device B ---- WebSocket ----┘
 
 Device A ===== WebRTC ===== Device B
 
-          project data
+          Workspace data
 ```
 
 Additional device pairs can establish direct WebRTC connections as needed. The application should not add mesh-maintenance, leader-election, or peer-introduction protocols unless a concrete requirement later justifies them.
@@ -460,7 +462,7 @@ coordinator selection or coordinator migration as user-facing features.
 Development builds may use an environment-specific endpoint.
 
 Coordinator availability is required for online coordination operations, but it
-must not gate read/edit/export of a Project whose verified state, WorkspaceKey,
+must not gate read/edit/export of a Workspace whose verified state, WorkspaceKey,
 and data are already available locally.
 
 Each Workspace maps to one logical coordinator:
@@ -784,7 +786,7 @@ the reset can permanently lose the only accessible copy of local Workspace data.
 
 A future temporary-session mode may allow a Workspace to be opened without creating a persistent Device Vault on that browser profile.
 
-The intended property is that sensitive session material, including any temporary device key material and WorkspaceKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or project storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
+The intended property is that sensitive session material, including any temporary device key material and WorkspaceKeys delivered for the session, is kept only in application memory and is not written to the persistent vault or Workspace storage. Ending or reloading the runtime discards that material and requires a new pairing flow.
 
 This mode is intentionally separate from private-browsing detection. The application should not infer security semantics from whether the browser reports a private window; a user may choose an ephemeral session in a normal window, and private-browsing storage behavior differs across browsers.
 
@@ -1145,9 +1147,9 @@ the PairingSecret is still not an authorized Workspace device until `AddDevice`
 has been committed.
 
 Before authorization succeeds, the joining device must not adopt the claimed
-Project as its persistent local Project. The joining side uses its already
+Workspace as its persistent local Workspace. The joining side uses its already
 unlocked local Device Vault identity during pairing, but it does not create or
-synchronize Project data during this stage. Persistent Project adoption and
+synchronize Workspace data during this stage. Persistent Workspace adoption and
 normal synchronization begin only after authorization and WorkspaceKey delivery
 succeed.
 
@@ -1455,7 +1457,7 @@ These implementation choices sit behind the architectural boundaries defined abo
 | P2P transport | WebRTC DataChannel |
 | Coordination | Cloudflare Workers + Durable Objects |
 | Cryptography | libsodium |
-| Project-data AEAD | XChaCha20-Poly1305 |
+| Workspace-data AEAD | XChaCha20-Poly1305 |
 | Security serialization | deterministic CBOR |
 | Vault unlock | WebAuthn PRF |
 | Testing | Vitest + Playwright |
@@ -1491,14 +1493,14 @@ UI
 Application
  |---------------------------|
  |             |             |
-Document      Sync        ProjectCrypto
+Document      Sync        WorkspaceCrypto
  |             |             |
 Loro        Transport        Vault
                |
              WebRTC
 ```
 
-React components should not directly manipulate IndexedDB, `RTCPeerConnection`, libsodium primitives, or raw ProjectKeys.
+React components should not directly manipulate IndexedDB, `RTCPeerConnection`, libsodium primitives, or raw WorkspaceKeys.
 
 Coordinator access should remain an application-layer concern. Document logic,
 local persistence, and portable export must not require coordinator network I/O;
@@ -1507,14 +1509,15 @@ for cross-device coordination and device management.
 
 ## 27. Open decisions
 
-The following details can be specified independently without changing the core Project, Document, synchronization, and security boundaries:
+The following details can be specified independently without changing the
+Workspace, Document, synchronization, and security boundaries:
 
-1. Old-ProjectKey garbage collection and migration of ciphertext after key rotation.
-2. General ProjectKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
+1. Old-WorkspaceKey garbage collection and migration of ciphertext after key rotation.
+2. General WorkspaceKey re-delivery/recovery after an AddDevice commit outlives its pairing session.
 3. SecurityTransition retention/pruning policy once devices can safely declare
    that older transition history is no longer required.
 4. Document tombstone garbage collection.
-5. Future full backup/restore format for preserving the original Project identity.
+5. Future full backup/restore format for preserving the original Workspace identity.
 6. Background synchronization strategy.
 7. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
 9. Optional replay protection / per-peer encrypted-sync sequencing if later required.

@@ -268,7 +268,7 @@ describe("WorkspaceSyncEngine", () => {
     rightEngine.stop();
   });
 
-  it("converges projects after independent offline edits", () => {
+  it("converges Workspaces after independent offline edits", () => {
     const base = NoteProject.create();
     const baseDocument = base.createDocument("Base");
 

@@ -27,10 +27,20 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   expect((await commit).status()).toBe(201);
   await expect(page.locator(".brand-row")).toContainText("Research");
 
+  await page.getByLabel("Note actions").click();
+  await page.getByRole("button", { name: "Delete note" }).click();
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Welcome to Floe Note" })
+    .last()
+    .click();
+  await expect(page).toHaveURL(/\/w\/[0-9a-f-]+\/trash\/[0-9a-f-]+$/);
+
   await page.getByLabel("Switch workspace").click();
   await page.getByRole("button", { name: "Personal" }).click();
   await expect(page).toHaveURL(`/w/${projectId}/n/${documentId}`);
   await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+  await expect(page.getByRole("heading", { name: "Trash" })).toHaveCount(0);
 });
 
 test("keeps device shortcuts and detailed management in Settings", async ({

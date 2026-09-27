@@ -78,7 +78,7 @@ export class WebRtcTransport implements Transport {
 
       if (!matchesProject) {
         this.#error =
-          "Project mismatch: the remote WebRTC channel belongs to a different Project.";
+          "Workspace mismatch: the remote WebRTC channel belongs to a different Workspace.";
         event.channel.close();
         this.#emitStatus();
         return;

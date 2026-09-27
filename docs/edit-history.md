@@ -4,7 +4,7 @@ Status: v1 specification.
 
 This document defines the user-facing edit-history model for Floe Note. Edit
 history is distinct from editor Undo/Redo. Undo/Redo remains an ephemeral local
-editing facility backed by Loro `UndoManager`; edit history is shared Project
+editing facility backed by Loro `UndoManager`; edit history is shared Workspace
 data that exposes selected historical document states across devices.
 
 ## 1. Goals
@@ -21,7 +21,7 @@ implementation details.
 
 ## 2. Version model
 
-A Floe Note version is a Project-level checkpoint that bookmarks one Document
+A Floe Note version is a Workspace-manifest checkpoint that bookmarks one Document
 Loro history position.
 
 The checkpoint does not contain a copy of the Markdown body. Instead, it stores
@@ -34,7 +34,7 @@ Conceptually:
 Document LoroDoc
   history: ... -> F1 -> ... -> F2 -> ... -> current
 
-Project manifest
+Workspace manifest
   checkpoints
     checkpoint A -> F1
     checkpoint B -> F2
@@ -59,7 +59,7 @@ Checkpoint records are immutable after creation.
 
 ## 3. Storage and synchronization
 
-Checkpoint metadata is collaborative Project data and is stored in the Project
+Checkpoint metadata is collaborative Workspace data and is stored in the Workspace
 manifest, separate from each note's `LoroDoc`.
 
 The manifest contains a map keyed by `CheckpointId`:
@@ -80,7 +80,7 @@ collaborative fact. UI ordering is derived from `createdAt`.
 
 Keeping history metadata in the manifest has three consequences:
 
-- checkpoint records use the existing encrypted Project-manifest persistence;
+- checkpoint records use the existing encrypted Workspace-manifest persistence;
 - checkpoint records use the existing manifest P2P synchronization path;
 - no edit-history-specific network protocol or IndexedDB table is required.
 
@@ -113,7 +113,7 @@ v1 does not implement manual checkpoint names, pinned versions, or retention.
 The history list is ordered by `createdAt`, newest first.
 
 Concurrent offline devices may independently create checkpoints. After the
-Project manifest converges, both checkpoints are retained and appear in the
+Workspace manifest converges, both checkpoints are retained and appear in the
 same timestamp-ordered list.
 
 The UI does not expose a branch graph or attempt to present timestamp order as a
@@ -135,7 +135,7 @@ The preview shows the historical:
 - tags;
 - Markdown body.
 
-Document identity, Project membership, Trash state, and other lifecycle state
+Document identity, Workspace membership, Trash state, and other lifecycle state
 are not part of the historical content snapshot.
 
 v1 does not include a diff view. A later version may derive diffs from two Loro
@@ -171,7 +171,7 @@ The following are not restored:
 
 - DocumentId;
 - createdAt;
-- Project membership;
+- Workspace membership;
 - Trash/purge state.
 
 `updatedAt` follows the normal current-edit behavior.

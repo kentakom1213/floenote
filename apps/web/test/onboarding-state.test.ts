@@ -24,7 +24,7 @@ describe("onboarding entry state", () => {
     expect(deriveEntrySurface("unlocked", false)).toBe("onboarding");
   });
 
-  it("routes an unlocked device with a Project to the workspace", () => {
+  it("routes an unlocked device with a Workspace to the workspace", () => {
     expect(deriveEntrySurface("unlocked", true)).toBe("workspace");
   });
 

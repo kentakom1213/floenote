@@ -73,7 +73,7 @@ describe("purged document persistence reconciliation", () => {
     expect(filterLoadableDocumentRows(project, rows)).toEqual(rows);
   });
 
-  it("detaches persistence subscriptions when the Project document set shrinks", () => {
+  it("detaches persistence subscriptions when the Workspace document set shrinks", () => {
     const project = NoteProject.create();
     const document = project.createDocument("Subscribed");
     const unsubscribe = vi.fn();

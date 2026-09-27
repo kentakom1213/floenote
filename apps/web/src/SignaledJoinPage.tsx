@@ -106,7 +106,7 @@ export function SignaledJoinPage({
         setProject(joinedProject);
       } catch (caught: unknown) {
         setError(
-          caught instanceof Error ? caught.message : "Failed to join Project",
+          caught instanceof Error ? caught.message : "Failed to join Workspace",
         );
       }
     })();
@@ -120,7 +120,7 @@ export function SignaledJoinPage({
   if (error) {
     return (
       <main className="empty-state">
-        <p>Could not join Project.</p>
+        <p>Could not join Workspace.</p>
         <p>{error}</p>
       </main>
     );
@@ -130,7 +130,7 @@ export function SignaledJoinPage({
     <main className="join-page">
       <section className="join-card">
         <p className="eyebrow">Cloudflare signaling</p>
-        <h1>Joining Floe Note Project</h1>
+        <h1>Joining Floe Note Workspace</h1>
 
         <p className="webrtc-status">
           Signaling: <strong>{signalingState}</strong>
@@ -164,7 +164,7 @@ export function SignaledJoinPage({
             <JoinedProjectEditor project={project} />
           </section>
         ) : (
-          <p className="join-live-hint">Preparing local Project…</p>
+          <p className="join-live-hint">Preparing local Workspace…</p>
         )}
       </section>
     </main>

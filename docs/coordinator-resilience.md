@@ -1,4 +1,4 @@
-# Coordinator boundary and Project survivability
+# Coordinator boundary and Workspace survivability
 
 Status: proposed v1 design.
 
@@ -26,9 +26,9 @@ Instead, the client/coordinator boundary follows this principle:
 
 More concretely:
 
-> Once a Project has been created and its data and keys are present on a device,
+> Once a Workspace has been created and its data and keys are present on a device,
 > coordinator availability must not be required to use or export that local
-> Project.
+> Workspace.
 
 The coordinator remains important, but it does not own the user's note data.
 
@@ -44,12 +44,12 @@ The coordinator stores and sequences:
 - the current materialized SecurityState;
 - the current sequence/head hash;
 - signed SecurityTransitions used for verified catch-up;
-- opaque ProjectKey envelopes required by key rotation and delivery.
+- opaque sealed WorkspaceKey envelopes required by key rotation.
 
 SecurityState remains a single linear history:
 
 ~~~text
-CreateProject(A)
+CreateWorkspace(A)
       |
       v
 AddDevice(B)
@@ -73,21 +73,21 @@ The coordinator also provides:
 - WebRTC rendezvous;
 - WebRTC offer/answer/ICE signaling.
 
-Once a WebRTC DataChannel is established, Project content synchronization is
+Once a WebRTC DataChannel is established, Workspace content synchronization is
 peer-to-peer and does not flow through the coordinator.
 
 ## 3. Data the coordinator does not own
 
-The coordinator must not store Project user data or private key material.
+The coordinator must not store Workspace user data or private key material.
 
 In particular, it does not store:
 
 - note contents;
-- Loro document state as Project content;
+- Loro document state as Workspace content;
 - attachment plaintext;
-- plaintext ProjectKeys;
+- plaintext WorkspaceKeys;
 - device private keys;
-- portable Project exports.
+- portable content exports.
 
 Those remain on user devices.
 
@@ -95,59 +95,62 @@ This distinction is the core resilience boundary: loss of the coordination
 service may interrupt coordination, but it must not make already-local note data
 unreadable or non-exportable.
 
-## 4. Project creation
+## 4. Workspace creation
 
-Creating a new Floe Note Project may depend on the coordinator in v1.
+Creating a new Floe Note Workspace requires the coordinator in v1.
 
 The normal creation flow remains:
 
 ~~~text
-create/import Project
+create/import Workspace
         |
-generate ProjectId + ProjectKey
+generate WorkspaceId + WorkspaceKey
         |
-sign CreateProject
+sign CreateWorkspace
         |
 coordinator verifies and commits genesis
         |
-persist committed SecurityState + encrypted Project locally
+persist committed SecurityState + encrypted Workspace locally
         |
-Project becomes usable
+Workspace becomes usable
 ~~~
 
-This keeps Project genesis consistent with the same committed SecurityState
+This keeps Workspace genesis consistent with the same committed SecurityState
 model used by later device membership changes.
 
-v1 does not introduce a pending/offline Project genesis state solely to make
-Project creation work during a coordinator outage.
+v1 does not introduce a pending/offline Workspace genesis state solely to make
+Workspace creation work during a coordinator outage.
 
-The three Project creation sources are still:
+First-run creates a default Workspace without a naming step. Additional
+Workspaces can be created from these sources:
 
 ~~~text
-Create Project
-├── Blank Project
+New workspace
+├── Blank workspace
 ├── Import Floe export
 └── Import Markdown directory
 ~~~
 
-The source affects only the initial user-visible Project content. All three use
-the normal coordinator-backed Project creation flow.
+The import choices are also available during first-run onboarding.
 
-## 5. Existing Project open
+The source affects only the initial user-visible Workspace content. All three use
+the normal coordinator-backed Workspace creation flow.
 
-Coordinator availability must not gate an already-local Project.
+## 5. Existing Workspace open
 
-After Device Vault unlock, a client with locally persisted Project data,
-ProjectKey material, and a previously verified SecurityState may open the
-Project from that local state immediately.
+Coordinator availability must not gate an already-local Workspace.
+
+After Device Vault unlock, a client with locally persisted Workspace data,
+WorkspaceKey material, and a previously verified SecurityState may open the
+Workspace from that local state immediately.
 
 ~~~text
 unlock Device Vault
         |
-load local Project + ProjectKey
+load local Workspace + WorkspaceKey
 load locally verified SecurityState
         |
-Project usable
+Workspace usable
         |
 background coordinator reconciliation
 ~~~
@@ -155,7 +158,7 @@ background coordinator reconciliation
 Coordinator reconciliation determines whether newer SecurityTransitions exist.
 It does not decide whether already-local notes may be rendered or edited.
 
-If the coordinator is unreachable, the local Project remains usable and the
+If the coordinator is unreachable, the local Workspace remains usable and the
 coordination state becomes unavailable/offline.
 
 If the coordinator reports a newer state, the client verifies the complete
@@ -168,33 +171,33 @@ verified SecurityState. Local note data remains available.
 This separates two state dimensions which should not be collapsed into one:
 
 ~~~text
-Local Project state
+Local Workspace state
   locked | ready | unavailable
 
 Coordination state
   connecting | online | unavailable | conflict
 ~~~
 
-`Local Project = ready` together with `Coordination = unavailable` is a
-normal offline condition, not a fatal Project error.
+`Local Workspace = ready` together with `Coordination = unavailable` is a
+normal offline condition, not a fatal Workspace error.
 
 ## 6. Coordinator outage behavior
 
-For a Project which already exists locally:
+For a Workspace which already exists locally:
 
 ~~~text
 Operation                                  Coordinator unavailable
 
 read local notes                           yes
 edit/create/delete local notes             yes
-edit local Project content metadata        yes
+edit local Workspace content metadata      yes
 persist encrypted local changes            yes
 view cached verified SecurityState         yes
 export Markdown + JSON                     yes
 sync over an already-alive WebRTC channel  yes
 
-create a new Floe Project                  no
-import as a new Floe Project               no
+create a new Floe Workspace                no
+import as a new Floe Workspace             no
 AddDevice                                  no
 RevokeDevice                               no
 key-epoch rotation                         no
@@ -220,7 +223,7 @@ fork:
 ~~~
 
 Reconciling these branches would require rules for authorization, key epochs,
-ProjectKey distribution, revocation, and history selection.
+WorkspaceKey distribution, revocation, and history selection.
 
 v1 intentionally keeps those operations behind the coordinator sequencer.
 
@@ -235,14 +238,14 @@ This keeps local application state free from provisional authorization states.
 Floe Note protects user ownership through portable I/O rather than through an
 offline membership bypass.
 
-An existing Project can be exported without contacting the coordinator:
+An existing Workspace can be exported without contacting the coordinator:
 
 ~~~text
-Project P
+Workspace W
    |
    | local export
    v
-P.floe.zip
+W.floe.zip
 ├── manifest.json
 └── notes/*.md
 ~~~
@@ -250,20 +253,20 @@ P.floe.zip
 The Markdown files and JSON metadata are user-readable, application-independent
 data.
 
-The export deliberately excludes Project identity, SecurityState, ProjectKeys,
-and device identity. Importing it later creates a new Project rather than
+The export deliberately excludes Workspace identity, SecurityState, WorkspaceKeys,
+and device identity. Importing it later creates a new Workspace rather than
 resuming the old synchronization identity.
 
 This means a permanent coordinator/service failure does not trap the note
 contents inside Floe Note. The export can still be opened directly with ordinary
-Markdown tools even if creating a new Floe Project is temporarily impossible.
+Markdown tools even if creating a new Floe Workspace is temporarily impossible.
 
-Raw Markdown directories are likewise accepted as a Project creation source
+Raw Markdown directories are likewise accepted as a Workspace creation source
 when the Floe Note coordination service is available.
 
 ## 9. Fixed production coordinator
 
-v1 does not expose coordinator selection as a user-facing Project setting.
+v1 does not expose coordinator selection as a user-facing Workspace setting.
 
 The official production application uses the Floe Note coordinator deployment,
 currently configured as:
@@ -274,15 +277,15 @@ https://floe-coordinate.pwll.dev
 
 Development builds may use an environment-specific endpoint.
 
-The coordinator URL is not part of the portable Project data model and is not a
-Project cryptographic identity field.
+The coordinator URL is not part of the portable content format and is not a
+Workspace cryptographic identity field.
 
 v1 does not implement:
 
-- per-Project coordinator selection;
+- per-Workspace coordinator selection;
 - runtime coordinator switching;
-- migration of an existing Project between coordinators;
-- multiple concurrent coordinators for one Project.
+- migration of an existing Workspace between coordinators;
+- multiple concurrent coordinators for one Workspace.
 
 These features would require additional SecurityState migration/fork semantics
 and are not needed for data portability.
@@ -297,7 +300,7 @@ The desired dependency boundary is:
 ~~~text
 UI / Application
       |
-      +---- Local Project / Document / Storage / Vault
+      +---- Local Workspace / Document / Storage / Vault
       |
       +---- Coordinator client
                 |
@@ -311,15 +314,15 @@ The application layer combines local state with coordinator state for online
 features such as synchronization and device management.
 
 Coordinator operations should be designed to fail without corrupting or
-invalidating local Project state. In particular they should be:
+invalidating local Workspace state. In particular they should be:
 
 - retry-safe where practical;
 - idempotent where the protocol admits it;
 - explicit about conflict versus network failure;
 - bounded by normal network failure handling.
 
-The existing CreateProject behavior is an example: repeating the same signed
-genesis is idempotent, while attempting to initialize the same ProjectId with a
+The existing CreateWorkspace behavior is an example: repeating the same signed
+genesis is idempotent, while attempting to initialize the same WorkspaceId with a
 different head is a conflict.
 
 ## 11. UI implications
@@ -349,9 +352,9 @@ The v1 design intentionally keeps:
 
 - centralized SecurityState sequencing;
 - centralized invitation/presence/signaling coordination;
-- ProjectKey-protected P2P data synchronization;
-- encrypted local Project storage;
-- coordinator-independent local editing after Project creation;
+- WorkspaceKey-protected P2P data synchronization;
+- encrypted local Workspace storage;
+- coordinator-independent local editing after Workspace creation;
 - coordinator-independent portable export.
 
 It intentionally avoids:
@@ -363,7 +366,7 @@ It intentionally avoids:
 - peer-relayed signaling;
 - automatic coordinator failover;
 - coordinator migration;
-- preserving Project identity through portable export/import.
+- preserving Workspace identity through portable export/import.
 
 This keeps the distributed-systems complexity where it is useful and provides a
 small, stable boundary for user data ownership.
@@ -373,10 +376,10 @@ small, stable boundary for user data ownership.
 Floe Note is not designed to eliminate its coordinator.
 
 The coordinator remains the authoritative online coordination service for
-Project creation, device membership, SecurityState sequencing, presence,
+Workspace creation, device membership, SecurityState sequencing, presence,
 discovery, invitations, and signaling.
 
-The client is decoupled from coordinator availability after Project creation:
+The client is decoupled from coordinator availability after Workspace creation:
 already-local notes can be read, edited, persisted, and exported without it.
 
 The resulting model is:
