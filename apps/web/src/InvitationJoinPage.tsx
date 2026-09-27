@@ -239,13 +239,13 @@ export function InvitationJoinPage({
           onDelivery: async ({ securityState, sealedEnvelope }) => {
             await session.storeSealedWorkspaceKey(
               sealedEnvelope,
-              securityState.projectId,
+              securityState.workspaceId,
               securityState.keyEpoch,
               securityState.headHash,
             );
             await storage.saveCommittedSecurityState(securityState);
             const joinedProject = await storage.initializeJoinedProject(
-              securityState.projectId,
+              securityState.workspaceId,
               session,
               securityState.keyEpoch,
             );
@@ -261,13 +261,13 @@ export function InvitationJoinPage({
               {
                 encrypt: (plaintext) =>
                   session.encryptWorkspaceSyncPayload(
-                    securityState.projectId,
+                    securityState.workspaceId,
                     securityState.keyEpoch,
                     plaintext,
                   ),
                 decrypt: (envelope) =>
                   session.decryptWorkspaceSyncPayload(
-                    securityState.projectId,
+                    securityState.workspaceId,
                     securityState.keyEpoch,
                     envelope,
                   ),
@@ -303,7 +303,7 @@ export function InvitationJoinPage({
                     try {
                       await storage.flushPendingWrites();
                       await storage.completeJoinedProjectBootstrap(
-                        securityState.projectId,
+                        securityState.workspaceId,
                       );
                       if (disposed) return;
 
@@ -313,7 +313,7 @@ export function InvitationJoinPage({
                         (handoffSession) =>
                           onSessionHandoff(
                             handoffSession,
-                            securityState.projectId,
+                            securityState.workspaceId,
                           ),
                       );
 

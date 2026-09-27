@@ -19,7 +19,7 @@ export async function reconcileVerifiedSecurityState(
   storedState: SecurityState,
 ): Promise<SecurityState> {
   const coordinatorState = await coordinator.getSecurityState(
-    storedState.projectId,
+    storedState.workspaceId,
   );
 
   if (coordinatorState.sequence < storedState.sequence) {
@@ -32,7 +32,7 @@ export async function reconcileVerifiedSecurityState(
 
   if (coordinatorState.sequence > storedState.sequence) {
     const transitions = await coordinator.getSecurityTransitions(
-      storedState.projectId,
+      storedState.workspaceId,
       storedState.sequence,
     );
     verifiedState = await applyVerifiedSecurityTransitions(
@@ -56,7 +56,7 @@ export function securityStatesEqual(
 ): boolean {
   if (
     left.protocolVersion !== right.protocolVersion ||
-    left.projectId !== right.projectId ||
+    left.workspaceId !== right.workspaceId ||
     left.sequence !== right.sequence ||
     left.keyEpoch !== right.keyEpoch ||
     !bytesEqual(left.headHash, right.headHash) ||

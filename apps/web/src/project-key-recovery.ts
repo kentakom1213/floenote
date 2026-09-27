@@ -16,7 +16,7 @@ export async function storeVerifiedRotatedProjectKey(
   envelope: WorkspaceKeyRotationEnvelope,
 ): Promise<void> {
   if (
-    envelope.projectId !== state.projectId ||
+    envelope.workspaceId !== state.workspaceId ||
     envelope.keyEpoch !== state.keyEpoch ||
     envelope.recipientDeviceId !== localDeviceId
   ) {
@@ -41,7 +41,7 @@ export async function storeVerifiedRotatedProjectKey(
 
   await session.storeSealedWorkspaceKey(
     envelope.sealedEnvelope,
-    envelope.projectId,
+    envelope.workspaceId,
     envelope.keyEpoch,
     envelope.securityHead,
   );

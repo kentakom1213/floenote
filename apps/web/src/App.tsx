@@ -425,7 +425,7 @@ function NoteApp({
 
           if (!projectKeyReady && verifiedState.keyEpoch > 1) {
             const envelope = await securityCoordinator.getProjectKeyEnvelope(
-              verifiedState.projectId,
+              verifiedState.workspaceId,
               verifiedState.keyEpoch,
               localDeviceId,
             );
@@ -1071,7 +1071,7 @@ function NoteApp({
         onThemeChange={setThemePreference}
         onTurnCredentialEndpointChange={setTurnCredentialEndpoint}
         onEraseDevice={eraseFloeFromThisDevice}
-        onCreateWorkspace={createProject}
+        onCreateProject={createProject}
         onImportFloeExport={importFloeExport}
         onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       />
@@ -1513,7 +1513,7 @@ function NoteApp({
 
     if (
       !session.hasWorkspaceKey(
-        localSecurityState.projectId,
+        localSecurityState.workspaceId,
         localSecurityState.keyEpoch,
       )
     ) {
@@ -1705,7 +1705,7 @@ function NoteApp({
       );
 
       const preparedEnvelopes = await session.prepareWorkspaceKeyRotation(
-        candidateState.projectId,
+        candidateState.workspaceId,
         candidateState.keyEpoch,
         candidateState.headHash,
         candidateState.devices,
@@ -1715,7 +1715,7 @@ function NoteApp({
         preparedEnvelopes.map(async (prepared) => {
           const unsignedEnvelope = {
             protocolVersion: 1 as const,
-            projectId: candidateState.projectId,
+            workspaceId: candidateState.workspaceId,
             keyEpoch: candidateState.keyEpoch,
             securityHead: candidateState.headHash,
             recipientDeviceId: prepared.recipientDeviceId,
@@ -1733,7 +1733,7 @@ function NoteApp({
       );
 
       const committedState = await securityCoordinator.commitRevokeDevice(
-        candidateState.projectId,
+        candidateState.workspaceId,
         transition,
         keyEnvelopes,
       );
@@ -1744,7 +1744,7 @@ function NoteApp({
       }
 
       const localEnvelope = await securityCoordinator.getProjectKeyEnvelope(
-        committedState.projectId,
+        committedState.workspaceId,
         committedState.keyEpoch,
         localDeviceId,
       );
@@ -1819,7 +1819,7 @@ function NoteApp({
 
     try {
       const sealedEnvelope = await session.sealWorkspaceKeyForRecipient(
-        committedState.projectId,
+        committedState.workspaceId,
         committedState.keyEpoch,
         joiningDevice.deviceId,
         joiningDevice.encryptionPublicKey,
@@ -1874,13 +1874,13 @@ function NoteApp({
       {
         encrypt: (plaintext) =>
           session.encryptWorkspaceSyncPayload(
-            committedState.projectId,
+            committedState.workspaceId,
             committedState.keyEpoch,
             plaintext,
           ),
         decrypt: (envelope) =>
           session.decryptWorkspaceSyncPayload(
-            committedState.projectId,
+            committedState.workspaceId,
             committedState.keyEpoch,
             envelope,
           ),
@@ -2013,7 +2013,7 @@ function NoteApp({
       projects={projectItems}
       disabled={projectSwitching}
       onSelectProject={selectProject}
-      onCreateWorkspace={createProject}
+      onCreateProject={createProject}
       onImportFloeExport={importFloeExport}
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       onOpenProjectSettings={() => {
@@ -2296,7 +2296,7 @@ async function ensureInitialProjectKey(
   state: SecurityState,
   localDeviceId: DeviceId,
 ): Promise<boolean> {
-  if (session.hasWorkspaceKey(state.projectId, state.keyEpoch)) {
+  if (session.hasWorkspaceKey(state.workspaceId, state.keyEpoch)) {
     return true;
   }
 
@@ -2307,7 +2307,7 @@ async function ensureInitialProjectKey(
     state.keyEpoch === 1 &&
     localDevice?.addedAtSequence === 0
   ) {
-    await session.createWorkspaceKeyIfMissing(state.projectId, state.keyEpoch);
+    await session.createWorkspaceKeyIfMissing(state.workspaceId, state.keyEpoch);
     return true;
   }
 
