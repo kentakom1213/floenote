@@ -120,7 +120,7 @@ describe("invitation session preservation", () => {
 
     expect(failure).toBeGreaterThan(handoff);
     expect(joinSource.slice(failure, failure + 700)).toContain(
-      "Failed to persist initial Project sync",
+      "Failed to persist initial Workspace sync",
     );
   });
 

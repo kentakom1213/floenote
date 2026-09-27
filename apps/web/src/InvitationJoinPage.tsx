@@ -325,15 +325,15 @@ export function InvitationJoinPage({
                       setInitialSyncState("error");
                       setError(
                         syncError instanceof Error
-                          ? `Failed to persist initial Project sync: ${syncError.message}`
-                          : "Failed to persist initial Project sync",
+                          ? `Failed to persist initial Workspace sync: ${syncError.message}`
+                          : "Failed to persist initial Workspace sync",
                       );
                     }
                   })();
                 },
                 onInitialSyncError: (syncError) => {
                   failInitialSync(
-                    `Initial Project sync failed: ${syncError.message}`,
+                    `Initial Workspace sync failed: ${syncError.message}`,
                   );
                 },
               },
@@ -370,7 +370,7 @@ export function InvitationJoinPage({
         setClaimState("error");
         setPairingState("error");
         setError(
-          caught instanceof Error ? caught.message : "Failed to join Project",
+          caught instanceof Error ? caught.message : "Failed to join Workspace",
         );
       }
     })();
@@ -442,7 +442,7 @@ export function InvitationJoinPage({
 
   async function resetDevice(): Promise<void> {
     const confirmed = window.confirm(
-      "Reset this device? This deletes the local Device Vault and all local Project data. You will need another authorized device to complete this invitation.",
+      "Reset this device? This deletes the local Device Vault and all local Workspace data. You will need another authorized device to complete this invitation.",
     );
     if (!confirmed) return;
 
@@ -470,22 +470,22 @@ export function InvitationJoinPage({
     pairingState === "key-stored"
       ? initialSyncState === "persisting"
         ? {
-            title: "Saving Project",
+            title: "Saving Workspace",
             detail: "Initial sync is complete. Saving it on this device…",
           }
         : initialSyncState === "ready"
           ? {
               title: "Device added",
-              detail: "Project is ready. Opening Floe Note…",
+              detail: "Workspace is ready. Opening Floe Note…",
             }
           : initialSyncState === "error"
             ? {
                 title: "Could not finish setup",
-                detail: error ?? "Initial Project sync could not be completed.",
+                detail: error ?? "Initial Workspace sync could not be completed.",
               }
             : {
-                title: "Syncing Project",
-                detail: "Downloading the initial Project state…",
+                title: "Syncing Workspace",
+                detail: "Downloading the initial Workspace state…",
               }
       : pairingState === "identity-sent"
         ? {
@@ -511,7 +511,7 @@ export function InvitationJoinPage({
         </div>
 
         <p className="settings-eyebrow">Device invitation</p>
-        <h1>Join a Project</h1>
+        <h1>Add this device</h1>
 
         {vaultState !== "unlocked" ? (
           <div className="invitation-step-card">
@@ -525,7 +525,7 @@ export function InvitationJoinPage({
               <p>
                 {needsDeviceSetup
                   ? "Choose a name that will identify this device on your other devices."
-                  : "Unlock the Device Vault before joining the Project."}
+                  : "Unlock the Device Vault before adding this device."}
               </p>
 
               {needsDeviceSetup ? (

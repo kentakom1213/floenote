@@ -48,9 +48,9 @@ export function TrashView({
   return (
     <section className="trash-view" aria-labelledby="trash-view-title">
       <header className="trash-view-header">
-        <p className="settings-eyebrow">Project</p>
+        <p className="settings-eyebrow">Workspace</p>
         <h1 id="trash-view-title">Trash</h1>
-        <p>Deleted notes stay in this Project and can be restored.</p>
+        <p>Deleted notes stay in this Workspace and can be restored.</p>
       </header>
 
       {deletedDocuments.length === 0 ? (

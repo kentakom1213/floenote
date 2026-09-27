@@ -8,13 +8,19 @@ test("keeps visible views and browser history aligned", async ({ page }) => {
   );
   const documentPath = `/w/${projectId}/n/${documentId}`;
 
-  await page.getByLabel("Switch project").click();
-  await page.getByRole("button", { name: "Project settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" })
+    .getByRole("button", { name: "Navigation Project" }).click();
 
   await expect(page).toHaveURL(`/w/${projectId}/settings`);
   await expect(
     page.getByRole("heading", { name: "Navigation Project" }),
   ).toBeVisible();
+
+  await page.goBack();
+
+  await expect(page).toHaveURL("/settings");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
   await page.goBack();
 
@@ -24,7 +30,10 @@ test("keeps visible views and browser history aligned", async ({ page }) => {
   );
 
   await page.goForward();
+  await expect(page).toHaveURL("/settings");
+  await page.goForward();
   await expect(page).toHaveURL(`/w/${projectId}/settings`);
+  await page.goBack();
   await page.goBack();
   await expect(page).toHaveURL(documentPath);
 

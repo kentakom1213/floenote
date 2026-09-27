@@ -32,6 +32,7 @@ type ProjectEmptyStateProps = {
 };
 
 type OnboardingView = "entry" | "settings" | "secure";
+const DEFAULT_WORKSPACE_NAME = "Personal";
 
 export function ProjectEmptyState({
   vaultState,
@@ -55,17 +56,15 @@ export function ProjectEmptyState({
   const [pendingAction, setPendingAction] = useState<OnboardingAction | null>(
     null,
   );
-  const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [markdownImportOpen, setMarkdownImportOpen] = useState(false);
-  const [projectName, setProjectName] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function openAction(action: OnboardingAction): void {
-    if (action === "create") setCreateOpen(true);
+    if (action === "create") void createDefaultWorkspace();
     if (action === "import-floe") setImportOpen(true);
     if (action === "import-markdown") setMarkdownImportOpen(true);
   }
@@ -93,7 +92,11 @@ export function ProjectEmptyState({
       const action = pendingAction;
       setPendingAction(null);
       setView("entry");
-      openAction(action);
+      if (action === "create") {
+        await onCreateProject(DEFAULT_WORKSPACE_NAME);
+      } else {
+        openAction(action);
+      }
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Could not secure this device",
@@ -103,19 +106,16 @@ export function ProjectEmptyState({
     }
   }
 
-  async function createProject(): Promise<void> {
-    const name = projectName.trim();
-    if (!name || busy) return;
+  async function createDefaultWorkspace(): Promise<void> {
+    if (busy) return;
 
     setBusy(true);
     setError(null);
     try {
-      await onCreateProject(name);
-      setProjectName("");
-      setCreateOpen(false);
+      await onCreateProject(DEFAULT_WORKSPACE_NAME);
     } catch (caught: unknown) {
       setError(
-        caught instanceof Error ? caught.message : "Could not create Project",
+        caught instanceof Error ? caught.message : "Could not create Workspace",
       );
     } finally {
       setBusy(false);
@@ -178,11 +178,9 @@ export function ProjectEmptyState({
 
   function closeDialogs(): void {
     if (busy) return;
-    setCreateOpen(false);
     setJoinOpen(false);
     setImportOpen(false);
     setMarkdownImportOpen(false);
-    setProjectName("");
     setInviteUrl("");
     setError(null);
   }
@@ -253,15 +251,18 @@ export function ProjectEmptyState({
           <p className="settings-eyebrow">Floe Note</p>
           <h1>Choose how to begin</h1>
           <p>
-            Create a new Project, join one from another device, or import
+            Start writing, add this device to an existing Workspace, or import
             existing notes.
           </p>
         </header>
+
+        {error ? <p className="dialog-error" role="alert">{error}</p> : null}
 
         <div className="onboarding-primary-actions">
           <button
             className="onboarding-action-card onboarding-action-primary"
             type="button"
+            disabled={busy}
             onClick={() => chooseAction("create")}
           >
             <span className="onboarding-action-icon" aria-hidden="true">
@@ -271,8 +272,8 @@ export function ProjectEmptyState({
               </svg>
             </span>
             <span className="onboarding-action-copy">
-              <strong>Create a Project</strong>
-              <small>Start a new space for your notes.</small>
+              <strong>Start writing</strong>
+              <small>Create your personal note space automatically.</small>
             </span>
             <span className="onboarding-action-arrow onboarding-action-arrow-circle" aria-hidden="true">
               →
@@ -282,6 +283,7 @@ export function ProjectEmptyState({
           <button
             className="onboarding-action-card onboarding-action-secondary"
             type="button"
+            disabled={busy}
             onClick={() => {
               setError(null);
               setJoinOpen(true);
@@ -296,8 +298,8 @@ export function ProjectEmptyState({
               </svg>
             </span>
             <span className="onboarding-action-copy">
-              <strong>Join a Project</strong>
-              <small>Connect another authorized device.</small>
+              <strong>Add this device</strong>
+              <small>Use an invitation from another device.</small>
             </span>
             <span className="onboarding-action-arrow onboarding-action-arrow-circle" aria-hidden="true">
               →
@@ -348,62 +350,13 @@ export function ProjectEmptyState({
         </div>
       </section>
 
-      {createOpen ? (
-        <Modal
-          labelledBy="empty-create-project-title"
-          onClose={closeDialogs}
-          disabled={busy}
-        >
-          <h2 id="empty-create-project-title">Create a Project</h2>
-          <p className="dialog-description">
-            Create a separate local-first space for notes and devices.
-          </p>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void createProject();
-            }}
-          >
-            <label className="dialog-field">
-              <span>Project name</span>
-              <input
-                autoFocus
-                value={projectName}
-                maxLength={80}
-                disabled={busy}
-                placeholder="Research"
-                onChange={(event) => setProjectName(event.target.value)}
-              />
-            </label>
-            {error ? <p className="dialog-error">{error}</p> : null}
-            <div className="dialog-actions">
-              <button
-                className="dialog-secondary-button"
-                type="button"
-                disabled={busy}
-                onClick={closeDialogs}
-              >
-                Cancel
-              </button>
-              <button
-                className="dialog-primary-button"
-                type="submit"
-                disabled={busy || projectName.trim().length === 0}
-              >
-                {busy ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      ) : null}
-
       {joinOpen ? (
         <Modal
           labelledBy="empty-join-project-title"
           onClose={closeDialogs}
           disabled={busy}
         >
-          <h2 id="empty-join-project-title">Join a Project</h2>
+          <h2 id="empty-join-project-title">Add this device</h2>
           <p className="dialog-description">
             Paste an invitation link created on an authorized device.
           </p>
@@ -454,7 +407,7 @@ export function ProjectEmptyState({
           <h2 id="empty-import-project-title">Import Floe export</h2>
           <p className="dialog-description">
             Select a portable .floe.zip export. Floe Note validates the entire
-            archive first, then creates a new independent Project identity.
+            archive first, then creates a new independent Workspace.
           </p>
           <label className="dialog-field">
             <span>Floe export</span>
@@ -472,8 +425,8 @@ export function ProjectEmptyState({
           </label>
           <p className="settings-field-hint">
             {busy
-              ? "Validating and creating a new Project…"
-              : "The source Project identity, devices, and keys are not restored."}
+              ? "Validating and creating a new Workspace…"
+              : "The source Workspace identity, devices, and keys are not restored."}
           </p>
           {error ? <p className="dialog-error">{error}</p> : null}
           <div className="dialog-actions">
@@ -498,7 +451,7 @@ export function ProjectEmptyState({
           <h2 id="empty-import-markdown-title">Import Markdown directory</h2>
           <p className="dialog-description">
             Select a directory of Markdown files. Floe Note reads and validates
-            all importable files before creating a new independent Project.
+            all importable files before creating a new independent Workspace.
             Nested directories are flattened.
           </p>
           <label className="dialog-field">
@@ -522,7 +475,7 @@ export function ProjectEmptyState({
           </label>
           <p className="settings-field-hint">
             {busy
-              ? "Reading, validating, and creating a new Project…"
+              ? "Reading, validating, and creating a new Workspace…"
               : "Imports .md and .markdown files recursively. Hidden files and directories are ignored."}
           </p>
           {error ? <p className="dialog-error">{error}</p> : null}

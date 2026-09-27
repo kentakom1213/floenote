@@ -14,12 +14,14 @@ export type SyncUiState =
 export type SyncDeviceUi = {
   deviceId: DeviceId;
   name: string;
-  state: "this-device" | "connected" | "online";
+  state: "this-device" | "connected" | "online" | "offline";
 };
 
 type SyncStatusProps = {
   state: SyncUiState;
   devices: readonly SyncDeviceUi[];
+  canAddDevice: boolean;
+  onAddDevice: () => void;
   onManageDevices: () => void;
 };
 
@@ -59,12 +61,16 @@ function stateLabel(state: SyncDeviceUi["state"]): string {
       return "Connected";
     case "online":
       return "Online";
+    case "offline":
+      return "Offline";
   }
 }
 
 export function SyncStatus({
   state,
   devices,
+  canAddDevice,
+  onAddDevice,
   onManageDevices,
 }: SyncStatusProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -93,15 +99,20 @@ export function SyncStatus({
     onManageDevices();
   }
 
+  function addDevice(): void {
+    detailsRef.current?.removeAttribute("open");
+    onAddDevice();
+  }
+
   return (
     <details className="sync-status" ref={detailsRef}>
-      <summary className="sync-status-summary">
+      <summary className="sync-status-summary" title="Devices and sync status">
         <span className="status-dot" data-kind={state.kind} aria-hidden="true" />
         <span>{label}</span>
       </summary>
       <div className="sync-status-popover">
         <div className="sync-status-heading">
-          <strong>{copy.label}</strong>
+          <strong>Devices</strong>
           <p>{copy.description}</p>
         </div>
 
@@ -123,6 +134,14 @@ export function SyncStatus({
           </div>
         ) : null}
 
+        <button
+          className="sync-manage-devices"
+          type="button"
+          disabled={!canAddDevice}
+          onClick={addDevice}
+        >
+          + Add device
+        </button>
         <button
           className="sync-manage-devices"
           type="button"
