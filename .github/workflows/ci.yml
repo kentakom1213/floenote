@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - refactor/workspace-core
   pull_request:
     branches:
       - main
