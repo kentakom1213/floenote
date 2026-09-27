@@ -1,12 +1,12 @@
-import type { DeviceId, ProjectId } from "@floe-note/domain";
+import type { DeviceId, WorkspaceId } from "@floe-note/domain";
 import { encode, rfc8949EncodeOptions } from "cborg";
 
-import { SECURITY_HEAD_HASH_BYTES, SECURITY_SIGNATURE_BYTES } from "./create-project.js";
+import { SECURITY_HEAD_HASH_BYTES, SECURITY_SIGNATURE_BYTES } from "./create-workspace.js";
 import { SECURITY_PROTOCOL_VERSION } from "./state.js";
 
-export type UnsignedProjectKeyRotationEnvelope = {
+export type UnsignedWorkspaceKeyRotationEnvelope = {
   protocolVersion: 1;
-  projectId: ProjectId;
+  workspaceId: WorkspaceId;
   keyEpoch: number;
   securityHead: Uint8Array;
   recipientDeviceId: DeviceId;
@@ -14,19 +14,19 @@ export type UnsignedProjectKeyRotationEnvelope = {
   signerDeviceId: DeviceId;
 };
 
-export type ProjectKeyRotationEnvelope =
-  UnsignedProjectKeyRotationEnvelope & {
+export type WorkspaceKeyRotationEnvelope =
+  UnsignedWorkspaceKeyRotationEnvelope & {
     signature: Uint8Array;
   };
 
-export function encodeUnsignedProjectKeyRotationEnvelope(
-  envelope: UnsignedProjectKeyRotationEnvelope,
+export function encodeUnsignedWorkspaceKeyRotationEnvelope(
+  envelope: UnsignedWorkspaceKeyRotationEnvelope,
 ): Uint8Array {
   validateUnsignedEnvelope(envelope);
   return encode(
     {
       protocolVersion: SECURITY_PROTOCOL_VERSION,
-      projectId: envelope.projectId,
+      workspaceId: envelope.workspaceId,
       keyEpoch: envelope.keyEpoch,
       securityHead: envelope.securityHead,
       recipientDeviceId: envelope.recipientDeviceId,
@@ -37,14 +37,14 @@ export function encodeUnsignedProjectKeyRotationEnvelope(
   );
 }
 
-export function attachProjectKeyRotationEnvelopeSignature(
-  envelope: UnsignedProjectKeyRotationEnvelope,
+export function attachWorkspaceKeyRotationEnvelopeSignature(
+  envelope: UnsignedWorkspaceKeyRotationEnvelope,
   signature: Uint8Array,
-): ProjectKeyRotationEnvelope {
+): WorkspaceKeyRotationEnvelope {
   validateUnsignedEnvelope(envelope);
   if (signature.byteLength !== SECURITY_SIGNATURE_BYTES) {
     throw new TypeError(
-      `ProjectKey rotation envelope signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
+      `WorkspaceKey rotation envelope signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
     );
   }
 
@@ -57,7 +57,7 @@ export function attachProjectKeyRotationEnvelopeSignature(
 }
 
 function validateUnsignedEnvelope(
-  envelope: UnsignedProjectKeyRotationEnvelope,
+  envelope: UnsignedWorkspaceKeyRotationEnvelope,
 ): void {
   if (
     envelope.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
@@ -66,6 +66,6 @@ function validateUnsignedEnvelope(
     envelope.securityHead.byteLength !== SECURITY_HEAD_HASH_BYTES ||
     envelope.sealedEnvelope.byteLength === 0
   ) {
-    throw new TypeError("Invalid ProjectKey rotation envelope");
+    throw new TypeError("Invalid WorkspaceKey rotation envelope");
   }
 }

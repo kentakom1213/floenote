@@ -1,18 +1,18 @@
-import { createDeviceId, createProjectId } from "@floe-note/domain";
+import { createDeviceId, createWorkspaceId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
 import {
   attachAddDeviceSignature,
-  attachCreateProjectSignature,
-  attachProjectKeyRotationEnvelopeSignature,
+  attachCreateWorkspaceSignature,
+  attachWorkspaceKeyRotationEnvelopeSignature,
   attachRevokeDeviceSignature,
   createUnsignedAddDeviceTransition,
-  createUnsignedCreateProjectTransition,
+  createUnsignedCreateWorkspaceTransition,
   createUnsignedRevokeDeviceTransition,
   deriveAddDeviceSecurityState,
   deriveInitialSecurityState,
   deriveRevokeDeviceSecurityState,
-  encodeUnsignedProjectKeyRotationEnvelope,
+  encodeUnsignedWorkspaceKeyRotationEnvelope,
   type DevicePublicIdentity,
 } from "../src/index.js";
 
@@ -34,12 +34,12 @@ function head(seed: number): Uint8Array {
 
 describe("SecurityState transitions", () => {
   it("advances sequence and key epoch across add and revoke", () => {
-    const projectId = createProjectId();
+    const workspaceId = createWorkspaceId();
     const deviceA = device(1);
     const deviceB = device(10);
 
-    const createTransition = attachCreateProjectSignature(
-      createUnsignedCreateProjectTransition(projectId, deviceA),
+    const createTransition = attachCreateWorkspaceSignature(
+      createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
       signature(1),
     );
     const initial = deriveInitialSecurityState(createTransition, head(1));
@@ -92,12 +92,12 @@ describe("SecurityState transitions", () => {
   });
 
   it("rejects transitions that do not extend the current head", () => {
-    const projectId = createProjectId();
+    const workspaceId = createWorkspaceId();
     const deviceA = device(20);
     const deviceB = device(30);
     const initial = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
         signature(4),
       ),
       head(4),
@@ -118,11 +118,11 @@ describe("SecurityState transitions", () => {
   });
 
   it("rejects AddDevice for an already authorized DeviceId", () => {
-    const projectId = createProjectId();
+    const workspaceId = createWorkspaceId();
     const deviceA = device(35);
     const initial = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
         signature(8),
       ),
       head(8),
@@ -142,11 +142,11 @@ describe("SecurityState transitions", () => {
   });
 
   it("rejects self revocation", () => {
-    const projectId = createProjectId();
+    const workspaceId = createWorkspaceId();
     const deviceA = device(40);
     const initial = deriveInitialSecurityState(
-      attachCreateProjectSignature(
-        createUnsignedCreateProjectTransition(projectId, deviceA),
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, deviceA),
         signature(6),
       ),
       head(6),
@@ -162,14 +162,14 @@ describe("SecurityState transitions", () => {
   });
 });
 
-describe("ProjectKey rotation envelope", () => {
+describe("WorkspaceKey rotation envelope", () => {
   it("encodes deterministically and requires a 64-byte signature", () => {
-    const projectId = createProjectId();
+    const workspaceId = createWorkspaceId();
     const signerDeviceId = createDeviceId();
     const recipientDeviceId = createDeviceId();
     const unsigned = {
       protocolVersion: 1 as const,
-      projectId,
+      workspaceId,
       keyEpoch: 2,
       securityHead: head(7),
       recipientDeviceId,
@@ -177,18 +177,18 @@ describe("ProjectKey rotation envelope", () => {
       signerDeviceId,
     };
 
-    const first = encodeUnsignedProjectKeyRotationEnvelope(unsigned);
-    const second = encodeUnsignedProjectKeyRotationEnvelope(unsigned);
+    const first = encodeUnsignedWorkspaceKeyRotationEnvelope(unsigned);
+    const second = encodeUnsignedWorkspaceKeyRotationEnvelope(unsigned);
     expect(first).toEqual(second);
 
     expect(() =>
-      attachProjectKeyRotationEnvelopeSignature(
+      attachWorkspaceKeyRotationEnvelopeSignature(
         unsigned,
         new Uint8Array(63),
       ),
     ).toThrow("signature must be 64 bytes");
 
-    const signed = attachProjectKeyRotationEnvelopeSignature(
+    const signed = attachWorkspaceKeyRotationEnvelopeSignature(
       unsigned,
       signature(7),
     );

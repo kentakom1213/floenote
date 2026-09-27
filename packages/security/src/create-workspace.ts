@@ -1,4 +1,4 @@
-import type { ProjectId } from "@floe-note/domain";
+import type { WorkspaceId } from "@floe-note/domain";
 import { encode, rfc8949EncodeOptions } from "cborg";
 
 import {
@@ -7,21 +7,21 @@ import {
   type SecurityState,
 } from "./state.js";
 import type {
-  CreateProjectTransition,
-  UnsignedCreateProjectTransition,
+  CreateWorkspaceTransition,
+  UnsignedCreateWorkspaceTransition,
 } from "./transition.js";
 
 export const SECURITY_HEAD_HASH_BYTES = 32;
 export const SECURITY_SIGNATURE_BYTES = 64;
 
-export function createUnsignedCreateProjectTransition(
-  projectId: ProjectId,
+export function createUnsignedCreateWorkspaceTransition(
+  workspaceId: WorkspaceId,
   initialDevice: DevicePublicIdentity,
-): UnsignedCreateProjectTransition {
+): UnsignedCreateWorkspaceTransition {
   return {
-    type: "create-project",
+    type: "create-workspace",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId,
+    workspaceId,
     sequence: 0,
     previousHash: null,
     keyEpoch: 1,
@@ -29,24 +29,24 @@ export function createUnsignedCreateProjectTransition(
   };
 }
 
-export function attachCreateProjectSignature(
-  transition: UnsignedCreateProjectTransition,
+export function attachCreateWorkspaceSignature(
+  transition: UnsignedCreateWorkspaceTransition,
   signature: Uint8Array,
-): CreateProjectTransition {
+): CreateWorkspaceTransition {
   if (signature.byteLength !== SECURITY_SIGNATURE_BYTES) {
     throw new TypeError(
-      `CreateProject signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
+      `CreateWorkspace signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
     );
   }
 
   return {
-    ...cloneUnsignedCreateProjectTransition(transition),
+    ...cloneUnsignedCreateWorkspaceTransition(transition),
     signature: signature.slice(),
   };
 }
 
-export function encodeUnsignedCreateProjectTransition(
-  transition: UnsignedCreateProjectTransition,
+export function encodeUnsignedCreateWorkspaceTransition(
+  transition: UnsignedCreateWorkspaceTransition,
 ): Uint8Array {
   return encode(
     createUnsignedWireValue(transition),
@@ -54,12 +54,12 @@ export function encodeUnsignedCreateProjectTransition(
   );
 }
 
-export function encodeCreateProjectTransition(
-  transition: CreateProjectTransition,
+export function encodeCreateWorkspaceTransition(
+  transition: CreateWorkspaceTransition,
 ): Uint8Array {
   if (transition.signature.byteLength !== SECURITY_SIGNATURE_BYTES) {
     throw new TypeError(
-      `CreateProject signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
+      `CreateWorkspace signature must be ${SECURITY_SIGNATURE_BYTES} bytes`,
     );
   }
 
@@ -73,7 +73,7 @@ export function encodeCreateProjectTransition(
 }
 
 export function deriveInitialSecurityState(
-  transition: CreateProjectTransition,
+  transition: CreateWorkspaceTransition,
   headHash: Uint8Array,
 ): SecurityState {
   if (headHash.byteLength !== SECURITY_HEAD_HASH_BYTES) {
@@ -84,7 +84,7 @@ export function deriveInitialSecurityState(
 
   return {
     protocolVersion: transition.protocolVersion,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: 0,
     headHash: headHash.slice(),
     keyEpoch: 1,
@@ -98,11 +98,11 @@ export function deriveInitialSecurityState(
 }
 
 function createUnsignedWireValue(
-  transition: UnsignedCreateProjectTransition,
+  transition: UnsignedCreateWorkspaceTransition,
 ): {
-  type: "create-project";
+  type: "create-workspace";
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: 0;
   previousHash: null;
   keyEpoch: 1;
@@ -118,13 +118,13 @@ function createUnsignedWireValue(
     transition.previousHash !== null ||
     transition.keyEpoch !== 1
   ) {
-    throw new TypeError("Invalid CreateProject transition");
+    throw new TypeError("Invalid CreateWorkspace transition");
   }
 
   return {
-    type: "create-project",
+    type: "create-workspace",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: 0,
     previousHash: null,
     keyEpoch: 1,
@@ -136,9 +136,9 @@ function createUnsignedWireValue(
   };
 }
 
-function cloneUnsignedCreateProjectTransition(
-  transition: UnsignedCreateProjectTransition,
-): UnsignedCreateProjectTransition {
+function cloneUnsignedCreateWorkspaceTransition(
+  transition: UnsignedCreateWorkspaceTransition,
+): UnsignedCreateWorkspaceTransition {
   return {
     ...transition,
     initialDevice: cloneDeviceIdentity(transition.initialDevice),

@@ -1,13 +1,13 @@
 import {
   parseDeviceId,
-  parseProjectId,
-  type ProjectId,
+  parseWorkspaceId,
+  type WorkspaceId,
 } from "@floe-note/domain";
 
 import {
   SECURITY_HEAD_HASH_BYTES,
   SECURITY_SIGNATURE_BYTES,
-} from "./create-project.js";
+} from "./create-workspace.js";
 import {
   SECURITY_PROTOCOL_VERSION,
   type AuthorizedDevice,
@@ -15,7 +15,7 @@ import {
 } from "./state.js";
 import type {
   AddDeviceTransition,
-  CreateProjectTransition,
+  CreateWorkspaceTransition,
   RevokeDeviceTransition,
   SecurityTransition,
 } from "./transition.js";
@@ -23,10 +23,10 @@ import type {
 const DEVICE_ENCRYPTION_PUBLIC_KEY_BYTES = 32;
 const DEVICE_SIGNING_PUBLIC_KEY_BYTES = 32;
 
-export type CreateProjectWirePayload = {
-  type: "create-project";
+export type CreateWorkspaceWirePayload = {
+  type: "create-workspace";
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: 0;
   previousHash: null;
   keyEpoch: 1;
@@ -41,7 +41,7 @@ export type CreateProjectWirePayload = {
 export type AddDeviceWirePayload = {
   type: "add-device";
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: number;
   previousHash: string;
   newDevice: {
@@ -56,7 +56,7 @@ export type AddDeviceWirePayload = {
 export type RevokeDeviceWirePayload = {
   type: "revoke-device";
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: number;
   previousHash: string;
   revokedDeviceId: string;
@@ -66,13 +66,13 @@ export type RevokeDeviceWirePayload = {
 };
 
 export type SecurityTransitionWirePayload =
-  | CreateProjectWirePayload
+  | CreateWorkspaceWirePayload
   | AddDeviceWirePayload
   | RevokeDeviceWirePayload;
 
 export type SecurityStateWirePayload = {
   protocolVersion: 1;
-  projectId: string;
+  workspaceId: string;
   sequence: number;
   headHash: string;
   keyEpoch: number;
@@ -84,13 +84,13 @@ export type SecurityStateWirePayload = {
   }>;
 };
 
-export function createProjectTransitionToWire(
-  transition: CreateProjectTransition,
-): CreateProjectWirePayload {
+export function createWorkspaceTransitionToWire(
+  transition: CreateWorkspaceTransition,
+): CreateWorkspaceWirePayload {
   return {
-    type: "create-project",
+    type: "create-workspace",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: 0,
     previousHash: null,
     keyEpoch: 1,
@@ -107,39 +107,39 @@ export function createProjectTransitionToWire(
   };
 }
 
-export function parseCreateProjectWirePayload(
+export function parseCreateWorkspaceWirePayload(
   value: unknown,
-  expectedProjectId?: ProjectId,
-): CreateProjectTransition {
+  expectedWorkspaceId?: WorkspaceId,
+): CreateWorkspaceTransition {
   if (!isRecord(value)) {
-    throw new TypeError("Invalid CreateProject payload");
+    throw new TypeError("Invalid CreateWorkspace payload");
   }
 
   if (
-    value.type !== "create-project" ||
+    value.type !== "create-workspace" ||
     value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
     value.sequence !== 0 ||
     value.previousHash !== null ||
     value.keyEpoch !== 1 ||
-    typeof value.projectId !== "string" ||
+    typeof value.workspaceId !== "string" ||
     !isRecord(value.initialDevice) ||
     typeof value.initialDevice.deviceId !== "string" ||
     typeof value.initialDevice.encryptionPublicKey !== "string" ||
     typeof value.initialDevice.signingPublicKey !== "string" ||
     typeof value.signature !== "string"
   ) {
-    throw new TypeError("Invalid CreateProject payload");
+    throw new TypeError("Invalid CreateWorkspace payload");
   }
 
-  const projectId = parseProjectId(value.projectId);
-  if (expectedProjectId && projectId !== expectedProjectId) {
-    throw new TypeError("CreateProject ProjectId does not match request route");
+  const workspaceId = parseWorkspaceId(value.workspaceId);
+  if (expectedWorkspaceId && workspaceId !== expectedWorkspaceId) {
+    throw new TypeError("CreateWorkspace WorkspaceId does not match request route");
   }
 
   return {
-    type: "create-project",
+    type: "create-workspace",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId,
+    workspaceId,
     sequence: 0,
     previousHash: null,
     keyEpoch: 1,
@@ -159,7 +159,7 @@ export function parseCreateProjectWirePayload(
     signature: base64UrlToBytes(
       value.signature,
       SECURITY_SIGNATURE_BYTES,
-      "CreateProject signature",
+      "CreateWorkspace signature",
     ),
   };
 }
@@ -170,7 +170,7 @@ export function addDeviceTransitionToWire(
   return {
     type: "add-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: transition.sequence,
     previousHash: bytesToBase64Url(transition.previousHash),
     newDevice: {
@@ -189,13 +189,13 @@ export function addDeviceTransitionToWire(
 
 export function parseAddDeviceWirePayload(
   value: unknown,
-  expectedProjectId?: ProjectId,
+  expectedWorkspaceId?: WorkspaceId,
 ): AddDeviceTransition {
   if (
     !isRecord(value) ||
     value.type !== "add-device" ||
     value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-    typeof value.projectId !== "string" ||
+    typeof value.workspaceId !== "string" ||
     typeof value.sequence !== "number" ||
     !Number.isSafeInteger(value.sequence) ||
     value.sequence < 1 ||
@@ -210,15 +210,15 @@ export function parseAddDeviceWirePayload(
     throw new TypeError("Invalid AddDevice payload");
   }
 
-  const projectId = parseProjectId(value.projectId);
-  if (expectedProjectId && projectId !== expectedProjectId) {
-    throw new TypeError("AddDevice ProjectId does not match request route");
+  const workspaceId = parseWorkspaceId(value.workspaceId);
+  if (expectedWorkspaceId && workspaceId !== expectedWorkspaceId) {
+    throw new TypeError("AddDevice WorkspaceId does not match request route");
   }
 
   return {
     type: "add-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId,
+    workspaceId,
     sequence: value.sequence,
     previousHash: base64UrlToBytes(
       value.previousHash,
@@ -253,7 +253,7 @@ export function revokeDeviceTransitionToWire(
   return {
     type: "revoke-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId: transition.projectId,
+    workspaceId: transition.workspaceId,
     sequence: transition.sequence,
     previousHash: bytesToBase64Url(transition.previousHash),
     revokedDeviceId: transition.revokedDeviceId,
@@ -265,13 +265,13 @@ export function revokeDeviceTransitionToWire(
 
 export function parseRevokeDeviceWirePayload(
   value: unknown,
-  expectedProjectId?: ProjectId,
+  expectedWorkspaceId?: WorkspaceId,
 ): RevokeDeviceTransition {
   if (
     !isRecord(value) ||
     value.type !== "revoke-device" ||
     value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-    typeof value.projectId !== "string" ||
+    typeof value.workspaceId !== "string" ||
     typeof value.sequence !== "number" ||
     !Number.isSafeInteger(value.sequence) ||
     value.sequence < 1 ||
@@ -286,15 +286,15 @@ export function parseRevokeDeviceWirePayload(
     throw new TypeError("Invalid RevokeDevice payload");
   }
 
-  const projectId = parseProjectId(value.projectId);
-  if (expectedProjectId && projectId !== expectedProjectId) {
-    throw new TypeError("RevokeDevice ProjectId does not match request route");
+  const workspaceId = parseWorkspaceId(value.workspaceId);
+  if (expectedWorkspaceId && workspaceId !== expectedWorkspaceId) {
+    throw new TypeError("RevokeDevice WorkspaceId does not match request route");
   }
 
   return {
     type: "revoke-device",
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId,
+    workspaceId,
     sequence: value.sequence,
     previousHash: base64UrlToBytes(
       value.previousHash,
@@ -316,8 +316,8 @@ export function securityTransitionToWire(
   transition: SecurityTransition,
 ): SecurityTransitionWirePayload {
   switch (transition.type) {
-    case "create-project":
-      return createProjectTransitionToWire(transition);
+    case "create-workspace":
+      return createWorkspaceTransitionToWire(transition);
     case "add-device":
       return addDeviceTransitionToWire(transition);
     case "revoke-device":
@@ -327,19 +327,19 @@ export function securityTransitionToWire(
 
 export function parseSecurityTransitionWirePayload(
   value: unknown,
-  expectedProjectId?: ProjectId,
+  expectedWorkspaceId?: WorkspaceId,
 ): SecurityTransition {
   if (!isRecord(value) || typeof value.type !== "string") {
     throw new TypeError("Invalid SecurityTransition payload");
   }
 
   switch (value.type) {
-    case "create-project":
-      return parseCreateProjectWirePayload(value, expectedProjectId);
+    case "create-workspace":
+      return parseCreateWorkspaceWirePayload(value, expectedWorkspaceId);
     case "add-device":
-      return parseAddDeviceWirePayload(value, expectedProjectId);
+      return parseAddDeviceWirePayload(value, expectedWorkspaceId);
     case "revoke-device":
-      return parseRevokeDeviceWirePayload(value, expectedProjectId);
+      return parseRevokeDeviceWirePayload(value, expectedWorkspaceId);
     default:
       throw new TypeError("Unsupported SecurityTransition payload");
   }
@@ -350,7 +350,7 @@ export function securityStateToWire(
 ): SecurityStateWirePayload {
   return {
     protocolVersion: state.protocolVersion,
-    projectId: state.projectId,
+    workspaceId: state.workspaceId,
     sequence: state.sequence,
     headHash: bytesToBase64Url(state.headHash),
     keyEpoch: state.keyEpoch,
@@ -365,12 +365,12 @@ export function securityStateToWire(
 
 export function parseSecurityStateWirePayload(
   value: unknown,
-  expectedProjectId?: ProjectId,
+  expectedWorkspaceId?: WorkspaceId,
 ): SecurityState {
   if (
     !isRecord(value) ||
     value.protocolVersion !== SECURITY_PROTOCOL_VERSION ||
-    typeof value.projectId !== "string" ||
+    typeof value.workspaceId !== "string" ||
     typeof value.sequence !== "number" ||
     !Number.isSafeInteger(value.sequence) ||
     typeof value.headHash !== "string" ||
@@ -381,9 +381,9 @@ export function parseSecurityStateWirePayload(
     throw new TypeError("Invalid SecurityState payload");
   }
 
-  const projectId = parseProjectId(value.projectId);
-  if (expectedProjectId && projectId !== expectedProjectId) {
-    throw new TypeError("SecurityState ProjectId does not match request route");
+  const workspaceId = parseWorkspaceId(value.workspaceId);
+  if (expectedWorkspaceId && workspaceId !== expectedWorkspaceId) {
+    throw new TypeError("SecurityState WorkspaceId does not match request route");
   }
 
   const sequence = value.sequence as number;
@@ -396,7 +396,7 @@ export function parseSecurityStateWirePayload(
 
   return {
     protocolVersion: SECURITY_PROTOCOL_VERSION,
-    projectId,
+    workspaceId,
     sequence,
     headHash: base64UrlToBytes(
       value.headHash,
