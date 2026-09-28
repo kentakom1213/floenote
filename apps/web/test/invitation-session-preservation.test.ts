@@ -62,6 +62,15 @@ describe("invitation session preservation", () => {
     expect(appSource).toContain("exitInvitationHost(true)");
   });
 
+  it("uses the invitation expiry as the host and join pairing deadline", () => {
+    expect(appSource).toContain(
+      "timeoutMs: Math.max(1, invitation.expiresAt - Date.now())",
+    );
+    expect(joinSource).toContain(
+      "timeoutMs: Math.max(1, claimed.expiresAt - Date.now())",
+    );
+  });
+
   it("hands off only after persistence flush and bootstrap completion", () => {
     const start = joinSource.indexOf("onInitialRemoteStateReceived: () =>");
     const flush = joinSource.indexOf("await storage.flushPendingWrites()", start);
