@@ -26,15 +26,27 @@ import {
 class MemoryTransport implements Transport {
   #peer: MemoryTransport | null = null;
   #handlers = new Set<(data: Uint8Array) => void>();
+  #pending: Uint8Array[] = [];
+  #paused = false;
+  #resolveFirstSend: (() => void) | null = null;
+  readonly #firstSend = new Promise<void>((resolve) => {
+    this.#resolveFirstSend = resolve;
+  });
 
   connect(peer: MemoryTransport): void {
     this.#peer = peer;
   }
 
   send(data: Uint8Array): void {
-    const peer = this.#peer;
-    if (!peer) throw new Error("Transport is not connected");
-    queueMicrotask(() => peer.#receive(data.slice()));
+    this.#resolveFirstSend?.();
+    this.#resolveFirstSend = null;
+
+    if (this.#paused) {
+      this.#pending.push(data.slice());
+      return;
+    }
+
+    this.#deliver(data);
   }
 
   onMessage(handler: (data: Uint8Array) => void): () => void {
@@ -44,6 +56,26 @@ class MemoryTransport implements Transport {
 
   close(): void {
     this.#handlers.clear();
+    this.#pending.length = 0;
+  }
+
+  pause(): void {
+    this.#paused = true;
+  }
+
+  resume(): void {
+    this.#paused = false;
+    for (const data of this.#pending.splice(0)) this.#deliver(data);
+  }
+
+  waitForFirstSend(): Promise<void> {
+    return this.#firstSend;
+  }
+
+  #deliver(data: Uint8Array): void {
+    const peer = this.#peer;
+    if (!peer) throw new Error("Transport is not connected");
+    queueMicrotask(() => peer.#receive(data.slice()));
   }
 
   #receive(data: Uint8Array): void {
@@ -76,6 +108,99 @@ function createState(
 }
 
 describe("Workspace pairing boundary", () => {
+  it("allows pairing after the default timeout when the caller deadline is later", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const [host, join] = transportPair();
+      host.pause();
+      join.pause();
+
+      const workspaceId = createWorkspaceId();
+      const pairingSecret = createPairingSecret();
+      const hostPromise = authenticatePairingChannel({
+        role: "host",
+        inviteId,
+        workspaceId,
+        sessionId,
+        pairingSecret,
+        transport: host,
+        timeoutMs: 120_000,
+      });
+      const joinPromise = authenticatePairingChannel({
+        role: "join",
+        inviteId,
+        workspaceId,
+        sessionId,
+        pairingSecret,
+        transport: join,
+        timeoutMs: 120_000,
+      });
+      const pairing = Promise.all([hostPromise, joinPromise]);
+      void pairing.catch(() => undefined);
+
+      await Promise.all([host.waitForFirstSend(), join.waitForFirstSend()]);
+      await vi.advanceTimersByTimeAsync(61_000);
+
+      host.resume();
+      join.resume();
+
+      await expect(pairing).resolves.toEqual([undefined, undefined]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects pairing when the caller deadline expires", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const [host, join] = transportPair();
+      host.pause();
+      join.pause();
+
+      const workspaceId = createWorkspaceId();
+      const pairingSecret = createPairingSecret();
+      const hostPromise = authenticatePairingChannel({
+        role: "host",
+        inviteId,
+        workspaceId,
+        sessionId,
+        pairingSecret,
+        transport: host,
+        timeoutMs: 10_000,
+      });
+      const joinPromise = authenticatePairingChannel({
+        role: "join",
+        inviteId,
+        workspaceId,
+        sessionId,
+        pairingSecret,
+        transport: join,
+        timeoutMs: 10_000,
+      });
+      const resultsPromise = Promise.allSettled([hostPromise, joinPromise]);
+
+      await Promise.all([host.waitForFirstSend(), join.waitForFirstSend()]);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const results = await resultsPromise;
+      expect(results).toEqual([
+        expect.objectContaining({ status: "rejected" }),
+        expect.objectContaining({ status: "rejected" }),
+      ]);
+      for (const result of results) {
+        if (result.status === "rejected") {
+          expect((result.reason as Error).message).toBe(
+            "Pairing authentication timed out",
+          );
+        }
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rejects a pairing proof made for a different Workspace", async () => {
     const [host, join] = transportPair();
     const pairingSecret = createPairingSecret();
