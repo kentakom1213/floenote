@@ -227,6 +227,7 @@ export function InvitationJoinPage({
           pairingSecret: parsedPairingSecret,
           transport,
           signal: abortPairing.signal,
+          timeoutMs: Math.max(1, claimed.expiresAt - Date.now()),
         });
         if (disposed) return;
 
