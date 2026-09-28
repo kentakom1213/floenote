@@ -31,7 +31,7 @@
     "loro-crdt": "^1.16.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "katex": "^0.16.22",
+    "katex": "^0.18.9",
     "marked": "^18.0.14"
   },
   "devDependencies": {
