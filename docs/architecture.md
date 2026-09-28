@@ -1399,18 +1399,41 @@ encrypted binary blob
 
 Each attachment is addressed by its UUIDv7 `AttachmentId` and maps to an encrypted blob. Content-addressing, deduplication, and attachment garbage collection are outside the core design.
 
-## 23. Backup, import/export, and Workspace identity
+## 23. Backup, Project import/export, and Workspace identity
 
-Floe Note does not define a standalone key-recovery mechanism without content data. If every device and every copy of the content data are lost, recovering only encryption keys would not recover the Workspace content.
+Floe Note does not define a standalone key-recovery mechanism without content
+data. If every device and every copy of the content data are lost, recovering
+only encryption keys would not recover Workspace content.
 
-Portable import/export is treated as a data portability and survivability concern rather than as part of device pairing or authorization. The v1 portable Floe export uses ordinary Markdown plus a JSON manifest and can be produced entirely from already-local unlocked content without coordinator availability. Its existing `PortableProject` and `project` field names describe the portable content format, not Workspace security identity. The archive contains no WorkspaceId, WorkspaceKey, SecurityState, DeviceId authorization state, key epoch, or coordinator runtime state. Importing it creates a fresh WorkspaceId and SecurityState through the normal coordinator-backed creation flow. Creating content from a raw Markdown directory follows the same flow. See `project-import-export.md`.
+Portable import/export is a Project-level data portability and survivability
+concern rather than part of device pairing or authorization. The v1 portable
+Floe Project export uses ordinary Markdown plus a JSON manifest and can be
+produced entirely from already-local unlocked content without coordinator
+availability.
+
+The archive contains no source ProjectId, WorkspaceId, WorkspaceKey,
+SecurityState, DeviceId authorization state, key epoch, or coordinator runtime
+state. Import into an existing Workspace allocates a new ProjectId and fresh
+DocumentIds but keeps the existing Workspace identity and security boundary.
+Import during creation of a new Workspace first creates the normal fresh
+Workspace security identity and then uses the imported Project as its initial
+content. Raw Markdown directory import follows the same Project semantics. See
+`project-import-export.md`.
 
 Identity semantics are:
 
-- **Portable export/import or duplicate/copy:** generate a new WorkspaceId.
-- **Future full restore from backup:** preserving WorkspaceId would require a separate format and design.
+- **Project export:** carries portable content, not Project or Workspace identity.
+- **Import into an existing Workspace:** preserve WorkspaceId; allocate a new
+  ProjectId and new DocumentIds.
+- **Create a new Workspace from import:** allocate a new WorkspaceId,
+  WorkspaceKey, SecurityState, ProjectId, and DocumentIds.
+- **Future full restore from backup:** preserving WorkspaceId would require a
+  separate format and design.
 
-A future full backup/restore format would need the data and cryptographic material required to restore the original Workspace identity and should remain independent from the internal IndexedDB schema. That is intentionally separate from the v1 portable export.
+A future full backup/restore format would need the data and cryptographic
+material required to restore the original Workspace identity and should remain
+independent from the internal IndexedDB schema. That is intentionally separate
+from the v1 portable Project export.
 
 
 ## 24. Threat model
