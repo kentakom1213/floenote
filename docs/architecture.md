@@ -132,6 +132,9 @@ Timestamps are used for display and sorting only. They must not be used to resol
 
 ## 6. Workspace-scoped content model
 
+> Project v1 is the accepted target model. Implementation is tracked by
+> #177–#180 and is not yet complete.
+
 The Workspace owns Projects, Documents, Workspace-scoped presentation metadata,
 and edit-history metadata. Project is intentionally lighter than Workspace: it
 organizes content but does not introduce a second authorization, encryption, or
@@ -248,11 +251,45 @@ synchronized. The ordinary sidebar Note list and sidebar search are scoped to
 the selected Project. Workspace-wide features such as Trash, tags, backlinks,
 and global search remain Workspace-wide.
 
+Opening an active Note from a Workspace-wide surface or canonical Note URL
+updates the local selected Project to that Note's current Project membership.
+This includes direct URL navigation, browser Back/Forward, global search, and
+backlinks. The canonical Note URL itself does not change.
+
+A remembered Project selection is valid only while that Project remains active.
+If synchronization makes the remembered Project archived or otherwise invalid,
+an active Note being opened determines the selected Project. When no active
+Note determines the context, the UI falls back to the active Project with the
+lexicographically smallest ProjectId.
+
 Creating a Note assigns it to the selected Project. Moving a Note only changes
 its Project membership. Its DocumentId, canonical URL, content, edit history,
 tags, and links remain unchanged.
 
-### 6.3 Deletion
+### 6.3 Convergent Project invariants
+
+Local archive preconditions are not sufficient to preserve Project invariants
+under concurrent CRDT updates. For example, separate devices can archive
+different empty Projects concurrently, or one device can archive a Project
+while another concurrently creates or moves an active Document into it.
+
+After local manifest mutations and after merged or remote manifest state is
+applied, the domain normalizes Project state deterministically:
+
+1. every Project containing at least one active Document is active;
+2. if no active Project remains after rule 1, the existing Project with the
+   lexicographically smallest ProjectId is reactivated.
+
+These rules repair domain invariants after Loro has merged collaborative state.
+They do not replace Loro's field-level conflict resolution and do not introduce
+timestamp ordering, device priority, or a separate winner-selection protocol.
+Normalization must be idempotent: applying it again to an already valid state
+does not create further changes.
+
+This ensures that concurrent operations converge to a state where every active
+Document belongs to an active Project and at least one active Project remains.
+
+### 6.4 Deletion
 
 Document deletion is logical before it is physical.
 
@@ -356,6 +393,11 @@ This applies to:
 - document bodies;
 - collaborative metadata;
 - the Workspace document manifest.
+
+Project-invariant normalization described in section 6.3 is not a competing
+conflict-resolution rule. Loro first merges the collaborative fields; the
+domain then deterministically repairs only states that violate the Project
+invariants.
 
 Security authorization is explicitly excluded from this rule and is handled separately.
 
@@ -1646,6 +1688,14 @@ Project membership is deliberately absent from canonical Note URLs. Moving a
 Note between Projects therefore does not change its identity or URL. Project
 selection is local UI state rather than a persistent route component; v1 does
 not add a canonical Project pathname.
+
+When an active Note is opened through its canonical URL, browser Back/Forward,
+global search, backlinks, or another Workspace-wide active-Note surface, the
+local selected Project follows that Note's current Project membership so the
+Project selector, sidebar, and editor remain consistent. A remembered Project
+that is no longer active is discarded; when no active Note determines the
+context, selection falls back to the active Project with the lexicographically
+smallest ProjectId. This fallback is local UI behavior and is not synchronized.
 
 Workspace and note path components are their immutable UUIDv7 identifiers;
 titles and note contents never appear in URLs. Unknown local Workspaces,
