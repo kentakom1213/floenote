@@ -41,16 +41,17 @@ that still use `Project` do not introduce a separate Project-level
 authorization, key, or cryptographic boundary.
 
 1. A **Workspace** is the synchronization, authorization, and cryptographic boundary.
-2. A Workspace currently owns the synchronized **set of documents**; a future work-organization Project is not a security boundary.
-3. One **Document** is one independent **LoroDoc**.
-4. Document bodies are Markdown stored in **LoroText**.
-5. Collaborative metadata is stored in Loro containers, primarily **LoroMap**.
-6. Collaborative conflict resolution is delegated to **Loro**.
-7. Security authorization state is **not** a CRDT.
-8. Workspace data is encrypted with a Workspace-level symmetric key (`WorkspaceKey`).
-9. Device authorization changes are represented by signed, linearly ordered security transitions.
-10. Cloudflare coordinates signaling, rendezvous, invitations, and security-state ordering, but never receives plaintext Workspace data or WorkspaceKeys.
-11. Decentralization is not a goal by itself. Coordination remains centralized when decentralizing it would make the implementation or protocol less natural without improving the privacy boundary.
+2. A **Project** is a flat organization boundary inside one Workspace. It is not a security, key, device-authorization, coordinator, or transport boundary.
+3. Every non-purged **Document** belongs to exactly one Project.
+4. One **Document** is one independent **LoroDoc**.
+5. Document bodies are Markdown stored in **LoroText**.
+6. Collaborative metadata is stored in Loro containers, primarily **LoroMap**.
+7. Collaborative conflict resolution is delegated to **Loro**.
+8. Security authorization state is **not** a CRDT.
+9. Workspace data is encrypted with a Workspace-level symmetric key (`WorkspaceKey`).
+10. Device authorization changes are represented by signed, linearly ordered security transitions.
+11. Cloudflare coordinates signaling, rendezvous, invitations, and security-state ordering, but never receives plaintext Workspace data or WorkspaceKeys.
+12. Decentralization is not a goal by itself. Coordination remains centralized when decentralizing it would make the implementation or protocol less natural without improving the privacy boundary.
 
 ## 3. System overview
 
@@ -95,6 +96,7 @@ Long-lived domain identities use UUIDv7.
 
 ```text
 WorkspaceId   -> UUIDv7
+ProjectId     -> UUIDv7
 DocumentId    -> UUIDv7
 DeviceId      -> UUIDv7
 AttachmentId  -> UUIDv7
@@ -130,16 +132,23 @@ Timestamps are used for display and sorting only. They must not be used to resol
 
 ## 6. Workspace-scoped content model
 
-The current `NoteProject` and `Project manifest` names are legacy implementation
-names for content owned directly by a Workspace. They do not represent the
-future work-organization Project inside a Workspace. The current model is:
+The Workspace owns Projects, Documents, Workspace-scoped presentation metadata,
+and edit-history metadata. Project is intentionally lighter than Workspace: it
+organizes content but does not introduce a second authorization, encryption, or
+synchronization boundary.
+
+Some implementation names may still use `NoteProject` or `Project manifest`
+for historical reasons while the Project model is introduced. Those legacy names
+must not be interpreted as separate Project-level security state.
 
 ```text
 Workspace
 ├── WorkspaceId
 ├── SecurityState
 ├── Manifest: LoroDoc
-│   ├── document membership / lifecycle
+│   ├── Project metadata / lifecycle
+│   ├── Document lifecycle
+│   ├── Document -> Project membership
 │   └── edit-history checkpoint metadata
 ├── Documents
 │   ├── DocumentId -> LoroDoc
@@ -150,17 +159,25 @@ Workspace
 ```
 
 The Workspace-scoped content model is intentionally small. It does not contain
-all note contents in one CRDT document.
+all note contents in one CRDT document, and Project does not become an
+independent synchronization object.
 
 ### 6.1 Workspace manifest
 
-The Workspace manifest (still called `Project manifest` in some implementation
-names) is a LoroDoc that tracks the Workspace's document set.
+The Workspace manifest is a LoroDoc that tracks Workspace-scoped collaborative
+metadata.
 
 Conceptually:
 
 ```text
 Manifest
+├── projects: LoroMap
+│   ├── ProjectId A -> { name, status, createdAt }
+│   └── ProjectId B -> { name, status, createdAt }
+├── documentProjects: LoroMap
+│   ├── DocumentId A -> ProjectId A
+│   ├── DocumentId B -> ProjectId A
+│   └── DocumentId C -> ProjectId B
 ├── documents: LoroMap
 │   ├── DocumentId A -> active
 │   ├── DocumentId B -> deleted
@@ -169,6 +186,16 @@ Manifest
     ├── CheckpointId X -> checkpoint metadata
     └── CheckpointId Y -> checkpoint metadata
 ```
+
+The exact CRDT container encoding may evolve during implementation, but the
+logical invariants are stable:
+
+- every non-purged Document belongs to exactly one valid Project;
+- Project names are mutable and need not be unique;
+- Project membership is collaborative Workspace state;
+- moving a Document changes membership rather than Document identity;
+- Project metadata and membership converge through the existing Workspace
+  manifest synchronization.
 
 The manifest should contain as little duplicated document metadata as possible.
 
@@ -184,7 +211,48 @@ ordered for display by their timestamps rather than by CRDT container order.
 The detailed edit-history semantics are defined in
 [edit-history.md](./edit-history.md).
 
-### 6.2 Deletion
+### 6.2 Project model
+
+Projects are flat organization units inside a Workspace.
+
+```text
+Workspace
+├── Project "Notes"
+│   ├── Note A
+│   └── Note B
+└── Project "Research"
+    └── Note C
+```
+
+A Project has an immutable `ProjectId`, a mutable display name, a creation
+timestamp, and a lifecycle state of `active` or `archived`. Project names may
+be duplicated. Projects are not nested, and a Document cannot belong to multiple
+Projects.
+
+A blank Workspace starts with one active Project named `Notes`. The first-run
+default is therefore `Personal > Notes`. A Workspace must always retain at
+least one active Project.
+
+Project archival is deliberately softer than deletion:
+
+- a Project may be archived only when it has no active Documents;
+- another active Project must remain;
+- deleted Documents in Trash do not prevent archival;
+- archived Projects are hidden from normal Project selection but can be reopened;
+- restoring a deleted Document whose Project is archived reactivates that Project.
+
+Permanent Project deletion is not part of v1.
+
+Project selection is local UI state, remembered per Workspace and not
+synchronized. The ordinary sidebar Note list and sidebar search are scoped to
+the selected Project. Workspace-wide features such as Trash, tags, backlinks,
+and global search remain Workspace-wide.
+
+Creating a Note assigns it to the selected Project. Moving a Note only changes
+its Project membership. Its DocumentId, canonical URL, content, edit history,
+tags, and links remain unchanged.
+
+### 6.3 Deletion
 
 Document deletion is logical before it is physical.
 
@@ -199,6 +267,9 @@ optional garbage collection later
 ```
 
 A tombstone allows a device that was offline during deletion to learn that the document was removed.
+
+Deleted Documents retain their Project membership so restoration can return them
+to the same Project. If that Project is archived, restoration reactivates it.
 
 Garbage collection policy is intentionally left for later. The first implementation may retain tombstones indefinitely.
 
@@ -1541,11 +1612,17 @@ navigation state has stable URLs:
 ```
 
 The sidebar keeps notes as the everyday surface: the compact top-left context
-switches Workspaces, while the lower device/sync status opens quick device
+switches Workspaces, while a Project selector chooses the active organization
+context inside the Workspace. The lower device/sync status opens quick device
 actions. The Settings entry connects general device preferences at `/settings`
-with Workspace name, authorized devices, portable export, and local-only removal
-at `/w/:workspaceId/settings`. First-run note creation uses a default `Personal`
-Workspace without a separate naming step. The current UI has no inner Project.
+with Workspace name, authorized devices, and local-only removal at
+`/w/:workspaceId/settings`. A blank first-run Workspace uses `Personal` with
+an initial `Notes` Project.
+
+Project membership is deliberately absent from canonical Note URLs. Moving a
+Note between Projects therefore does not change its identity or URL. Project
+selection is local UI state rather than a persistent route component; v1 does
+not add a canonical Project pathname.
 
 Workspace and note path components are their immutable UUIDv7 identifiers;
 titles and note contents never appear in URLs. Unknown local Workspaces,
