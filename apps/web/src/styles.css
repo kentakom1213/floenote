@@ -1683,9 +1683,7 @@ input:focus-visible {
 .editor .cm-scroller {
   padding: 12px 32px 96px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", "Noto Sans Mono CJK JP", "Noto Sans JP",
-    "Noto Sans CJK JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-    "Yu Gothic", Meiryo, monospace;
+    "Liberation Mono", "Courier New", "Noto Sans Mono CJK JP", monospace;
   line-height: var(--editor-line-height, 1.62);
 }
 
