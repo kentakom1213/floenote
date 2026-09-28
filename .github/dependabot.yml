@@ -11,6 +11,29 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - dependencies
+    groups:
+      codemirror:
+        patterns:
+          - "@codemirror/*"
+          - "@lezer/*"
+        update-types:
+          - minor
+          - patch
+      cloudflare:
+        patterns:
+          - "@cloudflare/*"
+          - wrangler
+        update-types:
+          - minor
+          - patch
+      routine-updates:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - katex
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
