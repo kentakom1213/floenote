@@ -233,15 +233,16 @@ be duplicated. Projects are not nested, and a Document cannot belong to multiple
 Projects.
 
 A blank Workspace starts with one active Project named `Notes`. The first-run
-default is therefore `Personal > Notes`. A Workspace must always retain at
-least one active Project.
+default is therefore `Personal > Notes`. After normal use, a Workspace may
+legitimately have zero active Projects.
 
 Project archival is deliberately softer than deletion:
 
 - a Project may be archived only when it has no active Documents;
-- another active Project must remain;
+- the final active Project may also be archived;
 - deleted Documents in Trash do not prevent archival;
 - archived Projects are hidden from normal Project selection but can be reopened;
+- archived Projects cannot be targets for ordinary Document creation or moves;
 - restoring a deleted Document whose Project is archived reactivates that Project.
 
 Permanent Project deletion is not part of v1.
@@ -254,40 +255,44 @@ and global search remain Workspace-wide.
 Opening an active Note from a Workspace-wide surface or canonical Note URL
 updates the local selected Project to that Note's current Project membership.
 This includes direct URL navigation, browser Back/Forward, global search, and
-backlinks. The canonical Note URL itself does not change.
+backlinks. Thus, if Project B is selected and a Note belonging to Project A is
+opened, Project A becomes the selected Project while the canonical Note URL
+remains unchanged.
 
 A remembered Project selection is valid only while that Project remains active.
 If synchronization makes the remembered Project archived or otherwise invalid,
 an active Note being opened determines the selected Project. When no active
-Note determines the context, the UI falls back to the active Project with the
-lexicographically smallest ProjectId.
+Note determines the context, the UI may select another available active Project
+using the existing Project-list ordering. If no active Project exists, there is
+no selected Project and the UI presents an empty state for creating or reopening
+a Project.
 
-Creating a Note assigns it to the selected Project. Moving a Note only changes
-its Project membership. Its DocumentId, canonical URL, content, edit history,
-tags, and links remain unchanged.
+Creating a Note assigns it to the selected active Project. Moving a Note only
+changes its Project membership and an archived Project is not a valid move
+destination. The DocumentId, canonical URL, content, edit history, tags, and
+links remain unchanged.
 
 ### 6.3 Convergent Project invariants
 
-Local archive preconditions are not sufficient to preserve Project invariants
-under concurrent CRDT updates. For example, separate devices can archive
-different empty Projects concurrently, or one device can archive a Project
-while another concurrently creates or moves an active Document into it.
+Local mutation rules reject creation or moves into a Project that is already
+archived on that device. They cannot, however, eliminate the concurrent case
+where one peer archives an empty Project while another peer, which still sees
+that Project as active, creates or moves an active Document into it.
 
 After local manifest mutations and after merged or remote manifest state is
-applied, the domain normalizes Project state deterministically:
+applied, the domain therefore normalizes only this invariant:
 
-1. every Project containing at least one active Document is active;
-2. if no active Project remains after rule 1, the existing Project with the
-   lexicographically smallest ProjectId is reactivated.
+- every Project containing at least one active Document is active.
 
-These rules repair domain invariants after Loro has merged collaborative state.
-They do not replace Loro's field-level conflict resolution and do not introduce
-timestamp ordering, device priority, or a separate winner-selection protocol.
-Normalization must be idempotent: applying it again to an already valid state
-does not create further changes.
+This repair does not impose a minimum number of active Projects. Concurrently
+archiving different empty Projects may legitimately converge to a Workspace
+with zero active Projects.
 
-This ensures that concurrent operations converge to a state where every active
-Document belongs to an active Project and at least one active Project remains.
+The rule repairs domain invariants after Loro has merged collaborative state.
+It does not replace Loro's field-level conflict resolution and does not
+introduce timestamp ordering, device priority, or a separate winner-selection
+protocol. Normalization must be idempotent: applying it again to an already
+valid state does not create further changes.
 
 ### 6.4 Deletion
 
@@ -1692,10 +1697,16 @@ not add a canonical Project pathname.
 When an active Note is opened through its canonical URL, browser Back/Forward,
 global search, backlinks, or another Workspace-wide active-Note surface, the
 local selected Project follows that Note's current Project membership so the
-Project selector, sidebar, and editor remain consistent. A remembered Project
-that is no longer active is discarded; when no active Note determines the
-context, selection falls back to the active Project with the lexicographically
-smallest ProjectId. This fallback is local UI behavior and is not synchronized.
+Project selector, sidebar, and editor remain consistent. For example, opening a
+Project A Note while Project B is selected switches the local Project context to
+Project A without changing the URL.
+
+A remembered Project that is no longer active is discarded. When no active Note
+determines the context, the UI may choose another available active Project using
+the existing Project-list ordering. If no active Project exists, Project
+selection is null and the Workspace shows an empty state for creating a Project
+or reopening an archived Project. This selection behavior is local and is not
+synchronized.
 
 Workspace and note path components are their immutable UUIDv7 identifiers;
 titles and note contents never appear in URLs. Unknown local Workspaces,
