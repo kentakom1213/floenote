@@ -686,6 +686,7 @@ function NoteApp({
             pairingSecret,
             transport,
             signal: abortPairing.signal,
+            timeoutMs: Math.max(1, invitation.expiresAt - Date.now()),
           })
             .then(() =>
               exchangeJoiningDeviceIdentity({
