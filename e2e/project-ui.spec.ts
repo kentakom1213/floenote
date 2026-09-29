@@ -1,9 +1,14 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { expect, test } from "./fixtures.js";
 import { createSecuredProject } from "./project.js";
 
 async function createProject(page: import("@playwright/test").Page, name: string) {
   await page.getByLabel(/Switch Project, current/).click();
-  await page.getByRole("button", { name: "New Project…" }).click();
+  await page.getByRole("button", { name: "New / Import Project…" }).click();
+  await page.getByRole("button", { name: "Blank Project" }).click();
   await page.getByLabel("Project name").fill(name);
   await page.getByRole("dialog").getByRole("button", { name: "Create Project" }).click();
   await expect(page.getByLabel(`Switch Project, current ${name}`)).toBeVisible();
@@ -31,7 +36,7 @@ test("scopes notes, creates in the selected Project, and reconciles URLs, histor
   await page.getByLabel(/Switch Project, current/).click();
   await expect(page.getByRole("button", { name: "Rename Project…" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Archive Project…" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "New Project…" }).locator("svg")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "New / Import Project…" }).locator("svg")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Archived projects…" }).locator("svg")).toHaveCount(1);
   await page.getByRole("button", { name: "Manage Project…" }).click();
   await expect(page.getByRole("dialog", { name: "Manage Project" }).getByRole("button", { name: "Archive Project…" })).toBeDisabled();
@@ -109,7 +114,7 @@ test("renames, archives, reopens and persists zero active Projects", async ({ pa
   await expect(page.getByRole("heading", { name: "No active Projects" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New note" })).toBeDisabled();
   await expect(page.getByLabel("Switch Project, current None")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create Project", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "New / Import Project", exact: true })).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "Unlock Floe Note" }).click();
@@ -137,11 +142,135 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
   await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByRole("button", { name: "Archive Project…" }).click();
   await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
-  await page.getByRole("button", { name: "Create Project", exact: true }).click();
+  await page.getByRole("button", { name: "New / Import Project", exact: true }).click();
+  await page.getByRole("button", { name: "Blank Project" }).click();
   await page.getByLabel("Project name").fill("Fresh start");
   await page.getByRole("dialog").getByRole("button", { name: "Create Project" }).click();
   await expect(page.getByLabel("Switch Project, current Fresh start")).toBeVisible();
   await expect(page.getByRole("button", { name: "New note" })).toBeEnabled();
+});
+
+test("exports one Project and imports it into this or a new Workspace", async ({ page }) => {
+  const { projectId, documentId } = await createSecuredProject(page);
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+  await page.getByLabel("Project name").fill("Research");
+  await page.getByRole("button", { name: "Save name" }).click();
+
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+  await expect(page.getByRole("dialog", { name: "Manage Project" })).toContainText("readable Markdown");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export Project", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Research.floe.zip");
+  const archivePath = await download.path();
+  if (!archivePath) throw new Error("Export download is unavailable");
+  const archive = await readFile(archivePath);
+  await page.getByRole("button", { name: "Cancel" }).click();
+
+  await page.getByLabel("Note actions").click();
+  await page.getByRole("button", { name: "Delete note" }).click();
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+  await page.getByRole("button", { name: "Archive Project…" }).click();
+  await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
+  await expect(page.getByRole("heading", { name: "No active Projects" })).toBeVisible();
+
+  const workspaceCommits: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/security\/transitions$/.test(request.url())) {
+      workspaceCommits.push(request.url());
+    }
+  });
+  await page.getByRole("button", { name: "New / Import Project", exact: true }).click();
+  const projectCreation = page.getByRole("dialog", { name: "New / Import Project" });
+  await expect(projectCreation.getByRole("button", { name: "Blank Project" }).locator("svg")).toHaveCount(1);
+  await expect(projectCreation.getByRole("button", { name: /Import…/ }).locator("svg")).toHaveCount(1);
+  await expect(projectCreation.getByRole("button", { name: "Import Floe export" })).toHaveCount(0);
+  await projectCreation.getByRole("button", { name: /Import…/ }).click();
+  const importChoices = page.getByRole("dialog", { name: "Import Project" });
+  await expect(importChoices.getByRole("button", { name: "Import Floe export" }).locator("svg")).toHaveCount(1);
+  await expect(importChoices.getByRole("button", { name: "Import Markdown directory" }).locator("svg")).toHaveCount(1);
+  await importChoices.getByRole("button", { name: "Back" }).click();
+  await expect(projectCreation).toBeVisible();
+  await projectCreation.getByRole("button", { name: /Import…/ }).click();
+  await page.getByRole("button", { name: "Import Floe export" }).click();
+  const projectImport = page.getByRole("dialog", { name: "Import Floe export" });
+  const projectFileInput = projectImport.locator('input[type="file"]');
+  await projectFileInput.setInputFiles({ name: "invalid.floe.zip", mimeType: "application/zip", buffer: Buffer.from([1, 2, 3]) });
+  await expect(projectImport.getByRole("alert")).toBeVisible();
+  await expect(page.getByLabel("Switch Project, current None")).toBeVisible();
+  await projectFileInput.setInputFiles({ name: "Research.floe.zip", mimeType: "application/zip", buffer: archive });
+  await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
+  await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+  await expect(page).toHaveURL(new RegExp(`^.*/w/${projectId}/n/[^/]+$`));
+  expect(new URL(page.url()).pathname).not.toBe(`/w/${projectId}/n/${documentId}`);
+  expect(workspaceCommits).toHaveLength(0);
+
+  await page.reload();
+  await page.getByRole("button", { name: "Unlock Floe Note" }).click();
+  await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
+  await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Workspace" }).click();
+  await expect(page.getByText("Export notes")).toHaveCount(0);
+
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "New workspace" }).click();
+  await page.getByRole("button", { name: /Import Floe export/ }).click();
+  const commitPromise = page.waitForResponse((response) =>
+    /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) && response.request().method() === "POST",
+  );
+  await page.getByRole("dialog", { name: "New workspace" }).locator('input[type="file"]').setInputFiles({ name: "Research.floe.zip", mimeType: "application/zip", buffer: archive });
+  expect((await commitPromise).status()).toBe(201);
+  await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
+  await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+  await expect(page.locator(".brand-row")).toContainText("Personal");
+  expect(new URL(page.url()).pathname).not.toContain(`/w/${projectId}/`);
+  await page.getByLabel(/Switch Project, current/).click();
+  await expect(page.locator(".workspace-project-menu-item[aria-current='true']")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
+});
+
+test("imports a Markdown directory as one Project in either Workspace context", async ({ page }) => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "floe-project-import-"));
+  const directory = join(temporaryDirectory, "research");
+  await mkdir(join(directory, "papers"), { recursive: true });
+  await writeFile(join(directory, "inbox.md"), "---\nfrontmatter\n---\n");
+  await writeFile(join(directory, "papers", "paper-a.markdown"), "# Paper\n");
+  await writeFile(join(directory, ".hidden.md"), "ignored");
+
+  try {
+    const { projectId } = await createSecuredProject(page);
+    await page.getByLabel(/Switch Project, current/).click();
+    await page.getByRole("button", { name: "New / Import Project…" }).click();
+    await page.getByRole("button", { name: /Import…/ }).click();
+    await page.getByRole("button", { name: "Import Markdown directory" }).click();
+    await page.getByRole("dialog", { name: "Import Markdown directory" }).locator('input[type="file"]').setInputFiles(directory);
+    await expect(page.getByLabel("Switch Project, current research")).toBeVisible();
+    await expect(page.getByLabel("Note title")).toHaveValue("inbox");
+    await expect(page).toHaveURL(new RegExp(`^.*/w/${projectId}/n/[^/]+$`));
+    await expect(page.getByRole("navigation", { name: "Notes" }).getByRole("button", { name: "paper-a" })).toBeVisible();
+
+    await page.getByLabel("Switch workspace").click();
+    await page.getByRole("button", { name: "New workspace" }).click();
+    await page.getByRole("button", { name: /Import Markdown directory/ }).click();
+    const commitPromise = page.waitForResponse((response) =>
+      /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) && response.request().method() === "POST",
+    );
+    await page.getByRole("dialog", { name: "New workspace" }).locator('input[type="file"]').setInputFiles(directory);
+    expect((await commitPromise).status()).toBe(201);
+    await expect(page.getByLabel("Switch Project, current research")).toBeVisible();
+    await expect(page.getByLabel("Note title")).toHaveValue("inbox");
+    await expect(page.locator(".brand-row")).toContainText("Personal");
+    expect(new URL(page.url()).pathname).not.toContain(`/w/${projectId}/`);
+    await page.getByLabel(/Switch Project, current/).click();
+    await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("keeps long Project names inside the selector and archive list", async ({ page }) => {

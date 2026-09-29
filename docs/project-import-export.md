@@ -1,6 +1,6 @@
 # Portable Floe Project import and export
 
-Status: accepted Project v1 specification. Implementation is tracked by #180.
+Status: accepted Project v1 specification, implemented by #180.
 
 This document defines the portable content boundary for Floe Note Projects.
 
@@ -330,8 +330,8 @@ New / Import Project
 ├── Import Floe export
 └── Import Markdown directory
 
-Project …
-└── Export project…
+Manage Project…
+└── Export Project
 ```
 
 Workspace settings remain focused on Workspace/device/security concerns.

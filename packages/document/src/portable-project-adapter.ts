@@ -1,28 +1,36 @@
+import type { ProjectId } from "@floe-note/domain";
+
 import type { PortableProject } from "./portable-export.js";
 import type { NoteProject } from "./project.js";
 
 export function createPortableProjectSnapshot(
-  project: NoteProject,
+  workspace: NoteProject,
+  projectId: ProjectId,
 ): PortableProject {
+  const project = workspace.getProject(projectId);
+  if (!project) throw new Error(`Project is unavailable: ${projectId}`);
+
   return {
     name: project.name,
-    documents: project.listDocuments().map(({ id }) => {
-      const document = project.getDocument(id);
-      if (!document) {
-        throw new Error(`Active document is unavailable: ${id}`);
-      }
+    documents: workspace.listDocuments()
+      .filter(({ id }) => workspace.getDocumentProjectId(id) === projectId)
+      .map(({ id }) => {
+        const document = workspace.getDocument(id);
+        if (!document) {
+          throw new Error(`Active document is unavailable: ${id}`);
+        }
 
-      const createdAt = requireTimestamp(document.createdAt, id, "createdAt");
-      const updatedAt = requireTimestamp(document.updatedAt, id, "updatedAt");
+        const createdAt = requireTimestamp(document.createdAt, id, "createdAt");
+        const updatedAt = requireTimestamp(document.updatedAt, id, "updatedAt");
 
-      return {
-        title: document.title,
-        body: document.bodyText,
-        createdAt,
-        updatedAt,
-        tags: [...document.tags],
-      };
-    }),
+        return {
+          title: document.title,
+          body: document.bodyText,
+          createdAt,
+          updatedAt,
+          tags: [...document.tags],
+        };
+      }),
   };
 }
 

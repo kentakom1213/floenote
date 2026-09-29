@@ -3,6 +3,7 @@ import {
   createPortableProjectSnapshot,
   type NoteProject,
 } from "@floe-note/document";
+import type { ProjectId } from "@floe-note/domain";
 
 export type BrowserDownloadEnvironment = {
   createObjectUrl: (blob: Blob) => string;
@@ -11,10 +12,11 @@ export type BrowserDownloadEnvironment = {
 };
 
 export function exportProjectToBrowser(
-  project: NoteProject,
+  workspace: NoteProject,
+  projectId: ProjectId,
   environment: BrowserDownloadEnvironment = browserDownloadEnvironment,
 ): string {
-  const snapshot = createPortableProjectSnapshot(project);
+  const snapshot = createPortableProjectSnapshot(workspace, projectId);
   const exported = createPortableProjectExport(snapshot);
   const bytes = exported.archive.slice();
   const blob = new Blob([bytes.buffer], { type: "application/zip" });

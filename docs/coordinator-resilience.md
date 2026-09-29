@@ -193,7 +193,8 @@ edit/create/delete local notes             yes
 edit local Workspace content metadata      yes
 persist encrypted local changes            yes
 view cached verified SecurityState         yes
-export Markdown + JSON                     yes
+export portable Project                    yes
+import Project into existing Workspace     yes
 sync over an already-alive WebRTC channel  yes
 
 create a new Floe Workspace                no

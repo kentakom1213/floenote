@@ -582,7 +582,7 @@ input:focus-visible {
 }
 
 .workspace-project-action svg,
-.project-management-archive button svg {
+.project-management-section button svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
@@ -632,29 +632,29 @@ input:focus-visible {
   flex: 0 0 auto;
 }
 
-.project-management-archive {
+.project-management-section {
   margin-top: 24px;
   border-top: 1px solid var(--color-border);
   padding-top: 18px;
 }
 
-.project-management-archive h3 {
+.project-management-section h3 {
   margin: 0;
   font-size: 14px;
 }
 
-.project-management-archive p {
+.project-management-section p {
   color: var(--color-text-muted);
   font-size: 13px;
 }
 
-.project-management-archive button {
+.project-management-section button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.project-management-archive button:disabled {
+.project-management-section button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -2582,6 +2582,53 @@ input:focus-visible {
   line-height: 1.45;
 }
 
+.project-source-option {
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.project-source-option svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.project-source-option .project-source-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.project-source-option-primary {
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+  background: var(--color-accent);
+}
+
+.project-source-option-primary:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.project-source-option-primary .project-source-copy,
+.project-source-option-primary .project-source-copy span {
+  color: inherit;
+}
+
+.project-source-option-primary .project-source-copy strong {
+  font-size: 14px;
+}
+
+:root[data-theme="polar-night"] .project-source-option-primary,
+:root[data-theme="charcoal"] .project-source-option-primary {
+  color: #171d20;
+}
+
 .new-project-source-back {
   margin: -8px 0 16px;
   border: 0;
@@ -2822,37 +2869,6 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-}
-
-.project-export-row {
-  align-items: flex-start;
-  margin-top: 18px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 18px;
-}
-
-.project-export-copy {
-  max-width: 580px;
-}
-
-.project-export-warning {
-  margin-top: 6px !important;
-  color: var(--color-text-faint) !important;
-  font-size: 12px !important;
-}
-
-.project-export-status,
-.project-export-error {
-  margin-top: 8px !important;
-  font-size: 12px !important;
-}
-
-.project-export-status {
-  color: var(--color-active) !important;
-}
-
-.project-export-error {
-  color: var(--color-danger) !important;
 }
 
 .settings-form-row {

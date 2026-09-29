@@ -11,11 +11,12 @@ describe("exportProjectToBrowser", () => {
     vi.restoreAllMocks();
   });
 
-  it("downloads a .floe.zip generated from the current local Workspace", async () => {
+  it("downloads a .floe.zip for the selected Project", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
     const project = NoteProject.create();
-    project.renameProject("Research / notes");
-    const document = project.createDocument("Welcome");
+    const projectId = project.listProjects()[0]!.id;
+    project.renameWorkspaceProject(projectId, "Research / notes");
+    const document = project.createDocument("Welcome", projectId);
     const binding = document.getEditorBinding();
     binding.getText(binding.doc).insert(0, "# Welcome\n");
     binding.doc.commit();
@@ -37,7 +38,7 @@ describe("exportProjectToBrowser", () => {
       },
     };
 
-    const fileName = exportProjectToBrowser(project, environment);
+    const fileName = exportProjectToBrowser(project, projectId, environment);
 
     expect(fileName).toBe("Research _ notes.floe.zip");
     expect(downloads).toEqual([
@@ -66,7 +67,7 @@ describe("exportProjectToBrowser", () => {
       },
     };
 
-    expect(() => exportProjectToBrowser(project, environment)).toThrow(
+    expect(() => exportProjectToBrowser(project, project.listProjects()[0]!.id, environment)).toThrow(
       "download failed",
     );
     expect(revoked).toEqual(["blob:floe-export"]);

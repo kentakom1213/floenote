@@ -278,8 +278,7 @@ export function ProjectSwitcher({
                 >
                   <strong>Import Floe export</strong>
                   <span>
-                    Create a new independent Workspace from a portable .floe.zip
-                    export and preserve note metadata.
+                    Create a new Personal Workspace with the imported Project.
                   </span>
                 </button>
                 <button
@@ -289,8 +288,8 @@ export function ProjectSwitcher({
                 >
                   <strong>Import Markdown directory</strong>
                   <span>
-                    Create a new independent Workspace from ordinary Markdown
-                    files. Nested directories are flattened.
+                    Create a new Personal Workspace with one Project named from
+                    the directory.
                   </span>
                 </button>
               </div>
@@ -417,9 +416,9 @@ export function ProjectSwitcher({
           ) : newProjectSource === "floe-import" ? (
             <>
               <p className="dialog-description">
-                Choose a portable Floe export. The archive is fully validated
-                before a new Workspace is created. Import creates a new Workspace
-                identity and does not restore device authorization or keys.
+                Choose a portable Floe Project export. This creates a new
+                Workspace named Personal with only the imported Project and a
+                fresh Workspace security identity.
               </p>
 
               <button
@@ -469,7 +468,8 @@ export function ProjectSwitcher({
               <p className="dialog-description">
                 Choose a directory containing Markdown files. Floe Note reads
                 and validates all importable files before creating a new
-                independent Workspace. Nested directories are flattened.
+                Personal Workspace with one Project. Nested directories are
+                flattened.
               </p>
 
               <button
