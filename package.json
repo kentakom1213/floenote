@@ -23,5 +23,10 @@
     "typescript": "^7.0.2",
     "vitest": "5.0.1",
     "@playwright/test": "1.63.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@lezer/common": "1.5.3"
+    }
   }
 }

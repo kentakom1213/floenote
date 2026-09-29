@@ -157,6 +157,12 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
 
 test("exports one Project and imports it into the existing Workspace", async ({ page }) => {
   const { projectId, documentId } = await createSecuredProject(page);
+  const importedBody = "# Imported body\n\nUnique imported editor text";
+  const editor = page.locator('.editor [contenteditable="true"]');
+  await expect(editor).toBeVisible();
+  await editor.fill(importedBody);
+  await expect(editor).toContainText("Unique imported editor text");
+
   await openSelectedProjectSettings(page);
   const settingsUrl = new URL(page.url()).pathname;
   await page.getByLabel("Project name").fill("Research");
@@ -207,6 +213,9 @@ test("exports one Project and imports it into the existing Workspace", async ({ 
   await projectFileInput.setInputFiles({ name: "Research.floe.zip", mimeType: "application/zip", buffer: archive });
   await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
   await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+  await expect(page.locator('.editor [contenteditable="true"]')).toContainText(
+    "Unique imported editor text",
+  );
   await expect(page).toHaveURL(new RegExp(`^.*/w/${projectId}/n/[^/]+$`));
   expect(new URL(page.url()).pathname).not.toBe(`/w/${projectId}/n/${documentId}`);
   expect(workspaceCommits).toHaveLength(0);
@@ -215,6 +224,9 @@ test("exports one Project and imports it into the existing Workspace", async ({ 
   await page.getByRole("button", { name: "Unlock Floe Note" }).click();
   await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
   await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
+  await expect(page.locator('.editor [contenteditable="true"]')).toContainText(
+    "Unique imported editor text",
+  );
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Workspace" }).click();
