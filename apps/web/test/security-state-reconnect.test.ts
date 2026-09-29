@@ -307,11 +307,14 @@ describe("authorized Workspace sync after SecurityState changes", () => {
     coordinatorState = afterAdd;
     transitions = [addDevice];
 
-    await act(async () => {
+    act(() => {
       FakeWebSocket.instances[0]?.disconnect(
         1008,
         "SecurityState changed during authorized presence",
       );
+    });
+
+    await act(async () => {
       await vi.waitFor(() => {
         expect(onReconciled).toHaveBeenCalledWith(afterAdd, true);
         expect(FakeWebSocket.instances).toHaveLength(2);
@@ -392,11 +395,14 @@ describe("authorized Workspace sync after SecurityState changes", () => {
     coordinatorState = afterRevoke;
     transitions = [revokeDevice];
 
-    await act(async () => {
+    act(() => {
       FakeWebSocket.instances[0]?.disconnect(
         1008,
         "SecurityState changed",
       );
+    });
+
+    await act(async () => {
       await vi.waitFor(() => {
         expect(onReconciled).toHaveBeenCalledWith(afterRevoke, false);
         expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
@@ -415,10 +421,9 @@ async function renderRecoveryHarness(
 ): Promise<void> {
   await act(async () => {
     root?.render(createElement(RecoveryHarness, props));
-    await vi.waitFor(() => {
-      expect(FakeWebSocket.instances).toHaveLength(1);
-    });
   });
+
+  expect(FakeWebSocket.instances).toHaveLength(1);
 }
 
 async function authenticatePresence(
