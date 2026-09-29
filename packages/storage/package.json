@@ -12,5 +12,8 @@
     "@floe-note/domain": "workspace:*",
     "@floe-note/security": "workspace:*",
     "dexie": "^4.4.6"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
   }
 }
