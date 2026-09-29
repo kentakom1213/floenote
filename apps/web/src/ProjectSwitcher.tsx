@@ -23,6 +23,7 @@ type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
   disabled?: boolean;
   onSelectProject: (projectId: WorkspaceId) => Promise<void>;
+  onOpenSettings: () => void;
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
@@ -32,6 +33,7 @@ export function ProjectSwitcher({
   projects,
   disabled = false,
   onSelectProject,
+  onOpenSettings,
   onCreateProject,
   onImportFloeExport,
   onImportMarkdownDirectory,
@@ -210,6 +212,20 @@ export function ProjectSwitcher({
           </div>
 
           <div className="project-switcher-divider" />
+
+          <button
+            className="project-switcher-action"
+            type="button"
+            disabled={disabled}
+            data-settings-entry
+            onClick={() => {
+              switcherRef.current?.removeAttribute("open");
+              onOpenSettings();
+            }}
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>Workspace settings…</span>
+          </button>
 
           <button
             className="project-switcher-action"

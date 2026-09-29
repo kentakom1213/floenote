@@ -327,10 +327,11 @@ The Project surface should expose:
 ```text
 New / Import Project
 ├── Blank Project
-├── Import Floe export
-└── Import Markdown directory
+└── Import…
+    ├── Import Floe export
+    └── Import Markdown directory
 
-Manage Project…
+Project settings…
 └── Export Project
 ```
 

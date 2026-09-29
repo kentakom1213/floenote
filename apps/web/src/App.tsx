@@ -62,6 +62,7 @@ import {
 import { useBrowserNavigation } from "./browser-navigation.js";
 import {
   buildNoteUrl,
+  buildProjectSettingsUrl,
   buildTrashNoteUrl,
   buildTrashUrl,
   buildWorkspaceSettingsUrl,
@@ -113,6 +114,8 @@ import {
   importMarkdownDirectoryIntoWorkspace,
 } from "./markdown-directory-import-integration.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
+import { SettingsScopeNavigation } from "./SettingsScopeNavigation.js";
+import { WorkspaceSettingsView } from "./WorkspaceSettingsView.js";
 import { resolveRootRoute } from "./root-route.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
 import {
@@ -262,10 +265,10 @@ function NoteApp({
   const [projectCatalogReady, setProjectCatalogReady] = useState(false);
   const [projectSwitching, setProjectSwitching] = useState(false);
   const [mainView, setMainView] = useState<
-    "note" | "trash" | "app-settings" | "project-settings"
+    "note" | "trash" | "app-settings" | "workspace-settings" | "project-settings"
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [, setRevision] = useState(0);
+  const [revision, setRevision] = useState(0);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
   const [focusTitleDocumentId, setFocusTitleDocumentId] =
     useState<DocumentId | null>(null);
@@ -961,6 +964,16 @@ function NoteApp({
     }
 
     if (browserRoute.kind === "workspace-settings") {
+      setMainView("workspace-settings");
+      setTrashDocumentId(null);
+      return;
+    }
+
+    if (browserRoute.kind === "project-settings") {
+      if (project.getProject(browserRoute.projectId)?.status !== "active") {
+        replaceRoute(buildWorkspaceSettingsUrl(project.id));
+        return;
+      }
       setMainView("project-settings");
       setTrashDocumentId(null);
       return;
@@ -1009,6 +1022,16 @@ function NoteApp({
     replaceRoute,
     selectedProjectId,
   ]);
+
+  useEffect(() => {
+    if (
+      browserRoute.kind === "project-settings" &&
+      browserRoute.workspaceId === project?.id &&
+      project.getProject(browserRoute.projectId)?.status !== "active"
+    ) {
+      replaceRoute(buildWorkspaceSettingsUrl(project.id));
+    }
+  }, [browserRoute, project, revision, replaceRoute]);
 
   if (loadError) {
     return (
@@ -2043,19 +2066,6 @@ function NoteApp({
     selectWorkspaceProject(imported.id);
   }
 
-  function archiveWorkspaceProject(projectId: ProjectId): void {
-    activeProject.archiveProject(projectId);
-    const nextId = resolveSelectedProjectId(activeProject, null, null);
-    writeSelectedProjectId(activeProject.id, nextId);
-    if (nextId) selectWorkspaceProject(nextId);
-    else {
-      setSelectedId(null);
-      setMainView("note");
-      writeLastDocumentId(activeProject.id, null);
-      pushRoute(buildWorkspaceUrl(activeProject.id));
-    }
-  }
-
   const syncUiState = deriveSyncUiState({
     presenceState: authorizedSync.presenceState,
     onlineDeviceIds: authorizedSync.onlineDeviceIds,
@@ -2129,6 +2139,10 @@ function NoteApp({
       projects={projectItems}
       disabled={projectSwitching}
       onSelectProject={selectProject}
+      onOpenSettings={() => {
+        setMainView("workspace-settings");
+        pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
+      }}
       onCreateProject={createProject}
       onImportFloeExport={importFloeExport}
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
@@ -2145,14 +2159,14 @@ function NoteApp({
     <ProjectSelector
       projects={workspaceProjects}
       selectedId={selectedProjectId}
-      activeNoteCounts={activeNoteCounts}
       onSelect={selectWorkspaceProject}
+      onOpenSettings={(id) => {
+        setMainView("project-settings");
+        pushRoute(buildProjectSettingsUrl(activeProject.id, id));
+      }}
       onCreate={createWorkspaceProject}
       onImportFloeExport={importFloeProjectIntoWorkspace}
       onImportMarkdownDirectory={importMarkdownProjectIntoWorkspace}
-      onRename={(id, name) => activeProject.renameWorkspaceProject(id, name)}
-      onArchive={archiveWorkspaceProject}
-      onExport={(id) => exportProjectToBrowser(activeProject, id)}
       onReopen={(id) => {
         activeProject.reopenProject(id);
         selectWorkspaceProject(id);
@@ -2160,31 +2174,41 @@ function NoteApp({
     />
   );
 
+  const settingsProject = browserRoute.kind === "project-settings"
+    ? workspaceProjects.find((project) =>
+        project.id === browserRoute.projectId && project.status === "active"
+      )
+    : undefined;
   const settingsScopeNavigation = (
-    <nav className="settings-scope-nav" aria-label="Settings sections">
-      <button
-        type="button"
-        aria-current={mainView === "app-settings" ? "page" : undefined}
-        onClick={() => {
-          if (mainView === "app-settings") return;
-          setMainView("app-settings");
-          pushRoute("/settings");
-        }}
-      >
-        General
-      </button>
-      <button
-        type="button"
-        aria-current={mainView === "project-settings" ? "page" : undefined}
-        onClick={() => {
-          if (mainView === "project-settings") return;
-          setMainView("project-settings");
-          pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
-        }}
-      >
-        Workspace
-      </button>
-    </nav>
+    <SettingsScopeNavigation
+      scope={
+        mainView === "app-settings"
+          ? "general"
+          : mainView === "project-settings"
+            ? "project"
+            : "workspace"
+      }
+      projects={workspaceProjects}
+      projectId={settingsProject?.id ?? selectedProjectId}
+      onGeneral={() => {
+        if (browserRoute.kind === "device-settings") return;
+        setMainView("app-settings");
+        pushRoute("/settings");
+      }}
+      onWorkspace={() => {
+        if (browserRoute.kind === "workspace-settings") return;
+        setMainView("workspace-settings");
+        pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
+      }}
+      onProject={(id) => {
+        if (
+          browserRoute.kind === "project-settings" &&
+          browserRoute.projectId === id
+        ) return;
+        setMainView("project-settings");
+        pushRoute(buildProjectSettingsUrl(activeProject.id, id));
+      }}
+    />
   );
 
   const invitationContent =
@@ -2262,10 +2286,10 @@ function NoteApp({
         onEraseDevice={eraseFloeFromThisDevice}
         scopeNavigation={settingsScopeNavigation}
       />
-        ) : mainView === "project-settings" ? (
-      <ProjectSettingsView
-        projectId={activeProject.id}
-        projectName={activeProject.name}
+        ) : mainView === "workspace-settings" ? (
+      <WorkspaceSettingsView
+        workspaceId={activeProject.id}
+        workspaceName={activeProject.name}
         localDeviceId={localDeviceId}
         authorizedDevices={localSecurityState?.devices ?? null}
         onlineDeviceIds={authorizedSync.onlineDeviceIds}
@@ -2284,8 +2308,8 @@ function NoteApp({
         getDeviceDisplayName={(deviceId) =>
           activeProject.getDeviceDisplayName(deviceId)
         }
-        onRenameProject={(name) => activeProject.renameProject(name)}
-        onRemoveProjectFromDevice={removeActiveProjectFromDevice}
+        onRenameWorkspace={(name) => activeProject.renameProject(name)}
+        onRemoveWorkspaceFromDevice={removeActiveProjectFromDevice}
         onAddDevice={() => {
           setInvitationHostActive(true);
         }}
@@ -2293,6 +2317,30 @@ function NoteApp({
           setSecurityRefreshToken((value) => value + 1)
         }
         onRemoveDevice={revokeDevice}
+        scopeNavigation={settingsScopeNavigation}
+      />
+    ) : mainView === "project-settings" && settingsProject ? (
+      <ProjectSettingsView
+        key={settingsProject.id}
+        project={settingsProject}
+        activeNoteCount={activeNoteCounts.get(settingsProject.id) ?? 0}
+        onRename={(name) =>
+          activeProject.renameWorkspaceProject(settingsProject.id, name)
+        }
+        onExport={() =>
+          exportProjectToBrowser(activeProject, settingsProject.id)
+        }
+        onArchive={async () => {
+          activeProject.archiveProject(settingsProject.id);
+          if (selectedProjectId === settingsProject.id) {
+            writeSelectedProjectId(
+              activeProject.id,
+              resolveSelectedProjectId(activeProject, null, null),
+            );
+          }
+          setMainView("workspace-settings");
+          replaceRoute(buildWorkspaceSettingsUrl(activeProject.id));
+        }}
         scopeNavigation={settingsScopeNavigation}
       />
     ) : undefined);
@@ -2317,7 +2365,7 @@ function NoteApp({
   ) : null;
 
   function openProjectDeviceSettings(): void {
-    setMainView("project-settings");
+    setMainView("workspace-settings");
     pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
     window.setTimeout(() => {
       document
@@ -2506,6 +2554,7 @@ function workspaceIdFromRoute(route: BrowserRoute): WorkspaceId | null {
     case "workspace":
     case "note":
     case "workspace-settings":
+    case "project-settings":
     case "trash":
     case "trash-note":
       return route.workspaceId;

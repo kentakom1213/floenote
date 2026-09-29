@@ -278,7 +278,14 @@ export function NoteWorkspace({
   }, [projectTags, selectedTags]);
 
   const sidebar = (
-    <div className="sidebar-layout">
+    <div
+      className="sidebar-layout"
+      onClickCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest("[data-settings-entry]")) {
+          setMobileNavigationOpen(false);
+        }
+      }}
+    >
       <div className="sidebar-content">
         <header className="brand-row">
           <div className="workspace-context">{projectControl}</div>

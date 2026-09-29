@@ -1,7 +1,9 @@
 import {
   parseDocumentId,
+  parseProjectId,
   parseWorkspaceId,
   type DocumentId,
+  type ProjectId,
   type WorkspaceId,
 } from "@floe-note/domain";
 
@@ -11,6 +13,11 @@ export type BrowserRoute =
   | { kind: "workspace"; workspaceId: WorkspaceId }
   | { kind: "note"; workspaceId: WorkspaceId; noteId: DocumentId }
   | { kind: "workspace-settings"; workspaceId: WorkspaceId }
+  | {
+      kind: "project-settings";
+      workspaceId: WorkspaceId;
+      projectId: ProjectId;
+    }
   | { kind: "trash"; workspaceId: WorkspaceId }
   | { kind: "trash-note"; workspaceId: WorkspaceId; noteId: DocumentId }
   | { kind: "invitation"; inviteId: string; pairingSecret: string | null }
@@ -38,7 +45,7 @@ export function parseLocation(
     };
   }
 
-  if (segments[0] !== "w" || segments.length < 2 || segments.length > 4) {
+  if (segments[0] !== "w" || segments.length < 2 || segments.length > 5) {
     return { kind: "not-found" };
   }
 
@@ -52,6 +59,21 @@ export function parseLocation(
   if (segments.length === 2) return { kind: "workspace", workspaceId };
   if (segments.length === 3 && segments[2] === "settings") {
     return { kind: "workspace-settings", workspaceId };
+  }
+  if (
+    segments.length === 5 &&
+    segments[2] === "settings" &&
+    segments[3] === "projects"
+  ) {
+    try {
+      return {
+        kind: "project-settings",
+        workspaceId,
+        projectId: parseProjectId(segments[4]!.toLowerCase()),
+      };
+    } catch {
+      return { kind: "not-found" };
+    }
   }
   if (segments.length === 3 && segments[2] === "trash") {
     return { kind: "trash", workspaceId };
@@ -97,6 +119,13 @@ export function buildNoteUrl(
 
 export function buildWorkspaceSettingsUrl(workspaceId: WorkspaceId): string {
   return `${buildWorkspaceUrl(workspaceId)}/settings`;
+}
+
+export function buildProjectSettingsUrl(
+  workspaceId: WorkspaceId,
+  projectId: ProjectId,
+): string {
+  return `${buildWorkspaceSettingsUrl(workspaceId)}/projects/${projectId}`;
 }
 
 export function buildTrashUrl(workspaceId: WorkspaceId): string {

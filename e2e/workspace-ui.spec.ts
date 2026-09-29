@@ -11,6 +11,7 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await expect(page.locator(".sidebar-section-label")).toHaveText("Notes");
 
   await page.getByLabel("Switch workspace").click();
+  await expect(page.getByRole("button", { name: "Workspace settings…" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New workspace" })).toBeVisible();
   await page.getByRole("button", { name: "New workspace" }).click();
   await expect(page.getByRole("button", { name: /Blank workspace/ })).toBeVisible();
@@ -105,7 +106,7 @@ test("keeps device shortcuts and detailed management in Settings", async ({
   await expect(page.getByRole("heading", { name: "Devices" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add device" })).toBeVisible();
   await expect(page.getByLabel("Workspace name")).toHaveValue("Personal");
-  await expect(page.locator(".settings-view")).not.toContainText("Project");
+  await expect(page.getByLabel("Project name")).toHaveCount(0);
   await page.getByRole("button", { name: "Add device" }).click();
   await expect(page.getByRole("heading", { name: "Add a device" })).toBeVisible();
   await expect(page).toHaveURL(`/w/${projectId}/settings`);
@@ -129,7 +130,7 @@ test("keeps device shortcuts and detailed management in Settings", async ({
   await expect(page).toHaveURL("/settings");
   await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "This device" })).toBeVisible();
-  await expect(page.locator(".settings-view")).not.toContainText("Project");
+  await expect(page.getByLabel("Project name")).toHaveCount(0);
   await expect(
     settingsSections.getByRole("button", { name: "Workspace" }),
   ).toBeVisible();

@@ -130,7 +130,7 @@ export function AppSettingsView({
             ← Back
           </button>
         ) : null}
-        <p className="settings-eyebrow">Floe Note</p>
+        <p className="settings-eyebrow">Settings · General</p>
         <h1>Settings</h1>
       </header>
 
