@@ -569,7 +569,7 @@ input:focus-visible {
 }
 
 .workspace-project-action svg,
-.project-settings-archive button svg {
+.project-management-archive button svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
@@ -615,29 +615,29 @@ input:focus-visible {
   margin: 8px 0;
 }
 
-.project-settings-archive {
+.project-management-archive {
   margin-top: 24px;
   border-top: 1px solid var(--color-border);
   padding-top: 18px;
 }
 
-.project-settings-archive h3 {
+.project-management-archive h3 {
   margin: 0;
   font-size: 14px;
 }
 
-.project-settings-archive p {
+.project-management-archive p {
   color: var(--color-text-muted);
   font-size: 13px;
 }
 
-.project-settings-archive button {
+.project-management-archive button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.project-settings-archive button:disabled {
+.project-management-archive button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }

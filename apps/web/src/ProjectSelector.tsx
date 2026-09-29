@@ -30,7 +30,7 @@ export function ProjectSelector({
   const menuRef = useRef<HTMLDetailsElement>(null);
   useDismissibleDetails(menuRef);
   const [dialog, setDialog] = useState<
-    "create" | "settings" | "archive" | "archived" | null
+    "create" | "manage" | "archive" | "archived" | null
   >(null);
   const [dialogProjectId, setDialogProjectId] = useState<ProjectId | null>(null);
   const [name, setName] = useState("");
@@ -45,7 +45,7 @@ export function ProjectSelector({
   function openDialog(next: typeof dialog, project?: WorkspaceProject): void {
     menuRef.current?.removeAttribute("open");
     setDialogProjectId(project?.id ?? null);
-    setName(next === "settings" ? project?.name ?? "" : "");
+    setName(next === "manage" ? project?.name ?? "" : "");
     setError(null);
     setDialog(next);
   }
@@ -55,7 +55,7 @@ export function ProjectSelector({
       if (dialog === "create") {
         onCreate(name);
         setDialog(null);
-      } else if (dialog === "settings" && dialogProject) {
+      } else if (dialog === "manage" && dialogProject) {
         onRename(dialogProject.id, name);
       }
       setError(null);
@@ -108,11 +108,11 @@ export function ProjectSelector({
             <button
               className="workspace-project-menu-item"
               type="button"
-              onClick={() => openDialog("settings", selected)}
+              onClick={() => openDialog("manage", selected)}
             >
               <span className="workspace-project-action">
-                <SettingsIcon />
-                Project settings…
+                <ManageIcon />
+                Manage Project…
               </span>
             </button>
           ) : null}
@@ -145,13 +145,13 @@ export function ProjectSelector({
           <h2 id="project-dialog-title">
             {dialog === "create"
               ? "New Project"
-              : dialog === "settings"
-                ? "Project settings"
+              : dialog === "manage"
+                ? "Manage Project"
                 : dialog === "archive"
                   ? "Archive Project"
                   : "Archived projects"}
           </h2>
-          {dialog === "create" || (dialog === "settings" && dialogProject) ? (
+          {dialog === "create" || (dialog === "manage" && dialogProject) ? (
             <>
               <form
                 onSubmit={(event) => {
@@ -184,8 +184,8 @@ export function ProjectSelector({
                   </button>
                 </div>
               </form>
-              {dialog === "settings" && dialogProject ? (
-                <section className="project-settings-archive">
+              {dialog === "manage" && dialogProject ? (
+                <section className="project-management-archive">
                   <h3>Archive Project</h3>
                   <p>
                     {activeNoteCounts.get(dialogProject.id)
@@ -209,7 +209,7 @@ export function ProjectSelector({
               <p>Archive {dialogProject.name}? You can reopen it later.</p>
               {error ? <p className="dialog-error" role="alert">{error}</p> : null}
               <div className="dialog-actions">
-                <button className="dialog-secondary-button" type="button" onClick={() => openDialog("settings", dialogProject)}>
+                <button className="dialog-secondary-button" type="button" onClick={() => openDialog("manage", dialogProject)}>
                   Cancel
                 </button>
                 <button
@@ -263,7 +263,7 @@ function PlusIcon() {
   );
 }
 
-function SettingsIcon() {
+function ManageIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
       <circle cx="10" cy="10" r="2.6" />

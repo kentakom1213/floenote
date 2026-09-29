@@ -33,9 +33,9 @@ test("scopes notes, creates in the selected Project, and reconciles URLs, histor
   await expect(page.getByRole("button", { name: "Archive Project…" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "New Project…" }).locator("svg")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Archived projects…" }).locator("svg")).toHaveCount(1);
-  await page.getByRole("button", { name: "Project settings…" }).click();
-  await expect(page.getByRole("dialog", { name: "Project settings" }).getByRole("button", { name: "Archive Project…" })).toBeDisabled();
-  await page.getByRole("dialog", { name: "Project settings" }).getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+  await expect(page.getByRole("dialog", { name: "Manage Project" }).getByRole("button", { name: "Archive Project…" })).toBeDisabled();
+  await page.getByRole("dialog", { name: "Manage Project" }).getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("button", { name: "Search notes", exact: true }).click();
   await page.getByRole("searchbox", { name: "Filter notes by title or tag" }).fill("Welcome");
   await expect(page.getByText("No matching notes")).toBeVisible();
@@ -80,7 +80,7 @@ test("scopes notes, creates in the selected Project, and reconciles URLs, histor
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByLabel(/Switch Project, current/).click();
-  await page.getByRole("button", { name: "Project settings…" }).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByRole("button", { name: "Archive Project…" }).click();
   await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
   await expect(page.getByLabel("Switch Project, current Notes")).toBeVisible();
@@ -96,7 +96,7 @@ test("renames, archives, reopens and persists zero active Projects", async ({ pa
   await expect(page).toHaveURL(`/w/${projectId}`);
 
   await page.getByLabel(/Switch Project, current/).click();
-  await page.getByRole("button", { name: "Project settings…" }).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByLabel("Project name").fill("Scratch");
   await page.getByRole("button", { name: "Save name" }).click();
   await expect(page.getByLabel("Switch Project, current Scratch")).toBeVisible();
@@ -116,7 +116,7 @@ test("renames, archives, reopens and persists zero active Projects", async ({ pa
   await expect(page.getByLabel("Switch Project, current Scratch")).toBeVisible();
 
   await page.getByLabel(/Switch Project, current/).click();
-  await page.getByRole("button", { name: "Project settings…" }).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByRole("button", { name: "Archive Project…" }).click();
   await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
 
@@ -131,7 +131,7 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByLabel(/Switch Project, current/).click();
-  await page.getByRole("button", { name: "Project settings…" }).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByRole("button", { name: "Archive Project…" }).click();
   await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
   await page.getByRole("button", { name: "Create Project", exact: true }).click();
