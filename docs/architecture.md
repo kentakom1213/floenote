@@ -1408,12 +1408,14 @@ Future attachments and derived indexes must use the same Workspace boundary.
 Workspace discovery metadata and verified SecurityState are not manifest or note
 content and remain outside the WorkspaceKey-encrypted snapshot blobs.
 
-The browser schema is versioned independently from network protocols. The
-Workspace-era Dexie database starts at schema v1 under `floe-note-workspaces`.
-The old `floe-note` Project-era database, including its plaintext `snapshot`
-rows and transitional v3 schema, is never opened as Workspace data. No local
-data migration or plaintext fallback is provided for this v0 boundary. The
-separate Device Vault database is unaffected.
+The browser schema is versioned independently from network protocols and the
+v1 encrypted storage envelope. Project-aware manifest storage uses Dexie schema
+v2 under `floe-note-workspaces`. Opening a v1 Workspace database resets its
+Workspace, manifest, document, and security rows rather than migrating its
+pre-Project manifest. The old `floe-note` Project-era database, including its
+plaintext `snapshot` rows and transitional v3 schema, is never opened as
+Workspace data. No local data migration or plaintext fallback is provided for
+either boundary. The separate Device Vault database is unaffected.
 
 A Workspace is not loaded, rendered, edited, or watched for persistence until
 the Device Vault has been unlocked. For a newly created Workspace, cleartext
