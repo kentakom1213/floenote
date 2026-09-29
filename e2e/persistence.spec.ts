@@ -334,7 +334,7 @@ test("does not open another Workspace's encrypted manifest", async ({
   );
   await page.getByLabel("Switch workspace").click();
   await page.getByRole("button", { name: "New workspace" }).click();
-  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Target Workspace");
   const commit = page.waitForResponse((response) =>
     /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) &&

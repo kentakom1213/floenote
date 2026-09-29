@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildNoteUrl,
+  buildProjectSettingsUrl,
   buildTrashNoteUrl,
   buildTrashUrl,
   buildWorkspaceSettingsUrl,
@@ -11,6 +12,7 @@ import {
 
 const WORKSPACE_ID = "0199a000-0000-7000-8000-000000000001";
 const NOTE_ID = "0199a000-0000-7000-8000-000000000002";
+const PROJECT_ID = "0199a000-0000-7000-8000-000000000003";
 
 describe("browser routes", () => {
   it.each([
@@ -19,6 +21,7 @@ describe("browser routes", () => {
     [`/w/${WORKSPACE_ID}`, "workspace"],
     [`/w/${WORKSPACE_ID}/n/${NOTE_ID}`, "note"],
     [`/w/${WORKSPACE_ID}/settings`, "workspace-settings"],
+    [`/w/${WORKSPACE_ID}/settings/projects/${PROJECT_ID}`, "project-settings"],
     [`/w/${WORKSPACE_ID}/trash`, "trash"],
     [`/w/${WORKSPACE_ID}/trash/${NOTE_ID}`, "trash-note"],
   ])("parses %s", (pathname, kind) => {
@@ -37,6 +40,17 @@ describe("browser routes", () => {
       kind: "note",
       workspaceId: WORKSPACE_ID,
       noteId: NOTE_ID,
+    });
+  });
+
+  it("preserves the URL-derived Project settings target", () => {
+    expect(parseLocation({
+      pathname: `/w/${WORKSPACE_ID}/settings/projects/${PROJECT_ID}`,
+      hash: "",
+    } as Location)).toEqual({
+      kind: "project-settings",
+      workspaceId: WORKSPACE_ID,
+      projectId: PROJECT_ID,
     });
   });
 
@@ -74,6 +88,7 @@ describe("browser routes", () => {
     "/w/not-a-uuid",
     `/w/${WORKSPACE_ID}/n/not-a-uuid`,
     `/w/${WORKSPACE_ID}/trash/not-a-uuid`,
+    `/w/${WORKSPACE_ID}/settings/projects/not-a-uuid`,
     `/w/${WORKSPACE_ID}/${NOTE_ID}`,
     `/p/${WORKSPACE_ID}`,
     `/p/${WORKSPACE_ID}/${NOTE_ID}`,
@@ -93,6 +108,9 @@ describe("browser routes", () => {
     );
     expect(buildWorkspaceSettingsUrl(workspaceId)).toBe(
       `/w/${WORKSPACE_ID}/settings`,
+    );
+    expect(buildProjectSettingsUrl(workspaceId, PROJECT_ID as never)).toBe(
+      `/w/${WORKSPACE_ID}/settings/projects/${PROJECT_ID}`,
     );
     expect(buildTrashUrl(workspaceId)).toBe(`/w/${WORKSPACE_ID}/trash`);
     expect(buildTrashNoteUrl(workspaceId, noteId)).toBe(

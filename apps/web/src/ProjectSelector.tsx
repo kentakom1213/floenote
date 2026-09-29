@@ -10,28 +10,22 @@ import { useDismissibleDetails } from "./useDismissibleDetails.js";
 type ProjectSelectorProps = {
   projects: readonly WorkspaceProject[];
   selectedId: ProjectId | null;
-  activeNoteCounts: ReadonlyMap<ProjectId, number>;
   onSelect: (id: ProjectId) => void;
+  onOpenSettings: (id: ProjectId) => void;
   onCreate: (name: string) => void;
   onImportFloeExport: (file: File) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
-  onRename: (id: ProjectId, name: string) => void;
-  onArchive: (id: ProjectId) => void;
-  onExport: (id: ProjectId) => void;
   onReopen: (id: ProjectId) => void;
 };
 
 export function ProjectSelector({
   projects,
   selectedId,
-  activeNoteCounts,
   onSelect,
+  onOpenSettings,
   onCreate,
   onImportFloeExport,
   onImportMarkdownDirectory,
-  onRename,
-  onArchive,
-  onExport,
   onReopen,
 }: ProjectSelectorProps) {
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -42,40 +36,25 @@ export function ProjectSelector({
     | "import"
     | "import-floe"
     | "import-markdown"
-    | "manage"
-    | "archive"
     | "archived"
     | null
   >(null);
-  const [dialogProjectId, setDialogProjectId] = useState<ProjectId | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [exportState, setExportState] = useState<"idle" | "success">("idle");
-  const [exportError, setExportError] = useState<string | null>(null);
   const active = projects.filter((project) => project.status === "active");
   const archived = projects.filter((project) => project.status === "archived");
   const selected = active.find((project) => project.id === selectedId);
-  const dialogProject = projects.find(
-    (project) => project.id === dialogProjectId,
-  );
-
-  function openDialog(next: typeof dialog, project?: WorkspaceProject): void {
+  function openDialog(next: typeof dialog): void {
     menuRef.current?.removeAttribute("open");
-    setDialogProjectId(project?.id ?? null);
-    setName(next === "manage" ? project?.name ?? "" : "");
+    setName("");
     setError(null);
-    setExportState("idle");
-    setExportError(null);
     setDialog(next);
   }
 
   function submitName(): void {
     try {
       if (dialog === "create-blank") onCreate(name);
-      else if (dialog === "manage" && dialogProject) {
-        onRename(dialogProject.id, name);
-      }
       setError(null);
       setDialog(null);
     } catch (caught) {
@@ -116,19 +95,6 @@ export function ProjectSelector({
       );
     } finally {
       setBusy(false);
-    }
-  }
-
-  function exportProject(): void {
-    if (!dialogProject) return;
-    try {
-      onExport(dialogProject.id);
-      setExportError(null);
-      setExportState("success");
-    } catch (caught) {
-      setExportError(
-        caught instanceof Error ? caught.message : "Could not export Project",
-      );
     }
   }
 
@@ -174,11 +140,15 @@ export function ProjectSelector({
             <button
               className="workspace-project-menu-item"
               type="button"
-              onClick={() => openDialog("manage", selected)}
+              data-settings-entry
+              onClick={() => {
+                menuRef.current?.removeAttribute("open");
+                onOpenSettings(selected.id);
+              }}
             >
               <span className="workspace-project-action">
                 <ManageIcon />
-                Manage Project…
+                Project settings…
               </span>
             </button>
           ) : null}
@@ -223,11 +193,7 @@ export function ProjectSelector({
                     ? "Import Floe export"
                     : dialog === "import-markdown"
                       ? "Import Markdown directory"
-                      : dialog === "manage"
-                        ? "Manage Project"
-                        : dialog === "archive"
-                          ? "Archive Project"
-                          : "Archived projects"}
+                      : "Archived projects"}
           </h2>
           {dialog === "create" ? (
             <>
@@ -353,7 +319,7 @@ export function ProjectSelector({
                 </button>
               </div>
             </>
-          ) : dialog === "create-blank" || (dialog === "manage" && dialogProject) ? (
+          ) : dialog === "create-blank" ? (
             <>
               <form
                 onSubmit={(event) => {
@@ -382,75 +348,10 @@ export function ProjectSelector({
                     Cancel
                   </button>
                   <button className="dialog-primary-button" type="submit">
-                    {dialog === "create-blank" ? "Create Project" : "Save name"}
+                    Create Project
                   </button>
                 </div>
               </form>
-              {dialog === "manage" && dialogProject ? (
-                <section className="project-management-section">
-                  <h3>Export Project</h3>
-                  <p>
-                    Download this Project as a portable archive with readable
-                    Markdown. This is not an encrypted Workspace backup.
-                  </p>
-                  <button
-                    className="dialog-secondary-button"
-                    type="button"
-                    onClick={exportProject}
-                  >
-                    Export Project
-                  </button>
-                  {exportState === "success" ? (
-                    <p role="status">Project exported.</p>
-                  ) : null}
-                  {exportError ? (
-                    <p className="dialog-error" role="alert">{exportError}</p>
-                  ) : null}
-                </section>
-              ) : null}
-              {dialog === "manage" && dialogProject ? (
-                <section className="project-management-section">
-                  <h3>Archive Project</h3>
-                  <p>
-                    {activeNoteCounts.get(dialogProject.id)
-                      ? "Move or delete this Project's active Notes before archiving it."
-                      : "Archived Projects can be reopened later."}
-                  </p>
-                  <button
-                    className="dialog-secondary-button"
-                    type="button"
-                    disabled={(activeNoteCounts.get(dialogProject.id) ?? 0) > 0}
-                    onClick={() => openDialog("archive", dialogProject)}
-                  >
-                    <ArchiveIcon />
-                    Archive Project…
-                  </button>
-                </section>
-              ) : null}
-            </>
-          ) : dialog === "archive" && dialogProject ? (
-            <>
-              <p>Archive {dialogProject.name}? You can reopen it later.</p>
-              {error ? <p className="dialog-error" role="alert">{error}</p> : null}
-              <div className="dialog-actions">
-                <button className="dialog-secondary-button" type="button" onClick={() => openDialog("manage", dialogProject)}>
-                  Cancel
-                </button>
-                <button
-                  className="dialog-primary-button"
-                  type="button"
-                  onClick={() => {
-                    try {
-                      onArchive(dialogProject.id);
-                      setDialog(null);
-                    } catch (caught) {
-                      setError(caught instanceof Error ? caught.message : "Could not archive Project");
-                    }
-                  }}
-                >
-                  Archive Project
-                </button>
-              </div>
             </>
           ) : (
             <>

@@ -1678,6 +1678,7 @@ navigation state has stable URLs:
 /w/:workspaceId                    Workspace entry point
 /w/:workspaceId/n/:noteId          active note
 /w/:workspaceId/settings           Workspace settings
+/w/:workspaceId/settings/projects/:projectId  Project settings
 /w/:workspaceId/trash              Trash
 /w/:workspaceId/trash/:noteId      deleted note
 /join/v1/:inviteId#s=:secret       device invitation
@@ -1686,15 +1687,17 @@ navigation state has stable URLs:
 The sidebar keeps notes as the everyday surface: the compact top-left context
 switches Workspaces, while a Project selector chooses the active organization
 context inside the Workspace. The lower device/sync status opens quick device
-actions. The Settings entry connects general device preferences at `/settings`
-with Workspace name, authorized devices, and local-only removal at
-`/w/:workspaceId/settings`. A blank first-run Workspace uses `Personal` with
+actions. The Settings entry opens general device preferences at `/settings`.
+Workspace settings at `/w/:workspaceId/settings` contain the Workspace name,
+authorized devices, and local-only removal. Project settings at
+`/w/:workspaceId/settings/projects/:projectId` contain Project rename, portable
+export, and archive controls. A blank first-run Workspace uses `Personal` with
 an initial `Notes` Project.
 
 Project membership is deliberately absent from canonical Note URLs. Moving a
 Note between Projects therefore does not change its identity or URL. Project
-selection is local UI state rather than a persistent route component; v1 does
-not add a canonical Project pathname.
+selection for note browsing is local UI state. The Project settings URL identifies
+only the settings target and does not change that selection.
 
 When an active Note is opened through its canonical URL, browser Back/Forward,
 global search, backlinks, or another Workspace-wide active-Note surface, the

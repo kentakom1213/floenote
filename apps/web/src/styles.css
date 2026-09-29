@@ -581,8 +581,7 @@ input:focus-visible {
   gap: 9px;
 }
 
-.workspace-project-action svg,
-.project-management-section button svg {
+.workspace-project-action svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
@@ -630,33 +629,6 @@ input:focus-visible {
 
 .archived-project-row button {
   flex: 0 0 auto;
-}
-
-.project-management-section {
-  margin-top: 24px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 18px;
-}
-
-.project-management-section h3 {
-  margin: 0;
-  font-size: 14px;
-}
-
-.project-management-section p {
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-
-.project-management-section button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.project-management-section button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .move-project-list {
@@ -2538,9 +2510,11 @@ input:focus-visible {
 }
 
 .dialog-card h2 {
+  min-width: 0;
   margin: 0;
   font-size: 20px;
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
 .dialog-description {
@@ -2778,6 +2752,77 @@ input:focus-visible {
 .settings-scope-nav button[aria-current="page"] {
   color: var(--color-text);
   background: var(--color-surface-selected);
+}
+
+.settings-project-selector {
+  position: relative;
+  min-width: 0;
+  max-width: min(280px, 100%);
+}
+
+.settings-project-selector > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-project-selector > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-project-selector > summary:hover,
+.settings-project-selector > summary[aria-current="page"] {
+  color: var(--color-text);
+  background: var(--color-surface-selected);
+}
+
+.settings-project-selector > summary span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-project-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(280px, calc(100vw - 48px));
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.settings-project-menu button {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-project-menu button[aria-current="page"] {
+  background: var(--color-surface-selected);
+}
+
+.project-settings-action {
+  margin-top: 14px;
+}
+
+.project-settings-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .project-security-error {

@@ -13,28 +13,22 @@ export type ProjectSwitcherItem = {
   isCurrent: boolean;
 };
 
-type NewProjectSource =
-  | "blank"
-  | "invitation"
-  | "floe-import"
-  | "markdown-import";
+type NewProjectSource = "blank" | "invitation";
 
 type ProjectSwitcherProps = {
   projects: readonly ProjectSwitcherItem[];
   disabled?: boolean;
   onSelectProject: (projectId: WorkspaceId) => Promise<void>;
+  onOpenSettings: () => void;
   onCreateProject: (name: string) => Promise<void>;
-  onImportFloeExport: (archive: Uint8Array) => Promise<void>;
-  onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
 };
 
 export function ProjectSwitcher({
   projects,
   disabled = false,
   onSelectProject,
+  onOpenSettings,
   onCreateProject,
-  onImportFloeExport,
-  onImportMarkdownDirectory,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
   const switcherRef = useRef<HTMLDetailsElement>(null);
@@ -102,47 +96,6 @@ export function ProjectSwitcher({
       setError(
         caught instanceof Error ? caught.message : "Invalid invitation link",
       );
-    }
-  }
-
-  async function importFloeExport(file: File): Promise<void> {
-    if (busy) return;
-
-    setBusy(true);
-    setError(null);
-    try {
-      const archive = new Uint8Array(await file.arrayBuffer());
-      await onImportFloeExport(archive);
-      setNewProjectSource(null);
-      setNewProjectOpen(false);
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not import Floe export",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function importMarkdownDirectory(
-    files: readonly File[],
-  ): Promise<void> {
-    if (busy || files.length === 0) return;
-
-    setBusy(true);
-    setError(null);
-    try {
-      await onImportMarkdownDirectory(files);
-      setNewProjectSource(null);
-      setNewProjectOpen(false);
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not import Markdown directory",
-      );
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -215,6 +168,20 @@ export function ProjectSwitcher({
             className="project-switcher-action"
             type="button"
             disabled={disabled}
+            data-settings-entry
+            onClick={() => {
+              switcherRef.current?.removeAttribute("open");
+              onOpenSettings();
+            }}
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>Workspace settings…</span>
+          </button>
+
+          <button
+            className="project-switcher-action"
+            type="button"
+            disabled={disabled}
             onClick={(event) => {
               event.currentTarget
                 .closest("details")
@@ -249,47 +216,31 @@ export function ProjectSwitcher({
 
               <div className="new-project-source-list">
                 <button
-                  className="new-project-source-option"
+                  className="new-project-source-option project-source-option"
                   type="button"
                   autoFocus
                   onClick={() => setNewProjectSource("blank")}
                 >
-                  <strong>Blank workspace</strong>
-                  <span>
-                    Create a new Workspace and start with an empty note
-                    space.
+                  <NewWorkspaceIcon />
+                  <span className="project-source-copy">
+                    <strong>Create new workspace</strong>
+                    <span>
+                      Create a new Workspace and start with an empty note space.
+                    </span>
                   </span>
                 </button>
                 <button
-                  className="new-project-source-option"
+                  className="new-project-source-option project-source-option"
                   type="button"
                   onClick={() => setNewProjectSource("invitation")}
                 >
-                  <strong>Join with invitation link</strong>
-                  <span>
-                    Add an existing Workspace to this device using an invitation
-                    from another authorized device.
-                  </span>
-                </button>
-                <button
-                  className="new-project-source-option"
-                  type="button"
-                  onClick={() => setNewProjectSource("floe-import")}
-                >
-                  <strong>Import Floe export</strong>
-                  <span>
-                    Create a new Personal Workspace with the imported Project.
-                  </span>
-                </button>
-                <button
-                  className="new-project-source-option"
-                  type="button"
-                  onClick={() => setNewProjectSource("markdown-import")}
-                >
-                  <strong>Import Markdown directory</strong>
-                  <span>
-                    Create a new Personal Workspace with one Project named from
-                    the directory.
+                  <JoinWorkspaceIcon />
+                  <span className="project-source-copy">
+                    <strong>Join with invitation link</strong>
+                    <span>
+                      Add an existing Workspace to this device using an invitation
+                      from another authorized device.
+                    </span>
                   </span>
                 </button>
               </div>
@@ -359,7 +310,7 @@ export function ProjectSwitcher({
                 </div>
               </form>
             </>
-          ) : newProjectSource === "invitation" ? (
+          ) : (
             <>
               <p className="dialog-description">
                 Paste an invitation link created on an authorized device. This
@@ -413,116 +364,29 @@ export function ProjectSwitcher({
                 </div>
               </form>
             </>
-          ) : newProjectSource === "floe-import" ? (
-            <>
-              <p className="dialog-description">
-                Choose a portable Floe Project export. This creates a new
-                Workspace named Personal with only the imported Project and a
-                fresh Workspace security identity.
-              </p>
-
-              <button
-                className="new-project-source-back"
-                type="button"
-                disabled={busy}
-                onClick={returnToSourceSelection}
-              >
-                ← Choose another source
-              </button>
-
-              <label className="dialog-field">
-                <span>Floe export</span>
-                <input
-                  autoFocus
-                  type="file"
-                  accept=".floe.zip,application/zip"
-                  disabled={busy}
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0] ?? null;
-                    event.currentTarget.value = "";
-                    if (file) void importFloeExport(file);
-                  }}
-                />
-              </label>
-              <p className="settings-field-hint">
-                {busy
-                  ? "Validating and creating a new Workspace…"
-                  : "Select a .floe.zip file exported by Floe Note."}
-              </p>
-
-              {error ? <p className="dialog-error">{error}</p> : null}
-
-              <div className="dialog-actions">
-                <button
-                  className="dialog-secondary-button"
-                  type="button"
-                  disabled={busy}
-                  onClick={closeNewProject}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="dialog-description">
-                Choose a directory containing Markdown files. Floe Note reads
-                and validates all importable files before creating a new
-                Personal Workspace with one Project. Nested directories are
-                flattened.
-              </p>
-
-              <button
-                className="new-project-source-back"
-                type="button"
-                disabled={busy}
-                onClick={returnToSourceSelection}
-              >
-                ← Choose another source
-              </button>
-
-              <label className="dialog-field">
-                <span>Markdown directory</span>
-                <input
-                  autoFocus
-                  type="file"
-                  multiple
-                  disabled={busy}
-                  ref={(input) => {
-                    input?.setAttribute("webkitdirectory", "");
-                  }}
-                  onChange={(event) => {
-                    const files = Array.from(event.currentTarget.files ?? []);
-                    event.currentTarget.value = "";
-                    if (files.length > 0) {
-                      void importMarkdownDirectory(files);
-                    }
-                  }}
-                />
-              </label>
-              <p className="settings-field-hint">
-                {busy
-                  ? "Reading, validating, and creating a new Workspace…"
-                  : "Imports .md and .markdown files recursively. Hidden files and directories are ignored."}
-              </p>
-
-              {error ? <p className="dialog-error">{error}</p> : null}
-
-              <div className="dialog-actions">
-                <button
-                  className="dialog-secondary-button"
-                  type="button"
-                  disabled={busy}
-                  onClick={closeNewProject}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
           )}
         </Modal>,
         document.body,
       ) : null}
     </>
+  );
+}
+
+function NewWorkspaceIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="3" y="3" width="14" height="14" rx="2" />
+      <path d="M10 6.5v7M6.5 10h7" />
+    </svg>
+  );
+}
+
+function JoinWorkspaceIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M8.2 11.8 11.8 8.2" />
+      <path d="M6.1 13.9 4.7 15.3a2.5 2.5 0 0 1-3.5-3.5l3.2-3.2a2.5 2.5 0 0 1 3.5 0" />
+      <path d="m13.9 6.1 1.4-1.4a2.5 2.5 0 1 1 3.5 3.5l-3.2 3.2a2.5 2.5 0 0 1-3.5 0" />
+    </svg>
   );
 }
