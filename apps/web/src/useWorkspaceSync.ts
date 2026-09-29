@@ -154,8 +154,14 @@ export function useAuthorizedWorkspaceSync({
         presence.retryNow();
       }
     };
+    const closePresenceOnPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) {
+        presence.close();
+      }
+    };
 
     window.addEventListener("online", retryPresenceNow);
+    window.addEventListener("pagehide", closePresenceOnPageHide);
     document.addEventListener("visibilitychange", retryPresenceWhenVisible);
 
     setPresenceError(null);
@@ -163,6 +169,7 @@ export function useAuthorizedWorkspaceSync({
 
     return () => {
       window.removeEventListener("online", retryPresenceNow);
+      window.removeEventListener("pagehide", closePresenceOnPageHide);
       document.removeEventListener(
         "visibilitychange",
         retryPresenceWhenVisible,
