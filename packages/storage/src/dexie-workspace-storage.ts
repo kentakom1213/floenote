@@ -61,11 +61,24 @@ class FloeNoteDatabase extends Dexie {
   constructor() {
     super(DATABASE_NAME);
 
+    // Keep the pre-Project schema so Dexie can upgrade existing databases.
     this.version(1).stores({
       workspaces: "&workspaceId,&localSlot,createdAt",
       manifests: "&workspaceId",
       documents: "[workspaceId+documentId],workspaceId,documentId",
       security: "&workspaceId",
+    });
+
+    this.version(2).stores({
+      workspaces: "&workspaceId,&localSlot,createdAt",
+      manifests: "&workspaceId",
+      documents: "[workspaceId+documentId],workspaceId,documentId",
+      security: "&workspaceId",
+    }).upgrade(async (transaction) => {
+      await transaction.table("workspaces").clear();
+      await transaction.table("manifests").clear();
+      await transaction.table("documents").clear();
+      await transaction.table("security").clear();
     });
   }
 }
@@ -281,7 +294,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       return this.#loadWorkspace(workspaceId, crypto);
     }
 
-    const emptyProject = NoteProject.create(workspaceId);
+    const emptyProject = NoteProject.empty(workspaceId);
     const emptyEncryptedManifest =
       await crypto.encryptWorkspaceStoragePayload(
         workspaceId,

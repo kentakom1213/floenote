@@ -85,8 +85,8 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     },
     { workspaceId, documentId },
   );
-  // Dexie maps schema version 1 to IndexedDB version 10.
-  expect(persisted.version).toBe(10);
+  // Dexie maps schema version 2 to IndexedDB version 20.
+  expect(persisted.version).toBe(20);
   expect(persisted.stores).toEqual([
     "documents",
     "manifests",
@@ -139,6 +139,115 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   await expect(
     page.locator(".edit-history-list .edit-history-item"),
   ).toHaveCount(2);
+});
+
+test("resets pre-Project Workspace schema v1 before creating fresh data", async ({
+  page,
+}) => {
+  await page.route("http://localhost:4173/", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<!doctype html>" }),
+  );
+  await page.goto("/");
+
+  const oldWorkspaceId = "01999999-9999-7999-8999-999999999999";
+  const oldDocumentId = "01999999-9999-7999-8999-999999999998";
+  await page.evaluate(async ({ workspaceId, documentId }) => {
+    // Dexie v1 uses IndexedDB version 10.
+    const request = indexedDB.open("floe-note-workspaces", 10);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      const workspaces = database.createObjectStore("workspaces", {
+        keyPath: "workspaceId",
+      });
+      workspaces.createIndex("localSlot", "localSlot", { unique: true });
+      workspaces.createIndex("createdAt", "createdAt");
+      database.createObjectStore("manifests", { keyPath: "workspaceId" });
+      const documents = database.createObjectStore("documents", {
+        keyPath: ["workspaceId", "documentId"],
+      });
+      documents.createIndex("workspaceId", "workspaceId");
+      documents.createIndex("documentId", "documentId");
+      database.createObjectStore("security", { keyPath: "workspaceId" });
+    };
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    try {
+      const transaction = database.transaction(
+        ["workspaces", "manifests", "documents", "security"],
+        "readwrite",
+      );
+      transaction.objectStore("workspaces").put({
+        workspaceId,
+        localSlot: "default",
+        createdAt: 1,
+      });
+      transaction.objectStore("manifests").put({
+        workspaceId,
+        encryptedSnapshot: Uint8Array.of(1, 2, 3),
+      });
+      transaction.objectStore("documents").put({
+        workspaceId,
+        documentId,
+        encryptedSnapshot: Uint8Array.of(4, 5, 6),
+      });
+      transaction.objectStore("security").put({ workspaceId });
+      await new Promise<void>((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+      });
+    } finally {
+      database.close();
+    }
+  }, { workspaceId: oldWorkspaceId, documentId: oldDocumentId });
+
+  await page.unroute("http://localhost:4173/");
+  const { projectId: newWorkspaceId, documentId: newDocumentId } =
+    await createSecuredProject(page, "Fresh Workspace");
+
+  const persisted = await page.evaluate(
+    async ({ oldWorkspaceId, oldDocumentId, newWorkspaceId, newDocumentId }) => {
+      const request = indexedDB.open("floe-note-workspaces");
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      try {
+        const transaction = database.transaction(
+          ["workspaces", "manifests", "documents", "security"],
+        );
+        const get = (store: string, key: IDBValidKey) =>
+          new Promise<unknown>((resolve, reject) => {
+            const request = transaction.objectStore(store).get(key);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result ?? null);
+          });
+        const rows = await Promise.all([
+          get("workspaces", oldWorkspaceId),
+          get("manifests", oldWorkspaceId),
+          get("documents", [oldWorkspaceId, oldDocumentId]),
+          get("security", oldWorkspaceId),
+          get("workspaces", newWorkspaceId),
+          get("manifests", newWorkspaceId),
+          get("documents", [newWorkspaceId, newDocumentId]),
+          get("security", newWorkspaceId),
+        ]);
+        return {
+          version: database.version,
+          oldRows: rows.slice(0, 4),
+          newRows: rows.slice(4),
+        };
+      } finally {
+        database.close();
+      }
+    },
+    { oldWorkspaceId, oldDocumentId, newWorkspaceId, newDocumentId },
+  );
+
+  expect(persisted.version).toBe(20);
+  expect(persisted.oldRows).toEqual([null, null, null, null]);
+  expect(persisted.newRows.every((row) => row !== null)).toBe(true);
 });
 
 test("does not interpret the pre-Workspace IndexedDB as Workspace data", async ({
