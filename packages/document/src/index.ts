@@ -30,6 +30,7 @@ export type {
   DocumentSummary,
   EditHistoryCheckpoint,
   TagColor,
+  WorkspaceProject,
 } from "./project.js";
 export type {
   FloeExportManifestV1,

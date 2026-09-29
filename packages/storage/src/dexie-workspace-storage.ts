@@ -281,7 +281,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       return this.#loadWorkspace(workspaceId, crypto);
     }
 
-    const emptyProject = NoteProject.create(workspaceId);
+    const emptyProject = NoteProject.empty(workspaceId);
     const emptyEncryptedManifest =
       await crypto.encryptWorkspaceStoragePayload(
         workspaceId,

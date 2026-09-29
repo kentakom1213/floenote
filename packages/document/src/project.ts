@@ -1,20 +1,30 @@
 import {
   createCheckpointId,
   createDocumentId,
+  createProjectId,
   createWorkspaceId,
   parseCheckpointId,
   parseDocumentId,
+  parseProjectId,
   type CheckpointId,
   type DocumentId,
+  type ProjectId,
   type WorkspaceId,
 } from "@floe-note/domain";
-import { LoroDoc } from "loro-crdt";
+import { LoroDoc, LoroMap } from "loro-crdt";
 
 import { NoteDocument, type NoteDocumentInitialState } from "./document.js";
 
 export type DocumentSummary = {
   id: DocumentId;
   title: string;
+};
+
+export type WorkspaceProject = {
+  id: ProjectId;
+  name: string;
+  status: "active" | "archived";
+  createdAt: number;
 };
 
 export type EditHistoryCheckpoint = {
@@ -86,8 +96,20 @@ export class NoteProject {
     manifest.getMap("deviceDisplayNames");
     manifest.getMap("editHistoryCheckpoints");
     manifest.getMap("tagColors");
+    const initialProject = manifest
+      .getMap("projects")
+      .ensureMergeableMap(createProjectId());
+    initialProject.set("name", "Notes");
+    initialProject.set("status", "active");
+    initialProject.set("createdAt", Date.now());
+    manifest.getMap("documentProjects");
+    manifest.commit();
 
     return new NoteProject(id, manifest, []);
+  }
+
+  static empty(id: WorkspaceId): NoteProject {
+    return new NoteProject(id, new LoroDoc(), []);
   }
 
   static fromSnapshot(
@@ -95,11 +117,107 @@ export class NoteProject {
     manifestSnapshot: Uint8Array,
     documents: readonly NoteDocument[],
   ): NoteProject {
-    return new NoteProject(
+    const project = new NoteProject(
       id,
       LoroDoc.fromSnapshot(manifestSnapshot),
       documents,
     );
+    project.#normalizeProjectInvariants();
+    return project;
+  }
+
+  listProjects(): WorkspaceProject[] {
+    return this.#manifest
+      .getMap("projects")
+      .entries()
+      .flatMap(([id, value]) => {
+        if (!isProjectMap(value)) return [];
+        try {
+          const projectId = parseProjectId(id);
+          const name = value.get("name");
+          const status = value.get("status");
+          const createdAt = value.get("createdAt");
+          if (
+            typeof name !== "string" ||
+            (status !== "active" && status !== "archived") ||
+            typeof createdAt !== "number" ||
+            !Number.isFinite(createdAt)
+          ) return [];
+          return [{ id: projectId, name, status, createdAt } satisfies WorkspaceProject];
+        } catch {
+          return [];
+        }
+      })
+      .sort(
+        (left, right) =>
+          left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+      );
+  }
+
+  getProject(id: ProjectId): WorkspaceProject | undefined {
+    return this.listProjects().find((project) => project.id === id);
+  }
+
+  createProject(name: string, createdAt = Date.now()): WorkspaceProject {
+    const normalized = name.trim();
+    if (!normalized) throw new TypeError("Project name must not be empty");
+    if (!Number.isFinite(createdAt)) throw new TypeError("Project createdAt must be finite");
+    const id = createProjectId();
+    const project = this.#manifest.getMap("projects").ensureMergeableMap(id);
+    project.set("name", normalized);
+    project.set("status", "active");
+    project.set("createdAt", createdAt);
+    this.#commitManifest();
+    return { id, name: normalized, status: "active", createdAt };
+  }
+
+  renameWorkspaceProject(id: ProjectId, name: string): void {
+    const normalized = name.trim();
+    if (!normalized) throw new TypeError("Project name must not be empty");
+    const project = this.#requireProject(id);
+    project.set("name", normalized);
+    this.#commitManifest();
+  }
+
+  archiveProject(id: ProjectId): void {
+    const project = this.#requireProject(id);
+    if (this.#hasActiveDocument(id)) {
+      throw new Error("Project contains active Notes");
+    }
+    if (project.get("status") === "archived") return;
+    project.set("status", "archived");
+    this.#commitManifest();
+  }
+
+  reopenProject(id: ProjectId): void {
+    const project = this.#requireProject(id);
+    if (project.get("status") === "active") return;
+    project.set("status", "active");
+    this.#commitManifest();
+  }
+
+  getDocumentProjectId(id: DocumentId): ProjectId | undefined {
+    if (this.isDocumentPurged(id)) return undefined;
+    const status = this.#manifest.getMap("documents").get(id);
+    if (status !== "active" && status !== "deleted") return undefined;
+    const value = this.#manifest.getMap("documentProjects").get(id);
+    if (typeof value !== "string") return undefined;
+    try {
+      const projectId = parseProjectId(value);
+      return this.getProject(projectId) ? projectId : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  moveDocument(id: DocumentId, projectId: ProjectId): void {
+    this.#requireActiveProject(projectId);
+    if (this.#manifest.getMap("documents").get(id) !== "active" || this.isDocumentPurged(id)) {
+      throw new Error("Note is not active");
+    }
+    if (this.getDocumentProjectId(id) === projectId) return;
+    this.#manifest.getMap("documentProjects").set(id, projectId);
+    this.#commitManifest();
   }
 
   get name(): string {
@@ -294,7 +412,9 @@ export class NoteProject {
   importManifestUpdate(update: Uint8Array): void {
     this.#manifest.import(update);
     this.#prunePurgedDocuments();
-    if (this.#prunePurgedEditHistory()) {
+    const pruned = this.#prunePurgedEditHistory();
+    const normalized = this.#normalizeProjectInvariants();
+    if (pruned || normalized) {
       this.#manifest.commit();
     }
     this.#emit();
@@ -318,19 +438,22 @@ export class NoteProject {
     return document;
   }
 
-  createDocument(title = "Untitled"): NoteDocument {
+  createDocument(title = "Untitled", projectId?: ProjectId): NoteDocument {
+    const destination = this.#resolveCreationProject(projectId);
     const id = createDocumentId();
     const document = NoteDocument.create(id, title);
-    this.#addDocument(document);
+    this.#addDocument(document, destination);
     return document;
   }
 
   createDocumentWithInitialState(
     initial: NoteDocumentInitialState,
+    projectId?: ProjectId,
   ): NoteDocument {
+    const destination = this.#resolveCreationProject(projectId);
     const id = createDocumentId();
     const document = NoteDocument.createWithInitialState(id, initial);
-    this.#addDocument(document);
+    this.#addDocument(document, destination);
     return document;
   }
 
@@ -375,17 +498,17 @@ export class NoteProject {
     if (documents.get(id) !== "deleted") return;
 
     this.#manifest.getMap("purgedDocuments").set(id, true);
+    this.#manifest.getMap("documentProjects").delete(id);
     this.#removeEditHistoryForDocument(id);
     this.#documents.delete(id);
-    this.#manifest.commit();
-    this.#emit();
+    this.#commitManifest();
   }
 
-  #addDocument(document: NoteDocument): void {
+  #addDocument(document: NoteDocument, projectId: ProjectId): void {
     this.#documents.set(document.id, document);
+    this.#manifest.getMap("documentProjects").set(document.id, projectId);
     this.#manifest.getMap("documents").set(document.id, "active");
-    this.#manifest.commit();
-    this.#emit();
+    this.#commitManifest();
   }
 
   #listDocumentsByStatus(
@@ -416,6 +539,60 @@ export class NoteProject {
     if (manifest.get(id) !== expected) return;
 
     manifest.set(id, next);
+    this.#commitManifest();
+  }
+
+  #resolveCreationProject(projectId: ProjectId | undefined): ProjectId {
+    if (projectId) {
+      this.#requireActiveProject(projectId);
+      return projectId;
+    }
+    const active = this.listProjects().filter((project) => project.status === "active");
+    if (active.length !== 1) {
+      throw new Error("An active Project must be selected to create a Note");
+    }
+    return active[0]!.id;
+  }
+
+  #requireProject(id: ProjectId): LoroMap {
+    const value = this.#manifest.getMap("projects").get(id);
+    if (!isProjectMap(value) || !this.getProject(id)) {
+      throw new Error("Project does not exist");
+    }
+    return value;
+  }
+
+  #requireActiveProject(id: ProjectId): void {
+    if (this.#requireProject(id).get("status") !== "active") {
+      throw new Error("Project is archived");
+    }
+  }
+
+  #hasActiveDocument(projectId: ProjectId): boolean {
+    return this.#manifest
+      .getMap("documents")
+      .entries()
+      .some(
+        ([id, status]) =>
+          status === "active" &&
+          !this.isDocumentPurged(id as DocumentId) &&
+          this.#manifest.getMap("documentProjects").get(id) === projectId,
+      );
+  }
+
+  #normalizeProjectInvariants(): boolean {
+    let changed = false;
+    for (const project of this.listProjects()) {
+      if (project.status === "archived" && this.#hasActiveDocument(project.id)) {
+        this.#requireProject(project.id).set("status", "active");
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  #commitManifest(): void {
+    this.#normalizeProjectInvariants();
     this.#manifest.commit();
     this.#emit();
   }
@@ -461,6 +638,10 @@ export class NoteProject {
   #emit(): void {
     for (const listener of this.#listeners) listener();
   }
+}
+
+function isProjectMap(value: unknown): value is LoroMap {
+  return value instanceof LoroMap;
 }
 
 function normalizeDisplayName(displayName: string): string {
