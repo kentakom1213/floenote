@@ -1,5 +1,7 @@
 /** @vitest-environment jsdom */
 
+import { webcrypto } from "node:crypto";
+
 import {
   destroyDeviceKeyMaterial,
   generateDeviceKeyMaterial,
@@ -238,6 +240,7 @@ let container: HTMLDivElement | null = null;
 beforeEach(() => {
   FakeWebSocket.instances.length = 0;
   peerSyncHarness.reset();
+  vi.stubGlobal("crypto", webcrypto);
   vi.stubGlobal("WebSocket", FakeWebSocket);
   container = document.createElement("div");
   document.body.append(container);
