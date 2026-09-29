@@ -121,20 +121,22 @@ model used by later device membership changes.
 v1 does not introduce a pending/offline Workspace genesis state solely to make
 Workspace creation work during a coordinator outage.
 
-First-run creates a default Workspace without a naming step. Additional
-Workspaces can be created from these sources:
+First-run creates a default Workspace without a naming step. From an
+existing Workspace, the Workspace switcher keeps additional Workspace actions
+focused on creating a fresh Workspace or joining an existing one:
 
 ~~~text
 New workspace
-├── Blank workspace
-├── Import Floe export
-└── Import Markdown directory
+├── Create new workspace
+└── Join with invitation link
 ~~~
 
-The import choices are also available during first-run onboarding.
+Portable Floe and Markdown import remain available during first-run onboarding.
+After a Workspace already exists, portable content is imported through
+`New / Import Project…` so the content boundary remains Project-oriented.
 
-The source affects only the initial user-visible Workspace content. All three use
-the normal coordinator-backed Workspace creation flow.
+Creating a fresh Workspace, joining one, and first-run Workspace creation from
+import continue to use their normal coordinator-backed flows.
 
 ## 5. Existing Workspace open
 
