@@ -41,6 +41,14 @@ export const AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS = [
   30_000,
 ] as const;
 
+const SECURITY_STATE_CHANGED_ERROR_MESSAGE = "SecurityState changed";
+
+const SECURITY_STATE_CHANGED_CLOSE_REASONS = new Set([
+  SECURITY_STATE_CHANGED_ERROR_MESSAGE,
+  "SecurityState changed during presence authentication",
+  "SecurityState changed during authorized presence",
+]);
+
 export class AuthorizedPresenceClient {
   readonly #url: URL;
   readonly #workspaceId: WorkspaceId;
@@ -135,11 +143,11 @@ export class AuthorizedPresenceClient {
 
       if (
         event.code === 1008 &&
-        event.reason === "SecurityState changed"
+        SECURITY_STATE_CHANGED_CLOSE_REASONS.has(event.reason)
       ) {
         this.#started = false;
         this.#clearReconnectTimer();
-        this.#fail(new Error("SecurityState changed"));
+        this.#fail(new Error(SECURITY_STATE_CHANGED_ERROR_MESSAGE));
         return;
       }
 

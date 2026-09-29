@@ -171,22 +171,29 @@ describe("AuthorizedPresenceClient reconnect", () => {
     expect(client.state).toBe("closed");
   });
 
-  it("does not reconnect after SecurityState changes", async () => {
-    const client = createClient();
-    const errors: string[] = [];
-    client.onError((error) => errors.push(error.message));
-    client.start();
-    await authenticate(client, FakeWebSocket.instances[0]!);
+  it.each([
+    "SecurityState changed",
+    "SecurityState changed during presence authentication",
+    "SecurityState changed during authorized presence",
+  ])(
+    "normalizes stale SecurityState close reason %s",
+    async (reason) => {
+      const client = createClient();
+      const errors: string[] = [];
+      client.onError((error) => errors.push(error.message));
+      client.start();
+      await authenticate(client, FakeWebSocket.instances[0]!);
 
-    FakeWebSocket.instances[0]?.disconnect(1008, "SecurityState changed");
-    await vi.advanceTimersByTimeAsync(60_000);
+      FakeWebSocket.instances[0]?.disconnect(1008, reason);
+      await vi.advanceTimersByTimeAsync(60_000);
 
-    expect(FakeWebSocket.instances).toHaveLength(1);
-    expect(client.state).toBe("error");
-    expect(errors).toContain("SecurityState changed");
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      expect(client.state).toBe("error");
+      expect(errors).toEqual(["SecurityState changed"]);
 
-    client.close();
-  });
+      client.close();
+    },
+  );
 
   it("retries immediately when requested during backoff", async () => {
     const client = createClient();
