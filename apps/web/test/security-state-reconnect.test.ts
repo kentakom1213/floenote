@@ -530,11 +530,10 @@ async function revokeDeviceFromState(
 }
 
 function createVaultSession(
-  device: DeviceKeyMaterial,
+  _device: DeviceKeyMaterial,
 ): DeviceVaultSession {
   return {
-    sign: (message: Uint8Array) =>
-      signEd25519(message, device.signingPrivateKey),
+    sign: async () => new Uint8Array(64).fill(2),
   } as unknown as DeviceVaultSession;
 }
 
