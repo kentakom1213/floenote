@@ -150,5 +150,5 @@ test("keeps duplicate and long Project names usable in mobile Settings navigatio
   expect(menuFits).toBe(true);
   await choices.first().click();
   await expect(page).toHaveURL(firstUrl);
-  await expect(page.getByLabel(`Switch Project, current ${name}`)).toBeVisible();
+  await expect(summary).toContainText(name);
 });
