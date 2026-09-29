@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type { CheckpointId, DocumentId, ProjectId } from "@floe-note/domain";
@@ -463,19 +463,24 @@ export function NoteWorkspace({
             onRequestPermanentDelete={setPendingPurgeDocumentId}
           />
         ) : selectedDocument ? (
-          <DocumentPane
-            project={project}
-            document={selectedDocument}
-            availableTags={projectTags}
-            focusTitle={focusTitleDocumentId === selectedDocument.id}
-            onTitleFocusHandled={onTitleFocusHandled}
-            onRename={onRenameDocument}
-            onDelete={onDeleteDocument}
-            onMove={(documentId) => {
-              setMovingDocumentId(documentId);
-              setMoveError(null);
-            }}
-          />
+          <DocumentPaneErrorBoundary
+            key={selectedDocument.id}
+            documentId={selectedDocument.id}
+          >
+            <DocumentPane
+              project={project}
+              document={selectedDocument}
+              availableTags={projectTags}
+              focusTitle={focusTitleDocumentId === selectedDocument.id}
+              onTitleFocusHandled={onTitleFocusHandled}
+              onRename={onRenameDocument}
+              onDelete={onDeleteDocument}
+              onMove={(documentId) => {
+                setMovingDocumentId(documentId);
+                setMoveError(null);
+              }}
+            />
+          </DocumentPaneErrorBoundary>
         ) : (
           <div className="workspace-empty-state">
             <div className="empty-floe" aria-hidden="true">
@@ -557,6 +562,53 @@ export function NoteWorkspace({
       ) : null}
     </>
   );
+}
+
+type DocumentPaneErrorBoundaryProps = {
+  documentId: DocumentId;
+  children: ReactNode;
+};
+
+type DocumentPaneErrorBoundaryState = {
+  error: Error | null;
+};
+
+class DocumentPaneErrorBoundary extends Component<
+  DocumentPaneErrorBoundaryProps,
+  DocumentPaneErrorBoundaryState
+> {
+  state: DocumentPaneErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: unknown): DocumentPaneErrorBoundaryState {
+    return {
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error("Failed to render note", {
+      documentId: this.props.documentId,
+      error,
+      componentStack: info.componentStack,
+    });
+  }
+
+  render(): ReactNode {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="workspace-empty-state" role="alert">
+        <div className="empty-floe" aria-hidden="true">
+          ◆
+        </div>
+        <h1>This note could not be displayed</h1>
+        <p>{this.state.error.message}</p>
+        <p>
+          Select another note from the sidebar to continue using Floe Note.
+        </p>
+      </div>
+    );
+  }
 }
 
 type DocumentPaneProps = {
