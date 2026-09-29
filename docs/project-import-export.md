@@ -45,16 +45,16 @@ authorization set, coordinator object, or pairing context.
 
 ### 1.2 Create a Workspace from imported content
 
-First-run or explicit Workspace creation may also use imported content as its
-initial Project.
+First-run onboarding may use imported content as the initial Project of a new
+Workspace. Once a Workspace already exists, the Workspace switcher does not
+offer import as a Workspace-creation source; portable content is added through
+`New / Import Project…` instead.
 
 ```text
-New Workspace
-├── Blank
-│   └── Project "Notes"
-├── From Floe export
+First-run onboarding
+├── Import Floe export
 │   └── imported Project
-└── From Markdown directory
+└── Import Markdown directory
     └── imported Project
 ```
 
