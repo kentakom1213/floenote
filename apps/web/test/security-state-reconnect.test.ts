@@ -381,6 +381,116 @@ describe("automatic reconnect setup ordering", () => {
       },
     ]);
   });
+  it("drains a queued reconnect session after Presence reconnects", async () => {
+    const deviceA = await generateDeviceKeyMaterial();
+    const deviceB = await generateDeviceKeyMaterial();
+    keyMaterials.push(deviceA, deviceB);
+
+    const initialState = await createInitialState(deviceA);
+    const { state } = await addDeviceToState(
+      initialState,
+      deviceA,
+      deviceB,
+    );
+    const project = NoteProject.create(state.workspaceId);
+    const vaultSession = createVaultSession(deviceB);
+    const sessionId = "fedcba9876543210fedcba9876543210";
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          project,
+          localDeviceId: deviceB.publicIdentity.deviceId,
+          securityState: state,
+          vaultSession,
+          projectKeyReady: false,
+        }),
+      );
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await authenticatePresence(
+      FakeWebSocket.instances[0]!,
+      state.headHash,
+      [
+        deviceA.publicIdentity.deviceId,
+        deviceB.publicIdentity.deviceId,
+      ],
+    );
+
+    await act(async () => {
+      FakeWebSocket.instances[0]?.message({
+        type: "reconnect-session",
+        fromDeviceId: deviceA.publicIdentity.deviceId,
+        sessionId,
+        transportMode: "relay",
+      });
+      await flushMicrotasks();
+    });
+    expect(peerSyncHarness.instances).toHaveLength(0);
+
+    act(() => {
+      FakeWebSocket.instances[0]?.disconnect(1006, "");
+    });
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          project,
+          localDeviceId: deviceB.publicIdentity.deviceId,
+          securityState: state,
+          vaultSession,
+          projectKeyReady: true,
+        }),
+      );
+      await flushMicrotasks();
+    });
+
+    expect(peerSyncHarness.instances).toHaveLength(1);
+    expect(peerSyncHarness.instances[0]?.onlineDeviceUpdates).toEqual([]);
+    expect(peerSyncHarness.instances[0]?.reconnectSessions).toEqual([]);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    await authenticatePresence(
+      FakeWebSocket.instances[1]!,
+      state.headHash,
+      [
+        deviceA.publicIdentity.deviceId,
+        deviceB.publicIdentity.deviceId,
+      ],
+    );
+
+    const manager = peerSyncHarness.instances[0];
+    expect(manager?.onlineDeviceUpdates.at(-1)).toEqual([
+      deviceA.publicIdentity.deviceId,
+      deviceB.publicIdentity.deviceId,
+    ]);
+    expect(manager?.reconnectSessions).toEqual([
+      {
+        fromDeviceId: deviceA.publicIdentity.deviceId,
+        sessionId,
+        transportMode: "relay",
+      },
+    ]);
+
+    await act(async () => {
+      FakeWebSocket.instances[1]?.message({
+        type: "presence-state",
+        deviceIds: [
+          deviceA.publicIdentity.deviceId,
+          deviceB.publicIdentity.deviceId,
+        ],
+      });
+      await flushMicrotasks();
+    });
+
+    expect(manager?.reconnectSessions).toHaveLength(1);
+  });
+
 });
 
 describe("authorized Workspace sync after SecurityState changes", () => {
