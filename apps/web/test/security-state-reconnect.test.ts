@@ -53,6 +53,11 @@ const peerSyncHarness = vi.hoisted(() => {
   type Record = {
     securityState: unknown;
     onlineDeviceUpdates: string[][];
+    reconnectSessions: Array<{
+      fromDeviceId: string;
+      sessionId: string;
+      transportMode: string;
+    }>;
     stopped: boolean;
   };
 
@@ -65,6 +70,7 @@ const peerSyncHarness = vi.hoisted(() => {
       this.#record = {
         securityState: options.securityState,
         onlineDeviceUpdates: [],
+        reconnectSessions: [],
         stopped: false,
       };
       instances.push(this.#record);
@@ -74,7 +80,17 @@ const peerSyncHarness = vi.hoisted(() => {
       this.#record.onlineDeviceUpdates.push([...deviceIds]);
     }
 
-    acceptReconnectSession(): void {}
+    acceptReconnectSession(
+      fromDeviceId: string,
+      sessionId: string,
+      transportMode: string,
+    ): void {
+      this.#record.reconnectSessions.push({
+        fromDeviceId,
+        sessionId,
+        transportMode,
+      });
+    }
 
     stop(): void {
       this.#record.stopped = true;
@@ -169,6 +185,7 @@ type RecoveryHarnessProps = {
   initialSecurityState: SecurityState;
   vaultSession: DeviceVaultSession;
   coordinator: SecurityStateCoordinatorReader;
+  projectKeyReady?: boolean;
   onReconciled: (state: SecurityState, authorized: boolean) => void;
   onError: (error: unknown) => void;
 };
@@ -179,6 +196,7 @@ function RecoveryHarness({
   initialSecurityState,
   vaultSession,
   coordinator,
+  projectKeyReady,
   onReconciled,
   onError,
 }: RecoveryHarnessProps) {
@@ -196,7 +214,7 @@ function RecoveryHarness({
     project,
     localDeviceId,
     securityState,
-    projectKeyReady: securityState !== null,
+    projectKeyReady: projectKeyReady ?? securityState !== null,
     vaultSession,
     automaticReconnectEnabled: true,
     turnCredentialEndpoint: null,
@@ -339,6 +357,79 @@ describe("authorized Workspace sync after SecurityState changes", () => {
     expect(refreshedManager?.onlineDeviceUpdates.at(-1)).toEqual([
       deviceA.publicIdentity.deviceId,
       deviceD.publicIdentity.deviceId,
+    ]);
+  });
+
+  it("retains a reconnect session received before the peer sync manager is ready", async () => {
+    const deviceA = await generateDeviceKeyMaterial();
+    const deviceB = await generateDeviceKeyMaterial();
+    keyMaterials.push(deviceA, deviceB);
+
+    const initialState = await createInitialState(deviceA);
+    const { state: afterAdd } = await addDeviceToState(
+      initialState,
+      deviceA,
+      deviceB,
+    );
+    const coordinator: SecurityStateCoordinatorReader = {
+      getSecurityState: vi.fn(async () => afterAdd),
+      getSecurityTransitions: vi.fn(async () => []),
+    };
+    const onReconciled = vi.fn();
+    const onError = vi.fn();
+    const props: RecoveryHarnessProps = {
+      project: NoteProject.create(afterAdd.workspaceId),
+      localDeviceId: deviceA.publicIdentity.deviceId,
+      initialSecurityState: afterAdd,
+      vaultSession: createVaultSession(deviceA),
+      coordinator,
+      projectKeyReady: false,
+      onReconciled,
+      onError,
+    };
+
+    await renderRecoveryHarness(props);
+    expect(peerSyncHarness.instances).toHaveLength(0);
+
+    await authenticatePresence(
+      FakeWebSocket.instances[0]!,
+      afterAdd.headHash,
+      [
+        deviceA.publicIdentity.deviceId,
+        deviceB.publicIdentity.deviceId,
+      ],
+    );
+
+    const sessionId = "0123456789abcdef0123456789abcdef";
+    await act(async () => {
+      FakeWebSocket.instances[0]!.message({
+        type: "reconnect-session",
+        fromDeviceId: deviceB.publicIdentity.deviceId,
+        sessionId,
+        transportMode: "direct",
+      });
+      await flushMicrotasks();
+    });
+
+    expect(peerSyncHarness.instances).toHaveLength(0);
+
+    await act(async () => {
+      root?.render(
+        createElement(RecoveryHarness, {
+          ...props,
+          projectKeyReady: true,
+        }),
+      );
+      await flushMicrotasks();
+    });
+
+    expect(peerSyncHarness.instances).toHaveLength(1);
+    expect(peerSyncHarness.instances[0]?.reconnectSessions).toEqual([
+      {
+        fromDeviceId: deviceB.publicIdentity.deviceId,
+        sessionId,
+        transportMode: "direct",
+      },
     ]);
   });
 
