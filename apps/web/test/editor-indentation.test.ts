@@ -16,18 +16,18 @@ afterEach(() => {
 });
 
 describe("Markdown editor indentation", () => {
-  it("indents a normal line with Tab and keeps the key in the editor", () => {
+  it("uses ordinary CodeMirror indentation for a normal line", () => {
     view = createEditor("plain text", 5);
 
     const event = pressTab(view);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(view.state.doc.toString()).toBe("   plain text");
-    expect(view.state.selection.main.head).toBe(8);
+    expect(view.state.doc.toString()).toBe("  plain text");
+    expect(view.state.selection.main.head).toBe(7);
   });
 
-  it("dedents a normal indented line with Shift+Tab", () => {
-    view = createEditor("   plain text", 8);
+  it("uses ordinary CodeMirror dedentation for a normal line", () => {
+    view = createEditor("  plain text", 7);
 
     const event = pressTab(view, true);
 
@@ -36,37 +36,63 @@ describe("Markdown editor indentation", () => {
     expect(view.state.selection.main.head).toBe(5);
   });
 
-  it("indents and dedents an unordered list item", () => {
-    view = createEditor("- parent\n- item", "- parent\n- item".length);
+  it("nests and unnests an unordered list item by one list level", () => {
+    view = createEditor("- parent\n- child", "- parent\n- child".length);
 
     expect(pressTab(view).defaultPrevented).toBe(true);
-    expect(view.state.doc.toString()).toBe("- parent\n   - item");
+    expect(view.state.doc.toString()).toBe("- parent\n  - child");
 
     expect(pressTab(view, true).defaultPrevented).toBe(true);
-    expect(view.state.doc.toString()).toBe("- parent\n- item");
+    expect(view.state.doc.toString()).toBe("- parent\n- child");
   });
 
-  it("indents and dedents a TODO list item", () => {
-    view = createEditor("- parent\n- [ ] task", "- parent\n- [ ] task".length);
-
-    pressTab(view);
-    expect(view.state.doc.toString()).toBe("- parent\n   - [ ] task");
-
-    pressTab(view, true);
-    expect(view.state.doc.toString()).toBe("- parent\n- [ ] task");
-  });
-
-  it("indents and dedents a numbered list item", () => {
+  it("nests and unnests a TODO list item by one list level", () => {
     view = createEditor(
-      "1. parent\n2. numbered",
-      "1. parent\n2. numbered".length,
+      "- [ ] parent\n- [ ] child",
+      "- [ ] parent\n- [ ] child".length,
     );
 
     pressTab(view);
-    expect(view.state.doc.toString()).toBe("1. parent\n   2. numbered");
+    expect(view.state.doc.toString()).toBe("- [ ] parent\n  - [ ] child");
 
     pressTab(view, true);
-    expect(view.state.doc.toString()).toBe("1. parent\n2. numbered");
+    expect(view.state.doc.toString()).toBe("- [ ] parent\n- [ ] child");
+  });
+
+  it("uses the ordered-list marker width for single-digit nesting", () => {
+    view = createEditor(
+      "1. parent\n2. child",
+      "1. parent\n2. child".length,
+    );
+
+    pressTab(view);
+    expect(view.state.doc.toString()).toBe("1. parent\n   2. child");
+
+    pressTab(view, true);
+    expect(view.state.doc.toString()).toBe("1. parent\n2. child");
+  });
+
+  it("uses the actual multi-digit ordered-list marker width", () => {
+    view = createEditor(
+      "10. parent\n11. child",
+      "10. parent\n11. child".length,
+    );
+
+    pressTab(view);
+    expect(view.state.doc.toString()).toBe("10. parent\n    11. child");
+
+    pressTab(view, true);
+    expect(view.state.doc.toString()).toBe("10. parent\n11. child");
+  });
+
+  it("keeps ordinary indentation inside fenced code blocks", () => {
+    const source = "```text\ncode\n```";
+    const cursor = source.indexOf("code") + "code".length;
+    view = createEditor(source, cursor);
+
+    pressTab(view);
+
+    expect(view.state.doc.toString()).toBe("```text\n  code\n```");
   });
 
   it("does not mutate a read-only editor", () => {
