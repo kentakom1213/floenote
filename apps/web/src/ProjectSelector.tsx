@@ -30,7 +30,7 @@ export function ProjectSelector({
   const menuRef = useRef<HTMLDetailsElement>(null);
   useDismissibleDetails(menuRef);
   const [dialog, setDialog] = useState<
-    "create" | "rename" | "archive" | "archived" | null
+    "create" | "settings" | "archive" | "archived" | null
   >(null);
   const [dialogProjectId, setDialogProjectId] = useState<ProjectId | null>(null);
   const [name, setName] = useState("");
@@ -45,18 +45,20 @@ export function ProjectSelector({
   function openDialog(next: typeof dialog, project?: WorkspaceProject): void {
     menuRef.current?.removeAttribute("open");
     setDialogProjectId(project?.id ?? null);
-    setName(next === "rename" ? project?.name ?? "" : "");
+    setName(next === "settings" ? project?.name ?? "" : "");
     setError(null);
     setDialog(next);
   }
 
   function submitName(): void {
     try {
-      if (dialog === "create") onCreate(name);
-      else if (dialog === "rename" && dialogProject) {
+      if (dialog === "create") {
+        onCreate(name);
+        setDialog(null);
+      } else if (dialog === "settings" && dialogProject) {
         onRename(dialogProject.id, name);
       }
-      setDialog(null);
+      setError(null);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not save Project",
@@ -97,33 +99,32 @@ export function ProjectSelector({
             type="button"
             onClick={() => openDialog("create")}
           >
-            New Project…
+            <span className="workspace-project-action">
+              <PlusIcon />
+              New Project…
+            </span>
           </button>
           {selected ? (
-            <>
-              <button
-                className="workspace-project-menu-item"
-                type="button"
-                onClick={() => openDialog("rename", selected)}
-              >
-                Rename Project…
-              </button>
-              <button
-                className="workspace-project-menu-item"
-                type="button"
-                disabled={(activeNoteCounts.get(selected.id) ?? 0) > 0}
-                onClick={() => openDialog("archive", selected)}
-              >
-                Archive Project…
-              </button>
-            </>
+            <button
+              className="workspace-project-menu-item"
+              type="button"
+              onClick={() => openDialog("settings", selected)}
+            >
+              <span className="workspace-project-action">
+                <SettingsIcon />
+                Project settings…
+              </span>
+            </button>
           ) : null}
           <button
             className="workspace-project-menu-item"
             type="button"
             onClick={() => openDialog("archived")}
           >
-            Archived projects…
+            <span className="workspace-project-action">
+              <ArchiveIcon />
+              Archived projects…
+            </span>
           </button>
         </div>
       </details>
@@ -144,44 +145,71 @@ export function ProjectSelector({
           <h2 id="project-dialog-title">
             {dialog === "create"
               ? "New Project"
-              : dialog === "rename"
-                ? "Rename Project"
+              : dialog === "settings"
+                ? "Project settings"
                 : dialog === "archive"
                   ? "Archive Project"
                   : "Archived projects"}
           </h2>
-          {dialog === "create" || dialog === "rename" ? (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitName();
-              }}
-            >
-              <label className="dialog-field" htmlFor="project-name">
-                Project name
-                <input
-                  id="project-name"
-                  autoFocus
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </label>
-              {error ? <p className="dialog-error" role="alert">{error}</p> : null}
-              <div className="dialog-actions">
-                <button className="dialog-secondary-button" type="button" onClick={() => setDialog(null)}>
-                  Cancel
-                </button>
-                <button className="dialog-primary-button" type="submit">
-                  {dialog === "create" ? "Create Project" : "Save name"}
-                </button>
-              </div>
-            </form>
+          {dialog === "create" || (dialog === "settings" && dialogProject) ? (
+            <>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  submitName();
+                }}
+              >
+                <label className="dialog-field" htmlFor="project-name">
+                  Project name
+                  <input
+                    id="project-name"
+                    autoFocus
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </label>
+                {error ? (
+                  <p className="dialog-error" role="alert">{error}</p>
+                ) : null}
+                <div className="dialog-actions">
+                  <button
+                    className="dialog-secondary-button"
+                    type="button"
+                    onClick={() => setDialog(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button className="dialog-primary-button" type="submit">
+                    {dialog === "create" ? "Create Project" : "Save name"}
+                  </button>
+                </div>
+              </form>
+              {dialog === "settings" && dialogProject ? (
+                <section className="project-settings-archive">
+                  <h3>Archive Project</h3>
+                  <p>
+                    {activeNoteCounts.get(dialogProject.id)
+                      ? "Move or delete this Project's active Notes before archiving it."
+                      : "Archived Projects can be reopened later."}
+                  </p>
+                  <button
+                    className="dialog-secondary-button"
+                    type="button"
+                    disabled={(activeNoteCounts.get(dialogProject.id) ?? 0) > 0}
+                    onClick={() => openDialog("archive", dialogProject)}
+                  >
+                    <ArchiveIcon />
+                    Archive Project…
+                  </button>
+                </section>
+              ) : null}
+            </>
           ) : dialog === "archive" && dialogProject ? (
             <>
               <p>Archive {dialogProject.name}? You can reopen it later.</p>
               {error ? <p className="dialog-error" role="alert">{error}</p> : null}
               <div className="dialog-actions">
-                <button className="dialog-secondary-button" type="button" onClick={() => setDialog(null)}>
+                <button className="dialog-secondary-button" type="button" onClick={() => openDialog("settings", dialogProject)}>
                   Cancel
                 </button>
                 <button
@@ -224,5 +252,31 @@ export function ProjectSelector({
         </Modal>
       ) : null}
     </div>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 3.5v13M3.5 10h13" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="2.6" />
+      <path d="M8.4 2.5h3.2l.5 1.9 1.4.8 1.9-.5 1.6 2.8-1.4 1.4v1.6l1.4 1.4-1.6 2.8-1.9-.5-1.4.8-.5 1.9H8.4l-.5-1.9-1.4-.8-1.9.5L3 11.9l1.4-1.4V8.9L3 7.5l1.6-2.8 1.9.5 1.4-.8z" />
+    </svg>
+  );
+}
+
+function ArchiveIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="3" rx="1" />
+      <path d="M4.5 7v9h11V7M8 10.5h4" />
+    </svg>
   );
 }
