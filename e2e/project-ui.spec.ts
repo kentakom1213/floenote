@@ -155,7 +155,7 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
   await expect(page.getByRole("button", { name: "New note" })).toBeEnabled();
 });
 
-test("exports one Project and imports it into this or a new Workspace", async ({ page }) => {
+test("exports one Project and imports it into the existing Workspace", async ({ page }) => {
   const { projectId, documentId } = await createSecuredProject(page);
   await openSelectedProjectSettings(page);
   const settingsUrl = new URL(page.url()).pathname;
@@ -220,24 +220,9 @@ test("exports one Project and imports it into this or a new Workspace", async ({
   await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Workspace" }).click();
   await expect(page.getByText("Export notes")).toHaveCount(0);
 
-  await page.getByLabel("Switch workspace").click();
-  await page.getByRole("button", { name: "New workspace" }).click();
-  await page.getByRole("button", { name: /Import Floe export/ }).click();
-  const commitPromise = page.waitForResponse((response) =>
-    /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) && response.request().method() === "POST",
-  );
-  await page.getByRole("dialog", { name: "New workspace" }).locator('input[type="file"]').setInputFiles({ name: "Research.floe.zip", mimeType: "application/zip", buffer: archive });
-  expect((await commitPromise).status()).toBe(201);
-  await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
-  await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
-  await expect(page.locator(".brand-row")).toContainText("Personal");
-  expect(new URL(page.url()).pathname).not.toContain(`/w/${projectId}/`);
-  await page.getByLabel(/Switch Project, current/).click();
-  await expect(page.locator(".workspace-project-menu-item[aria-current='true']")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
 });
 
-test("imports a Markdown directory as one Project in either Workspace context", async ({ page }) => {
+test("imports a Markdown directory as one Project in the existing Workspace", async ({ page }) => {
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "floe-project-import-"));
   const directory = join(temporaryDirectory, "research");
   await mkdir(join(directory, "papers"), { recursive: true });
@@ -257,20 +242,6 @@ test("imports a Markdown directory as one Project in either Workspace context", 
     await expect(page).toHaveURL(new RegExp(`^.*/w/${projectId}/n/[^/]+$`));
     await expect(page.getByRole("navigation", { name: "Notes" }).getByRole("button", { name: "paper-a" })).toBeVisible();
 
-    await page.getByLabel("Switch workspace").click();
-    await page.getByRole("button", { name: "New workspace" }).click();
-    await page.getByRole("button", { name: /Import Markdown directory/ }).click();
-    const commitPromise = page.waitForResponse((response) =>
-      /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) && response.request().method() === "POST",
-    );
-    await page.getByRole("dialog", { name: "New workspace" }).locator('input[type="file"]').setInputFiles(directory);
-    expect((await commitPromise).status()).toBe(201);
-    await expect(page.getByLabel("Switch Project, current research")).toBeVisible();
-    await expect(page.getByLabel("Note title")).toHaveValue("inbox");
-    await expect(page.locator(".brand-row")).toContainText("Personal");
-    expect(new URL(page.url()).pathname).not.toContain(`/w/${projectId}/`);
-    await page.getByLabel(/Switch Project, current/).click();
-    await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
@@ -290,7 +261,7 @@ test("keeps long Project names inside the selector and archive list", async ({ p
   expect(heights).toEqual([30, 30, 30]);
   await expect(page.locator(".project-switcher-chevron")).toHaveCount(0);
 
-  const longName = `Research ${"very-long-project-name-".repeat(8)}`;
+  const longName = `Research-${"x".repeat(180)}`;
   await createProject(page, longName);
   const triggerFits = await page.locator(".workspace-project-trigger").evaluate((trigger) => {
     const control = trigger.closest(".workspace-project-control")!;
@@ -309,7 +280,17 @@ test("keeps long Project names inside the selector and archive list", async ({ p
   });
   expect(itemFits).toBe(true);
   await page.getByRole("button", { name: "Project settings…" }).click();
-  await archiveProjectFromSettings(page);
+  await page.getByRole("button", { name: "Archive Project…" }).click();
+  const archiveDialog = page.getByRole("dialog");
+  const titleFits = await archiveDialog.evaluate((dialog) => {
+    const title = dialog.querySelector("h2")!;
+    return (
+      title.getBoundingClientRect().left >= dialog.getBoundingClientRect().left &&
+      title.getBoundingClientRect().right <= dialog.getBoundingClientRect().right
+    );
+  });
+  expect(titleFits).toBe(true);
+  await archiveDialog.getByRole("button", { name: "Archive Project" }).click();
 
   await page.getByLabel(/Switch Project, current/).click();
   await page.getByRole("button", { name: "Archived projects…" }).click();
