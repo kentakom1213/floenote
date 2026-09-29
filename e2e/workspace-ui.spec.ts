@@ -14,11 +14,25 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await expect(page.getByRole("button", { name: "Workspace settings…" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New workspace" })).toBeVisible();
   await page.getByRole("button", { name: "New workspace" }).click();
-  await expect(page.getByRole("button", { name: /Blank workspace/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Import Floe export/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Import Markdown directory/ })).toBeVisible();
+  const newWorkspaceDialog = page.getByRole("dialog", { name: "New workspace" });
+  const createWorkspace = newWorkspaceDialog.getByRole("button", {
+    name: /Create new workspace/,
+  });
+  const joinWorkspace = newWorkspaceDialog.getByRole("button", {
+    name: /Join with invitation link/,
+  });
+  await expect(createWorkspace).toBeVisible();
+  await expect(createWorkspace.locator("svg")).toHaveCount(1);
+  await expect(joinWorkspace).toBeVisible();
+  await expect(joinWorkspace.locator("svg")).toHaveCount(1);
+  await expect(
+    newWorkspaceDialog.getByRole("button", { name: /Import Floe export/ }),
+  ).toHaveCount(0);
+  await expect(
+    newWorkspaceDialog.getByRole("button", { name: /Import Markdown directory/ }),
+  ).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await createWorkspace.click();
   await page.getByRole("textbox", { name: "Name" }).fill("Research");
   const commit = page.waitForResponse((response) =>
     /\/workspaces\/[^/]+\/security\/transitions$/.test(response.url()) &&
@@ -72,7 +86,7 @@ test("keeps the mobile sidebar open behind the New workspace dialog", async ({
   )).toBe(true);
   expect((await page.locator(".dialog-backdrop").boundingBox())?.width).toBe(390);
 
-  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Mobile workspace");
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page.getByRole("dialog", { name: "New workspace" })).toHaveCount(0);
@@ -142,7 +156,7 @@ test("removes only the selected Workspace from this device", async ({
   const { projectId, documentId } = await createSecuredProject(page);
   await page.getByLabel("Switch workspace").click();
   await page.getByRole("button", { name: "New workspace" }).click();
-  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Temporary");
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page.locator(".brand-row")).toContainText("Temporary");
