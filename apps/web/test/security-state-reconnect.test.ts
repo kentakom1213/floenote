@@ -8,7 +8,7 @@ import {
   type DeviceKeyMaterial,
 } from "@floe-note/crypto";
 import { NoteProject } from "@floe-note/document";
-import type { DeviceId } from "@floe-note/domain";
+import { createWorkspaceId, type DeviceId } from "@floe-note/domain";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
   attachAddDeviceSignature,
@@ -287,6 +287,13 @@ describe("authorized Workspace sync after SecurityState changes", () => {
       onError,
     });
 
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onReconciled).toHaveBeenCalledWith(initialState, true);
+      });
+    });
+    onReconciled.mockClear();
+
     expect(FakeWebSocket.instances).toHaveLength(1);
     await authenticatePresence(
       FakeWebSocket.instances[0]!,
@@ -294,7 +301,6 @@ describe("authorized Workspace sync after SecurityState changes", () => {
       [deviceA.publicIdentity.deviceId],
     );
 
-    onReconciled.mockClear();
     coordinatorState = afterAdd;
     transitions = [addDevice];
 
@@ -303,12 +309,13 @@ describe("authorized Workspace sync after SecurityState changes", () => {
         1008,
         "SecurityState changed during authorized presence",
       );
-      await flushMicrotasks();
+      await vi.waitFor(() => {
+        expect(onReconciled).toHaveBeenCalledWith(afterAdd, true);
+        expect(FakeWebSocket.instances).toHaveLength(2);
+      });
     });
 
     expect(onError).not.toHaveBeenCalled();
-    expect(onReconciled).toHaveBeenCalledWith(afterAdd, true);
-    expect(FakeWebSocket.instances).toHaveLength(2);
     expect(peerSyncHarness.instances).toHaveLength(2);
     expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
 
@@ -362,6 +369,13 @@ describe("authorized Workspace sync after SecurityState changes", () => {
       onError,
     });
 
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onReconciled).toHaveBeenCalledWith(afterAdd, true);
+      });
+    });
+    onReconciled.mockClear();
+
     expect(FakeWebSocket.instances).toHaveLength(1);
     await authenticatePresence(
       FakeWebSocket.instances[0]!,
@@ -372,7 +386,6 @@ describe("authorized Workspace sync after SecurityState changes", () => {
       ],
     );
 
-    onReconciled.mockClear();
     coordinatorState = afterRevoke;
     transitions = [revokeDevice];
 
@@ -381,11 +394,13 @@ describe("authorized Workspace sync after SecurityState changes", () => {
         1008,
         "SecurityState changed",
       );
-      await flushMicrotasks();
+      await vi.waitFor(() => {
+        expect(onReconciled).toHaveBeenCalledWith(afterRevoke, false);
+        expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
+      });
     });
 
     expect(onError).not.toHaveBeenCalled();
-    expect(onReconciled).toHaveBeenCalledWith(afterRevoke, false);
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(peerSyncHarness.instances).toHaveLength(1);
     expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
@@ -397,7 +412,9 @@ async function renderRecoveryHarness(
 ): Promise<void> {
   await act(async () => {
     root?.render(createElement(RecoveryHarness, props));
-    await flushMicrotasks();
+    await vi.waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
   });
 }
 
@@ -413,10 +430,10 @@ async function authenticatePresence(
       challenge: bytesToHex(CHALLENGE),
       securityHead: bytesToHex(securityHead),
     });
-    await flushMicrotasks();
+    await vi.waitFor(() => {
+      expect(socket.sent).toHaveLength(1);
+    });
   });
-
-  expect(socket.sent).toHaveLength(1);
 
   await act(async () => {
     socket.message({
@@ -431,7 +448,7 @@ async function createInitialState(
   device: DeviceKeyMaterial,
 ): Promise<SecurityState> {
   const unsigned = createUnsignedCreateWorkspaceTransition(
-    crypto.randomUUID() as SecurityState["workspaceId"],
+    createWorkspaceId(),
     device.publicIdentity,
   );
   const transition = attachCreateWorkspaceSignature(
@@ -510,7 +527,7 @@ function createVaultSession(
   return {
     sign: (message: Uint8Array) =>
       signEd25519(message, device.signingPrivateKey),
-  } as DeviceVaultSession;
+  } as unknown as DeviceVaultSession;
 }
 
 function bytesToHex(value: Uint8Array): string {
