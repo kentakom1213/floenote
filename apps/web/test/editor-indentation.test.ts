@@ -46,6 +46,26 @@ describe("Markdown editor indentation", () => {
     expect(view.state.doc.toString()).toBe("- parent\n- child");
   });
 
+  it("unnests an over-indented list item to the parent marker column", () => {
+    view = createEditor(
+      "- parent\n    - child",
+      "- parent\n    - child".length,
+    );
+
+    expect(pressTab(view, true).defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe("- parent\n- child");
+  });
+
+  it("unnests to an already-indented parent marker column", () => {
+    view = createEditor(
+      "  - parent\n      - child",
+      "  - parent\n      - child".length,
+    );
+
+    expect(pressTab(view, true).defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe("  - parent\n  - child");
+  });
+
   it("nests and unnests a TODO list item by one list level", () => {
     view = createEditor(
       "- [ ] parent\n- [ ] child",
