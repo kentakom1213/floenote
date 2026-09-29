@@ -113,7 +113,7 @@ test("opens Workspace settings from its selector and exits Settings when switchi
 
   await page.getByLabel("Switch workspace").click();
   await page.getByRole("button", { name: "New workspace" }).click();
-  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("dialog", { name: "New workspace" }).getByRole("textbox", { name: "Name", exact: true }).fill("Other workspace");
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page.locator(".brand-row")).toContainText("Other workspace");
