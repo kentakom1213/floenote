@@ -184,6 +184,17 @@ test("exports one Project and imports it into this or a new Workspace", async ({
     }
   });
   await page.getByRole("button", { name: "New / Import Project", exact: true }).click();
+  const projectCreation = page.getByRole("dialog", { name: "New / Import Project" });
+  await expect(projectCreation.getByRole("button", { name: "Blank Project" }).locator("svg")).toHaveCount(1);
+  await expect(projectCreation.getByRole("button", { name: /Import…/ }).locator("svg")).toHaveCount(1);
+  await expect(projectCreation.getByRole("button", { name: "Import Floe export" })).toHaveCount(0);
+  await projectCreation.getByRole("button", { name: /Import…/ }).click();
+  const importChoices = page.getByRole("dialog", { name: "Import Project" });
+  await expect(importChoices.getByRole("button", { name: "Import Floe export" }).locator("svg")).toHaveCount(1);
+  await expect(importChoices.getByRole("button", { name: "Import Markdown directory" }).locator("svg")).toHaveCount(1);
+  await importChoices.getByRole("button", { name: "Back" }).click();
+  await expect(projectCreation).toBeVisible();
+  await projectCreation.getByRole("button", { name: /Import…/ }).click();
   await page.getByRole("button", { name: "Import Floe export" }).click();
   const projectImport = page.getByRole("dialog", { name: "Import Floe export" });
   const projectFileInput = projectImport.locator('input[type="file"]');
@@ -235,6 +246,7 @@ test("imports a Markdown directory as one Project in either Workspace context", 
     const { projectId } = await createSecuredProject(page);
     await page.getByLabel(/Switch Project, current/).click();
     await page.getByRole("button", { name: "New / Import Project…" }).click();
+    await page.getByRole("button", { name: /Import…/ }).click();
     await page.getByRole("button", { name: "Import Markdown directory" }).click();
     await page.getByRole("dialog", { name: "Import Markdown directory" }).locator('input[type="file"]').setInputFiles(directory);
     await expect(page.getByLabel("Switch Project, current research")).toBeVisible();

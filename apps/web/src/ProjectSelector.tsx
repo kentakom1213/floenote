@@ -39,6 +39,7 @@ export function ProjectSelector({
   const [dialog, setDialog] = useState<
     | "create"
     | "create-blank"
+    | "import"
     | "import-floe"
     | "import-markdown"
     | "manage"
@@ -216,15 +217,17 @@ export function ProjectSelector({
               ? "New / Import Project"
               : dialog === "create-blank"
                 ? "Blank Project"
-                : dialog === "import-floe"
-                  ? "Import Floe export"
-                  : dialog === "import-markdown"
-                    ? "Import Markdown directory"
-                    : dialog === "manage"
-                      ? "Manage Project"
-                      : dialog === "archive"
-                        ? "Archive Project"
-                        : "Archived projects"}
+                : dialog === "import"
+                  ? "Import Project"
+                  : dialog === "import-floe"
+                    ? "Import Floe export"
+                    : dialog === "import-markdown"
+                      ? "Import Markdown directory"
+                      : dialog === "manage"
+                        ? "Manage Project"
+                        : dialog === "archive"
+                          ? "Archive Project"
+                          : "Archived projects"}
           </h2>
           {dialog === "create" ? (
             <>
@@ -233,29 +236,67 @@ export function ProjectSelector({
               </p>
               <div className="new-project-source-list">
                 <button
-                  className="new-project-source-option"
+                  className="new-project-source-option project-source-option project-source-option-primary"
                   type="button"
                   autoFocus
                   onClick={() => openDialog("create-blank")}
                 >
-                  <strong>Blank Project</strong>
-                  <span>Start an empty Project in this Workspace.</span>
+                  <PlusIcon />
+                  <span className="project-source-copy">
+                    <strong>Blank Project</strong>
+                    <span>Start an empty Project in this Workspace.</span>
+                  </span>
                 </button>
                 <button
-                  className="new-project-source-option"
+                  className="new-project-source-option project-source-option"
                   type="button"
+                  onClick={() => openDialog("import")}
+                >
+                  <ImportIcon />
+                  <span className="project-source-copy">
+                    <strong>Import…</strong>
+                    <span>Add a Project from a Floe export or Markdown directory.</span>
+                  </span>
+                </button>
+              </div>
+            </>
+          ) : dialog === "import" ? (
+            <>
+              <p className="dialog-description">
+                Add a new Project to this Workspace from an export or a directory.
+              </p>
+              <div className="new-project-source-list">
+                <button
+                  className="new-project-source-option project-source-option"
+                  type="button"
+                  autoFocus
                   onClick={() => openDialog("import-floe")}
                 >
-                  <strong>Import Floe export</strong>
-                  <span>Add a portable Project from a .floe.zip archive.</span>
+                  <FloeExportIcon />
+                  <span className="project-source-copy">
+                    <strong>Import Floe export</strong>
+                    <span>Add a portable Project from a .floe.zip archive.</span>
+                  </span>
                 </button>
                 <button
-                  className="new-project-source-option"
+                  className="new-project-source-option project-source-option"
                   type="button"
                   onClick={() => openDialog("import-markdown")}
                 >
-                  <strong>Import Markdown directory</strong>
-                  <span>Add one Project from a folder of Markdown files.</span>
+                  <FolderIcon />
+                  <span className="project-source-copy">
+                    <strong>Import Markdown directory</strong>
+                    <span>Add one Project from a folder of Markdown files.</span>
+                  </span>
+                </button>
+              </div>
+              <div className="dialog-actions">
+                <button
+                  className="dialog-secondary-button"
+                  type="button"
+                  onClick={() => openDialog("create")}
+                >
+                  Back
                 </button>
               </div>
             </>
@@ -306,7 +347,7 @@ export function ProjectSelector({
                   className="dialog-secondary-button"
                   type="button"
                   disabled={busy}
-                  onClick={() => openDialog("create")}
+                  onClick={() => openDialog("import")}
                 >
                   Back
                 </button>
@@ -450,6 +491,30 @@ function PlusIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
       <path d="M10 3.5v13M3.5 10h13" />
+    </svg>
+  );
+}
+
+function ImportIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M10 2.5v10m-3-3 3 3 3-3M3.5 13.5v3h13v-3" />
+    </svg>
+  );
+}
+
+function FloeExportIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M5 2.5h7l3 3v12H5zM12 2.5v3h3M7.5 9h5M7.5 12h5M7.5 15h3" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <path d="M2.5 5h5l1.5 2h8.5v9.5h-15zM2.5 7h15" />
     </svg>
   );
 }
