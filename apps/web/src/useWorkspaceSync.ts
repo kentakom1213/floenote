@@ -4,6 +4,8 @@ import {
   AuthorizedPresenceClient,
   type AuthorizedPresenceConnectionState,
   type CreatedInvitation,
+  type ReconnectTransportMode,
+  type SessionId,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
@@ -49,6 +51,28 @@ const IDLE_AUTOMATIC_SYNC_STATUS: AutomaticPeerSyncStatus = {
   error: null,
 };
 
+type PendingReconnectSession = {
+  fromDeviceId: DeviceId;
+  sessionId: SessionId;
+  transportMode: ReconnectTransportMode;
+};
+
+function drainPendingReconnectSessions(
+  pending: Map<DeviceId, PendingReconnectSession>,
+  manager: AutomaticPeerSyncManager,
+): void {
+  const sessions = [...pending.values()];
+  pending.clear();
+
+  for (const session of sessions) {
+    manager.acceptReconnectSession(
+      session.fromDeviceId,
+      session.sessionId,
+      session.transportMode,
+    );
+  }
+}
+
 export function useAuthorizedWorkspaceSync({
   coordinatorBaseUrl,
   project,
@@ -69,6 +93,11 @@ export function useAuthorizedWorkspaceSync({
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
   const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
+  const pendingReconnectSessionsRef = useRef(
+    new Map<DeviceId, PendingReconnectSession>(),
+  );
+  const automaticReconnectEnabledRef = useRef(automaticReconnectEnabled);
+  automaticReconnectEnabledRef.current = automaticReconnectEnabled;
 
   const createInvitation = useCallback(() => {
     const presence = presenceRef.current;
@@ -106,15 +135,33 @@ export function useAuthorizedWorkspaceSync({
     });
     const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
       setOnlineDeviceIds(deviceIds);
-      automaticPeerSyncRef.current?.updateOnlineDevices(deviceIds);
+      const manager = automaticPeerSyncRef.current;
+      manager?.updateOnlineDevices(deviceIds);
+      if (manager) {
+        drainPendingReconnectSessions(
+          pendingReconnectSessionsRef.current,
+          manager,
+        );
+      }
     });
     const stopReconnect = presence.onReconnectSession(
       (fromDeviceId, sessionId, transportMode) => {
-        automaticPeerSyncRef.current?.acceptReconnectSession(
+        const manager = automaticPeerSyncRef.current;
+        if (manager) {
+          manager.acceptReconnectSession(
+            fromDeviceId,
+            sessionId,
+            transportMode,
+          );
+          return;
+        }
+
+        if (!automaticReconnectEnabledRef.current) return;
+        pendingReconnectSessionsRef.current.set(fromDeviceId, {
           fromDeviceId,
           sessionId,
           transportMode,
-        );
+        });
       },
     );
     const stopErrors = presence.onError((error) => {
@@ -151,6 +198,7 @@ export function useAuthorizedWorkspaceSync({
         presenceRef.current = null;
       }
       presence.close();
+      pendingReconnectSessionsRef.current.clear();
       setOnlineDeviceIds([]);
     };
   }, [
@@ -167,8 +215,12 @@ export function useAuthorizedWorkspaceSync({
     automaticPeerSyncRef.current = null;
     setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
 
+    if (!automaticReconnectEnabled) {
+      pendingReconnectSessionsRef.current.clear();
+      return;
+    }
+
     if (
-      !automaticReconnectEnabled ||
       !projectKeyReady ||
       !project ||
       !localDeviceId ||
@@ -199,6 +251,10 @@ export function useAuthorizedWorkspaceSync({
 
     if (presence.state === "open") {
       automaticPeerSync.updateOnlineDevices(onlineDeviceIds);
+      drainPendingReconnectSessions(
+        pendingReconnectSessionsRef.current,
+        automaticPeerSync,
+      );
     }
 
     return () => {
