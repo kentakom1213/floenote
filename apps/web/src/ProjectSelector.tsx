@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { WorkspaceProject } from "@floe-note/document";
 import type { ProjectId } from "@floe-note/domain";
@@ -52,13 +53,12 @@ export function ProjectSelector({
 
   function submitName(): void {
     try {
-      if (dialog === "create") {
-        onCreate(name);
-        setDialog(null);
-      } else if (dialog === "manage" && dialogProject) {
+      if (dialog === "create") onCreate(name);
+      else if (dialog === "manage" && dialogProject) {
         onRename(dialogProject.id, name);
       }
       setError(null);
+      setDialog(null);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not save Project",
@@ -140,7 +140,7 @@ export function ProjectSelector({
         </div>
       ) : null}
 
-      {dialog ? (
+      {dialog && typeof document !== "undefined" ? createPortal(
         <Modal labelledBy="project-dialog-title" onClose={() => setDialog(null)}>
           <h2 id="project-dialog-title">
             {dialog === "create"
@@ -236,7 +236,14 @@ export function ProjectSelector({
                 archived.map((project) => (
                   <div className="archived-project-row" key={project.id}>
                     <span>{project.name}</span>
-                    <button type="button" onClick={() => { onReopen(project.id); setDialog(null); }}>
+                    <button
+                      className="dialog-secondary-button"
+                      type="button"
+                      onClick={() => {
+                        onReopen(project.id);
+                        setDialog(null);
+                      }}
+                    >
                       Reopen
                     </button>
                   </div>
@@ -249,7 +256,8 @@ export function ProjectSelector({
               </div>
             </>
           )}
-        </Modal>
+        </Modal>,
+        document.body,
       ) : null}
     </div>
   );

@@ -177,9 +177,6 @@ export function ProjectSwitcher({
               {current?.name ?? "Personal"}
             </span>
           </span>
-          <span className="project-switcher-chevron" aria-hidden="true">
-            ▾
-          </span>
         </summary>
 
         <div className="project-switcher-menu">

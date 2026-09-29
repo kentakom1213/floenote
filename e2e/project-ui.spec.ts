@@ -99,8 +99,11 @@ test("renames, archives, reopens and persists zero active Projects", async ({ pa
   await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByLabel("Project name").fill("Scratch");
   await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByRole("dialog", { name: "Manage Project" })).toHaveCount(0);
   await expect(page.getByLabel("Switch Project, current Scratch")).toBeVisible();
 
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
   await page.getByRole("button", { name: "Archive Project…" }).click();
   await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
   await expect(page.getByRole("heading", { name: "No active Projects" })).toBeVisible();
@@ -139,4 +142,70 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Create Project" }).click();
   await expect(page.getByLabel("Switch Project, current Fresh start")).toBeVisible();
   await expect(page.getByRole("button", { name: "New note" })).toBeEnabled();
+});
+
+test("keeps long Project names inside the selector and archive list", async ({ page }) => {
+  await createSecuredProject(page);
+  const heights = await page.evaluate(() => {
+    const height = (selector: string) =>
+      document.querySelector(selector)!.getBoundingClientRect().height;
+    return [
+      height(".project-switcher-trigger"),
+      height(".global-search-trigger"),
+      height(".sidebar-collapse-button"),
+    ];
+  });
+  expect(heights).toEqual([30, 30, 30]);
+  await expect(page.locator(".project-switcher-chevron")).toHaveCount(0);
+
+  const longName = `Research ${"very-long-project-name-".repeat(8)}`;
+  await createProject(page, longName);
+  const triggerFits = await page.locator(".workspace-project-trigger").evaluate((trigger) => {
+    const control = trigger.closest(".workspace-project-control")!;
+    const [name, chevron] = trigger.querySelectorAll("span");
+    return (
+      trigger.getBoundingClientRect().right <= control.getBoundingClientRect().right &&
+      name!.getBoundingClientRect().right <= chevron!.getBoundingClientRect().left
+    );
+  });
+  expect(triggerFits).toBe(true);
+
+  await page.getByLabel(/Switch Project, current/).click();
+  const itemFits = await page.locator('.workspace-project-menu-item[aria-current="true"]').evaluate((item) => {
+    const label = item.querySelector("span")!;
+    return label.getBoundingClientRect().right <= item.getBoundingClientRect().right;
+  });
+  expect(itemFits).toBe(true);
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+  await page.getByRole("button", { name: "Archive Project…" }).click();
+  await page.getByRole("dialog", { name: "Archive Project" }).getByRole("button", { name: "Archive Project" }).click();
+
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Archived projects…" }).click();
+  const row = page.locator(".archived-project-row");
+  const archiveFits = await row.evaluate((element) => {
+    const name = element.querySelector("span")!;
+    const button = element.querySelector("button")!;
+    return name.getBoundingClientRect().right <= button.getBoundingClientRect().left;
+  });
+  expect(archiveFits).toBe(true);
+  await expect(row.getByRole("button", { name: "Reopen" })).toHaveCSS("border-top-style", "solid");
+});
+
+test("shows Project management across the mobile viewport and closes after saving", async ({ page }) => {
+  await createSecuredProject(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Manage Project…" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Manage Project" });
+  await expect(dialog).toBeVisible();
+  const backdrop = await page.locator(".dialog-backdrop").boundingBox();
+  expect(backdrop?.width).toBe(390);
+
+  await page.getByLabel("Project name").fill("Mobile notes");
+  await dialog.getByRole("button", { name: "Save name" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Switch Project, current Mobile notes")).toBeVisible();
 });
