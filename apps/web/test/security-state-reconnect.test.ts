@@ -366,6 +366,8 @@ describe("automatic reconnect setup ordering", () => {
           projectKeyReady: true,
         }),
       );
+    });
+    await act(async () => {
       await vi.waitFor(() => {
         expect(peerSyncHarness.instances).toHaveLength(1);
       });
