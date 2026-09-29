@@ -171,19 +171,51 @@ describe("AuthorizedPresenceClient reconnect", () => {
     expect(client.state).toBe("closed");
   });
 
-  it("does not reconnect after SecurityState changes", async () => {
+  it.each([
+    "SecurityState changed",
+    "SecurityState changed during presence authentication",
+    "SecurityState changed during authorized presence",
+  ])(
+    "normalizes stale SecurityState close reason %s",
+    async (reason) => {
+      const client = createClient();
+      const errors: string[] = [];
+      client.onError((error) => errors.push(error.message));
+      client.start();
+      await authenticate(client, FakeWebSocket.instances[0]!);
+
+      FakeWebSocket.instances[0]?.disconnect(1008, reason);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      expect(client.state).toBe("error");
+      expect(errors).toEqual(["SecurityState changed"]);
+
+      client.close();
+    },
+  );
+
+  it("reports a stale SecurityState discovered during authentication", async () => {
     const client = createClient();
     const errors: string[] = [];
     client.onError((error) => errors.push(error.message));
     client.start();
-    await authenticate(client, FakeWebSocket.instances[0]!);
 
-    FakeWebSocket.instances[0]?.disconnect(1008, "SecurityState changed");
-    await vi.advanceTimersByTimeAsync(60_000);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    const newerSecurityHead = SECURITY_HEAD.slice();
+    newerSecurityHead[0] = 1;
+    socket.message({
+      type: "presence-challenge",
+      challenge: bytesToHex(CHALLENGE),
+      securityHead: bytesToHex(newerSecurityHead),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(FakeWebSocket.instances).toHaveLength(1);
     expect(client.state).toBe("error");
-    expect(errors).toContain("SecurityState changed");
+    expect(errors).toEqual(["SecurityState changed"]);
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
 
     client.close();
   });
