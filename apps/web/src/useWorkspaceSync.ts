@@ -71,7 +71,7 @@ export function useAuthorizedWorkspaceSync({
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
   const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
-  const automaticReconnectEnabledRef = useRef(automaticReconnectEnabled);
+  const shouldQueueReconnectRef = useRef(automaticReconnectEnabled);
   const onlineDeviceIdsRef = useRef<readonly DeviceId[]>([]);
   const pendingReconnectSessionsRef = useRef(
     new Map<
@@ -80,7 +80,7 @@ export function useAuthorizedWorkspaceSync({
     >(),
   );
 
-  automaticReconnectEnabledRef.current = automaticReconnectEnabled;
+  shouldQueueReconnectRef.current = automaticReconnectEnabled;
 
   const createInvitation = useCallback(() => {
     const presence = presenceRef.current;
@@ -133,7 +133,7 @@ export function useAuthorizedWorkspaceSync({
           return;
         }
 
-        if (automaticReconnectEnabledRef.current) {
+        if (shouldQueueReconnectRef.current) {
           pendingReconnectSessionsRef.current.set(fromDeviceId, {
             sessionId,
             transportMode,
