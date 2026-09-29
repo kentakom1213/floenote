@@ -195,6 +195,34 @@ describe("AuthorizedPresenceClient reconnect", () => {
     },
   );
 
+  it("normalizes a stale SecurityState challenge head", async () => {
+    const client = createClient();
+    const errors: string[] = [];
+    client.onError((error) => errors.push(error.message));
+    client.start();
+
+    const socket = FakeWebSocket.instances[0]!;
+    socket.open();
+    socket.message({
+      type: "presence-challenge",
+      challenge: bytesToHex(CHALLENGE),
+      securityHead: bytesToHex(
+        new Uint8Array(SECURITY_HEAD_HASH_BYTES).fill(3),
+      ),
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(socket.sent).toHaveLength(0);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(client.state).toBe("error");
+    expect(errors).toEqual(["SecurityState changed"]);
+
+    client.close();
+  });
+
   it("retries immediately when requested during backoff", async () => {
     const client = createClient();
     client.start();
