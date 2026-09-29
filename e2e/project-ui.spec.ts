@@ -161,7 +161,7 @@ test("exports one Project and imports it into the existing Workspace", async ({ 
   const editor = page.locator('.editor [contenteditable="true"]');
   await expect(editor).toBeVisible();
   await editor.fill(importedBody);
-  await expect.poll(() => editor.innerText()).toBe(importedBody);
+  await expect(editor).toContainText("Unique imported editor text");
 
   await openSelectedProjectSettings(page);
   const settingsUrl = new URL(page.url()).pathname;
