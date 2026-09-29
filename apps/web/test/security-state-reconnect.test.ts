@@ -317,10 +317,10 @@ describe("authorized Workspace sync after SecurityState changes", () => {
     await act(async () => {
       await vi.waitFor(() => {
         expect(onReconciled).toHaveBeenCalledWith(afterAdd, true);
-        expect(FakeWebSocket.instances).toHaveLength(2);
       });
     });
 
+    expect(FakeWebSocket.instances).toHaveLength(2);
     expect(onError).not.toHaveBeenCalled();
     expect(peerSyncHarness.instances).toHaveLength(2);
     expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
@@ -405,10 +405,10 @@ describe("authorized Workspace sync after SecurityState changes", () => {
     await act(async () => {
       await vi.waitFor(() => {
         expect(onReconciled).toHaveBeenCalledWith(afterRevoke, false);
-        expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
       });
     });
 
+    expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
     expect(onError).not.toHaveBeenCalled();
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(peerSyncHarness.instances).toHaveLength(1);
