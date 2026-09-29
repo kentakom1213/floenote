@@ -589,6 +589,7 @@ class DocumentPaneErrorBoundary extends Component<
     console.error("Failed to render note", {
       documentId: this.props.documentId,
       error,
+      errorStack: error.stack ?? null,
       componentStack: info.componentStack,
     });
   }
