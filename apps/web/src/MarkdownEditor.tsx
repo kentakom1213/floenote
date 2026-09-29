@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import type { NoteDocument } from "@floe-note/document";
 
 import { floeCodeMirrorAppearance } from "./editor-appearance.js";
+import { floeMarkdownIndentation } from "./editor-indentation.js";
 import {
   editorUndoGrouping,
   EDITOR_UNDO_MAX_STEPS,
@@ -247,6 +248,7 @@ export function MarkdownEditor({
         basicSetup,
         floeEditorSearch,
         markdown(),
+        floeMarkdownIndentation,
         ...floeCodeMirrorAppearance,
         EditorView.lineWrapping,
         EditorState.readOnly.of(readOnly),
