@@ -42,14 +42,19 @@ const indentMarkdownLess: StateCommand = (target) => {
   }
 
   const parentItem = parentListItem(context.item);
-  const nestingWidth = parentItem
-    ? listItemContentIndent(target.state, parentItem)
+  const parentMarkerColumn = parentItem
+    ? listItemMarkerColumn(target.state, parentItem)
     : null;
-  if (nestingWidth === null) {
+  if (parentMarkerColumn === null) {
     return indentLess(target);
   }
 
-  return changeListIndent(target, context, -nestingWidth, "delete.dedent");
+  return setListIndent(
+    target,
+    context,
+    parentMarkerColumn,
+    "delete.dedent",
+  );
 };
 
 export const floeMarkdownIndentation = keymap.of([
@@ -185,6 +190,24 @@ function listItemContentIndent(
   return width > 0 ? width : null;
 }
 
+function listItemMarkerColumn(
+  state: EditorState,
+  item: SyntaxNode,
+): number | null {
+  const mark = firstListMark(item);
+  if (!mark) {
+    return null;
+  }
+
+  const line = state.doc.lineAt(mark.from);
+  const markerPrefix = state.sliceDoc(line.from, mark.from);
+  if (!/^[ \t]*$/.test(markerPrefix)) {
+    return null;
+  }
+
+  return countColumn(markerPrefix, state.tabSize);
+}
+
 function firstListMark(item: SyntaxNode): SyntaxNode | null {
   for (let child = item.firstChild; child; child = child.nextSibling) {
     if (child.name === "ListMark") {
@@ -200,6 +223,25 @@ function changeListIndent(
   delta: number,
   userEvent: string,
 ): boolean {
+  const currentIndent = target.state.sliceDoc(
+    context.lineFrom,
+    context.mark.from,
+  );
+  const currentColumn = countColumn(currentIndent, target.state.tabSize);
+  return setListIndent(
+    target,
+    context,
+    Math.max(0, currentColumn + delta),
+    userEvent,
+  );
+}
+
+function setListIndent(
+  target: Parameters<StateCommand>[0],
+  context: ListLineContext,
+  nextColumn: number,
+  userEvent: string,
+): boolean {
   const { state, dispatch } = target;
   if (state.readOnly) {
     return false;
@@ -207,7 +249,6 @@ function changeListIndent(
 
   const currentIndent = state.sliceDoc(context.lineFrom, context.mark.from);
   const currentColumn = countColumn(currentIndent, state.tabSize);
-  const nextColumn = Math.max(0, currentColumn + delta);
   if (nextColumn === currentColumn) {
     return true;
   }
