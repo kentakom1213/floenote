@@ -281,20 +281,7 @@ export function NoteWorkspace({
     <div className="sidebar-layout">
       <div className="sidebar-content">
         <header className="brand-row">
-          <div
-            className="workspace-context"
-            onClickCapture={(event) => {
-              const target = event.target;
-              if (
-                target instanceof Element &&
-                target.closest(".project-switcher-action")
-              ) {
-                setMobileNavigationOpen(false);
-              }
-            }}
-          >
-            {projectControl}
-          </div>
+          <div className="workspace-context">{projectControl}</div>
           <button
             className="global-search-trigger"
             type="button"
