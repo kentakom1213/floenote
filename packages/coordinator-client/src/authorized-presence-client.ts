@@ -362,9 +362,7 @@ export class AuthorizedPresenceClient {
     );
 
     if (!bytesEqual(securityHead, this.#securityHead)) {
-      throw new Error(
-        "Coordinator SecurityState changed before authorized presence authentication",
-      );
+      throw new Error(SECURITY_STATE_CHANGED_ERROR_MESSAGE);
     }
 
     const signingBytes = encodeAuthorizedPresenceProof({
