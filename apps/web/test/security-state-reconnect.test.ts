@@ -320,6 +320,7 @@ describe("automatic reconnect setup ordering", () => {
       deviceB,
     );
     const project = NoteProject.create(state.workspaceId);
+    const vaultSession = createVaultSession(deviceB);
     const sessionId = "0123456789abcdef0123456789abcdef";
 
     await act(async () => {
@@ -328,7 +329,7 @@ describe("automatic reconnect setup ordering", () => {
           project,
           localDeviceId: deviceB.publicIdentity.deviceId,
           securityState: state,
-          vaultSession: createVaultSession(deviceB),
+          vaultSession,
           projectKeyReady: false,
         }),
       );
@@ -361,7 +362,7 @@ describe("automatic reconnect setup ordering", () => {
           project,
           localDeviceId: deviceB.publicIdentity.deviceId,
           securityState: state,
-          vaultSession: createVaultSession(deviceB),
+          vaultSession,
           projectKeyReady: true,
         }),
       );
