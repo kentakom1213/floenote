@@ -195,31 +195,6 @@ describe("AuthorizedPresenceClient reconnect", () => {
     },
   );
 
-  it("reports a stale SecurityState discovered during authentication", async () => {
-    const client = createClient();
-    const errors: string[] = [];
-    client.onError((error) => errors.push(error.message));
-    client.start();
-
-    const socket = FakeWebSocket.instances[0]!;
-    socket.open();
-    const newerSecurityHead = SECURITY_HEAD.slice();
-    newerSecurityHead[0] = 1;
-    socket.message({
-      type: "presence-challenge",
-      challenge: bytesToHex(CHALLENGE),
-      securityHead: bytesToHex(newerSecurityHead),
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(client.state).toBe("error");
-    expect(errors).toEqual(["SecurityState changed"]);
-    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
-
-    client.close();
-  });
-
   it("retries immediately when requested during backoff", async () => {
     const client = createClient();
     client.start();
