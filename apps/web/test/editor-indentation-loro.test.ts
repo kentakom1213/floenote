@@ -31,7 +31,7 @@ describe("Markdown editor indentation with Loro undo", () => {
     await pressKey(content, { key: "z", ctrlKey: true });
     expect(note.bodyText).toBe("plain text");
 
-    await pressKey(content, { key: "z", ctrlKey: true, shiftKey: true });
+    await pressKey(content, { key: "y", ctrlKey: true });
     expect(note.bodyText).toBe("   plain text");
   });
 
