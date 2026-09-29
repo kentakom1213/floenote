@@ -307,10 +307,150 @@ describe("WorkspaceSyncEngine", () => {
     rightEngine.stop();
   });
 
+  it("converges Project creation, rename, archive, reopen, and Note moves through manifest updates", () => {
+    const base = NoteProject.create();
+    const notes = base.listProjects()[0]!;
+    const note = base.createDocument("Move me", notes.id);
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
+    leftEngine.start();
+    rightEngine.start();
+
+    const messageCount = leftTransport.sent.length;
+    const research = left.createProject("Research");
+    left.renameWorkspaceProject(research.id, "Renamed research");
+    left.archiveProject(research.id);
+    expect(right.getProject(research.id)).toMatchObject({
+      name: "Renamed research",
+      status: "archived",
+    });
+    right.reopenProject(research.id);
+    left.moveDocument(note.id, research.id);
+
+    expect(left.listProjects()).toEqual(right.listProjects());
+    expect(left.getDocumentProjectId(note.id)).toBe(research.id);
+    expect(right.getDocumentProjectId(note.id)).toBe(research.id);
+    expect(right.getDocument(note.id)?.title).toBe("Move me");
+    const projectMessages = leftTransport.sent
+      .slice(messageCount)
+      .map(decodeSyncMessage);
+    expect(projectMessages.length).toBeGreaterThan(0);
+    expect(projectMessages.every((message) => message.type === "manifest-update"))
+      .toBe(true);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
+  it("converges to zero active Projects after different empty Projects are archived offline", () => {
+    const base = NoteProject.create();
+    const notes = base.listProjects()[0]!;
+    const other = base.createProject("Other");
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    left.archiveProject(notes.id);
+    right.archiveProject(other.id);
+
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
+    leftEngine.start();
+    rightEngine.start();
+
+    expect(left.listProjects()).toEqual(right.listProjects());
+    expect(
+      left.listProjects().filter((project) => project.status === "active"),
+    ).toEqual([]);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
+  it("reactivates a Project after concurrent archive and Note creation synchronize", () => {
+    const base = NoteProject.create();
+    const projectId = base.listProjects()[0]!.id;
+    const archiver = cloneProject(base);
+    const creator = cloneProject(base);
+    archiver.archiveProject(projectId);
+    const note = creator.createDocument("Concurrent note", projectId);
+
+    const [archiverTransport, creatorTransport] = createTransportPair();
+    const archiverEngine = new WorkspaceSyncEngine(archiver, archiverTransport);
+    const creatorEngine = new WorkspaceSyncEngine(creator, creatorTransport);
+    archiverEngine.start();
+    creatorEngine.start();
+
+    for (const workspace of [archiver, creator]) {
+      expect(workspace.getProject(projectId)?.status).toBe("active");
+      expect(workspace.getDocumentProjectId(note.id)).toBe(projectId);
+      expect(workspace.getDocument(note.id)?.title).toBe("Concurrent note");
+    }
+
+    archiverEngine.stop();
+    creatorEngine.stop();
+  });
+
+  it("reactivates a Project after concurrent archive and Note move synchronize", () => {
+    const base = NoteProject.create();
+    const destination = base.createProject("Destination");
+    const note = base.createDocument(
+      "Concurrent move",
+      base.listProjects()[0]!.id,
+    );
+    const archiver = cloneProject(base);
+    const mover = cloneProject(base);
+    archiver.archiveProject(destination.id);
+    mover.moveDocument(note.id, destination.id);
+
+    const [archiverTransport, moverTransport] = createTransportPair();
+    const archiverEngine = new WorkspaceSyncEngine(archiver, archiverTransport);
+    const moverEngine = new WorkspaceSyncEngine(mover, moverTransport);
+    archiverEngine.start();
+    moverEngine.start();
+
+    for (const workspace of [archiver, mover]) {
+      expect(workspace.getProject(destination.id)?.status).toBe("active");
+      expect(workspace.getDocumentProjectId(note.id)).toBe(destination.id);
+      expect(workspace.getDocument(note.id)?.title).toBe("Concurrent move");
+    }
+
+    archiverEngine.stop();
+    moverEngine.stop();
+  });
+
+  it("synchronizes Project reactivation when a trashed Note is restored", () => {
+    const base = NoteProject.create();
+    const projectId = base.listProjects()[0]!.id;
+    const note = base.createDocument("Restore me", projectId);
+    base.deleteDocument(note.id);
+    base.archiveProject(projectId);
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
+    leftEngine.start();
+    rightEngine.start();
+
+    left.restoreDocument(note.id);
+
+    for (const workspace of [left, right]) {
+      expect(workspace.getProject(projectId)?.status).toBe("active");
+      expect(workspace.getDocumentProjectId(note.id)).toBe(projectId);
+      expect(workspace.getDocument(note.id)?.title).toBe("Restore me");
+    }
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
   it("reports initial remote full-state completion after applying the remote state", () => {
     const source = NoteProject.create();
     source.createDocument("Bootstrap note");
-    const joined = NoteProject.create(source.id);
+    const joined = NoteProject.empty(source.id);
     const [sourceTransport, joinedTransport] = createTransportPair();
     let completionCount = 0;
 
@@ -328,6 +468,10 @@ describe("WorkspaceSyncEngine", () => {
     expect(joined.listDocuments().map(({ title }) => title)).toContain(
       "Bootstrap note",
     );
+    expect(joined.listProjects()).toEqual(source.listProjects());
+    expect(
+      joined.listProjects().filter((project) => project.name === "Notes"),
+    ).toHaveLength(1);
 
     sourceEngine.stop();
     joinedEngine.stop();
