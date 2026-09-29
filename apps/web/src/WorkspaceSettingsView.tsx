@@ -194,7 +194,7 @@ export function WorkspaceSettingsView({
                             ? connectionMode
                               ? `Connected · ${connectionMode === "relay" ? "Relay" : "Direct"}`
                               : "Connected"
-                            : connectionMode
+                            : isOnline && connectionMode
                               ? `Connecting · ${connectionMode === "relay" ? "Relay" : "Direct"}`
                               : isOnline
                                 ? "Online"

@@ -4,6 +4,8 @@ import {
   AuthorizedPresenceClient,
   type AuthorizedPresenceConnectionState,
   type CreatedInvitation,
+  type ReconnectTransportMode,
+  type SessionId,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
@@ -69,6 +71,37 @@ export function useAuthorizedWorkspaceSync({
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
   const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
+  const shouldQueueReconnectRef = useRef(automaticReconnectEnabled);
+  const onlineDeviceIdsRef = useRef<readonly DeviceId[]>([]);
+  const pendingReconnectSessionsRef = useRef(
+    new Map<
+      DeviceId,
+      { sessionId: SessionId; transportMode: ReconnectTransportMode }
+    >(),
+  );
+
+  shouldQueueReconnectRef.current = automaticReconnectEnabled;
+
+  function drainPendingReconnectSessions(
+    automaticPeerSync: AutomaticPeerSyncManager,
+    deviceIds: readonly DeviceId[],
+  ): void {
+    const onlineDeviceIdSet = new Set(deviceIds);
+
+    for (const [
+      fromDeviceId,
+      { sessionId, transportMode },
+    ] of pendingReconnectSessionsRef.current) {
+      pendingReconnectSessionsRef.current.delete(fromDeviceId);
+      if (!onlineDeviceIdSet.has(fromDeviceId)) continue;
+
+      automaticPeerSync.acceptReconnectSession(
+        fromDeviceId,
+        sessionId,
+        transportMode,
+      );
+    }
+  }
 
   const createInvitation = useCallback(() => {
     const presence = presenceRef.current;
@@ -105,16 +138,33 @@ export function useAuthorizedWorkspaceSync({
       }
     });
     const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
+      onlineDeviceIdsRef.current = deviceIds;
       setOnlineDeviceIds(deviceIds);
-      automaticPeerSyncRef.current?.updateOnlineDevices(deviceIds);
+
+      const automaticPeerSync = automaticPeerSyncRef.current;
+      if (!automaticPeerSync) return;
+
+      automaticPeerSync.updateOnlineDevices(deviceIds);
+      drainPendingReconnectSessions(automaticPeerSync, deviceIds);
     });
     const stopReconnect = presence.onReconnectSession(
       (fromDeviceId, sessionId, transportMode) => {
-        automaticPeerSyncRef.current?.acceptReconnectSession(
-          fromDeviceId,
-          sessionId,
-          transportMode,
-        );
+        const automaticPeerSync = automaticPeerSyncRef.current;
+        if (automaticPeerSync) {
+          automaticPeerSync.acceptReconnectSession(
+            fromDeviceId,
+            sessionId,
+            transportMode,
+          );
+          return;
+        }
+
+        if (shouldQueueReconnectRef.current) {
+          pendingReconnectSessionsRef.current.set(fromDeviceId, {
+            sessionId,
+            transportMode,
+          });
+        }
       },
     );
     const stopErrors = presence.onError((error) => {
@@ -130,8 +180,14 @@ export function useAuthorizedWorkspaceSync({
         presence.retryNow();
       }
     };
+    const closePresenceOnPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) {
+        presence.close();
+      }
+    };
 
     window.addEventListener("online", retryPresenceNow);
+    window.addEventListener("pagehide", closePresenceOnPageHide);
     document.addEventListener("visibilitychange", retryPresenceWhenVisible);
 
     setPresenceError(null);
@@ -139,6 +195,7 @@ export function useAuthorizedWorkspaceSync({
 
     return () => {
       window.removeEventListener("online", retryPresenceNow);
+      window.removeEventListener("pagehide", closePresenceOnPageHide);
       document.removeEventListener(
         "visibilitychange",
         retryPresenceWhenVisible,
@@ -151,6 +208,8 @@ export function useAuthorizedWorkspaceSync({
         presenceRef.current = null;
       }
       presence.close();
+      onlineDeviceIdsRef.current = [];
+      pendingReconnectSessionsRef.current.clear();
       setOnlineDeviceIds([]);
     };
   }, [
@@ -167,8 +226,12 @@ export function useAuthorizedWorkspaceSync({
     automaticPeerSyncRef.current = null;
     setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
 
+    if (!automaticReconnectEnabled) {
+      pendingReconnectSessionsRef.current.clear();
+      return;
+    }
+
     if (
-      !automaticReconnectEnabled ||
       !projectKeyReady ||
       !project ||
       !localDeviceId ||
@@ -198,7 +261,12 @@ export function useAuthorizedWorkspaceSync({
     automaticPeerSyncRef.current = automaticPeerSync;
 
     if (presence.state === "open") {
-      automaticPeerSync.updateOnlineDevices(onlineDeviceIds);
+      const currentOnlineDeviceIds = onlineDeviceIdsRef.current;
+      automaticPeerSync.updateOnlineDevices(currentOnlineDeviceIds);
+      drainPendingReconnectSessions(
+        automaticPeerSync,
+        currentOnlineDeviceIds,
+      );
     }
 
     return () => {

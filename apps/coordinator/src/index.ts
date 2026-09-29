@@ -31,6 +31,7 @@ import {
 } from "@floe-note/security";
 
 import { allocateInvitationForAuthorizedPresence } from "./invitation-authorization.js";
+import { findPresenceSocketsForDevice } from "./presence-routing.js";
 
 interface Env {
   WORKSPACE_COORDINATOR: DurableObjectNamespace<WorkspaceCoordinator>;
@@ -1106,21 +1107,16 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
       return;
     }
 
-    for (const peer of this.ctx.getWebSockets(presenceTag())) {
-      const peerAttachment =
-        peer.deserializeAttachment() as SocketAttachment | null;
-      if (
-        peerAttachment?.kind === "presence" &&
-        peerAttachment.deviceId === peerDeviceId
-      ) {
-        sendJson(peer, {
-          type: "reconnect-session",
-          fromDeviceId: senderDeviceId,
-          sessionId,
-          transportMode,
-        });
-        return;
-      }
+    for (const peer of findPresenceSocketsForDevice(
+      this.ctx.getWebSockets(presenceTag()),
+      peerDeviceId,
+    )) {
+      sendJson(peer, {
+        type: "reconnect-session",
+        fromDeviceId: senderDeviceId,
+        sessionId,
+        transportMode,
+      });
     }
   }
 
