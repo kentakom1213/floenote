@@ -2144,8 +2144,6 @@ function NoteApp({
         pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
       }}
       onCreateProject={createProject}
-      onImportFloeExport={importFloeExport}
-      onImportMarkdownDirectory={importMarkdownDirectoryFiles}
     />
   );
 
