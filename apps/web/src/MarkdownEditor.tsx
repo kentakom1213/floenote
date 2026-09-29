@@ -244,39 +244,44 @@ export function MarkdownEditor({
       : null;
     const view = new EditorView({
       parent: host,
-      extensions: [
-        basicSetup,
-        floeEditorSearch,
-        markdown(),
-        floeMarkdownIndentation,
-        ...floeCodeMirrorAppearance,
-        EditorView.lineWrapping,
-        EditorState.readOnly.of(readOnly),
-        EditorView.editable.of(!readOnly),
-        EditorView.editorAttributes.of({
-          "aria-label": "Markdown editor",
-        }),
-        EditorView.contentAttributes.of({
-          spellcheck: "true",
-          autocapitalize: "sentences",
-        }),
-        ...(undoManager && undoGrouping
-          ? [synchronousLoroUndoKeymap(undoManager), undoGrouping.before]
-          : []),
-        LoroExtensions(
-          binding.doc,
-          undefined,
-          undoManager ?? undefined,
-          binding.getText,
-        ),
-        ...(undoGrouping ? [undoGrouping.after] : []),
-      ],
+      state: EditorState.create({
+        doc: document.bodyText,
+        extensions: [
+          basicSetup,
+          floeEditorSearch,
+          markdown(),
+          floeMarkdownIndentation,
+          ...floeCodeMirrorAppearance,
+          EditorView.lineWrapping,
+          EditorState.readOnly.of(readOnly),
+          EditorView.editable.of(!readOnly),
+          EditorView.editorAttributes.of({
+            "aria-label": "Markdown editor",
+          }),
+          EditorView.contentAttributes.of({
+            spellcheck: "true",
+            autocapitalize: "sentences",
+          }),
+          ...(undoManager && undoGrouping
+            ? [synchronousLoroUndoKeymap(undoManager), undoGrouping.before]
+            : []),
+          LoroExtensions(
+            binding.doc,
+            undefined,
+            undoManager ?? undefined,
+            binding.getText,
+          ),
+          ...(undoGrouping ? [undoGrouping.after] : []),
+        ],
+      }),
     });
 
-    // loro-codemirror 0.3.3 can leave its initialization flag set when the
-    // editor and Loro text are both empty. Its next real edit is then mistaken
-    // for the initialization dispatch and dropped. Let the binding's init
-    // microtask run first, then send a no-op transaction to clear that flag.
+    // Initialize CodeMirror from the current NoteDocument synchronously instead
+    // of relying on loro-codemirror's initialization microtask. In
+    // loro-codemirror 0.3.3 that microtask still sets its initialization flag
+    // before noticing that CodeMirror and Loro already match, then returns
+    // without clearing it. Let that microtask run first, then send a no-op
+    // transaction so the first real user edit is not dropped.
     // Remove this workaround once the upstream fix is published.
     void Promise.resolve().then(() => {
       view.dispatch({});
