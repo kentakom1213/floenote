@@ -82,6 +82,27 @@ export function useAuthorizedWorkspaceSync({
 
   shouldQueueReconnectRef.current = automaticReconnectEnabled;
 
+  function drainPendingReconnectSessions(
+    automaticPeerSync: AutomaticPeerSyncManager,
+    deviceIds: readonly DeviceId[],
+  ): void {
+    const onlineDeviceIdSet = new Set(deviceIds);
+
+    for (const [
+      fromDeviceId,
+      { sessionId, transportMode },
+    ] of pendingReconnectSessionsRef.current) {
+      pendingReconnectSessionsRef.current.delete(fromDeviceId);
+      if (!onlineDeviceIdSet.has(fromDeviceId)) continue;
+
+      automaticPeerSync.acceptReconnectSession(
+        fromDeviceId,
+        sessionId,
+        transportMode,
+      );
+    }
+  }
+
   const createInvitation = useCallback(() => {
     const presence = presenceRef.current;
     if (!presence) {
@@ -119,7 +140,12 @@ export function useAuthorizedWorkspaceSync({
     const stopDevices = presence.onOnlineDevicesChange((deviceIds) => {
       onlineDeviceIdsRef.current = deviceIds;
       setOnlineDeviceIds(deviceIds);
-      automaticPeerSyncRef.current?.updateOnlineDevices(deviceIds);
+
+      const automaticPeerSync = automaticPeerSyncRef.current;
+      if (!automaticPeerSync) return;
+
+      automaticPeerSync.updateOnlineDevices(deviceIds);
+      drainPendingReconnectSessions(automaticPeerSync, deviceIds);
     });
     const stopReconnect = presence.onReconnectSession(
       (fromDeviceId, sessionId, transportMode) => {
@@ -237,21 +263,10 @@ export function useAuthorizedWorkspaceSync({
     if (presence.state === "open") {
       const currentOnlineDeviceIds = onlineDeviceIdsRef.current;
       automaticPeerSync.updateOnlineDevices(currentOnlineDeviceIds);
-
-      const onlineDeviceIdSet = new Set(currentOnlineDeviceIds);
-      for (const [
-        fromDeviceId,
-        { sessionId, transportMode },
-      ] of pendingReconnectSessionsRef.current) {
-        pendingReconnectSessionsRef.current.delete(fromDeviceId);
-        if (!onlineDeviceIdSet.has(fromDeviceId)) continue;
-
-        automaticPeerSync.acceptReconnectSession(
-          fromDeviceId,
-          sessionId,
-          transportMode,
-        );
-      }
+      drainPendingReconnectSessions(
+        automaticPeerSync,
+        currentOnlineDeviceIds,
+      );
     }
 
     return () => {
