@@ -16,6 +16,7 @@ type SidebarNoteRowProps = {
   selected: boolean;
   onSelect: (documentId: DocumentId) => void;
   onDelete: (documentId: DocumentId) => void;
+  onMove: (documentId: DocumentId) => void;
 };
 
 export function SidebarNoteRow({
@@ -26,6 +27,7 @@ export function SidebarNoteRow({
   selected,
   onSelect,
   onDelete,
+  onMove,
 }: SidebarNoteRowProps) {
   const menuRef = useRef<HTMLDetailsElement>(null);
   useDismissibleDetails(menuRef);
@@ -75,6 +77,16 @@ export function SidebarNoteRow({
           <EllipsisIcon />
         </summary>
         <div className="note-row-menu-popover">
+          <button
+            className="note-row-menu-item"
+            type="button"
+            onClick={() => {
+              menuRef.current?.removeAttribute("open");
+              onMove(id);
+            }}
+          >
+            Move note…
+          </button>
           <button
             className="note-row-menu-item danger"
             type="button"

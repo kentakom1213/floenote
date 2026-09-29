@@ -7,7 +7,7 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   const { projectId, documentId } = await createSecuredProject(page);
   await expect(page.locator(".brand-row")).toContainText("Personal");
   await expect(page.locator(".project-slot")).toHaveCount(0);
-  await expect(page.locator(".sidebar-layout")).not.toContainText("Project");
+  await expect(page.getByLabel("Switch Project, current Notes")).toBeVisible();
   await expect(page.locator(".sidebar-section-label")).toHaveText("Notes");
 
   await page.getByLabel("Switch workspace").click();

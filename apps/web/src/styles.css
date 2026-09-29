@@ -380,7 +380,7 @@ input:focus-visible {
   align-items: center;
   gap: 9px;
   border-radius: 10px;
-  padding: 7px 8px;
+  padding: 4px 8px;
   cursor: pointer;
   user-select: none;
 }
@@ -398,8 +398,9 @@ input:focus-visible {
 .project-switcher-name {
   display: block;
   overflow: hidden;
-  font-size: 15px;
-  font-weight: 650;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -494,6 +495,111 @@ input:focus-visible {
   color: var(--color-danger);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.workspace-project-control {
+  margin: 8px 8px 0;
+}
+
+.workspace-project-selector {
+  position: relative;
+}
+
+.workspace-project-selector > summary {
+  list-style: none;
+}
+
+.workspace-project-selector > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-project-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 17px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workspace-project-trigger:hover,
+.workspace-project-selector[open] .workspace-project-trigger {
+  background: var(--color-surface-hover);
+}
+
+.workspace-project-trigger span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-project-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  width: max(220px, 100%);
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.workspace-project-menu-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-text);
+  background: transparent;
+  text-align: left;
+}
+
+.workspace-project-menu-item:hover,
+.zero-project-actions button:hover,
+.move-project-list button:hover {
+  background: var(--color-surface-hover);
+}
+
+.workspace-project-menu-item:disabled {
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.zero-project-actions {
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+}
+
+.zero-project-actions button,
+.move-project-list button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-text);
+  background: transparent;
+  text-align: left;
+}
+
+.archived-project-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0;
+}
+
+.move-project-list {
+  display: grid;
+  margin: 12px 0;
 }
 
 .sidebar-navigation {
