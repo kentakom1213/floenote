@@ -261,6 +261,8 @@ function ReconnectRaceHarness({
   vaultSession,
   projectKeyReady,
 }: ReconnectRaceHarnessProps) {
+  const handleSecurityStateChanged = useCallback(() => {}, []);
+
   useAuthorizedWorkspaceSync({
     coordinatorBaseUrl: "https://coordinator.example",
     project,
@@ -270,7 +272,7 @@ function ReconnectRaceHarness({
     vaultSession,
     automaticReconnectEnabled: true,
     turnCredentialEndpoint: null,
-    onSecurityStateChanged: () => {},
+    onSecurityStateChanged: handleSecurityStateChanged,
   });
 
   return null;
