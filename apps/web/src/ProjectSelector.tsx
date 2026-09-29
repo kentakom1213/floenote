@@ -13,8 +13,11 @@ type ProjectSelectorProps = {
   activeNoteCounts: ReadonlyMap<ProjectId, number>;
   onSelect: (id: ProjectId) => void;
   onCreate: (name: string) => void;
+  onImportFloeExport: (file: File) => Promise<void>;
+  onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
   onRename: (id: ProjectId, name: string) => void;
   onArchive: (id: ProjectId) => void;
+  onExport: (id: ProjectId) => void;
   onReopen: (id: ProjectId) => void;
 };
 
@@ -24,18 +27,31 @@ export function ProjectSelector({
   activeNoteCounts,
   onSelect,
   onCreate,
+  onImportFloeExport,
+  onImportMarkdownDirectory,
   onRename,
   onArchive,
+  onExport,
   onReopen,
 }: ProjectSelectorProps) {
   const menuRef = useRef<HTMLDetailsElement>(null);
   useDismissibleDetails(menuRef);
   const [dialog, setDialog] = useState<
-    "create" | "manage" | "archive" | "archived" | null
+    | "create"
+    | "create-blank"
+    | "import-floe"
+    | "import-markdown"
+    | "manage"
+    | "archive"
+    | "archived"
+    | null
   >(null);
   const [dialogProjectId, setDialogProjectId] = useState<ProjectId | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [exportState, setExportState] = useState<"idle" | "success">("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
   const active = projects.filter((project) => project.status === "active");
   const archived = projects.filter((project) => project.status === "archived");
   const selected = active.find((project) => project.id === selectedId);
@@ -48,12 +64,14 @@ export function ProjectSelector({
     setDialogProjectId(project?.id ?? null);
     setName(next === "manage" ? project?.name ?? "" : "");
     setError(null);
+    setExportState("idle");
+    setExportError(null);
     setDialog(next);
   }
 
   function submitName(): void {
     try {
-      if (dialog === "create") onCreate(name);
+      if (dialog === "create-blank") onCreate(name);
       else if (dialog === "manage" && dialogProject) {
         onRename(dialogProject.id, name);
       }
@@ -62,6 +80,53 @@ export function ProjectSelector({
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not save Project",
+      );
+    }
+  }
+
+  async function importFloe(file: File): Promise<void> {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onImportFloeExport(file);
+      setDialog(null);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not import Floe export",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importMarkdown(files: readonly File[]): Promise<void> {
+    if (busy || files.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onImportMarkdownDirectory(files);
+      setDialog(null);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not import Markdown directory",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function exportProject(): void {
+    if (!dialogProject) return;
+    try {
+      onExport(dialogProject.id);
+      setExportError(null);
+      setExportState("success");
+    } catch (caught) {
+      setExportError(
+        caught instanceof Error ? caught.message : "Could not export Project",
       );
     }
   }
@@ -101,7 +166,7 @@ export function ProjectSelector({
           >
             <span className="workspace-project-action">
               <PlusIcon />
-              New Project…
+              New / Import Project…
             </span>
           </button>
           {selected ? (
@@ -132,7 +197,7 @@ export function ProjectSelector({
       {active.length === 0 ? (
         <div className="zero-project-actions">
           <button type="button" onClick={() => openDialog("create")}>
-            Create Project
+            New / Import Project
           </button>
           <button type="button" onClick={() => openDialog("archived")}>
             Reopen archived Project
@@ -141,17 +206,113 @@ export function ProjectSelector({
       ) : null}
 
       {dialog && typeof document !== "undefined" ? createPortal(
-        <Modal labelledBy="project-dialog-title" onClose={() => setDialog(null)}>
+        <Modal
+          labelledBy="project-dialog-title"
+          disabled={busy}
+          onClose={() => setDialog(null)}
+        >
           <h2 id="project-dialog-title">
             {dialog === "create"
-              ? "New Project"
-              : dialog === "manage"
-                ? "Manage Project"
-                : dialog === "archive"
-                  ? "Archive Project"
-                  : "Archived projects"}
+              ? "New / Import Project"
+              : dialog === "create-blank"
+                ? "Blank Project"
+                : dialog === "import-floe"
+                  ? "Import Floe export"
+                  : dialog === "import-markdown"
+                    ? "Import Markdown directory"
+                    : dialog === "manage"
+                      ? "Manage Project"
+                      : dialog === "archive"
+                        ? "Archive Project"
+                        : "Archived projects"}
           </h2>
-          {dialog === "create" || (dialog === "manage" && dialogProject) ? (
+          {dialog === "create" ? (
+            <>
+              <p className="dialog-description">
+                Add a new Project to this Workspace.
+              </p>
+              <div className="new-project-source-list">
+                <button
+                  className="new-project-source-option"
+                  type="button"
+                  autoFocus
+                  onClick={() => openDialog("create-blank")}
+                >
+                  <strong>Blank Project</strong>
+                  <span>Start an empty Project in this Workspace.</span>
+                </button>
+                <button
+                  className="new-project-source-option"
+                  type="button"
+                  onClick={() => openDialog("import-floe")}
+                >
+                  <strong>Import Floe export</strong>
+                  <span>Add a portable Project from a .floe.zip archive.</span>
+                </button>
+                <button
+                  className="new-project-source-option"
+                  type="button"
+                  onClick={() => openDialog("import-markdown")}
+                >
+                  <strong>Import Markdown directory</strong>
+                  <span>Add one Project from a folder of Markdown files.</span>
+                </button>
+              </div>
+            </>
+          ) : dialog === "import-floe" || dialog === "import-markdown" ? (
+            <>
+              <p className="dialog-description">
+                Create a new Project in this Workspace from{" "}
+                {dialog === "import-floe"
+                  ? "a portable .floe.zip export"
+                  : "a Markdown directory"}.
+                {dialog === "import-markdown"
+                  ? " Nested directories are flattened."
+                  : ""}
+              </p>
+              <label className="dialog-field">
+                <span>
+                  {dialog === "import-floe" ? "Floe export" : "Markdown directory"}
+                </span>
+                <input
+                  autoFocus
+                  type="file"
+                  multiple={dialog === "import-markdown"}
+                  accept={
+                    dialog === "import-floe"
+                      ? ".floe.zip,application/zip"
+                      : undefined
+                  }
+                  disabled={busy}
+                  ref={(input) => {
+                    if (dialog === "import-markdown") {
+                      input?.setAttribute("webkitdirectory", "");
+                    }
+                  }}
+                  onChange={(event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = "";
+                    if (dialog === "import-floe" && files[0]) {
+                      void importFloe(files[0]);
+                    } else if (dialog === "import-markdown") {
+                      void importMarkdown(files);
+                    }
+                  }}
+                />
+              </label>
+              {error ? <p className="dialog-error" role="alert">{error}</p> : null}
+              <div className="dialog-actions">
+                <button
+                  className="dialog-secondary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => openDialog("create")}
+                >
+                  Back
+                </button>
+              </div>
+            </>
+          ) : dialog === "create-blank" || (dialog === "manage" && dialogProject) ? (
             <>
               <form
                 onSubmit={(event) => {
@@ -180,12 +341,34 @@ export function ProjectSelector({
                     Cancel
                   </button>
                   <button className="dialog-primary-button" type="submit">
-                    {dialog === "create" ? "Create Project" : "Save name"}
+                    {dialog === "create-blank" ? "Create Project" : "Save name"}
                   </button>
                 </div>
               </form>
               {dialog === "manage" && dialogProject ? (
-                <section className="project-management-archive">
+                <section className="project-management-section">
+                  <h3>Export Project</h3>
+                  <p>
+                    Download this Project as a portable archive with readable
+                    Markdown. This is not an encrypted Workspace backup.
+                  </p>
+                  <button
+                    className="dialog-secondary-button"
+                    type="button"
+                    onClick={exportProject}
+                  >
+                    Export Project
+                  </button>
+                  {exportState === "success" ? (
+                    <p role="status">Project exported.</p>
+                  ) : null}
+                  {exportError ? (
+                    <p className="dialog-error" role="alert">{exportError}</p>
+                  ) : null}
+                </section>
+              ) : null}
+              {dialog === "manage" && dialogProject ? (
+                <section className="project-management-section">
                   <h3>Archive Project</h3>
                   <p>
                     {activeNoteCounts.get(dialogProject.id)

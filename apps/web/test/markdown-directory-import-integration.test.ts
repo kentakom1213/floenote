@@ -16,7 +16,8 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import {
-  importMarkdownDirectory,
+  createWorkspaceFromMarkdownDirectory,
+  importMarkdownDirectoryIntoWorkspace,
 } from "../src/markdown-directory-import-integration.js";
 import type { BrowserMarkdownDirectoryFile } from "../src/markdown-directory-reader.js";
 import type {
@@ -43,7 +44,7 @@ describe("Markdown directory import integration", () => {
     const coordinator = new FakeCoordinator();
     const storage = new FakeStorage();
 
-    const result = await importMarkdownDirectory(
+    const result = await createWorkspaceFromMarkdownDirectory(
       [
         markdownFile("ideas.md", "my-notes/one/ideas.md", "# One\n"),
         markdownFile("ideas.markdown", "my-notes/two/ideas.markdown", "# Two\n"),
@@ -53,7 +54,9 @@ describe("Markdown directory import integration", () => {
     );
 
     expect(result.isNew).toBe(false);
-    expect(result.project.name).toBe("my-notes");
+    expect(result.project.name).toBe("Personal");
+    expect(result.project.listProjects()).toHaveLength(1);
+    expect(result.project.listProjects()[0]).toMatchObject({ name: "my-notes", status: "active" });
     expect(result.project.getAllDocuments().map((document) => ({
       title: document.title,
       body: document.bodyText,
@@ -101,7 +104,7 @@ describe("Markdown directory import integration", () => {
       markdownFile("note.md", "notes/note.md", "body"),
     ];
 
-    const first = await importMarkdownDirectory(
+    const first = await createWorkspaceFromMarkdownDirectory(
       files,
       {
         session: new FakeSession(),
@@ -111,7 +114,7 @@ describe("Markdown directory import integration", () => {
       },
       IMPORTED_AT,
     );
-    const second = await importMarkdownDirectory(
+    const second = await createWorkspaceFromMarkdownDirectory(
       files,
       {
         session: new FakeSession(),
@@ -141,7 +144,7 @@ describe("Markdown directory import integration", () => {
     };
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [invalidUtf8],
         { session, coordinator, storage, runtime },
         IMPORTED_AT,
@@ -167,7 +170,7 @@ describe("Markdown directory import integration", () => {
     };
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [unreadable],
         { session, coordinator, storage, runtime },
         IMPORTED_AT,
@@ -185,7 +188,7 @@ describe("Markdown directory import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [markdownFile("image.png", "notes/image.png", "png")],
         { session, coordinator, storage, runtime },
         IMPORTED_AT,
@@ -205,7 +208,7 @@ describe("Markdown directory import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [markdownFile("note.md", "notes/note.md", "body")],
         { session, coordinator, storage, runtime },
         IMPORTED_AT,
@@ -222,7 +225,7 @@ describe("Markdown directory import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [markdownFile("note.md", "notes/note.md", "body")],
         {
           session,
@@ -249,7 +252,7 @@ describe("Markdown directory import integration", () => {
     storage.failure = new Error("Local persistence failed");
 
     await expect(
-      importMarkdownDirectory(
+      createWorkspaceFromMarkdownDirectory(
         [markdownFile("note.md", "notes/note.md", "body")],
         {
           session,
@@ -277,7 +280,7 @@ describe("Markdown directory import integration", () => {
     existing.renameProject("Existing");
     storage.storeExisting(existing);
 
-    const result = await importMarkdownDirectory(
+    const result = await createWorkspaceFromMarkdownDirectory(
       [markdownFile("note.md", "notes/note.md", "body")],
       {
         session: new FakeSession(),
@@ -291,6 +294,58 @@ describe("Markdown directory import integration", () => {
     expect(storage.projects.has(existing.id)).toBe(true);
     expect(storage.projects.has(result.project.id)).toBe(true);
     expect(storage.projects.size).toBe(2);
+  });
+
+  it("adds one flattened Project to the current Workspace without Workspace genesis", async () => {
+    const workspace = NoteProject.create();
+    workspace.renameProject("Existing Workspace");
+    const existingProjectId = workspace.listProjects()[0]!.id;
+    const existingNoteId = workspace.createDocument("Existing", existingProjectId).id;
+    const session = new FakeSession();
+    const coordinator = new FakeCoordinator();
+    const storage = new FakeStorage();
+
+    const imported = await importMarkdownDirectoryIntoWorkspace(
+      [
+        markdownFile("inbox.md", "research/inbox.md", "---\nfrontmatter\n---\n"),
+        markdownFile("paper-a.markdown", "research/papers/paper-a.markdown", "# Paper"),
+        markdownFile("hidden.md", "research/.hidden/hidden.md", "ignored"),
+      ],
+      workspace,
+      IMPORTED_AT,
+    );
+
+    expect(workspace.name).toBe("Existing Workspace");
+    expect(workspace.listProjects()).toHaveLength(2);
+    expect(imported).toMatchObject({ name: "research", status: "active" });
+    expect(workspace.getDocumentProjectId(existingNoteId)).toBe(existingProjectId);
+    const importedNotes = workspace.listDocuments().filter(({ id }) => workspace.getDocumentProjectId(id) === imported.id);
+    expect(importedNotes.map(({ title }) => title)).toEqual(["inbox", "paper-a"]);
+    expect(importedNotes.map(({ id }) => workspace.getDocument(id)?.bodyText)).toEqual(["---\nfrontmatter\n---\n", "# Paper"]);
+    expect(importedNotes.every(({ id }) => id !== existingNoteId)).toBe(true);
+    expect(importedNotes.map(({ id }) => workspace.getDocument(id)?.createdAt)).toEqual([IMPORTED_AT, IMPORTED_AT]);
+    expect(importedNotes.map(({ id }) => workspace.getDocument(id)?.updatedAt)).toEqual([IMPORTED_AT, IMPORTED_AT]);
+    expect(importedNotes.map(({ id }) => workspace.getDocument(id)?.tags)).toEqual([[], []]);
+    expect(coordinator.transitions).toHaveLength(0);
+    expect(storage.initializeCalls).toBe(0);
+    expect(session.createdKeys).toHaveLength(0);
+  });
+
+  it("leaves the current Workspace unchanged when a Markdown file is invalid", async () => {
+    const workspace = NoteProject.create();
+    const before = workspace.exportManifestSnapshot();
+    const invalidFile: BrowserMarkdownDirectoryFile = {
+      name: "broken.md",
+      webkitRelativePath: "research/broken.md",
+      async arrayBuffer() {
+        return Uint8Array.of(0xc3, 0x28).buffer;
+      },
+    };
+
+    await expect(importMarkdownDirectoryIntoWorkspace([invalidFile], workspace, IMPORTED_AT))
+      .rejects.toThrow("Markdown file is not valid UTF-8: broken.md");
+    expect(workspace.exportManifestSnapshot()).toEqual(before);
+    expect(workspace.listProjects()).toHaveLength(1);
   });
 });
 

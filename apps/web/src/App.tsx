@@ -104,8 +104,14 @@ import { clearAllNoteRecency } from "./note-recency.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { deriveEntrySurface } from "./onboarding-state.js";
 import { exportProjectToBrowser } from "./portable-export-download.js";
-import { importPortableProjectArchive } from "./portable-import-integration.js";
-import { importMarkdownDirectory } from "./markdown-directory-import-integration.js";
+import {
+  createWorkspaceFromPortableProjectArchive,
+  importPortableProjectIntoWorkspace,
+} from "./portable-import-integration.js";
+import {
+  createWorkspaceFromMarkdownDirectory,
+  importMarkdownDirectoryIntoWorkspace,
+} from "./markdown-directory-import-integration.js";
 import { ProjectSettingsView } from "./ProjectSettingsView.js";
 import { resolveRootRoute } from "./root-route.js";
 import { ProjectSwitcher } from "./ProjectSwitcher.js";
@@ -1355,6 +1361,28 @@ function NoteApp({
     }
   }
 
+  async function openImportedWorkspace(
+    result: OpenedProject,
+    session: DeviceVaultSession,
+  ): Promise<void> {
+    const summaries = await workspaceStorage.listWorkspaces(session);
+    const importedProjectId = result.project.listProjects()[0]!.id;
+    const firstId = firstNoteInProject(result.project, importedProjectId);
+    resetProjectSecurityUiState();
+    setSelectedId(firstId);
+    writeLastDocumentId(result.project.id, firstId);
+    writeSelectedProjectId(result.project.id, importedProjectId);
+    setMainView("note");
+    pushRoute(
+      firstId
+        ? buildNoteUrl(result.project.id, firstId)
+        : buildWorkspaceUrl(result.project.id),
+    );
+    setOpenedProject(result);
+    setProjectSummaries(withActiveProjectSummary(summaries, result.project));
+    setProjectCatalogReady(true);
+  }
+
   async function importFloeExport(archive: Uint8Array): Promise<void> {
     if (projectSwitching) {
       throw new Error("Another Workspace operation is already in progress");
@@ -1368,20 +1396,12 @@ function NoteApp({
     setProjectSwitching(true);
 
     try {
-      const result = await importPortableProjectArchive(archive, {
+      const result = await createWorkspaceFromPortableProjectArchive(archive, {
         session,
         coordinator: securityCoordinator,
         storage: workspaceStorage,
       });
-      const summaries = await workspaceStorage.listWorkspaces(session);
-      resetProjectSecurityUiState();
-      setMainView("note");
-      pushRoute(buildWorkspaceUrl(result.project.id));
-      setOpenedProject(result);
-      setProjectSummaries(
-        withActiveProjectSummary(summaries, result.project),
-      );
-      setProjectCatalogReady(true);
+      await openImportedWorkspace(result, session);
     } finally {
       setProjectSwitching(false);
     }
@@ -1402,20 +1422,12 @@ function NoteApp({
     setProjectSwitching(true);
 
     try {
-      const result = await importMarkdownDirectory(files, {
+      const result = await createWorkspaceFromMarkdownDirectory(files, {
         session,
         coordinator: securityCoordinator,
         storage: workspaceStorage,
       });
-      const summaries = await workspaceStorage.listWorkspaces(session);
-      resetProjectSecurityUiState();
-      setMainView("note");
-      pushRoute(buildWorkspaceUrl(result.project.id));
-      setOpenedProject(result);
-      setProjectSummaries(
-        withActiveProjectSummary(summaries, result.project),
-      );
-      setProjectCatalogReady(true);
+      await openImportedWorkspace(result, session);
     } finally {
       setProjectSwitching(false);
     }
@@ -2015,6 +2027,22 @@ function NoteApp({
     selectWorkspaceProject(created.id);
   }
 
+  async function importFloeProjectIntoWorkspace(file: File): Promise<void> {
+    const archive = new Uint8Array(await file.arrayBuffer());
+    const imported = importPortableProjectIntoWorkspace(archive, activeProject);
+    selectWorkspaceProject(imported.id);
+  }
+
+  async function importMarkdownProjectIntoWorkspace(
+    files: readonly File[],
+  ): Promise<void> {
+    const imported = await importMarkdownDirectoryIntoWorkspace(
+      files,
+      activeProject,
+    );
+    selectWorkspaceProject(imported.id);
+  }
+
   function archiveWorkspaceProject(projectId: ProjectId): void {
     activeProject.archiveProject(projectId);
     const nextId = resolveSelectedProjectId(activeProject, null, null);
@@ -2120,8 +2148,11 @@ function NoteApp({
       activeNoteCounts={activeNoteCounts}
       onSelect={selectWorkspaceProject}
       onCreate={createWorkspaceProject}
+      onImportFloeExport={importFloeProjectIntoWorkspace}
+      onImportMarkdownDirectory={importMarkdownProjectIntoWorkspace}
       onRename={(id, name) => activeProject.renameWorkspaceProject(id, name)}
       onArchive={archiveWorkspaceProject}
+      onExport={(id) => exportProjectToBrowser(activeProject, id)}
       onReopen={(id) => {
         activeProject.reopenProject(id);
         selectWorkspaceProject(id);
@@ -2254,9 +2285,6 @@ function NoteApp({
           activeProject.getDeviceDisplayName(deviceId)
         }
         onRenameProject={(name) => activeProject.renameProject(name)}
-        onExportProject={async () => {
-          exportProjectToBrowser(activeProject);
-        }}
         onRemoveProjectFromDevice={removeActiveProjectFromDevice}
         onAddDevice={() => {
           setInvitationHostActive(true);

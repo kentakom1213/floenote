@@ -322,7 +322,7 @@ export function ProjectEmptyState({
             </span>
             <span className="onboarding-action-copy">
               <strong>Import Floe export</strong>
-              <small>Import a portable .floe.zip archive</small>
+              <small>Create a Personal Workspace with the imported Project</small>
             </span>
             <span className="onboarding-action-arrow" aria-hidden="true">
               →
@@ -341,7 +341,7 @@ export function ProjectEmptyState({
             </span>
             <span className="onboarding-action-copy">
               <strong>Import Markdown directory</strong>
-              <small>Import a folder of Markdown files</small>
+              <small>Create a Personal Workspace with one imported Project</small>
             </span>
             <span className="onboarding-action-arrow" aria-hidden="true">
               →
@@ -407,7 +407,8 @@ export function ProjectEmptyState({
           <h2 id="empty-import-project-title">Import Floe export</h2>
           <p className="dialog-description">
             Select a portable .floe.zip export. Floe Note validates the entire
-            archive first, then creates a new independent Workspace.
+            archive first, then creates a new Personal Workspace containing only
+            the imported Project and a fresh security identity.
           </p>
           <label className="dialog-field">
             <span>Floe export</span>
@@ -451,8 +452,8 @@ export function ProjectEmptyState({
           <h2 id="empty-import-markdown-title">Import Markdown directory</h2>
           <p className="dialog-description">
             Select a directory of Markdown files. Floe Note reads and validates
-            all importable files before creating a new independent Workspace.
-            Nested directories are flattened.
+            all importable files before creating a new Personal Workspace with
+            one Project. Nested directories are flattened.
           </p>
           <label className="dialog-field">
             <span>Markdown directory</span>

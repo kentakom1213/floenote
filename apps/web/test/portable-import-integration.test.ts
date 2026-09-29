@@ -22,7 +22,8 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import {
-  importPortableProjectArchive,
+  createWorkspaceFromPortableProjectArchive,
+  importPortableProjectIntoWorkspace,
 } from "../src/portable-import-integration.js";
 import type {
   ProjectGenesisCoordinator,
@@ -42,7 +43,7 @@ const runtime: ProjectGenesisRuntime = {
 };
 
 describe("portable Floe import integration", () => {
-  it("creates a new independent Workspace and preserves portable content", async () => {
+  it("creates a Personal Workspace with only the imported Project", async () => {
     const source = sourceProject();
     const sourceDocumentIds = source.getAllDocuments().map(({ id }) => id);
     const archive = exportProject(source);
@@ -50,7 +51,7 @@ describe("portable Floe import integration", () => {
     const coordinator = new FakeCoordinator();
     const storage = new FakeStorage();
 
-    const result = await importPortableProjectArchive(archive, {
+    const result = await createWorkspaceFromPortableProjectArchive(archive, {
       session,
       coordinator,
       storage,
@@ -63,7 +64,10 @@ describe("portable Floe import integration", () => {
         ({ id }) => !sourceDocumentIds.includes(id),
       ),
     ).toBe(true);
-    expect(result.project.name).toBe("Portable source");
+    expect(result.project.name).toBe("Personal");
+    expect(result.project.listProjects()).toHaveLength(1);
+    expect(result.project.listProjects()[0]).toMatchObject({ name: "Portable source", status: "active" });
+    expect(result.project.listProjects()[0]!.id).not.toBe(source.listProjects()[0]!.id);
     expect(projectContents(result.project)).toEqual([
       {
         title: "Duplicate",
@@ -109,7 +113,7 @@ describe("portable Floe import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importPortableProjectArchive(Uint8Array.of(1, 2, 3), {
+      createWorkspaceFromPortableProjectArchive(Uint8Array.of(1, 2, 3), {
         session,
         coordinator,
         storage,
@@ -131,7 +135,7 @@ describe("portable Floe import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importPortableProjectArchive(exportProject(sourceProject()), {
+      createWorkspaceFromPortableProjectArchive(exportProject(sourceProject()), {
         session,
         coordinator,
         storage,
@@ -155,7 +159,7 @@ describe("portable Floe import integration", () => {
     const storage = new FakeStorage();
 
     await expect(
-      importPortableProjectArchive(exportProject(sourceProject()), {
+      createWorkspaceFromPortableProjectArchive(exportProject(sourceProject()), {
         session,
         coordinator,
         storage,
@@ -175,7 +179,7 @@ describe("portable Floe import integration", () => {
     storage.failure = new Error("Local persistence failed");
 
     await expect(
-      importPortableProjectArchive(exportProject(sourceProject()), {
+      createWorkspaceFromPortableProjectArchive(exportProject(sourceProject()), {
         session,
         coordinator,
         storage,
@@ -197,7 +201,7 @@ describe("portable Floe import integration", () => {
     existing.renameProject("Existing");
     storage.storeExisting(existing);
 
-    const result = await importPortableProjectArchive(
+    const result = await createWorkspaceFromPortableProjectArchive(
       exportProject(sourceProject()),
       {
         session: new FakeSession(),
@@ -214,7 +218,7 @@ describe("portable Floe import integration", () => {
 
   it("reloads the imported Workspace from persisted snapshots", async () => {
     const storage = new FakeStorage();
-    const result = await importPortableProjectArchive(
+    const result = await createWorkspaceFromPortableProjectArchive(
       exportProject(sourceProject()),
       {
         session: new FakeSession(),
@@ -227,13 +231,14 @@ describe("portable Floe import integration", () => {
     const reloaded = storage.reload(result.project.id);
 
     expect(reloaded.id).toBe(result.project.id);
-    expect(reloaded.name).toBe("Portable source");
+    expect(reloaded.name).toBe("Personal");
+    expect(reloaded.listProjects().map(({ name }) => name)).toEqual(["Portable source"]);
     expect(projectContents(reloaded)).toEqual(projectContents(result.project));
   });
 
   it("round-trips export to import without restoring source identity", async () => {
     const source = sourceProject();
-    const imported = await importPortableProjectArchive(exportProject(source), {
+    const imported = await createWorkspaceFromPortableProjectArchive(exportProject(source), {
       session: new FakeSession(),
       coordinator: new FakeCoordinator(),
       storage: new FakeStorage(),
@@ -241,14 +246,78 @@ describe("portable Floe import integration", () => {
     });
 
     expect(imported.project.id).not.toBe(source.id);
-    expect(imported.project.name).toBe(source.name);
+    expect(imported.project.name).toBe("Personal");
+    expect(imported.project.listProjects()[0]!.name).toBe(source.listProjects()[0]!.name);
     expect(projectContents(imported.project)).toEqual(projectContents(source));
+  });
+
+  it("imports one fresh Project into an existing Workspace without genesis", () => {
+    const source = sourceProject();
+    const target = NoteProject.create();
+    target.renameProject("Existing Workspace");
+    const firstProjectId = target.listProjects()[0]!.id;
+    target.createDocument("Existing note", firstProjectId);
+    target.createProject("Portable source");
+    const deviceId = createDeviceId();
+    target.setDeviceDisplayName(deviceId, "Existing device");
+    const originalWorkspaceId = target.id;
+    const originalDocumentIds = target.getAllDocuments().map(({ id }) => id);
+    const sourceDocumentIds = source.getAllDocuments().map(({ id }) => id);
+
+    const imported = importPortableProjectIntoWorkspace(exportProject(source), target);
+
+    expect(target.id).toBe(originalWorkspaceId);
+    expect(target.name).toBe("Existing Workspace");
+    expect(target.getDeviceDisplayName(deviceId)).toBe("Existing device");
+    expect(target.listProjects()).toHaveLength(3);
+    expect(target.listProjects().filter(({ name }) => name === "Portable source")).toHaveLength(2);
+    expect(target.getProject(firstProjectId)?.name).toBe("Notes");
+    expect(imported).toMatchObject({ name: "Portable source", status: "active" });
+    expect(imported.id).not.toBe(source.listProjects()[0]!.id);
+    const importedNotes = target.listDocuments().filter(
+      ({ id }) => target.getDocumentProjectId(id) === imported.id,
+    );
+    expect(importedNotes).toHaveLength(2);
+    expect(importedNotes.every(({ id }) => !sourceDocumentIds.includes(id) && !originalDocumentIds.includes(id))).toBe(true);
+    expect(projectContents(target).slice(1)).toEqual(projectContents(source));
+    expect(target.getDocumentProjectId(originalDocumentIds[0]!)).toBe(firstProjectId);
+
+    const reloaded = NoteProject.fromSnapshot(
+      target.id,
+      target.exportManifestSnapshot(),
+      target.getAllDocuments().map((document) => NoteDocument.fromSnapshot(document.id, document.exportSnapshot())),
+    );
+    expect(reloaded.listProjects().map(({ name }) => name).sort()).toEqual(["Notes", "Portable source", "Portable source"].sort());
+    expect(reloaded.listDocuments().filter(({ id }) => reloaded.getDocumentProjectId(id) === imported.id)).toHaveLength(2);
+  });
+
+  it("leaves an existing Workspace unchanged when the archive is invalid", () => {
+    const target = NoteProject.create();
+    const before = target.exportManifestSnapshot();
+    expect(() => importPortableProjectIntoWorkspace(Uint8Array.of(1, 2, 3), target)).toThrow();
+    expect(target.exportManifestSnapshot()).toEqual(before);
+    expect(target.listProjects()).toHaveLength(1);
+    expect(target.listDocuments()).toHaveLength(0);
+  });
+
+  it("adds an active empty Project without creating a Note", () => {
+    const workspace = NoteProject.create();
+    const archive = createPortableProjectExport(
+      { name: "Empty import", documents: [] },
+      { exportedAt: 500 },
+    ).archive;
+
+    const imported = importPortableProjectIntoWorkspace(archive, workspace);
+
+    expect(imported).toMatchObject({ name: "Empty import", status: "active" });
+    expect(workspace.listProjects()).toHaveLength(2);
+    expect(workspace.listDocuments()).toHaveLength(0);
   });
 });
 
 function sourceProject(): NoteProject {
   const project = NoteProject.create();
-  project.renameProject("Portable source");
+  project.renameWorkspaceProject(project.listProjects()[0]!.id, "Portable source");
   project.createDocumentWithInitialState({
     title: "Duplicate",
     body: "# First\n",
@@ -267,7 +336,7 @@ function sourceProject(): NoteProject {
 }
 
 function exportProject(project: NoteProject): Uint8Array {
-  return createPortableProjectExport(createPortableProjectSnapshot(project), {
+  return createPortableProjectExport(createPortableProjectSnapshot(project, project.listProjects()[0]!.id), {
     exportedAt: 500,
   }).archive;
 }

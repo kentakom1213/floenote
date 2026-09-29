@@ -21,7 +21,6 @@ type ProjectSettingsViewProps = {
   coordinationError: string | null;
   getDeviceDisplayName: (deviceId: DeviceId) => string | null;
   onRenameProject: (name: string) => void;
-  onExportProject: () => Promise<void>;
   onRemoveProjectFromDevice: () => Promise<void>;
   onAddDevice: () => void;
   onRetrySecurity: () => void;
@@ -47,7 +46,6 @@ export function ProjectSettingsView({
   coordinationError,
   getDeviceDisplayName,
   onRenameProject,
-  onExportProject,
   onRemoveProjectFromDevice,
   onAddDevice,
   onRetrySecurity,
@@ -61,10 +59,6 @@ export function ProjectSettingsView({
   );
   const [nameDraft, setNameDraft] = useState(projectName);
   const [removeProjectOpen, setRemoveProjectOpen] = useState(false);
-  const [exportState, setExportState] = useState<
-    "idle" | "exporting" | "success" | "error"
-  >("idle");
-  const [exportError, setExportError] = useState<string | null>(null);
   const [removeDeviceId, setRemoveDeviceId] = useState<DeviceId | null>(null);
   const normalizedName = nameDraft.trim();
   const nameChanged =
@@ -77,23 +71,6 @@ export function ProjectSettingsView({
   const removeDeviceName = removeDeviceId
     ? getDeviceDisplayName(removeDeviceId) ?? "this device"
     : null;
-
-  async function exportProject(): Promise<void> {
-    if (exportState === "exporting") return;
-
-    setExportState("exporting");
-    setExportError(null);
-
-    try {
-      await onExportProject();
-      setExportState("success");
-    } catch (error: unknown) {
-      setExportState("error");
-      setExportError(
-        error instanceof Error ? error.message : "Failed to export notes",
-      );
-    }
-  }
 
   async function confirmRemoveDevice(): Promise<void> {
     if (!removeDeviceId) return;
@@ -272,38 +249,6 @@ export function ProjectSettingsView({
             Workspace data is encrypted with a Workspace key that is separate
             from other Workspaces.
           </p>
-        </div>
-
-        <div className="settings-row settings-row-spread project-export-row">
-          <div className="project-export-copy">
-            <strong>Export notes</strong>
-            <p>
-              Export the notes and metadata currently available on this device
-              as portable Markdown and JSON. Encryption keys, device
-              authorization, and synchronization state are not included.
-            </p>
-            <p className="project-export-warning">
-              The exported file is not encrypted. It is a local snapshot from
-              this device, not a backup of every peer.
-            </p>
-            {exportState === "success" ? (
-              <p className="project-export-status" role="status">
-                Export downloaded.
-              </p>
-            ) : exportState === "error" ? (
-              <p className="project-export-error" role="alert">
-                Export failed.{exportError ? ` ${exportError}` : ""}
-              </p>
-            ) : null}
-          </div>
-          <button
-            className="settings-primary-action"
-            type="button"
-            onClick={() => void exportProject()}
-            disabled={exportState === "exporting"}
-          >
-            {exportState === "exporting" ? "Exporting…" : "Export"}
-          </button>
         </div>
 
         <details className="technical-details">
