@@ -15,6 +15,7 @@
     "@codemirror/search": "^6.7.2",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.13",
+    "@lezer/highlight": "^1.2.4",
     "@floe-note/coordinator-client": "workspace:*",
     "@floe-note/crypto": "workspace:*",
     "@floe-note/document": "workspace:*",
@@ -25,15 +26,14 @@
     "@floe-note/sync": "workspace:*",
     "@floe-note/transport": "workspace:*",
     "@floe-note/vault": "workspace:*",
-    "@lezer/highlight": "^1.2.4",
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.16",
-    "katex": "^0.18.9",
     "loro-codemirror": "^0.3.3",
     "loro-crdt": "^1.16.1",
-    "marked": "^18.0.14",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "katex": "^0.18.9",
+    "marked": "^18.0.14"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
