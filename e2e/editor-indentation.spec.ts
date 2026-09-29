@@ -35,7 +35,7 @@ test("Tab and Shift+Tab indent Markdown without breaking search or Loro undo", a
   await editor.press("Control+z");
   await expect.poll(() => editor.innerText()).toBe("1. parent\n2. numbered");
 
-  await editor.press("Control+Shift+z");
+  await editor.press("Control+y");
   await expect.poll(() => editor.innerText()).toBe("1. parent\n   2. numbered");
 
   await editor.press("Control+f");
