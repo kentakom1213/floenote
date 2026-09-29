@@ -147,7 +147,6 @@ export function NoteWorkspace({
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
-    setMobileNavigationOpen(false);
     setMovingDocumentId(null);
   }, [project.id]);
 
@@ -288,7 +287,7 @@ export function NoteWorkspace({
               const target = event.target;
               if (
                 target instanceof Element &&
-                target.closest(".project-switcher-item, .project-switcher-action")
+                target.closest(".project-switcher-action")
               ) {
                 setMobileNavigationOpen(false);
               }
