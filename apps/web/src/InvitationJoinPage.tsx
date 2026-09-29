@@ -34,6 +34,7 @@ import {
 } from "./device-vault-session-owner.js";
 import { generateDeviceDisplayName } from "./device-name.js";
 import { clearAllLastDocumentPreferences } from "./note-preference.js";
+import { clearAllSelectedProjectPreferences } from "./project-preference.js";
 import { resolveRtcConfiguration } from "./turn-credentials.js";
 
 const joinDeviceVault = new WebAuthnPrfDeviceVault();
@@ -456,6 +457,7 @@ export function InvitationJoinPage({
       await storage.eraseAllLocalData();
       await joinDeviceVault.eraseVault();
       clearAllLastDocumentPreferences();
+      clearAllSelectedProjectPreferences();
       window.location.reload();
     } catch (caught: unknown) {
       setVaultState("error");

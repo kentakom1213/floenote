@@ -7,7 +7,7 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   const { projectId, documentId } = await createSecuredProject(page);
   await expect(page.locator(".brand-row")).toContainText("Personal");
   await expect(page.locator(".project-slot")).toHaveCount(0);
-  await expect(page.locator(".sidebar-layout")).not.toContainText("Project");
+  await expect(page.getByLabel("Switch Project, current Notes")).toBeVisible();
   await expect(page.locator(".sidebar-section-label")).toHaveText("Notes");
 
   await page.getByLabel("Switch workspace").click();
@@ -41,6 +41,42 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await expect(page).toHaveURL(`/w/${projectId}/n/${documentId}`);
   await expect(page.getByLabel("Note title")).toHaveValue("Welcome to Floe Note");
   await expect(page.getByRole("heading", { name: "Trash" })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "Research" }).click();
+  await expect(page.locator(".brand-row")).toContainText("Research");
+  await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
+
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "Personal" }).click();
+  await expect(page.locator(".brand-row")).toContainText("Personal");
+  await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
+});
+
+test("keeps the mobile sidebar open behind the New workspace dialog", async ({
+  page,
+}) => {
+  await createSecuredProject(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "New workspace" }).click();
+
+  await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
+  await expect(page.getByRole("dialog", { name: "New workspace" })).toBeVisible();
+  expect(await page.locator(".dialog-backdrop").evaluate(
+    (backdrop) => backdrop.parentElement === document.body,
+  )).toBe(true);
+  expect((await page.locator(".dialog-backdrop").boundingBox())?.width).toBe(390);
+
+  await page.getByRole("button", { name: /Blank workspace/ }).click();
+  await page.getByRole("textbox", { name: "Name" }).fill("Mobile workspace");
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await expect(page.getByRole("dialog", { name: "New workspace" })).toHaveCount(0);
+  await expect(page.locator(".brand-row")).toContainText("Mobile workspace");
+  await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
 });
 
 test("keeps device shortcuts and detailed management in Settings", async ({

@@ -23,6 +23,7 @@ type SidebarNavigationToolbarProps = {
   onSelectedTagsChange: (tags: readonly string[]) => void;
   onTagFilterModeChange: (mode: TagFilterMode) => void;
   onCreateDocument: () => void;
+  canCreateDocument?: boolean;
 };
 
 const SORT_MODES = [
@@ -45,6 +46,7 @@ export function SidebarNavigationToolbar({
   onSelectedTagsChange,
   onTagFilterModeChange,
   onCreateDocument,
+  canCreateDocument = true,
 }: SidebarNavigationToolbarProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const sortMenuRef = useRef<HTMLDetailsElement>(null);
@@ -231,6 +233,7 @@ export function SidebarNavigationToolbar({
           type="button"
           aria-label="New note"
           title="New note"
+          disabled={!canCreateDocument}
           onClick={onCreateDocument}
         >
           <NewNoteIcon />

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
-import type { CheckpointId, DocumentId } from "@floe-note/domain";
+import type { CheckpointId, DocumentId, ProjectId } from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { EditorModeView } from "./EditorModeView.js";
@@ -11,6 +11,7 @@ import {
 } from "./EditHistory.js";
 import { GlobalSearch } from "./GlobalSearch.js";
 import { GlobalSearchCache } from "./global-search.js";
+import { Modal } from "./Modal.js";
 import {
   readEditorModePreference,
   writeEditorModePreference,
@@ -51,6 +52,8 @@ type NoteWorkspaceProps = {
   selectedId: DocumentId | null;
   selectedDocument: NoteDocument | undefined;
   projectControl: ReactNode;
+  workspaceProjectControl: ReactNode;
+  selectedProjectId: ProjectId | null;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
   trashActive: boolean;
@@ -61,6 +64,7 @@ type NoteWorkspaceProps = {
   onSelectDocument: (documentId: DocumentId) => void;
   onRenameDocument: (title: string) => void;
   onDeleteDocument: (documentId: DocumentId) => void;
+  onMoveDocument: (documentId: DocumentId, projectId: ProjectId) => void;
   onRestoreDocument: (documentId: DocumentId) => void;
   onPurgeDocument: (documentId: DocumentId) => void;
   onOpenTrash: () => void;
@@ -72,6 +76,8 @@ export function NoteWorkspace({
   selectedId,
   selectedDocument,
   projectControl,
+  workspaceProjectControl,
+  selectedProjectId,
   sidebarFooter,
   mainContent,
   trashActive,
@@ -82,6 +88,7 @@ export function NoteWorkspace({
   onSelectDocument,
   onRenameDocument,
   onDeleteDocument,
+  onMoveDocument,
   onRestoreDocument,
   onPurgeDocument,
   onOpenTrash,
@@ -122,6 +129,9 @@ export function NoteWorkspace({
   const [pendingPurgeDocumentId, setPendingPurgeDocumentId] =
     useState<DocumentId | null>(null);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [movingDocumentId, setMovingDocumentId] =
+    useState<DocumentId | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedTrashDocumentId(normalizedTrashDocumentId);
@@ -137,7 +147,7 @@ export function NoteWorkspace({
     setTrashExpanded(false);
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
-    setMobileNavigationOpen(false);
+    setMovingDocumentId(null);
   }, [project.id]);
 
   const navigationDocumentIds = project
@@ -205,6 +215,13 @@ export function NoteWorkspace({
     pendingPurgeDocumentId === null
       ? undefined
       : project.getDeletedDocument(pendingPurgeDocumentId);
+  const moveDestinations = movingDocumentId
+    ? project.listProjects().filter(
+        (item) =>
+          item.status === "active" &&
+          item.id !== project.getDocumentProjectId(movingDocumentId),
+      )
+    : [];
 
   useEffect(() => {
     if (
@@ -239,8 +256,13 @@ export function NoteWorkspace({
       : [];
   });
   const projectTags = deriveProjectTags(navigationNotes);
+  const scopedNotes = navigationNotes.filter(
+    (note) =>
+      selectedProjectId !== null &&
+      project.getDocumentProjectId(note.id) === selectedProjectId,
+  );
   const visibleNotes = deriveVisibleNotes(
-    navigationNotes,
+    scopedNotes,
     query,
     sort,
     selectedTags,
@@ -259,20 +281,7 @@ export function NoteWorkspace({
     <div className="sidebar-layout">
       <div className="sidebar-content">
         <header className="brand-row">
-          <div
-            className="workspace-context"
-            onClickCapture={(event) => {
-              const target = event.target;
-              if (
-                target instanceof Element &&
-                target.closest(".project-switcher-item, .project-switcher-action")
-              ) {
-                setMobileNavigationOpen(false);
-              }
-            }}
-          >
-            {projectControl}
-          </div>
+          <div className="workspace-context">{projectControl}</div>
           <button
             className="global-search-trigger"
             type="button"
@@ -283,6 +292,8 @@ export function NoteWorkspace({
             <GlobalSearchIcon />
           </button>
         </header>
+
+        {workspaceProjectControl}
 
         <p className="sidebar-section-label">Notes</p>
 
@@ -306,6 +317,7 @@ export function NoteWorkspace({
             onCreateDocument();
             setMobileNavigationOpen(false);
           }}
+          canCreateDocument={selectedProjectId !== null}
         />
 
         <nav className="note-list" aria-label="Notes">
@@ -324,6 +336,10 @@ export function NoteWorkspace({
                   setMobileNavigationOpen(false);
                 }}
                 onDelete={onDeleteDocument}
+                onMove={(documentId) => {
+                  setMovingDocumentId(documentId);
+                  setMoveError(null);
+                }}
               />
             ))
           ) : query.trim() || selectedTags.length > 0 ? (
@@ -448,17 +464,27 @@ export function NoteWorkspace({
             onTitleFocusHandled={onTitleFocusHandled}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
+            onMove={(documentId) => {
+              setMovingDocumentId(documentId);
+              setMoveError(null);
+            }}
           />
         ) : (
           <div className="workspace-empty-state">
             <div className="empty-floe" aria-hidden="true">
               ◆
             </div>
-            <h1>No notes yet</h1>
-            <p>Create a note to start writing in this Workspace.</p>
-            <button type="button" onClick={onCreateDocument}>
-              Create your first note
-            </button>
+            <h1>{selectedProjectId ? "No notes yet" : "No active Projects"}</h1>
+            <p>
+              {selectedProjectId
+                ? `Create a note in ${project.getProject(selectedProjectId)?.name ?? "this Project"}.`
+                : "Create a Project or reopen an archived Project to start writing."}
+            </p>
+            {selectedProjectId ? (
+              <button type="button" onClick={onCreateDocument}>
+                Create your first note
+              </button>
+            ) : null}
           </div>
         ))}
       </AppShell>
@@ -488,6 +514,40 @@ export function NoteWorkspace({
           }}
         />
       ) : null}
+
+      {movingDocumentId ? (
+        <Modal labelledBy="move-note-title" onClose={() => setMovingDocumentId(null)}>
+          <h2 id="move-note-title">Move note…</h2>
+          <p>Choose an active Project.</p>
+          <div className="move-project-list">
+            {moveDestinations.length === 0 ? (
+              <p>No other active Projects.</p>
+            ) : null}
+            {moveDestinations.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  try {
+                    onMoveDocument(movingDocumentId, item.id);
+                    setMovingDocumentId(null);
+                  } catch (caught) {
+                    setMoveError(caught instanceof Error ? caught.message : "Could not move note");
+                  }
+                }}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+          {moveError ? <p role="alert">{moveError}</p> : null}
+          <div className="dialog-actions">
+            <button className="dialog-secondary-button" type="button" onClick={() => setMovingDocumentId(null)}>
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </>
   );
 }
@@ -500,6 +560,7 @@ type DocumentPaneProps = {
   onTitleFocusHandled: () => void;
   onRename: (title: string) => void;
   onDelete: (documentId: DocumentId) => void;
+  onMove: (documentId: DocumentId) => void;
 };
 
 function DocumentPane({
@@ -510,6 +571,7 @@ function DocumentPane({
   onTitleFocusHandled,
   onRename,
   onDelete,
+  onMove,
 }: DocumentPaneProps) {
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -645,6 +707,16 @@ function DocumentPane({
                     onClick={openHistory}
                   >
                     History
+                  </button>
+                  <button
+                    className="note-menu-item"
+                    type="button"
+                    onClick={() => {
+                      noteMenuRef.current?.removeAttribute("open");
+                      onMove(document.id);
+                    }}
+                  >
+                    Move note…
                   </button>
                   <button
                     className="danger-menu-item"

@@ -16,6 +16,7 @@ import type { NoteProject } from "@floe-note/document";
 import type {
   DeviceId,
   DocumentId,
+  ProjectId,
   WorkspaceId,
 } from "@floe-note/domain";
 import {
@@ -86,6 +87,13 @@ import {
 } from "./device-vault-session-owner.js";
 import { replaceInvitationUrlWithWorkspace } from "./invitation-url.js";
 import { NoteWorkspace } from "./NoteWorkspace.js";
+import { ProjectSelector } from "./ProjectSelector.js";
+import { firstNoteInProject, resolveSelectedProjectId } from "./project-selection.js";
+import {
+  clearAllSelectedProjectPreferences,
+  readSelectedProjectId,
+  writeSelectedProjectId,
+} from "./project-preference.js";
 import { selectNextDocumentAfterDeletion } from "./sidebar-navigation.js";
 import {
   clearAllLastDocumentPreferences,
@@ -305,6 +313,23 @@ function NoteApp({
   const [trashDocumentId, setTrashDocumentId] = useState<DocumentId | null>(null);
 
   const project = openedProject?.project ?? null;
+  const routeNoteId =
+    project &&
+    browserRoute.kind === "note" &&
+    browserRoute.workspaceId === project.id
+      ? browserRoute.noteId
+      : null;
+  const selectedProjectId = project
+    ? resolveSelectedProjectId(
+        project,
+        routeNoteId,
+        readSelectedProjectId(project.id),
+      )
+    : null;
+
+  useEffect(() => {
+    if (project) writeSelectedProjectId(project.id, selectedProjectId);
+  }, [project, selectedProjectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -870,13 +895,20 @@ function NoteApp({
 
       if (rootResolution.kind === "empty") return;
 
-      setSelectedId(rootResolution.noteId);
-      writeLastDocumentId(rootResolution.workspaceId, rootResolution.noteId);
+      const rememberedId = project ? readLastDocumentId(project.id) : null;
+      const rootNoteId = project
+        ? rememberedId && project.getDocument(rememberedId) &&
+            project.getDocumentProjectId(rememberedId) === selectedProjectId
+          ? rememberedId
+          : firstNoteInProject(project, selectedProjectId)
+        : rootResolution.noteId;
+      setSelectedId(rootNoteId);
+      writeLastDocumentId(rootResolution.workspaceId, rootNoteId);
       setMainView("note");
       setTrashDocumentId(null);
       replaceRoute(
-        rootResolution.noteId
-          ? buildNoteUrl(rootResolution.workspaceId, rootResolution.noteId)
+        rootNoteId
+          ? buildNoteUrl(rootResolution.workspaceId, rootNoteId)
           : buildWorkspaceUrl(rootResolution.workspaceId),
       );
       return;
@@ -904,10 +936,12 @@ function NoteApp({
 
     if (browserRoute.kind === "workspace") {
       const rememberedId = readLastDocumentId(project.id);
+      const scopedFirstId = firstNoteInProject(project, selectedProjectId);
       const nextId =
-        rememberedId && project.getDocument(rememberedId)
+        rememberedId && project.getDocument(rememberedId) &&
+          project.getDocumentProjectId(rememberedId) === selectedProjectId
           ? rememberedId
-          : project.listDocuments()[0]?.id ?? null;
+          : scopedFirstId;
 
       setSelectedId(nextId);
       writeLastDocumentId(project.id, nextId);
@@ -967,6 +1001,7 @@ function NoteApp({
     projectSummaries,
     projectSwitching,
     replaceRoute,
+    selectedProjectId,
   ]);
 
   if (loadError) {
@@ -1078,8 +1113,12 @@ function NoteApp({
   }
 
   const activeProject = project;
-  const selectedDocument = selectedId
-    ? activeProject.getDocument(selectedId)
+  const visibleSelectedId =
+    routeNoteId && activeProject.getDocument(routeNoteId)
+      ? routeNoteId
+      : selectedId;
+  const selectedDocument = visibleSelectedId
+    ? activeProject.getDocument(visibleSelectedId)
     : undefined;
 
   async function adoptDeviceVaultSession(
@@ -1145,10 +1184,14 @@ function NoteApp({
           requestedRoute.workspaceId === result.project.id)
       ) {
         const rememberedId = readLastDocumentId(result.project.id);
+        const preferredProjectId = resolveSelectedProjectId(
+          result.project, null, readSelectedProjectId(result.project.id),
+        );
         const initialDocumentId =
-          rememberedId && result.project.getDocument(rememberedId)
+          rememberedId && result.project.getDocument(rememberedId) &&
+            result.project.getDocumentProjectId(rememberedId) === preferredProjectId
             ? rememberedId
-            : result.project.listDocuments()[0]?.id ?? null;
+            : firstNoteInProject(result.project, preferredProjectId);
         setSelectedId(initialDocumentId);
         writeLastDocumentId(result.project.id, initialDocumentId);
       }
@@ -1246,6 +1289,7 @@ function NoteApp({
     await workspaceStorage.eraseAllLocalData();
     await deviceVault.eraseVault();
     clearAllLastDocumentPreferences();
+    clearAllSelectedProjectPreferences();
 
     window.location.replace("/");
   }
@@ -1450,6 +1494,7 @@ function NoteApp({
       clearThemePreference();
       clearTurnCredentialEndpoint();
       clearAllLastDocumentPreferences();
+      clearAllSelectedProjectPreferences();
       clearAllNoteRecency();
       clearSidebarPreference();
 
@@ -1903,7 +1948,8 @@ function NoteApp({
   }
 
   function createDocument() {
-    const document = activeProject.createDocument();
+    if (!selectedProjectId) return;
+    const document = activeProject.createDocument("Untitled", selectedProjectId);
     setSelectedId(document.id);
     setFocusTitleDocumentId(document.id);
     writeLastDocumentId(activeProject.id, document.id);
@@ -1912,7 +1958,10 @@ function NoteApp({
   }
 
   function deleteDocument(documentId: DocumentId) {
-    const before = activeProject.listDocuments();
+    const membership = activeProject.getDocumentProjectId(documentId);
+    const before = activeProject.listDocuments().filter(
+      (note) => activeProject.getDocumentProjectId(note.id) === membership,
+    );
     const deletedIndex = before.findIndex(
       (summary) => summary.id === documentId,
     );
@@ -1920,9 +1969,11 @@ function NoteApp({
 
     activeProject.deleteDocument(documentId);
 
-    if (documentId !== selectedId) return;
+    if (documentId !== visibleSelectedId) return;
 
-    const remaining = activeProject.listDocuments();
+    const remaining = activeProject.listDocuments().filter(
+      (note) => activeProject.getDocumentProjectId(note.id) === membership,
+    );
     const nextId = selectNextDocumentAfterDeletion(
       before,
       remaining,
@@ -1937,6 +1988,44 @@ function NoteApp({
         ? buildNoteUrl(activeProject.id, nextId)
         : buildWorkspaceUrl(activeProject.id),
     );
+  }
+
+  function selectWorkspaceProject(projectId: ProjectId): void {
+    if (activeProject.getProject(projectId)?.status !== "active") return;
+    if (
+      projectId === selectedProjectId &&
+      routeNoteId &&
+      activeProject.getDocumentProjectId(routeNoteId) === projectId
+    ) return;
+    writeSelectedProjectId(activeProject.id, projectId);
+    const nextId = firstNoteInProject(activeProject, projectId);
+    setSelectedId(nextId);
+    setMainView("note");
+    setFocusTitleDocumentId(null);
+    writeLastDocumentId(activeProject.id, nextId);
+    pushRoute(
+      nextId
+        ? buildNoteUrl(activeProject.id, nextId)
+        : buildWorkspaceUrl(activeProject.id),
+    );
+  }
+
+  function createWorkspaceProject(name: string): void {
+    const created = activeProject.createProject(name);
+    selectWorkspaceProject(created.id);
+  }
+
+  function archiveWorkspaceProject(projectId: ProjectId): void {
+    activeProject.archiveProject(projectId);
+    const nextId = resolveSelectedProjectId(activeProject, null, null);
+    writeSelectedProjectId(activeProject.id, nextId);
+    if (nextId) selectWorkspaceProject(nextId);
+    else {
+      setSelectedId(null);
+      setMainView("note");
+      writeLastDocumentId(activeProject.id, null);
+      pushRoute(buildWorkspaceUrl(activeProject.id));
+    }
   }
 
   const syncUiState = deriveSyncUiState({
@@ -2015,6 +2104,28 @@ function NoteApp({
       onCreateProject={createProject}
       onImportFloeExport={importFloeExport}
       onImportMarkdownDirectory={importMarkdownDirectoryFiles}
+    />
+  );
+
+  const workspaceProjects = activeProject.listProjects();
+  const activeNoteCounts = new Map<ProjectId, number>();
+  for (const note of activeProject.listDocuments()) {
+    const id = activeProject.getDocumentProjectId(note.id);
+    if (id) activeNoteCounts.set(id, (activeNoteCounts.get(id) ?? 0) + 1);
+  }
+  const workspaceProjectControl = (
+    <ProjectSelector
+      projects={workspaceProjects}
+      selectedId={selectedProjectId}
+      activeNoteCounts={activeNoteCounts}
+      onSelect={selectWorkspaceProject}
+      onCreate={createWorkspaceProject}
+      onRename={(id, name) => activeProject.renameWorkspaceProject(id, name)}
+      onArchive={archiveWorkspaceProject}
+      onReopen={(id) => {
+        activeProject.reopenProject(id);
+        selectWorkspaceProject(id);
+      }}
     />
   );
 
@@ -2222,9 +2333,11 @@ function NoteApp({
   return (
     <NoteWorkspace
       project={activeProject}
-      selectedId={selectedId}
+      selectedId={visibleSelectedId}
       selectedDocument={selectedDocument}
       projectControl={projectControl}
+      workspaceProjectControl={workspaceProjectControl}
+      selectedProjectId={selectedProjectId}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
       trashActive={mainView === "trash"}
@@ -2245,6 +2358,9 @@ function NoteApp({
         }
       }}
       onDeleteDocument={deleteDocument}
+      onMoveDocument={(documentId, destinationId) =>
+        activeProject.moveDocument(documentId, destinationId)
+      }
       onRestoreDocument={(documentId) => {
         const document = activeProject.getDeletedDocument(documentId);
         if (!document) return;

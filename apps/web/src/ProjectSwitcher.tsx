@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { WorkspaceId } from "@floe-note/domain";
 
@@ -177,9 +178,6 @@ export function ProjectSwitcher({
               {current?.name ?? "Personal"}
             </span>
           </span>
-          <span className="project-switcher-chevron" aria-hidden="true">
-            ▾
-          </span>
         </summary>
 
         <div className="project-switcher-menu">
@@ -235,7 +233,7 @@ export function ProjectSwitcher({
         </div>
       </details>
 
-      {newProjectOpen ? (
+      {newProjectOpen && typeof document !== "undefined" ? createPortal(
         <Modal
           labelledBy="new-project-title"
           disabled={busy}
@@ -522,7 +520,8 @@ export function ProjectSwitcher({
               </div>
             </>
           )}
-        </Modal>
+        </Modal>,
+        document.body,
       ) : null}
     </>
   );
