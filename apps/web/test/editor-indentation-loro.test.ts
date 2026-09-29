@@ -26,23 +26,23 @@ describe("Markdown editor indentation with Loro undo", () => {
     const { note, content } = await renderEditor("plain text");
 
     await pressKey(content, { key: "Tab" });
-    expect(note.bodyText).toBe("   plain text");
+    expect(note.bodyText).toBe("  plain text");
 
     await pressKey(content, { key: "z", ctrlKey: true });
     expect(note.bodyText).toBe("plain text");
 
     await pressKey(content, { key: "y", ctrlKey: true });
-    expect(note.bodyText).toBe("   plain text");
+    expect(note.bodyText).toBe("  plain text");
   });
 
   it("syncs Shift+Tab dedentation to Loro and undoes it as one action", async () => {
-    const { note, content } = await renderEditor("   plain text");
+    const { note, content } = await renderEditor("  plain text");
 
     await pressKey(content, { key: "Tab", shiftKey: true });
     expect(note.bodyText).toBe("plain text");
 
     await pressKey(content, { key: "z", ctrlKey: true });
-    expect(note.bodyText).toBe("   plain text");
+    expect(note.bodyText).toBe("  plain text");
   });
 });
 
