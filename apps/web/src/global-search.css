@@ -111,7 +111,6 @@
   text-align: left;
 }
 
-.global-search-result:hover,
 .global-search-result.active {
   background: var(--color-surface-hover);
 }
