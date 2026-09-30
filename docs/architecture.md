@@ -545,12 +545,20 @@ Multiple tabs may share one DeviceId. Each tab keeps its own authenticated
 Presence connection and local BroadcastChannel synchronization. Within one
 browser storage context, an exclusive Web Lock scoped to WorkspaceId and
 DeviceId lets only one eligible tab run automatic WebRTC peer synchronization.
+An authorized tab begins competing after Presence authentication, even if its
+WorkspaceKey is still loading. Only the lock holder starts the peer-sync manager
+once the key is ready. It may retain reconnect sessions during that short setup
+window; a known follower discards them and never replays them after handoff.
 The coordinator sends reconnect sessions to every Presence connection for the
-target DeviceId. The lock holder handles them, including sessions received
-during its manager setup; other tabs discard them. Releasing the lock lets a
-waiting tab start a fresh peer-sync manager. If Web Locks is unavailable, the
-browser keeps the previous per-tab behavior and multi-tab ownership is not
-guaranteed. Separate private-browsing sessions do not share Web Locks.
+target DeviceId. On pagehide or page freeze, the owner stops its manager and
+releases the lock; on restore, an eligible tab competes again. Releasing the
+lock lets a waiting tab start a fresh peer-sync manager. If Web Locks is
+unavailable, the browser keeps the previous per-tab behavior and multi-tab
+ownership is not guaranteed. Separate private-browsing sessions do not share
+Web Locks.
+The status shown in a follower tab is Online when Presence reports another
+logical device online; it does not claim a direct connection. Stale Presence
+reports are tracked separately in Issue #204.
 Within the owner tab, sync updates imported from WebRTC are forwarded through
 its encrypted BroadcastChannel transport, and updates imported from another
 local tab are forwarded through its encrypted WebRTC transports. Only update

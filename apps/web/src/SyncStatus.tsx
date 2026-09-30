@@ -5,6 +5,7 @@ import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 export type SyncUiState =
   | { kind: "quiet" }
+  | { kind: "online" }
   | { kind: "connected" }
   | { kind: "offline" }
   | { kind: "connecting" }
@@ -32,6 +33,11 @@ const COPY: Record<
   quiet: {
     label: "Local",
     description: "Changes are saved on this device.",
+  },
+  online: {
+    label: "Online",
+    description:
+      "Another device is reported online. This tab has no direct peer connection.",
   },
   connected: {
     label: "Connected",

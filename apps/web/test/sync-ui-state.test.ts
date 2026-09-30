@@ -78,7 +78,7 @@ describe("deriveSyncUiState", () => {
     ).toEqual({ kind: "offline" });
   });
 
-  it("does not show Connecting in a follower tab with no direct peer", () => {
+  it("shows Online for a follower and Connecting for an owner awaiting a peer", () => {
     const localDeviceId = createDeviceId();
     const remoteDeviceId = createDeviceId();
 
@@ -91,7 +91,7 @@ describe("deriveSyncUiState", () => {
         localDeviceId,
         error: null,
       }),
-    ).toEqual({ kind: "quiet" });
+    ).toEqual({ kind: "online" });
 
     expect(
       deriveSyncUiState({
@@ -103,5 +103,49 @@ describe("deriveSyncUiState", () => {
         error: null,
       }),
     ).toEqual({ kind: "connecting" });
+  });
+
+  it("shows Connected when the owner has a direct peer", () => {
+    const localDeviceId = createDeviceId();
+    const remoteDeviceId = createDeviceId();
+    expect(
+      deriveSyncUiState({
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
+        ownsAutomaticPeerSync: true,
+        connectedDeviceIds: [remoteDeviceId],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "connected" });
+  });
+
+  it("does not show Connected for a follower with stale peer status", () => {
+    const localDeviceId = createDeviceId();
+    const remoteDeviceId = createDeviceId();
+    expect(
+      deriveSyncUiState({
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
+        ownsAutomaticPeerSync: false,
+        connectedDeviceIds: [remoteDeviceId],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "online" });
+  });
+
+  it("keeps same-device local tabs Local without another logical DeviceId", () => {
+    const localDeviceId = createDeviceId();
+    expect(
+      deriveSyncUiState({
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId],
+        ownsAutomaticPeerSync: false,
+        connectedDeviceIds: [],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "quiet" });
   });
 });

@@ -66,7 +66,6 @@ export class WorkspaceSyncEngine {
 
     this.#debug("engine.start", {
       documents: this.#project.getAllDocuments().length,
-      relayScope: this.#relayScope,
     });
 
     this.#reconcileDocumentSubscriptions(false);
@@ -112,7 +111,6 @@ export class WorkspaceSyncEngine {
 
     this.#debug("engine.stop", {
       documentSubscriptions: this.#documentSubscriptions.size,
-      relayScope: this.#relayScope,
     });
 
     this.#stopProjectSubscription?.();
@@ -251,7 +249,7 @@ export class WorkspaceSyncEngine {
             bytes: message.update.byteLength,
           });
           this.#project.importManifestUpdate(message.update);
-          this.#relayImportedUpdate(data, "manifest-update");
+          this.#relayImportedUpdate(data);
           return;
 
         case "document-update": {
@@ -264,7 +262,7 @@ export class WorkspaceSyncEngine {
             message.update,
           );
           if (importedDocument) {
-            this.#relayImportedUpdate(data, "document-update");
+            this.#relayImportedUpdate(data);
           }
           return;
         }
@@ -288,25 +286,14 @@ export class WorkspaceSyncEngine {
     }
   }
 
-  #relayImportedUpdate(
-    data: Uint8Array,
-    messageType: "manifest-update" | "document-update",
-  ): void {
+  #relayImportedUpdate(data: Uint8Array): void {
     if (!this.#relayScope) return;
 
-    let targets = 0;
     for (const engine of relayEngines.get(this.#project) ?? []) {
       if (engine.#relayScope !== this.#relayScope && engine.#started) {
         engine.#transport.send(data);
-        targets += 1;
       }
     }
-    this.#debug("relay.update", {
-      from: this.#relayScope,
-      messageType,
-      bytes: data.byteLength,
-      targets,
-    });
   }
 
   #debug(event: string, details: Record<string, unknown> = {}): void {

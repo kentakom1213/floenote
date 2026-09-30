@@ -63,7 +63,6 @@ const peerSyncHarness = vi.hoisted(() => {
   };
 
   const instances: Record[] = [];
-  let onConstruct: (() => void) | null = null;
 
   class FakeAutomaticPeerSyncManager {
     readonly #record: Record;
@@ -76,7 +75,6 @@ const peerSyncHarness = vi.hoisted(() => {
         stopped: false,
       };
       instances.push(this.#record);
-      onConstruct?.();
     }
 
     updateOnlineDevices(deviceIds: readonly string[]): void {
@@ -103,15 +101,8 @@ const peerSyncHarness = vi.hoisted(() => {
   return {
     FakeAutomaticPeerSyncManager,
     instances,
-    get onConstruct() {
-      return onConstruct;
-    },
-    set onConstruct(value: (() => void) | null) {
-      onConstruct = value;
-    },
     reset: () => {
       instances.length = 0;
-      onConstruct = null;
     },
   };
 });
@@ -194,8 +185,8 @@ class FakeWebLocks {
   readonly #held = new Set<string>();
   readonly #waiting: Array<{
     name: string;
-    signal: AbortSignal;
-    callback: (lock: Lock) => Promise<void> | void;
+    signal?: AbortSignal;
+    callback: (lock: Lock | null) => Promise<void> | void;
     resolve: () => void;
     reject: (error: unknown) => void;
     abort: () => void;
@@ -203,10 +194,17 @@ class FakeWebLocks {
 
   request(
     name: string,
-    options: { signal: AbortSignal },
-    callback: (lock: Lock) => Promise<void> | void,
+    options: { signal?: AbortSignal; ifAvailable?: boolean },
+    callback: (lock: Lock | null) => Promise<void> | void,
   ): Promise<void> {
     this.requestedNames.push(name);
+    if (
+      options.ifAvailable &&
+      (this.#held.has(name) ||
+        this.#waiting.some((request) => request.name === name))
+    ) {
+      return Promise.resolve().then(() => callback(null));
+    }
     return new Promise<void>((resolve, reject) => {
       const abort = () => {
         const index = this.#waiting.findIndex((request) => request.abort === abort);
@@ -214,11 +212,11 @@ class FakeWebLocks {
         this.#waiting.splice(index, 1);
         reject(new DOMException("Lock request aborted", "AbortError"));
       };
-      if (options.signal.aborted) {
+      if (options.signal?.aborted) {
         reject(new DOMException("Lock request aborted", "AbortError"));
         return;
       }
-      options.signal.addEventListener("abort", abort, { once: true });
+      options.signal?.addEventListener("abort", abort, { once: true });
       this.#waiting.push({
         name,
         signal: options.signal,
@@ -231,12 +229,16 @@ class FakeWebLocks {
     });
   }
 
+  isHeld(name: string): boolean {
+    return this.#held.has(name);
+  }
+
   #grant(): void {
     let index = this.#waiting.findIndex((request) => !this.#held.has(request.name));
     while (index >= 0) {
       const [request] = this.#waiting.splice(index, 1);
       if (!request) return;
-      request.signal.removeEventListener("abort", request.abort);
+      request.signal?.removeEventListener("abort", request.abort);
       this.#held.add(request.name);
       void Promise.resolve()
         .then(() => request.callback({ name: request.name, mode: "exclusive" } as Lock))
@@ -416,24 +418,35 @@ describe("automatic reconnect setup ordering", () => {
     });
 
     expect(FakeWebSocket.instances).toHaveLength(1);
-    await authenticatePresence(
-      FakeWebSocket.instances[0]!,
-      state.headHash,
-      [
-        deviceA.publicIdentity.deviceId,
-        deviceB.publicIdentity.deviceId,
-      ],
-    );
-    expect(peerSyncHarness.instances).toHaveLength(0);
+    const socket = FakeWebSocket.instances[0]!;
+    await act(async () => {
+      socket.open();
+      socket.message({
+        type: "presence-challenge",
+        challenge: bytesToHex(CHALLENGE),
+        securityHead: bytesToHex(state.headHash),
+      });
+      await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+    });
 
-    peerSyncHarness.onConstruct = () => {
-      FakeWebSocket.instances[0]?.message({
+    // Presence and reconnect can arrive before React starts the lock effect.
+    await act(async () => {
+      socket.message({
+        type: "presence-state",
+        deviceIds: [
+          deviceA.publicIdentity.deviceId,
+          deviceB.publicIdentity.deviceId,
+        ],
+      });
+      socket.message({
         type: "reconnect-session",
         fromDeviceId: deviceA.publicIdentity.deviceId,
         sessionId,
         transportMode: "direct",
       });
-    };
+      await flushMicrotasks();
+    });
+    expect(peerSyncHarness.instances).toHaveLength(0);
 
     await act(async () => {
       root?.render(
@@ -498,7 +511,7 @@ describe("automatic reconnect setup ordering", () => {
       ],
     );
 
-    peerSyncHarness.onConstruct = () => {
+    await act(async () => {
       FakeWebSocket.instances[0]?.message({
         type: "reconnect-session",
         fromDeviceId: deviceA.publicIdentity.deviceId,
@@ -506,7 +519,8 @@ describe("automatic reconnect setup ordering", () => {
         transportMode: "relay",
       });
       FakeWebSocket.instances[0]?.disconnect(1006, "");
-    };
+      await flushMicrotasks();
+    });
 
     await act(async () => {
       root?.render(
@@ -569,7 +583,7 @@ describe("automatic reconnect setup ordering", () => {
 });
 
 describe("automatic peer sync ownership", () => {
-  it("waits for authorization and WorkspaceKey before requesting a lock", async () => {
+  it("requires authorization but acquires ownership before WorkspaceKey readiness", async () => {
     const locks = enableWebLocks();
     const remoteDevice = await generateDeviceKeyMaterial();
     const localDevice = await generateDeviceKeyMaterial();
@@ -607,7 +621,16 @@ describe("automatic peer sync ownership", () => {
         }),
       );
     });
+    expect(FakeWebSocket.instances).toHaveLength(2);
     expect(locks.requestedNames).toEqual([]);
+    await authenticatePresence(FakeWebSocket.instances[1]!, state.headHash, [
+      remoteDevice.publicIdentity.deviceId,
+      localDevice.publicIdentity.deviceId,
+    ]);
+    expect(locks.requestedNames).toEqual([
+      `floe:peer-sync:${project.id}:${localDevice.publicIdentity.deviceId}`,
+    ]);
+    expect(peerSyncHarness.instances).toHaveLength(0);
 
     await act(async () => {
       root?.render(
@@ -658,16 +681,16 @@ describe("automatic peer sync ownership", () => {
         }),
       );
     });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, [
+      device.publicIdentity.deviceId,
+    ]);
     await act(async () => {
       await vi.waitFor(() => {
         expect(peerSyncHarness.instances).toHaveLength(1);
       });
     });
 
-    expect(FakeWebSocket.instances).toHaveLength(1);
-    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, [
-      device.publicIdentity.deviceId,
-    ]);
     expect(peerSyncHarness.instances[0]?.onlineDeviceUpdates).toEqual([
       [device.publicIdentity.deviceId],
     ]);
@@ -690,7 +713,7 @@ describe("automatic peer sync ownership", () => {
       localDeviceId: localDevice.publicIdentity.deviceId,
       securityState: state,
       vaultSession,
-      projectKeyReady: true,
+      projectKeyReady: false,
     };
     const onlineDevices = [
       remoteDevice.publicIdentity.deviceId,
@@ -708,15 +731,13 @@ describe("automatic peer sync ownership", () => {
       );
     });
     await act(async () => {
-      await vi.waitFor(() => {
-        expect(peerSyncHarness.instances).toHaveLength(1);
-      });
+      await flushMicrotasks();
     });
 
     expect(FakeWebSocket.instances).toHaveLength(2);
     await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, onlineDevices);
     await authenticatePresence(FakeWebSocket.instances[1]!, state.headHash, onlineDevices);
-    expect(peerSyncHarness.instances).toHaveLength(1);
+    expect(peerSyncHarness.instances).toHaveLength(0);
 
     const staleSessionId = "0123456789abcdef0123456789abcdef";
     await act(async () => {
@@ -729,6 +750,30 @@ describe("automatic peer sync ownership", () => {
         });
       }
       await flushMicrotasks();
+    });
+
+    await act(async () => {
+      root?.render(
+        createElement(
+          Fragment,
+          null,
+          createElement(ReconnectRaceHarness, {
+            ...props,
+            projectKeyReady: true,
+            key: "owner",
+          }),
+          createElement(ReconnectRaceHarness, {
+            ...props,
+            projectKeyReady: true,
+            key: "follower",
+          }),
+        ),
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peerSyncHarness.instances).toHaveLength(1);
+      });
     });
     expect(peerSyncHarness.instances[0]?.reconnectSessions).toEqual([
       {
@@ -743,7 +788,11 @@ describe("automatic peer sync ownership", () => {
         createElement(
           Fragment,
           null,
-          createElement(ReconnectRaceHarness, { ...props, key: "follower" }),
+          createElement(ReconnectRaceHarness, {
+            ...props,
+            projectKeyReady: true,
+            key: "follower",
+          }),
         ),
       );
     });
@@ -776,6 +825,95 @@ describe("automatic peer sync ownership", () => {
         transportMode: "relay",
       },
     ]);
+  });
+
+  it("releases ownership on pagehide and freeze, then reacquires on restore", async () => {
+    const locks = enableWebLocks();
+    const device = await generateDeviceKeyMaterial();
+    keyMaterials.push(device);
+    const state = await createInitialState(device);
+    const project = NoteProject.create(state.workspaceId);
+    const lockName = `floe:peer-sync:${project.id}:${device.publicIdentity.deviceId}`;
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          project,
+          localDeviceId: device.publicIdentity.deviceId,
+          securityState: state,
+          vaultSession: createVaultSession(device),
+          projectKeyReady: true,
+        }),
+      );
+      await flushMicrotasks();
+    });
+    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, [
+      device.publicIdentity.deviceId,
+    ]);
+    await act(async () => {
+      await vi.waitFor(() => expect(peerSyncHarness.instances).toHaveLength(1));
+    });
+    expect(locks.isHeld(lockName)).toBe(true);
+
+    const pagehide = new Event("pagehide");
+    Object.defineProperty(pagehide, "persisted", { value: true });
+    await act(async () => {
+      window.dispatchEvent(pagehide);
+      await flushMicrotasks();
+    });
+    expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
+    expect(locks.isHeld(lockName)).toBe(false);
+    expect(FakeWebSocket.instances[0]?.readyState).toBe(FakeWebSocket.OPEN);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("pageshow"));
+      await flushMicrotasks();
+    });
+    await act(async () => {
+      await vi.waitFor(() => expect(peerSyncHarness.instances).toHaveLength(2));
+    });
+    expect(locks.isHeld(lockName)).toBe(true);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("freeze"));
+      await flushMicrotasks();
+    });
+    expect(peerSyncHarness.instances[1]?.stopped).toBe(true);
+    expect(locks.isHeld(lockName)).toBe(false);
+
+    await act(async () => {
+      document.dispatchEvent(new Event("resume"));
+      await flushMicrotasks();
+    });
+    await act(async () => {
+      await vi.waitFor(() => expect(peerSyncHarness.instances).toHaveLength(3));
+    });
+    expect(locks.isHeld(lockName)).toBe(true);
+  });
+
+  it("keeps single-tab reconnect behavior when Web Locks is unavailable", async () => {
+    const device = await generateDeviceKeyMaterial();
+    keyMaterials.push(device);
+    const state = await createInitialState(device);
+    const project = NoteProject.create(state.workspaceId);
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          project,
+          localDeviceId: device.publicIdentity.deviceId,
+          securityState: state,
+          vaultSession: createVaultSession(device),
+          projectKeyReady: true,
+        }),
+      );
+      await flushMicrotasks();
+    });
+    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, [
+      device.publicIdentity.deviceId,
+    ]);
+    expect(peerSyncHarness.instances).toHaveLength(1);
+    expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });
 
@@ -843,7 +981,7 @@ describe("authorized Workspace sync after SecurityState changes", () => {
 
     expect(FakeWebSocket.instances).toHaveLength(2);
     expect(onError).not.toHaveBeenCalled();
-    expect(peerSyncHarness.instances).toHaveLength(2);
+    expect(peerSyncHarness.instances).toHaveLength(1);
     expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
 
     await authenticatePresence(
@@ -854,6 +992,9 @@ describe("authorized Workspace sync after SecurityState changes", () => {
         deviceD.publicIdentity.deviceId,
       ],
     );
+    await act(async () => {
+      await vi.waitFor(() => expect(peerSyncHarness.instances).toHaveLength(2));
+    });
 
     const refreshedManager = peerSyncHarness.instances[1];
     expect(refreshedManager?.securityState).toEqual(afterAdd);

@@ -29,7 +29,7 @@ export function deriveSyncUiState({
     return { kind: "error", detail: error };
   }
 
-  if (connectedDeviceIds.length > 0) {
+  if (ownsAutomaticPeerSync && connectedDeviceIds.length > 0) {
     return { kind: "connected" };
   }
 
@@ -48,9 +48,6 @@ export function deriveSyncUiState({
   const otherDeviceOnline = onlineDeviceIds.some(
     (deviceId) => deviceId !== localDeviceId,
   );
-  // A follower receives updates through another tab, but has no direct peer
-  // to connect.
-  return otherDeviceOnline && ownsAutomaticPeerSync
-    ? { kind: "connecting" }
-    : { kind: "quiet" };
+  if (!otherDeviceOnline) return { kind: "quiet" };
+  return ownsAutomaticPeerSync ? { kind: "connecting" } : { kind: "online" };
 }
