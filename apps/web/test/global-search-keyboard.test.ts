@@ -120,6 +120,53 @@ describe("GlobalSearch keyboard interaction", () => {
       inline: "nearest",
     });
   });
+
+  it("does not let scroll-driven hover replace keyboard selection", () => {
+    const scrollIntoView = mockScrollIntoView();
+    const input = renderSearch(["Alpha", "Beta", "Gamma"], vi.fn());
+
+    act(() => {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+
+    const results = [
+      ...(container?.querySelectorAll<HTMLButtonElement>(
+        ".global-search-result",
+      ) ?? []),
+    ];
+    expect(results).toHaveLength(3);
+    expect(activeResultTitle()).toBe("Beta");
+
+    scrollIntoView.mockClear();
+
+    act(() => {
+      results[2]?.dispatchEvent(
+        new MouseEvent("mouseover", {
+          bubbles: true,
+        }),
+      );
+    });
+
+    expect(activeResultTitle()).toBe("Beta");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    act(() => {
+      results[2]?.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+        }),
+      );
+    });
+
+    expect(activeResultTitle()).toBe("Gamma");
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
 });
 
 function renderSearch(
@@ -158,6 +205,14 @@ function renderSearch(
   );
   expect(input).not.toBeNull();
   return input!;
+}
+
+function activeResultTitle(): string | null {
+  return (
+    container?.querySelector(
+      ".global-search-result.active .global-search-result-title",
+    )?.textContent ?? null
+  );
 }
 
 function setInputValue(input: HTMLInputElement, value: string): void {
