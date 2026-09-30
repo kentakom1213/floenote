@@ -35,6 +35,8 @@ export function GlobalSearch({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeResultRef = useRef<HTMLButtonElement>(null);
+  const scrollActiveResultRef = useRef(false);
   const selectionCommittedRef = useRef(false);
   const terms = useMemo(() => splitSearchTerms(query), [query]);
   const results = cache.search(query, lastOpenedAt);
@@ -48,6 +50,15 @@ export function GlobalSearch({
       results.length === 0 ? 0 : Math.min(current, results.length - 1),
     );
   }, [query, results.length]);
+
+  useEffect(() => {
+    if (!scrollActiveResultRef.current) return;
+    scrollActiveResultRef.current = false;
+    activeResultRef.current?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [activeIndex]);
 
   function select(result: GlobalSearchResult): void {
     selectionCommittedRef.current = true;
@@ -82,6 +93,7 @@ export function GlobalSearch({
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
                 event.preventDefault();
+                scrollActiveResultRef.current = true;
                 setActiveIndex((current) =>
                   results.length === 0
                     ? 0
@@ -92,11 +104,14 @@ export function GlobalSearch({
 
               if (event.key === "ArrowUp") {
                 event.preventDefault();
+                scrollActiveResultRef.current = true;
                 setActiveIndex((current) => Math.max(current - 1, 0));
                 return;
               }
 
               if (event.key === "Enter") {
+                if (event.nativeEvent.isComposing) return;
+
                 const active = results[activeIndex];
                 if (active) {
                   event.preventDefault();
@@ -121,6 +136,7 @@ export function GlobalSearch({
             results.map((result, index) => (
               <button
                 key={result.id}
+                ref={index === activeIndex ? activeResultRef : null}
                 className={
                   index === activeIndex
                     ? "global-search-result active"
