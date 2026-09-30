@@ -63,6 +63,48 @@ function cloneProject(source: NoteProject): NoteProject {
 }
 
 describe("WorkspaceSyncEngine", () => {
+  it("relays live updates between a remote peer and another local tab", () => {
+    const base = NoteProject.create();
+    const documentId = base.createDocument("Before sync").id;
+    const remote = cloneProject(base);
+    const owner = cloneProject(base);
+    const follower = cloneProject(base);
+    const [remoteTransport, ownerRemoteTransport] = createTransportPair();
+    const [ownerLocalTransport, followerTransport] = createTransportPair();
+    const engines = [
+      new WorkspaceSyncEngine(remote, remoteTransport),
+      new WorkspaceSyncEngine(owner, ownerRemoteTransport, {
+        relayScope: "remote-peer",
+      }),
+      new WorkspaceSyncEngine(owner, ownerLocalTransport, {
+        relayScope: "local-tab",
+      }),
+      new WorkspaceSyncEngine(follower, followerTransport),
+    ];
+
+    try {
+      for (const engine of engines) engine.start();
+
+      const remoteEchoesBefore = ownerRemoteTransport.sent.length;
+      remote.getDocument(documentId)?.setTitle("Remote edit");
+      expect(owner.getDocument(documentId)?.title).toBe("Remote edit");
+      expect(follower.getDocument(documentId)?.title).toBe("Remote edit");
+      expect(ownerRemoteTransport.sent).toHaveLength(remoteEchoesBefore);
+
+      follower.getDocument(documentId)?.setTitle("Local tab edit");
+      expect(owner.getDocument(documentId)?.title).toBe("Local tab edit");
+      expect(remote.getDocument(documentId)?.title).toBe("Local tab edit");
+
+      const remoteNote = remote.createDocument("Remote new note");
+      expect(follower.getDocument(remoteNote.id)?.title).toBe("Remote new note");
+
+      const localNote = follower.createDocument("Local tab new note");
+      expect(remote.getDocument(localNote.id)?.title).toBe("Local tab new note");
+    } finally {
+      for (const engine of engines) engine.stop();
+    }
+  });
+
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
     const otherProjectId = base.createProject("Other").id;

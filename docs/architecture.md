@@ -551,6 +551,11 @@ during its manager setup; other tabs discard them. Releasing the lock lets a
 waiting tab start a fresh peer-sync manager. If Web Locks is unavailable, the
 browser keeps the previous per-tab behavior and multi-tab ownership is not
 guaranteed. Separate private-browsing sessions do not share Web Locks.
+Within the owner tab, sync updates imported from WebRTC are forwarded through
+its encrypted BroadcastChannel transport, and updates imported from another
+local tab are forwarded through its encrypted WebRTC transports. Only update
+messages cross these transports; Presence and signaling stay on their existing
+paths.
 
 The current browser implementation opportunistically establishes a direct
 WebRTC connection for each simultaneously online device pair so CRDT updates do

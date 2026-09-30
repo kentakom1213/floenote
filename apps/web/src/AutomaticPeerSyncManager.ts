@@ -321,6 +321,7 @@ export class AutomaticPeerSyncManager {
       encryptedTransport,
       {
         debugLogger: createConsoleDebugLogger(`auto-${role}-sync`),
+        relayScope: "remote-peer",
       },
     );
     const signaling = new WebRtcSignalingSession({

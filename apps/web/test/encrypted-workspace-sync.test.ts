@@ -10,6 +10,7 @@ import {
   WorkspaceSyncEngine,
 } from "@floe-note/sync";
 import type { Transport } from "@floe-note/transport";
+import { BroadcastChannelTransport } from "@floe-note/transport/broadcast-channel";
 import { describe, expect, it, vi } from "vitest";
 
 class MemoryTransport implements Transport {
@@ -57,6 +58,85 @@ function encryptedTransport(
 }
 
 describe("encrypted Workspace synchronization", () => {
+  it("relays encrypted updates in both directions between a peer and local tab", async () => {
+    const key = await generateWorkspaceKey();
+    const remote = NoteProject.create();
+    const documentId = remote.createDocument("Initial note").id;
+    const owner = NoteProject.empty(remote.id);
+    const follower = NoteProject.empty(remote.id);
+    const [remoteRaw, ownerRemoteRaw] = transportPair();
+    const ownerLocalRaw = new BroadcastChannelTransport(remote.id);
+    const followerRaw = new BroadcastChannelTransport(remote.id);
+    const engines = [
+      new WorkspaceSyncEngine(
+        remote,
+        encryptedTransport(remoteRaw, remote.id, key),
+      ),
+      new WorkspaceSyncEngine(
+        owner,
+        encryptedTransport(ownerRemoteRaw, owner.id, key),
+        { relayScope: "remote-peer" },
+      ),
+      new WorkspaceSyncEngine(
+        owner,
+        encryptedTransport(ownerLocalRaw, owner.id, key),
+        { relayScope: "local-tab" },
+      ),
+      new WorkspaceSyncEngine(
+        follower,
+        encryptedTransport(followerRaw, follower.id, key),
+        { relayScope: "local-tab" },
+      ),
+    ];
+
+    try {
+      for (const engine of engines) engine.start();
+      await vi.waitFor(() => {
+        expect(follower.getDocument(documentId)?.title).toBe("Initial note");
+      });
+
+      remote.getDocument(documentId)?.setTitle("Remote edit");
+      await vi.waitFor(() => {
+        expect(follower.getDocument(documentId)?.title).toBe("Remote edit");
+      });
+
+      follower.getDocument(documentId)?.setTitle("Other tab edit");
+      await vi.waitFor(() => {
+        expect(remote.getDocument(documentId)?.title).toBe("Other tab edit");
+      });
+
+      // The former follower takes over remote sync without reopening either tab.
+      engines[0]?.stop();
+      engines[1]?.stop();
+      const [newRemoteRaw, newOwnerRemoteRaw] = transportPair();
+      const newRemoteEngine = new WorkspaceSyncEngine(
+        remote,
+        encryptedTransport(newRemoteRaw, remote.id, key),
+      );
+      const newOwnerRemoteEngine = new WorkspaceSyncEngine(
+        follower,
+        encryptedTransport(newOwnerRemoteRaw, follower.id, key),
+        { relayScope: "remote-peer" },
+      );
+      engines.push(newRemoteEngine, newOwnerRemoteEngine);
+      newRemoteEngine.start();
+      newOwnerRemoteEngine.start();
+
+      remote.getDocument(documentId)?.setTitle("After handoff");
+      await vi.waitFor(() => {
+        expect(owner.getDocument(documentId)?.title).toBe("After handoff");
+      });
+
+      owner.getDocument(documentId)?.setTitle("Former owner edit");
+      await vi.waitFor(() => {
+        expect(remote.getDocument(documentId)?.title).toBe("Former owner edit");
+      });
+    } finally {
+      for (const engine of engines) engine.stop();
+      key.fill(0);
+    }
+  });
+
   it("synchronizes manifest and note Loro updates within one Workspace", async () => {
     const key = await generateWorkspaceKey();
     const source = NoteProject.create();

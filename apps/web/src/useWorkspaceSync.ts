@@ -402,7 +402,9 @@ export function useEncryptedLocalTabSync({
           envelope,
         ),
     });
-    const syncEngine = new WorkspaceSyncEngine(project, encryptedTransport);
+    const syncEngine = new WorkspaceSyncEngine(project, encryptedTransport, {
+      relayScope: "local-tab",
+    });
     syncEngine.start();
 
     return () => syncEngine.stop();
