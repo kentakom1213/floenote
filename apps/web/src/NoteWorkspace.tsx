@@ -24,7 +24,6 @@ import {
 } from "./note-recency.js";
 import {
   DEFAULT_TAG_FILTER_MODE,
-  deriveProjectTags,
   deriveVisibleNotes,
   readNoteSortPreference,
   resolveSelectedTags,
@@ -169,7 +168,8 @@ export function NoteWorkspace({
       .map((document) =>
         document.subscribe(() => {
           if (project.getDocument(document.id)) {
-            searchCache.updateDocument(document);
+            const projectId = project.getDocumentProjectId(document.id);
+            if (projectId) searchCache.updateDocument(document, projectId);
           } else {
             searchCache.removeDocument(document.id);
           }
@@ -255,12 +255,15 @@ export function NoteWorkspace({
         ]
       : [];
   });
-  const projectTags = deriveProjectTags(navigationNotes);
   const scopedNotes = navigationNotes.filter(
     (note) =>
       selectedProjectId !== null &&
       project.getDocumentProjectId(note.id) === selectedProjectId,
   );
+  const projectTags = selectedProjectId
+    ? project.listProjectTags(selectedProjectId)
+    : [];
+
   const visibleNotes = deriveVisibleNotes(
     scopedNotes,
     query,
@@ -276,6 +279,10 @@ export function NoteWorkspace({
       resolved.some((tag, index) => tag !== selectedTags[index]);
     if (changed) setSelectedTags(resolved);
   }, [projectTags, selectedTags]);
+
+  useEffect(() => {
+    setSelectedTags([]);
+  }, [selectedProjectId]);
 
   const sidebar = (
     <div
@@ -311,7 +318,7 @@ export function NoteWorkspace({
           tags={projectTags}
           selectedTags={selectedTags}
           tagFilterMode={tagFilterMode}
-          getTagColor={(tag) => project.getTagColor(tag)}
+          getTagColor={(tag) => project.resolveTagColor(selectedProjectId!, tag)}
           onQueryChange={setQuery}
           onSearchOpenChange={setSearchOpen}
           onSortChange={(preference) => {
@@ -335,7 +342,7 @@ export function NoteWorkspace({
                 id={note.id}
                 title={note.title}
                 tags={note.tags}
-                getTagColor={(tag) => project.getTagColor(tag)}
+                getTagColor={(tag) => project.resolveTagColor(selectedProjectId!, tag)}
                 selected={!trashActive && note.id === selectedId}
                 onSelect={(documentId) => {
                   setSelectedTrashDocumentId(null);
@@ -500,7 +507,7 @@ export function NoteWorkspace({
         <GlobalSearch
           cache={searchCache}
           lastOpenedAt={readNoteRecency(project.id)}
-          getTagColor={(tag) => project.getTagColor(tag)}
+          getTagColor={(projectId, tag) => project.resolveTagColor(projectId, tag)}
           onClose={() => setGlobalSearchOpen(false)}
           onSelect={(documentId) => {
             recordNoteOpened(project.id, documentId);
@@ -740,8 +747,15 @@ function DocumentPane({
           <NoteProperties
             document={document}
             availableTags={availableTags}
-            getTagColor={(tag) => project.getTagColor(tag)}
-            onTagColorChange={(tag, color) => project.setTagColor(tag, color)}
+            getTagColor={(tag) =>
+              project.resolveTagColor(project.getDocumentProjectId(document.id)!, tag)
+            }
+            onTagColorChange={(tag, color) =>
+              project.setTagColor(project.getDocumentProjectId(document.id)!, tag, color)
+            }
+            onTagRename={(oldTag, newTag) =>
+              project.renameTag(project.getDocumentProjectId(document.id)!, oldTag, newTag)
+            }
             trailingControl={
               <EditorModeSwitcher
                 mode={mode}

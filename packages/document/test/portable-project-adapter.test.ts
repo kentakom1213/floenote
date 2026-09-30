@@ -20,7 +20,7 @@ describe("createPortableProjectSnapshot", () => {
     project.renameWorkspaceProject(researchId, "Research");
     const otherId = project.createProject("Other").id;
     project.createDocument("Other note", otherId);
-    project.setTagColor("research", "blue");
+    project.setTagColor(researchId, "research", "blue");
     const document = project.createDocument("Paper notes", researchId);
 
     now.mockReturnValue(200);

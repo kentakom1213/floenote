@@ -13,6 +13,48 @@ import {
 } from "../src/note-recency.js";
 
 describe("global search", () => {
+  it("matches Project names across fields and ranks title, Project, tag, then body", () => {
+    const workspace = NoteProject.create();
+    const base = workspace.listProjects()[0]!.id;
+    const research = workspace.createProject("Research").id;
+    const title = workspace.createDocumentWithInitialState({ title: "Research title", body: "", tags: [], createdAt: 1, updatedAt: 1 }, base);
+    const projectMatch = workspace.createDocumentWithInitialState({ title: "Graph", body: "", tags: [], createdAt: 1, updatedAt: 2 }, research);
+    const tag = workspace.createDocumentWithInitialState({ title: "Tagged", body: "", tags: ["research"], createdAt: 1, updatedAt: 3 }, base);
+    const body = workspace.createDocumentWithInitialState({ title: "Body", body: "research", tags: [], createdAt: 1, updatedAt: 4 }, base);
+    const cache = new GlobalSearchCache();
+    cache.syncProject(workspace);
+
+    expect(cache.search("research", new Map()).map(({ id }) => id)).toEqual([title.id, projectMatch.id, tag.id, body.id]);
+    expect(cache.search("research graph", new Map()).map(({ id }) => id)).toEqual([projectMatch.id]);
+
+    workspace.renameWorkspaceProject(research, "Library");
+    cache.syncProject(workspace);
+    expect(cache.search("research graph", new Map())).toHaveLength(0);
+    expect(cache.search("library graph", new Map())[0]?.projectName).toBe("Library");
+
+    workspace.moveDocument(projectMatch.id, base);
+    cache.syncProject(workspace);
+    expect(cache.search("library graph", new Map())).toHaveLength(0);
+    expect(cache.search("graph", new Map())[0]?.projectId).toBe(base);
+    workspace.deleteDocument(projectMatch.id);
+    cache.syncProject(workspace);
+    expect(cache.search("graph", new Map())).toHaveLength(0);
+  });
+
+  it("disambiguates duplicate Project display names in results and recents", () => {
+    const workspace = NoteProject.create();
+    const first = workspace.listProjects()[0]!.id;
+    workspace.renameWorkspaceProject(first, "Research");
+    const second = workspace.createProject("Research").id;
+    workspace.createDocument("One", first);
+    workspace.createDocument("Two", second);
+    const cache = new GlobalSearchCache();
+    cache.syncProject(workspace);
+    const results = cache.search("research", new Map());
+    expect(results).toHaveLength(2);
+    expect(new Set(results.map(({ projectLabel }) => projectLabel)).size).toBe(2);
+    expect(cache.search("", new Map()).every(({ projectLabel }) => projectLabel.startsWith("Research · "))).toBe(true);
+  });
   it("normalizes NFKC, case, and whitespace-separated terms", () => {
     expect(normalizeSearchText("ＡlGo")).toBe("algo");
     expect(splitSearchTerms("  Graph   ＡLGO  ")).toEqual(["graph", "algo"]);
@@ -156,7 +198,7 @@ describe("global search", () => {
     const binding = document.getEditorBinding();
     binding.getText(binding.doc).splice(0, "before".length, "after");
     binding.doc.commit();
-    cache.updateDocument(document);
+    cache.updateDocument(document, project.listProjects()[0]!.id);
 
     expect(cache.search("after", new Map()).map((result) => result.id))
       .toEqual([document.id]);

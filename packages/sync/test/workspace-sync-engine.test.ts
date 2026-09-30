@@ -65,8 +65,10 @@ function cloneProject(source: NoteProject): NoteProject {
 describe("WorkspaceSyncEngine", () => {
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
+    const otherProjectId = base.createProject("Other").id;
     const left = cloneProject(base);
     const right = cloneProject(base);
+    const projectId = base.listProjects()[0]!.id;
     const [leftTransport, rightTransport] = createTransportPair();
     const leftEngine = new WorkspaceSyncEngine(left, leftTransport);
     const rightEngine = new WorkspaceSyncEngine(right, rightTransport);
@@ -74,11 +76,14 @@ describe("WorkspaceSyncEngine", () => {
     leftEngine.start();
     rightEngine.start();
 
-    left.setTagColor("research", "blue");
-    expect(right.getTagColor("research")).toBe("blue");
+    left.setTagColor(projectId, "research", "blue");
+    left.setTagColor(otherProjectId, "research", "orange");
+    expect(right.resolveTagColor(projectId, "research")).toBe("blue");
+    expect(right.resolveTagColor(otherProjectId, "research")).toBe("orange");
 
-    right.setTagColor("research", "purple");
-    expect(left.getTagColor("research")).toBe("purple");
+    right.setTagColor(projectId, "research", "purple");
+    expect(left.resolveTagColor(projectId, "research")).toBe("purple");
+    expect(left.resolveTagColor(otherProjectId, "research")).toBe("orange");
 
     leftEngine.stop();
     rightEngine.stop();

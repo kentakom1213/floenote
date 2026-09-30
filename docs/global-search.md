@@ -9,6 +9,7 @@ Global search searches active notes only. Deleted/tombstoned notes are excluded.
 The searchable fields are:
 
 - title;
+- containing Project name;
 - tags;
 - Markdown body.
 
@@ -18,7 +19,7 @@ Sidebar filtering remains a separate navigation feature and searches title and t
 
 A query is normalized with Unicode NFKC and locale-insensitive lowercase conversion, then split on whitespace.
 
-Every non-empty term must match somewhere in the note. Terms may match different fields.
+Every non-empty term must match somewhere in the Note or its Project name. Terms may match different fields.
 
 Matching is literal substring matching. Fuzzy matching, typo tolerance, stemming,
 phrase syntax, boolean syntax, and other advanced query languages are outside v1.
@@ -37,14 +38,15 @@ in the same or another searchable field.
 Matching notes are ranked by field priority:
 
 1. title;
-2. tags;
-3. body.
+2. Project name;
+3. tags;
+4. body.
 
 Within the same relevance class, newer `updatedAt` values rank first.
 
 The implementation may use a small deterministic score derived from the same
 field ordering when multiple terms match different fields. It must preserve the
-priority title > tags > body and must not introduce fuzzy relevance.
+priority title > Project name > tags > body and must not introduce fuzzy relevance.
 
 ## Results
 
@@ -53,6 +55,7 @@ The global-search surface returns at most 50 results.
 Each result shows:
 
 - title;
+- containing Project name, with a short stable identifier when names duplicate;
 - matching tags when one or more query terms match tags;
 - one body snippet when a body match exists;
 - best-effort highlighting of literal matches.
@@ -102,7 +105,7 @@ by title and tags only.
 v1 uses no persistent full-text index.
 
 After Device Vault unlock and Workspace open, the application builds a
-disposable in-memory search cache containing normalized title, tags, and body
+disposable in-memory search cache containing Project context and normalized title, tags, and body
 for each active note. The cache is derived from authoritative decrypted document
 state and must never be required for persistence or synchronization.
 
@@ -114,6 +117,8 @@ The cache is updated incrementally at note/field granularity:
 - note creation -> add the note;
 - note deletion -> remove the note from active search;
 - note restoration -> add the note back;
+- Note move -> update its Project membership;
+- Project rename or lifecycle change -> refresh Project metadata;
 - Workspace change/unlock -> rebuild the cache.
 
 v1 intentionally does not attempt substring-level incremental Unicode

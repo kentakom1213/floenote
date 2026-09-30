@@ -24,6 +24,7 @@ type NotePropertiesProps = {
   availableTags?: readonly string[];
   getTagColor?: (tag: string) => TagColor;
   onTagColorChange?: (tag: string, color: TagColor) => void;
+  onTagRename?: (oldTag: string, newTag: string) => void;
   trailingControl?: ReactNode;
 };
 
@@ -48,6 +49,7 @@ export function NoteProperties({
   availableTags = [],
   getTagColor = () => DEFAULT_TAG_COLOR,
   onTagColorChange = () => {},
+  onTagRename,
   trailingControl,
 }: NotePropertiesProps) {
   const subscribe = useCallback(
@@ -151,6 +153,8 @@ export function NoteProperties({
                   onColorChange={(nextColor) =>
                     onTagColorChange(tag, nextColor)
                   }
+                  availableTags={availableTags}
+                  onRename={onTagRename}
                 />
                 <button
                   className="note-tag-remove"
@@ -293,13 +297,33 @@ function NoteTagColorControl({
   tag,
   color,
   onColorChange,
+  availableTags,
+  onRename,
 }: {
   tag: string;
   color: TagColor;
   onColorChange: (color: TagColor) => void;
+  availableTags: readonly string[];
+  onRename: ((oldTag: string, newTag: string) => void) | undefined;
 }) {
   const pickerRef = useRef<HTMLDetailsElement>(null);
+  const [name, setName] = useState(tag);
+  const [confirmMerge, setConfirmMerge] = useState(false);
   useDismissibleDetails(pickerRef);
+
+  const normalizedName = name.trim();
+  const collision =
+    normalizedName !== tag && availableTags.includes(normalizedName);
+
+  function rename(): void {
+    if (!normalizedName || normalizedName === tag) return;
+    if (collision && !confirmMerge) {
+      setConfirmMerge(true);
+      return;
+    }
+    onRename?.(tag, normalizedName);
+    pickerRef.current?.removeAttribute("open");
+  }
 
   return (
     <details className="note-tag-color-picker" ref={pickerRef}>
@@ -312,6 +336,50 @@ function NoteTagColorControl({
       </summary>
       <div className="tag-color-popover">
         <p className="tag-color-popover-label">{tag}</p>
+        {onRename ? (
+          <div className="tag-rename-control">
+            <label htmlFor={`rename-${tag}`}>Name</label>
+            <div className="tag-rename-row">
+              <input
+                id={`rename-${tag}`}
+                aria-label={`Rename ${tag}`}
+                value={name}
+                onChange={(event) => {
+                  setName(event.currentTarget.value);
+                  setConfirmMerge(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    rename();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                disabled={!normalizedName || normalizedName === tag || confirmMerge}
+                onClick={rename}
+              >
+                Rename
+              </button>
+            </div>
+            {confirmMerge ? (
+              <div className="tag-rename-confirmation">
+                <p>
+                  A tag named "{normalizedName}" already exists in this Project.
+                  Renaming will merge these tags.
+                </p>
+                <button type="button" onClick={() => setConfirmMerge(false)}>
+                  Cancel
+                </button>
+                <button type="button" onClick={rename}>
+                  Merge
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <p className="tag-color-popover-label">Color</p>
         <TagColorPalette
           tag={tag}
           currentColor={color}

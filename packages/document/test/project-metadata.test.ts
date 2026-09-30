@@ -2,11 +2,7 @@ import { createWorkspaceId } from "@floe-note/domain";
 import { LoroDoc } from "loro-crdt";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  DEFAULT_TAG_COLOR,
-  NoteProject,
-  TAG_COLORS,
-} from "../src/project.js";
+import { automaticTagColor, NoteProject, TAG_COLORS } from "../src/project.js";
 
 describe("NoteProject metadata", () => {
   it("uses a friendly default project name", () => {
@@ -98,25 +94,31 @@ describe("NoteProject metadata", () => {
   });
 
 
-  it("keeps a newly created tag gray until a color is explicitly set", () => {
+  it("derives an unpersisted, stable, non-gray color from ProjectId and tag", () => {
     const project = NoteProject.create();
-    const document = project.createDocument("Tagged");
-
-    document.addTag("research");
-
-    expect(project.getTagColor("research")).toBe(DEFAULT_TAG_COLOR);
+    const projectId = project.listProjects()[0]!.id;
+    const otherId = project.createProject("Other").id;
+    const color = project.resolveTagColor(projectId, "research");
+    expect(color).toBe(automaticTagColor(projectId, "research"));
+    expect(color).not.toBe("gray");
+    expect(project.resolveTagColor(projectId, "research")).toBe(color);
+    expect(project.getExplicitTagColor(projectId, "research")).toBeUndefined();
+    project.renameWorkspaceProject(projectId, "Renamed");
+    expect(project.resolveTagColor(projectId, "research")).toBe(color);
+    expect(project.resolveTagColor(otherId, "research")).toBe(automaticTagColor(otherId, "research"));
   });
 
   it("sets and reads a Project tag color without changing note tags", () => {
     const project = NoteProject.create();
+    const projectId = project.listProjects()[0]!.id;
     const document = project.createDocument("Tagged");
     document.setTags(["research", "work"]);
     const listener = vi.fn();
     project.subscribe(listener);
 
-    project.setTagColor("research", "blue");
+    project.setTagColor(projectId, "research", "blue");
 
-    expect(project.getTagColor("research")).toBe("blue");
+    expect(project.resolveTagColor(projectId, "research")).toBe("blue");
     expect(document.tags).toEqual(["research", "work"]);
     expect(listener).toHaveBeenCalledOnce();
   });
@@ -138,14 +140,15 @@ describe("NoteProject metadata", () => {
 
   it("rejects tag colors outside the fixed palette", () => {
     const project = NoteProject.create();
+    const projectId = project.listProjects()[0]!.id;
 
     expect(() =>
-      project.setTagColor("research", "chartreuse" as never),
+      project.setTagColor(projectId, "research", "chartreuse" as never),
     ).toThrow("Invalid tag color");
-    expect(project.getTagColor("research")).toBe("gray");
+    expect(project.resolveTagColor(projectId, "research")).toBe(automaticTagColor(projectId, "research"));
   });
 
-  it("falls back to gray for invalid persisted tag color values", () => {
+  it("ignores legacy Workspace-wide tag colors", () => {
     const manifest = new LoroDoc();
     manifest.getMap("tagColors").set("research", "chartreuse");
     manifest.commit();
@@ -156,13 +159,17 @@ describe("NoteProject metadata", () => {
       [],
     );
 
-    expect(project.getTagColor("research")).toBe("gray");
+    const projectId = project.createProject("Test").id;
+    expect(project.resolveTagColor(projectId, "research")).toBe(automaticTagColor(projectId, "research"));
   });
 
   it("preserves tag colors through a manifest snapshot round trip", () => {
     const project = NoteProject.create();
-    project.setTagColor("research", "blue");
-    project.setTagColor("work", "orange");
+    const projectId = project.listProjects()[0]!.id;
+    const otherId = project.createProject("Other").id;
+    project.setTagColor(projectId, "research", "blue");
+    project.setTagColor(otherId, "research", "orange");
+    project.setTagColor(projectId, "work", "gray");
 
     const restored = NoteProject.fromSnapshot(
       project.id,
@@ -170,32 +177,36 @@ describe("NoteProject metadata", () => {
       [],
     );
 
-    expect(restored.getTagColor("research")).toBe("blue");
-    expect(restored.getTagColor("work")).toBe("orange");
+    expect(restored.resolveTagColor(projectId, "research")).toBe("blue");
+    expect(restored.resolveTagColor(otherId, "research")).toBe("orange");
+    expect(restored.getExplicitTagColor(projectId, "work")).toBe("gray");
   });
 
   it("synchronizes tag colors through manifest updates", () => {
     const source = NoteProject.create();
-    const target = NoteProject.create(source.id);
+    const target = NoteProject.fromSnapshot(source.id, source.exportManifestSnapshot(), []);
+    const projectId = source.listProjects()[0]!.id;
+    const targetId = target.listProjects()[0]!.id;
 
-    source.setTagColor("personal", "purple");
+    source.setTagColor(projectId, "personal", "purple");
     target.importManifestUpdate(source.exportManifestUpdate());
 
-    expect(target.getTagColor("personal")).toBe("purple");
+    expect(target.resolveTagColor(targetId, "personal")).toBe("purple");
   });
 
   it("retains unused tag color metadata for later reuse", () => {
     const project = NoteProject.create();
+    const projectId = project.listProjects()[0]!.id;
     const document = project.createDocument("Tagged");
     document.addTag("research");
-    project.setTagColor("research", "brown");
+    project.setTagColor(projectId, "research", "brown");
 
     document.removeTag("research");
 
     expect(document.tags).toEqual([]);
-    expect(project.getTagColor("research")).toBe("brown");
+    expect(project.resolveTagColor(projectId, "research")).toBe("brown");
 
     document.addTag("research");
-    expect(project.getTagColor("research")).toBe("brown");
+    expect(project.resolveTagColor(projectId, "research")).toBe("brown");
   });
 });

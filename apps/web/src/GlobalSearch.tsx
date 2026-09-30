@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import type { TagColor } from "@floe-note/document";
-import type { DocumentId } from "@floe-note/domain";
+import type { DocumentId, ProjectId } from "@floe-note/domain";
 
 import {
   splitSearchTerms,
@@ -22,7 +22,7 @@ type GlobalSearchProps = {
   lastOpenedAt: ReadonlyMap<DocumentId, number>;
   onClose: () => void;
   onSelect: (documentId: DocumentId) => void;
-  getTagColor: (tag: string) => TagColor;
+  getTagColor: (projectId: ProjectId, tag: string) => TagColor;
 };
 
 export function GlobalSearch({
@@ -135,6 +135,9 @@ export function GlobalSearch({
                 <span className="global-search-result-title">
                   {highlightText(result.title, terms)}
                 </span>
+                <span className="global-search-result-project">
+                  {highlightText(result.projectLabel, terms)}
+                </span>
                 {result.matchedTags.length > 0 ? (
                   <span
                     className="global-search-result-tags"
@@ -144,7 +147,7 @@ export function GlobalSearch({
                       <TagChip
                         key={tag}
                         tag={tag}
-                        color={getTagColor(tag)}
+                        color={getTagColor(result.projectId, tag)}
                         compact
                       />
                     ))}

@@ -197,8 +197,9 @@ The portable format does not contain:
 - IndexedDB records or schema details.
 
 Imported Notes therefore start with fresh edit history. Tags are preserved as
-strings, while tag colors fall back to the normal Workspace default until
-chosen again.
+strings. Imported tags resolve colors in the destination Project. Without an
+explicit Project-local override, they use deterministic automatic colors based
+on the new ProjectId and tag string.
 
 ## 7. Export consistency and security
 

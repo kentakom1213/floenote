@@ -135,7 +135,7 @@ Timestamps are used for display and sorting only. They must not be used to resol
 > Project v1 is the accepted target model. Implementation is tracked by
 > #177–#180 and is not yet complete.
 
-The Workspace owns Projects, Documents, Workspace-scoped presentation metadata,
+The Workspace owns Projects, Documents, Project-scoped tag-color metadata,
 and edit-history metadata. Project is intentionally lighter than Workspace: it
 organizes content but does not introduce a second authorization, encryption, or
 synchronization boundary.
@@ -149,7 +149,7 @@ Workspace
 ├── WorkspaceId
 ├── SecurityState
 ├── Manifest: LoroDoc
-│   ├── Project metadata / lifecycle
+│   ├── Project metadata / lifecycle / tag-color overrides
 │   ├── Document lifecycle
 │   ├── Document -> Project membership
 │   └── edit-history checkpoint metadata
@@ -175,8 +175,8 @@ Conceptually:
 ```text
 Manifest
 ├── projects: LoroMap
-│   ├── ProjectId A -> { name, status, createdAt }
-│   └── ProjectId B -> { name, status, createdAt }
+│   ├── ProjectId A -> { name, status, createdAt, tagColors: LoroMap }
+│   └── ProjectId B -> { name, status, createdAt, tagColors: LoroMap }
 ├── documentProjects: LoroMap
 │   ├── DocumentId A -> ProjectId A
 │   ├── DocumentId B -> ProjectId A
@@ -248,9 +248,10 @@ Project archival is deliberately softer than deletion:
 Permanent Project deletion is not part of v1.
 
 Project selection is local UI state, remembered per Workspace and not
-synchronized. The ordinary sidebar Note list and sidebar search are scoped to
-the selected Project. Workspace-wide features such as Trash, tags, backlinks,
-and global search remain Workspace-wide.
+synchronized. The ordinary sidebar Note list, sidebar search, and tag namespace
+are scoped to the selected Project. Tag-color overrides are Project-scoped
+metadata in the Workspace manifest. Workspace-wide surfaces such as Trash,
+backlinks, and global search can still traverse Notes from multiple Projects.
 
 Opening an active Note from a Workspace-wide surface or canonical Note URL
 updates the local selected Project to that Note's current Project membership.

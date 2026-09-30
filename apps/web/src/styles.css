@@ -5767,12 +5767,52 @@ h1 {
   z-index: 45;
   top: calc(100% + 5px);
   left: 0;
-  width: 184px;
+  width: 244px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 7px;
   background: var(--color-surface);
   box-shadow: var(--shadow-popover);
+}
+
+.tag-rename-control {
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.tag-rename-control label {
+  display: block;
+  margin: 0 4px 4px;
+  color: var(--color-text-muted);
+}
+
+.tag-rename-row {
+  display: flex;
+  gap: 5px;
+}
+
+.tag-rename-row input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 5px;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.tag-rename-row button,
+.tag-rename-confirmation button {
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.tag-rename-confirmation p {
+  margin: 7px 0;
+  line-height: 1.4;
 }
 
 .tag-color-popover-label {
