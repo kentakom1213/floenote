@@ -11,6 +11,7 @@ export type SyncUiInput = {
     | "closed"
     | "error";
   onlineDeviceIds: readonly DeviceId[];
+  ownsAutomaticPeerSync: boolean;
   connectedDeviceIds: readonly DeviceId[];
   localDeviceId: DeviceId | null;
   error: string | null;
@@ -19,6 +20,7 @@ export type SyncUiInput = {
 export function deriveSyncUiState({
   presenceState,
   onlineDeviceIds,
+  ownsAutomaticPeerSync,
   connectedDeviceIds,
   localDeviceId,
   error,
@@ -27,7 +29,7 @@ export function deriveSyncUiState({
     return { kind: "error", detail: error };
   }
 
-  if (connectedDeviceIds.length > 0) {
+  if (ownsAutomaticPeerSync && connectedDeviceIds.length > 0) {
     return { kind: "connected" };
   }
 
@@ -46,5 +48,6 @@ export function deriveSyncUiState({
   const otherDeviceOnline = onlineDeviceIds.some(
     (deviceId) => deviceId !== localDeviceId,
   );
-  return otherDeviceOnline ? { kind: "connecting" } : { kind: "quiet" };
+  if (!otherDeviceOnline) return { kind: "quiet" };
+  return ownsAutomaticPeerSync ? { kind: "connecting" } : { kind: "online" };
 }

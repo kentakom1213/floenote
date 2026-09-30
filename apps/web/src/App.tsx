@@ -2069,6 +2069,7 @@ function NoteApp({
   const syncUiState = deriveSyncUiState({
     presenceState: authorizedSync.presenceState,
     onlineDeviceIds: authorizedSync.onlineDeviceIds,
+    ownsAutomaticPeerSync: authorizedSync.ownsAutomaticPeerSync,
     connectedDeviceIds: authorizedSync.connectedDeviceIds,
     localDeviceId,
     error: authorizedSync.error,

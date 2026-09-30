@@ -15,7 +15,12 @@ export type WorkspaceSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
   onInitialRemoteStateReceived?: () => void;
   onInitialSyncError?: (error: Error) => void;
+  relayScope?: "local-tab" | "remote-peer";
 };
+
+// Bridge transports attached to one in-memory Workspace without echoing an
+// imported update back through the transport that delivered it.
+const relayEngines = new WeakMap<NoteProject, Set<WorkspaceSyncEngine>>();
 
 export class WorkspaceSyncEngine {
   readonly #project: NoteProject;
@@ -23,6 +28,7 @@ export class WorkspaceSyncEngine {
   readonly #debugLogger: SyncDebugLogger | null;
   readonly #onInitialRemoteStateReceived: (() => void) | null;
   readonly #onInitialSyncError: ((error: Error) => void) | null;
+  readonly #relayScope: "local-tab" | "remote-peer" | null;
   readonly #documentSubscriptions = new Map<string, () => void>();
   #stopProjectSubscription: (() => void) | null = null;
   #stopManifestSubscription: (() => void) | null = null;
@@ -42,11 +48,21 @@ export class WorkspaceSyncEngine {
     this.#onInitialRemoteStateReceived =
       options.onInitialRemoteStateReceived ?? null;
     this.#onInitialSyncError = options.onInitialSyncError ?? null;
+    this.#relayScope = options.relayScope ?? null;
   }
 
   start(): void {
     if (this.#started) return;
     this.#started = true;
+
+    if (this.#relayScope) {
+      let engines = relayEngines.get(this.#project);
+      if (!engines) {
+        engines = new Set();
+        relayEngines.set(this.#project, engines);
+      }
+      engines.add(this);
+    }
 
     this.#debug("engine.start", {
       documents: this.#project.getAllDocuments().length,
@@ -88,6 +104,10 @@ export class WorkspaceSyncEngine {
   stop(): void {
     if (!this.#started) return;
     this.#started = false;
+
+    const engines = relayEngines.get(this.#project);
+    engines?.delete(this);
+    if (engines?.size === 0) relayEngines.delete(this.#project);
 
     this.#debug("engine.stop", {
       documentSubscriptions: this.#documentSubscriptions.size,
@@ -229,18 +249,23 @@ export class WorkspaceSyncEngine {
             bytes: message.update.byteLength,
           });
           this.#project.importManifestUpdate(message.update);
+          this.#relayImportedUpdate(data);
           return;
 
-        case "document-update":
+        case "document-update": {
           this.#debug("document.receive", {
             documentId: message.documentId,
             bytes: message.update.byteLength,
           });
-          this.#project.importDocumentUpdate(
+          const importedDocument = this.#project.importDocumentUpdate(
             message.documentId,
             message.update,
           );
+          if (importedDocument) {
+            this.#relayImportedUpdate(data);
+          }
           return;
+        }
       }
     } catch (error) {
       const syncError =
@@ -257,6 +282,16 @@ export class WorkspaceSyncEngine {
       ) {
         this.#initialRemoteStateFailed = true;
         this.#onInitialSyncError?.(syncError);
+      }
+    }
+  }
+
+  #relayImportedUpdate(data: Uint8Array): void {
+    if (!this.#relayScope) return;
+
+    for (const engine of relayEngines.get(this.#project) ?? []) {
+      if (engine.#relayScope !== this.#relayScope && engine.#started) {
+        engine.#transport.send(data);
       }
     }
   }

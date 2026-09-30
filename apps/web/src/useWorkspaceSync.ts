@@ -38,6 +38,7 @@ type AuthorizedWorkspaceSyncOptions = {
 export type AuthorizedWorkspaceSyncState = {
   presenceState: AuthorizedPresenceConnectionState;
   onlineDeviceIds: readonly DeviceId[];
+  ownsAutomaticPeerSync: boolean;
   connectedDeviceIds: readonly DeviceId[];
   connectionAttempts: AutomaticPeerSyncStatus["connectionAttempts"];
   coordinationError: string | null;
@@ -69,8 +70,18 @@ export function useAuthorizedWorkspaceSync({
   const [presenceError, setPresenceError] = useState<string | null>(null);
   const [automaticSyncStatus, setAutomaticSyncStatus] =
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
+  const [ownsAutomaticPeerSync, setOwnsAutomaticPeerSync] = useState(false);
+  const [ownershipVersion, setOwnershipVersion] = useState(0);
+  const ownershipVersionRef = useRef(0);
   const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
+  const [authenticatedPresence, setAuthenticatedPresence] =
+    useState<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
+  const ownsAutomaticPeerSyncRef = useRef(false);
+  const ownershipPhaseRef = useRef<
+    "none" | "candidate" | "follower" | "owner"
+  >("none");
+  const releaseOwnershipRef = useRef<(() => void) | null>(null);
   const shouldQueueReconnectRef = useRef(automaticReconnectEnabled);
   const onlineDeviceIdsRef = useRef<readonly DeviceId[]>([]);
   const pendingReconnectSessionsRef = useRef(
@@ -81,6 +92,14 @@ export function useAuthorizedWorkspaceSync({
   );
 
   shouldQueueReconnectRef.current = automaticReconnectEnabled;
+
+  const stopAutomaticPeerSync = useCallback(() => {
+    const manager = automaticPeerSyncRef.current;
+    if (!manager) return;
+    automaticPeerSyncRef.current = null;
+    manager.stop();
+    setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
+  }, []);
 
   function drainPendingReconnectSessions(
     automaticPeerSync: AutomaticPeerSyncManager,
@@ -116,6 +135,7 @@ export function useAuthorizedWorkspaceSync({
   useEffect(() => {
     if (!project || !localDeviceId || !securityState || !vaultSession) {
       presenceRef.current = null;
+      setAuthenticatedPresence(null);
       setPresenceState("idle");
       setOnlineDeviceIds([]);
       setPresenceError(null);
@@ -130,9 +150,20 @@ export function useAuthorizedWorkspaceSync({
       sign: (message) => vaultSession.sign(message),
     });
     presenceRef.current = presence;
+    setAuthenticatedPresence(null);
+    let hasAuthenticated = false;
 
     const stopState = presence.onStateChange((state) => {
       setPresenceState(state);
+      if (state === "open" && !hasAuthenticated) {
+        hasAuthenticated = true;
+        // A first authenticated Presence message can be followed by a
+        // reconnect session before React starts the Web Lock request.
+        if (shouldQueueReconnectRef.current) {
+          ownershipPhaseRef.current = "candidate";
+        }
+        setAuthenticatedPresence(presence);
+      }
       if (state === "connecting" || state === "open") {
         setPresenceError(null);
       }
@@ -159,7 +190,11 @@ export function useAuthorizedWorkspaceSync({
           return;
         }
 
-        if (shouldQueueReconnectRef.current) {
+        if (
+          (ownershipPhaseRef.current === "owner" ||
+            ownershipPhaseRef.current === "candidate") &&
+          shouldQueueReconnectRef.current
+        ) {
           pendingReconnectSessionsRef.current.set(fromDeviceId, {
             sessionId,
             transportMode,
@@ -170,6 +205,9 @@ export function useAuthorizedWorkspaceSync({
     const stopErrors = presence.onError((error) => {
       setPresenceError(error.message);
       if (error.message === "SecurityState changed") {
+        ownershipPhaseRef.current = "none";
+        pendingReconnectSessionsRef.current.clear();
+        releaseOwnershipRef.current?.();
         onSecurityStateChanged();
       }
     });
@@ -207,6 +245,7 @@ export function useAuthorizedWorkspaceSync({
       if (presenceRef.current === presence) {
         presenceRef.current = null;
       }
+      setAuthenticatedPresence(null);
       presence.close();
       onlineDeviceIdsRef.current = [];
       pendingReconnectSessionsRef.current.clear();
@@ -222,16 +261,162 @@ export function useAuthorizedWorkspaceSync({
   ]);
 
   useEffect(() => {
-    automaticPeerSyncRef.current?.stop();
-    automaticPeerSyncRef.current = null;
-    setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
-
-    if (!automaticReconnectEnabled) {
+    if (
+      !automaticReconnectEnabled ||
+      !project ||
+      !localDeviceId ||
+      !securityState ||
+      securityState.workspaceId !== project.id ||
+      !securityState.devices.some(
+        (device) => device.deviceId === localDeviceId,
+      ) ||
+      !vaultSession
+    ) {
+      ownershipPhaseRef.current = "none";
       pendingReconnectSessionsRef.current.clear();
       return;
     }
 
+    const presence = presenceRef.current;
+    if (!presence || authenticatedPresence !== presence) return;
+
+    const locks = navigator.locks;
+    const lockName = `floe:peer-sync:${project.id}:${localDeviceId}`;
+    let disposed = false;
+    let active = true;
+    let requestGeneration = 0;
+    let abortController: AbortController | null = null;
+    let releaseLock: (() => void) | null = null;
+
+    const relinquish = () => {
+      requestGeneration += 1;
+      ownershipVersionRef.current += 1;
+      abortController?.abort();
+      abortController = null;
+      ownershipPhaseRef.current = "none";
+      ownsAutomaticPeerSyncRef.current = false;
+      setOwnsAutomaticPeerSync(false);
+      stopAutomaticPeerSync();
+      pendingReconnectSessionsRef.current.clear();
+      releaseLock?.();
+      releaseLock = null;
+    };
+    releaseOwnershipRef.current = relinquish;
+
+    const holdLock = async (generation: number) => {
+      if (disposed || !active || generation !== requestGeneration) return;
+      if (ownershipPhaseRef.current === "follower") {
+        pendingReconnectSessionsRef.current.clear();
+      }
+      ownershipPhaseRef.current = "owner";
+      ownsAutomaticPeerSyncRef.current = true;
+      setOwnsAutomaticPeerSync(true);
+      ownershipVersionRef.current += 1;
+      setOwnershipVersion(ownershipVersionRef.current);
+
+      await new Promise<void>((resolve) => {
+        const release = () => {
+          if (releaseLock !== release) return;
+          releaseLock = null;
+          resolve();
+        };
+        releaseLock = release;
+        if (disposed || !active || generation !== requestGeneration) release();
+      });
+    };
+
+    const onLockError = (error: unknown, generation: number) => {
+      if (disposed || !active || generation !== requestGeneration) return;
+      ownershipPhaseRef.current = "none";
+      pendingReconnectSessionsRef.current.clear();
+      setAutomaticSyncStatus({
+        ...IDLE_AUTOMATIC_SYNC_STATUS,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to acquire automatic peer sync ownership",
+      });
+    };
+
+    const requestOwnership = () => {
+      if (disposed || !active) return;
+      const generation = ++requestGeneration;
+      ownershipPhaseRef.current = "candidate";
+
+      if (!locks) {
+        // Preserve single-tab behavior where Web Locks is unavailable.
+        void holdLock(generation);
+        return;
+      }
+
+      abortController = new AbortController();
+      const signal = abortController.signal;
+      // Classify a contended tab before it waits, so it cannot retain a
+      // reconnect session and replay it after a later ownership handoff.
+      void locks
+        .request(lockName, { ifAvailable: true }, async (lock) => {
+          if (disposed || !active || generation !== requestGeneration) return;
+          if (lock) {
+            await holdLock(generation);
+            return;
+          }
+
+          ownershipPhaseRef.current = "follower";
+          pendingReconnectSessionsRef.current.clear();
+          void locks
+            .request(lockName, { signal }, async () => {
+              await holdLock(generation);
+            })
+            .catch((error: unknown) => onLockError(error, generation));
+        })
+        .catch((error: unknown) => onLockError(error, generation));
+    };
+
+    const suspend = () => {
+      if (!active) return;
+      active = false;
+      relinquish();
+    };
+    const resume = () => {
+      if (active) return;
+      active = true;
+      requestOwnership();
+      presence.retryNow();
+    };
+
+    window.addEventListener("pagehide", suspend);
+    window.addEventListener("pageshow", resume);
+    document.addEventListener("freeze", suspend);
+    document.addEventListener("resume", resume);
+    requestOwnership();
+
+    return () => {
+      disposed = true;
+      window.removeEventListener("pagehide", suspend);
+      window.removeEventListener("pageshow", resume);
+      document.removeEventListener("freeze", suspend);
+      document.removeEventListener("resume", resume);
+      relinquish();
+      if (releaseOwnershipRef.current === relinquish) {
+        releaseOwnershipRef.current = null;
+      }
+    };
+  }, [
+    automaticReconnectEnabled,
+    authenticatedPresence,
+    localDeviceId,
+    project,
+    securityState,
+    stopAutomaticPeerSync,
+    vaultSession,
+  ]);
+
+  useEffect(() => {
+    setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
     if (
+      ownershipVersion === 0 ||
+      ownershipVersion !== ownershipVersionRef.current ||
+      !ownsAutomaticPeerSyncRef.current ||
       !projectKeyReady ||
       !project ||
       !localDeviceId ||
@@ -244,45 +429,54 @@ export function useAuthorizedWorkspaceSync({
     const presence = presenceRef.current;
     if (!presence) return;
 
-    const automaticPeerSync = new AutomaticPeerSyncManager({
-      coordinatorBaseUrl,
-      project,
-      localDeviceId,
-      securityState,
-      vaultSession,
-      presence,
-      relayFallbackEnabled: turnCredentialEndpoint !== null,
-      rtcConfigurationProvider: (mode) =>
-        mode === "relay"
-          ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
-          : Promise.resolve(undefined),
-      onStatusChange: setAutomaticSyncStatus,
-    });
-    automaticPeerSyncRef.current = automaticPeerSync;
+    try {
+      const automaticPeerSync = new AutomaticPeerSyncManager({
+        coordinatorBaseUrl,
+        project,
+        localDeviceId,
+        securityState,
+        vaultSession,
+        presence,
+        relayFallbackEnabled: turnCredentialEndpoint !== null,
+        rtcConfigurationProvider: (mode) =>
+          mode === "relay"
+            ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
+            : Promise.resolve(undefined),
+        onStatusChange: setAutomaticSyncStatus,
+      });
+      automaticPeerSyncRef.current = automaticPeerSync;
 
-    if (presence.state === "open") {
-      const currentOnlineDeviceIds = onlineDeviceIdsRef.current;
-      automaticPeerSync.updateOnlineDevices(currentOnlineDeviceIds);
-      drainPendingReconnectSessions(
-        automaticPeerSync,
-        currentOnlineDeviceIds,
-      );
-    }
-
-    return () => {
-      if (automaticPeerSyncRef.current === automaticPeerSync) {
-        automaticPeerSyncRef.current = null;
+      if (presence.state === "open") {
+        const currentOnlineDeviceIds = onlineDeviceIdsRef.current;
+        automaticPeerSync.updateOnlineDevices(currentOnlineDeviceIds);
+        drainPendingReconnectSessions(automaticPeerSync, currentOnlineDeviceIds);
       }
-      automaticPeerSync.stop();
-      setAutomaticSyncStatus(IDLE_AUTOMATIC_SYNC_STATUS);
-    };
+
+      return () => {
+        if (automaticPeerSyncRef.current === automaticPeerSync) {
+          stopAutomaticPeerSync();
+          pendingReconnectSessionsRef.current.clear();
+        }
+      };
+    } catch (error) {
+      stopAutomaticPeerSync();
+      releaseOwnershipRef.current?.();
+      setAutomaticSyncStatus({
+        ...IDLE_AUTOMATIC_SYNC_STATUS,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to start automatic peer sync",
+      });
+    }
   }, [
-    automaticReconnectEnabled,
     coordinatorBaseUrl,
     localDeviceId,
+    ownershipVersion,
     project,
     projectKeyReady,
     securityState,
+    stopAutomaticPeerSync,
     turnCredentialEndpoint,
     vaultSession,
   ]);
@@ -290,6 +484,7 @@ export function useAuthorizedWorkspaceSync({
   return {
     presenceState,
     onlineDeviceIds: presenceState === "open" ? onlineDeviceIds : [],
+    ownsAutomaticPeerSync,
     connectedDeviceIds: automaticSyncStatus.connectedDeviceIds,
     connectionAttempts: automaticSyncStatus.connectionAttempts,
     coordinationError: presenceError,
@@ -339,7 +534,9 @@ export function useEncryptedLocalTabSync({
           envelope,
         ),
     });
-    const syncEngine = new WorkspaceSyncEngine(project, encryptedTransport);
+    const syncEngine = new WorkspaceSyncEngine(project, encryptedTransport, {
+      relayScope: "local-tab",
+    });
     syncEngine.start();
 
     return () => syncEngine.stop();
