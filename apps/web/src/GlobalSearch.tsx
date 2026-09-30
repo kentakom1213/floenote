@@ -36,7 +36,7 @@ export function GlobalSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeResultRef = useRef<HTMLButtonElement>(null);
-  const scrollActiveResultRef = useRef(false);
+  const keyboardNavigationRef = useRef(false);
   const selectionCommittedRef = useRef(false);
   const terms = useMemo(() => splitSearchTerms(query), [query]);
   const results = cache.search(query, lastOpenedAt);
@@ -52,8 +52,7 @@ export function GlobalSearch({
   }, [query, results.length]);
 
   useEffect(() => {
-    if (!scrollActiveResultRef.current) return;
-    scrollActiveResultRef.current = false;
+    if (!keyboardNavigationRef.current) return;
     activeResultRef.current?.scrollIntoView({
       block: "nearest",
       inline: "nearest",
@@ -93,7 +92,7 @@ export function GlobalSearch({
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") {
                 event.preventDefault();
-                scrollActiveResultRef.current = true;
+                keyboardNavigationRef.current = true;
                 setActiveIndex((current) =>
                   results.length === 0
                     ? 0
@@ -104,7 +103,7 @@ export function GlobalSearch({
 
               if (event.key === "ArrowUp") {
                 event.preventDefault();
-                scrollActiveResultRef.current = true;
+                keyboardNavigationRef.current = true;
                 setActiveIndex((current) => Math.max(current - 1, 0));
                 return;
               }
@@ -145,7 +144,10 @@ export function GlobalSearch({
                 type="button"
                 role="option"
                 aria-selected={index === activeIndex}
-                onMouseEnter={() => setActiveIndex(index)}
+                onMouseMove={() => {
+                  keyboardNavigationRef.current = false;
+                  setActiveIndex(index);
+                }}
                 onClick={() => select(result)}
               >
                 <span className="global-search-result-title">
