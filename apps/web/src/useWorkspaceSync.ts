@@ -56,6 +56,7 @@ type AuthorizedWorkspaceSyncOptions = {
 export type AuthorizedWorkspaceSyncState = {
   presenceState: AuthorizedPresenceConnectionState;
   onlineDeviceIds: readonly DeviceId[];
+  ownsAutomaticPeerSync: boolean;
   connectedDeviceIds: readonly DeviceId[];
   connectionAttempts: AutomaticPeerSyncStatus["connectionAttempts"];
   coordinationError: string | null;
@@ -87,6 +88,7 @@ export function useAuthorizedWorkspaceSync({
   const [presenceError, setPresenceError] = useState<string | null>(null);
   const [automaticSyncStatus, setAutomaticSyncStatus] =
     useState<AutomaticPeerSyncStatus>(IDLE_AUTOMATIC_SYNC_STATUS);
+  const [ownsAutomaticPeerSync, setOwnsAutomaticPeerSync] = useState(false);
   const presenceRef = useRef<AuthorizedPresenceClient | null>(null);
   const automaticPeerSyncRef = useRef<AutomaticPeerSyncManager | null>(null);
   const ownsAutomaticPeerSyncRef = useRef(false);
@@ -341,6 +343,7 @@ export function useAuthorizedWorkspaceSync({
           onStatusChange: setAutomaticSyncStatus,
         });
         automaticPeerSyncRef.current = automaticPeerSync;
+        setOwnsAutomaticPeerSync(true);
         logAutomaticSync("manager.start", {
           workspaceId: project.id,
           deviceId: localDeviceId,
@@ -357,6 +360,7 @@ export function useAuthorizedWorkspaceSync({
         }
       } catch (error) {
         ownsAutomaticPeerSyncRef.current = false;
+        setOwnsAutomaticPeerSync(false);
         automaticPeerSyncRef.current?.stop();
         automaticPeerSyncRef.current = null;
         pendingReconnectSessionsRef.current.clear();
@@ -369,6 +373,7 @@ export function useAuthorizedWorkspaceSync({
           deviceId: localDeviceId,
         });
         ownsAutomaticPeerSyncRef.current = false;
+        setOwnsAutomaticPeerSync(false);
         if (automaticPeerSyncRef.current === automaticPeerSync) {
           automaticPeerSyncRef.current = null;
         }
@@ -459,6 +464,7 @@ export function useAuthorizedWorkspaceSync({
   return {
     presenceState,
     onlineDeviceIds: presenceState === "open" ? onlineDeviceIds : [],
+    ownsAutomaticPeerSync,
     connectedDeviceIds: automaticSyncStatus.connectedDeviceIds,
     connectionAttempts: automaticSyncStatus.connectionAttempts,
     coordinationError: presenceError,

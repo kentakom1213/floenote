@@ -11,6 +11,7 @@ export type SyncUiInput = {
     | "closed"
     | "error";
   onlineDeviceIds: readonly DeviceId[];
+  ownsAutomaticPeerSync: boolean;
   connectedDeviceIds: readonly DeviceId[];
   localDeviceId: DeviceId | null;
   error: string | null;
@@ -19,6 +20,7 @@ export type SyncUiInput = {
 export function deriveSyncUiState({
   presenceState,
   onlineDeviceIds,
+  ownsAutomaticPeerSync,
   connectedDeviceIds,
   localDeviceId,
   error,
@@ -46,5 +48,9 @@ export function deriveSyncUiState({
   const otherDeviceOnline = onlineDeviceIds.some(
     (deviceId) => deviceId !== localDeviceId,
   );
-  return otherDeviceOnline ? { kind: "connecting" } : { kind: "quiet" };
+  // A follower receives updates through another tab, but has no direct peer
+  // to connect.
+  return otherDeviceOnline && ownsAutomaticPeerSync
+    ? { kind: "connecting" }
+    : { kind: "quiet" };
 }

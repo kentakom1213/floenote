@@ -12,6 +12,7 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         presenceState: "closed",
         onlineDeviceIds: [],
+        ownsAutomaticPeerSync: true,
         connectedDeviceIds: [remoteDeviceId],
         localDeviceId,
         error: null,
@@ -27,6 +28,7 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         presenceState: "open",
         onlineDeviceIds: [remoteDeviceId],
+        ownsAutomaticPeerSync: true,
         connectedDeviceIds: [remoteDeviceId],
         localDeviceId,
         error: "peer failed",
@@ -39,6 +41,7 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         presenceState: "closed",
         onlineDeviceIds: [],
+        ownsAutomaticPeerSync: true,
         connectedDeviceIds: [],
         localDeviceId: createDeviceId(),
         error: null,
@@ -54,6 +57,7 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         presenceState: "error",
         onlineDeviceIds: [],
+        ownsAutomaticPeerSync: true,
         connectedDeviceIds: [remoteDeviceId],
         localDeviceId,
         error: null,
@@ -66,6 +70,7 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         presenceState: "error",
         onlineDeviceIds: [],
+        ownsAutomaticPeerSync: true,
         connectedDeviceIds: [],
         localDeviceId: createDeviceId(),
         error: null,
@@ -73,4 +78,30 @@ describe("deriveSyncUiState", () => {
     ).toEqual({ kind: "offline" });
   });
 
+  it("does not show Connecting in a follower tab with no direct peer", () => {
+    const localDeviceId = createDeviceId();
+    const remoteDeviceId = createDeviceId();
+
+    expect(
+      deriveSyncUiState({
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
+        ownsAutomaticPeerSync: false,
+        connectedDeviceIds: [],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "quiet" });
+
+    expect(
+      deriveSyncUiState({
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
+        ownsAutomaticPeerSync: true,
+        connectedDeviceIds: [],
+        localDeviceId,
+        error: null,
+      }),
+    ).toEqual({ kind: "connecting" });
+  });
 });
