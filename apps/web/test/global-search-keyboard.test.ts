@@ -166,6 +166,19 @@ describe("GlobalSearch keyboard interaction", () => {
 
     expect(activeResultTitle()).toBe("Gamma");
     expect(scrollIntoView).not.toHaveBeenCalled();
+
+    act(() => {
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowUp",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+
+    expect(activeResultTitle()).toBe("Beta");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });
 
