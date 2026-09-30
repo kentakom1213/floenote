@@ -35,6 +35,7 @@ import type { DeviceVaultSession } from "@floe-note/vault";
 import {
   act,
   createElement,
+  Fragment,
   useCallback,
   useEffect,
   useState,
@@ -62,6 +63,7 @@ const peerSyncHarness = vi.hoisted(() => {
   };
 
   const instances: Record[] = [];
+  let onConstruct: (() => void) | null = null;
 
   class FakeAutomaticPeerSyncManager {
     readonly #record: Record;
@@ -74,6 +76,7 @@ const peerSyncHarness = vi.hoisted(() => {
         stopped: false,
       };
       instances.push(this.#record);
+      onConstruct?.();
     }
 
     updateOnlineDevices(deviceIds: readonly string[]): void {
@@ -100,8 +103,15 @@ const peerSyncHarness = vi.hoisted(() => {
   return {
     FakeAutomaticPeerSyncManager,
     instances,
+    get onConstruct() {
+      return onConstruct;
+    },
+    set onConstruct(value: (() => void) | null) {
+      onConstruct = value;
+    },
     reset: () => {
       instances.length = 0;
+      onConstruct = null;
     },
   };
 });
@@ -179,6 +189,73 @@ class FakeWebSocket {
   }
 }
 
+class FakeWebLocks {
+  readonly requestedNames: string[] = [];
+  readonly #held = new Set<string>();
+  readonly #waiting: Array<{
+    name: string;
+    signal: AbortSignal;
+    callback: (lock: Lock) => Promise<void> | void;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+    abort: () => void;
+  }> = [];
+
+  request(
+    name: string,
+    options: { signal: AbortSignal },
+    callback: (lock: Lock) => Promise<void> | void,
+  ): Promise<void> {
+    this.requestedNames.push(name);
+    return new Promise<void>((resolve, reject) => {
+      const abort = () => {
+        const index = this.#waiting.findIndex((request) => request.abort === abort);
+        if (index < 0) return;
+        this.#waiting.splice(index, 1);
+        reject(new DOMException("Lock request aborted", "AbortError"));
+      };
+      if (options.signal.aborted) {
+        reject(new DOMException("Lock request aborted", "AbortError"));
+        return;
+      }
+      options.signal.addEventListener("abort", abort, { once: true });
+      this.#waiting.push({
+        name,
+        signal: options.signal,
+        callback,
+        resolve,
+        reject,
+        abort,
+      });
+      this.#grant();
+    });
+  }
+
+  #grant(): void {
+    let index = this.#waiting.findIndex((request) => !this.#held.has(request.name));
+    while (index >= 0) {
+      const [request] = this.#waiting.splice(index, 1);
+      if (!request) return;
+      request.signal.removeEventListener("abort", request.abort);
+      this.#held.add(request.name);
+      void Promise.resolve()
+        .then(() => request.callback({ name: request.name, mode: "exclusive" } as Lock))
+        .then(request.resolve, request.reject)
+        .finally(() => {
+          this.#held.delete(request.name);
+          this.#grant();
+        });
+      index = this.#waiting.findIndex((waiting) => !this.#held.has(waiting.name));
+    }
+  }
+}
+
+function enableWebLocks(): FakeWebLocks {
+  const locks = new FakeWebLocks();
+  vi.stubGlobal("navigator", { locks });
+  return locks;
+}
+
 type RecoveryHarnessProps = {
   project: NoteProject;
   localDeviceId: DeviceId;
@@ -252,6 +329,7 @@ type ReconnectRaceHarnessProps = {
   securityState: SecurityState;
   vaultSession: DeviceVaultSession;
   projectKeyReady: boolean;
+  automaticReconnectEnabled?: boolean;
 };
 
 function ReconnectRaceHarness({
@@ -260,6 +338,7 @@ function ReconnectRaceHarness({
   securityState,
   vaultSession,
   projectKeyReady,
+  automaticReconnectEnabled = true,
 }: ReconnectRaceHarnessProps) {
   const handleSecurityStateChanged = useCallback(() => {}, []);
 
@@ -270,7 +349,7 @@ function ReconnectRaceHarness({
     securityState,
     projectKeyReady,
     vaultSession,
-    automaticReconnectEnabled: true,
+    automaticReconnectEnabled,
     turnCredentialEndpoint: null,
     onSecurityStateChanged: handleSecurityStateChanged,
   });
@@ -308,7 +387,8 @@ afterEach(async () => {
 });
 
 describe("automatic reconnect setup ordering", () => {
-  it("preserves a reconnect session received before peer sync is ready", async () => {
+  it("preserves a reconnect session received by the owner during manager setup", async () => {
+    enableWebLocks();
     const deviceA = await generateDeviceKeyMaterial();
     const deviceB = await generateDeviceKeyMaterial();
     keyMaterials.push(deviceA, deviceB);
@@ -346,15 +426,14 @@ describe("automatic reconnect setup ordering", () => {
     );
     expect(peerSyncHarness.instances).toHaveLength(0);
 
-    await act(async () => {
+    peerSyncHarness.onConstruct = () => {
       FakeWebSocket.instances[0]?.message({
         type: "reconnect-session",
         fromDeviceId: deviceA.publicIdentity.deviceId,
         sessionId,
         transportMode: "direct",
       });
-      await flushMicrotasks();
-    });
+    };
 
     await act(async () => {
       root?.render(
@@ -382,6 +461,7 @@ describe("automatic reconnect setup ordering", () => {
     ]);
   });
   it("drains a queued reconnect session after Presence reconnects", async () => {
+    enableWebLocks();
     const deviceA = await generateDeviceKeyMaterial();
     const deviceB = await generateDeviceKeyMaterial();
     keyMaterials.push(deviceA, deviceB);
@@ -418,20 +498,15 @@ describe("automatic reconnect setup ordering", () => {
       ],
     );
 
-    await act(async () => {
+    peerSyncHarness.onConstruct = () => {
       FakeWebSocket.instances[0]?.message({
         type: "reconnect-session",
         fromDeviceId: deviceA.publicIdentity.deviceId,
         sessionId,
         transportMode: "relay",
       });
-      await flushMicrotasks();
-    });
-    expect(peerSyncHarness.instances).toHaveLength(0);
-
-    act(() => {
       FakeWebSocket.instances[0]?.disconnect(1006, "");
-    });
+    };
 
     await act(async () => {
       root?.render(
@@ -491,6 +566,217 @@ describe("automatic reconnect setup ordering", () => {
     expect(manager?.reconnectSessions).toHaveLength(1);
   });
 
+});
+
+describe("automatic peer sync ownership", () => {
+  it("waits for authorization and WorkspaceKey before requesting a lock", async () => {
+    const locks = enableWebLocks();
+    const remoteDevice = await generateDeviceKeyMaterial();
+    const localDevice = await generateDeviceKeyMaterial();
+    keyMaterials.push(remoteDevice, localDevice);
+    const initialState = await createInitialState(remoteDevice);
+    const { state } = await addDeviceToState(
+      initialState,
+      remoteDevice,
+      localDevice,
+    );
+    const project = NoteProject.create(state.workspaceId);
+    const props = {
+      project,
+      localDeviceId: localDevice.publicIdentity.deviceId,
+      vaultSession: createVaultSession(localDevice),
+    };
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          ...props,
+          securityState: initialState,
+          projectKeyReady: true,
+        }),
+      );
+    });
+    expect(locks.requestedNames).toEqual([]);
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          ...props,
+          securityState: state,
+          projectKeyReady: false,
+        }),
+      );
+    });
+    expect(locks.requestedNames).toEqual([]);
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          ...props,
+          securityState: state,
+          projectKeyReady: true,
+        }),
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peerSyncHarness.instances).toHaveLength(1);
+      });
+    });
+    expect(locks.requestedNames).toEqual([
+      `floe:peer-sync:${project.id}:${localDevice.publicIdentity.deviceId}`,
+    ]);
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          ...props,
+          securityState: state,
+          projectKeyReady: true,
+          automaticReconnectEnabled: false,
+        }),
+      );
+    });
+    expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
+  });
+
+  it("creates one manager for an eligible tab with Web Locks", async () => {
+    enableWebLocks();
+    const device = await generateDeviceKeyMaterial();
+    keyMaterials.push(device);
+    const state = await createInitialState(device);
+    const project = NoteProject.create(state.workspaceId);
+
+    await act(async () => {
+      root?.render(
+        createElement(ReconnectRaceHarness, {
+          project,
+          localDeviceId: device.publicIdentity.deviceId,
+          securityState: state,
+          vaultSession: createVaultSession(device),
+          projectKeyReady: true,
+        }),
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peerSyncHarness.instances).toHaveLength(1);
+      });
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, [
+      device.publicIdentity.deviceId,
+    ]);
+    expect(peerSyncHarness.instances[0]?.onlineDeviceUpdates).toEqual([
+      [device.publicIdentity.deviceId],
+    ]);
+  });
+
+  it("keeps Presence in both tabs, discards follower sessions, and hands off ownership", async () => {
+    enableWebLocks();
+    const remoteDevice = await generateDeviceKeyMaterial();
+    const localDevice = await generateDeviceKeyMaterial();
+    keyMaterials.push(remoteDevice, localDevice);
+    const { state } = await addDeviceToState(
+      await createInitialState(remoteDevice),
+      remoteDevice,
+      localDevice,
+    );
+    const project = NoteProject.create(state.workspaceId);
+    const vaultSession = createVaultSession(localDevice);
+    const props = {
+      project,
+      localDeviceId: localDevice.publicIdentity.deviceId,
+      securityState: state,
+      vaultSession,
+      projectKeyReady: true,
+    };
+    const onlineDevices = [
+      remoteDevice.publicIdentity.deviceId,
+      localDevice.publicIdentity.deviceId,
+    ];
+
+    await act(async () => {
+      root?.render(
+        createElement(
+          Fragment,
+          null,
+          createElement(ReconnectRaceHarness, { ...props, key: "owner" }),
+          createElement(ReconnectRaceHarness, { ...props, key: "follower" }),
+        ),
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peerSyncHarness.instances).toHaveLength(1);
+      });
+    });
+
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    await authenticatePresence(FakeWebSocket.instances[0]!, state.headHash, onlineDevices);
+    await authenticatePresence(FakeWebSocket.instances[1]!, state.headHash, onlineDevices);
+    expect(peerSyncHarness.instances).toHaveLength(1);
+
+    const staleSessionId = "0123456789abcdef0123456789abcdef";
+    await act(async () => {
+      for (const socket of FakeWebSocket.instances) {
+        socket.message({
+          type: "reconnect-session",
+          fromDeviceId: remoteDevice.publicIdentity.deviceId,
+          sessionId: staleSessionId,
+          transportMode: "direct",
+        });
+      }
+      await flushMicrotasks();
+    });
+    expect(peerSyncHarness.instances[0]?.reconnectSessions).toEqual([
+      {
+        fromDeviceId: remoteDevice.publicIdentity.deviceId,
+        sessionId: staleSessionId,
+        transportMode: "direct",
+      },
+    ]);
+
+    await act(async () => {
+      root?.render(
+        createElement(
+          Fragment,
+          null,
+          createElement(ReconnectRaceHarness, { ...props, key: "follower" }),
+        ),
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(peerSyncHarness.instances).toHaveLength(2);
+      });
+    });
+
+    expect(peerSyncHarness.instances[0]?.stopped).toBe(true);
+    expect(FakeWebSocket.instances[1]?.readyState).toBe(FakeWebSocket.OPEN);
+    const newOwner = peerSyncHarness.instances[1];
+    expect(newOwner?.onlineDeviceUpdates.at(-1)).toEqual(onlineDevices);
+    expect(newOwner?.reconnectSessions).toEqual([]);
+
+    const currentSessionId = "fedcba9876543210fedcba9876543210";
+    await act(async () => {
+      FakeWebSocket.instances[1]?.message({
+        type: "reconnect-session",
+        fromDeviceId: remoteDevice.publicIdentity.deviceId,
+        sessionId: currentSessionId,
+        transportMode: "relay",
+      });
+      await flushMicrotasks();
+    });
+    expect(newOwner?.reconnectSessions).toEqual([
+      {
+        fromDeviceId: remoteDevice.publicIdentity.deviceId,
+        sessionId: currentSessionId,
+        transportMode: "relay",
+      },
+    ]);
+  });
 });
 
 describe("authorized Workspace sync after SecurityState changes", () => {

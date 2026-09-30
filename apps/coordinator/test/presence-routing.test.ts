@@ -32,5 +32,12 @@ describe("presence reconnect routing", () => {
         (candidate) => candidate.name,
       ),
     ).toEqual(["stale", "active"]);
+
+    // Closing one same-device Presence socket leaves the other routable.
+    expect(
+      findPresenceSocketsForDevice(sockets.slice(1), target).map(
+        (candidate) => candidate.name,
+      ),
+    ).toEqual(["active"]);
   });
 });

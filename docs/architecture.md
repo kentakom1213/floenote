@@ -541,6 +541,17 @@ DeviceId acts as the initiator. It generates a random 128-bit signaling SessionI
 and sends that rendezvous capability to the peer over the already authenticated
 presence WebSocket. The peer then joins the same signaling session.
 
+Multiple tabs may share one DeviceId. Each tab keeps its own authenticated
+Presence connection and local BroadcastChannel synchronization. Within one
+browser storage context, an exclusive Web Lock scoped to WorkspaceId and
+DeviceId lets only one eligible tab run automatic WebRTC peer synchronization.
+The coordinator sends reconnect sessions to every Presence connection for the
+target DeviceId. The lock holder handles them, including sessions received
+during its manager setup; other tabs discard them. Releasing the lock lets a
+waiting tab start a fresh peer-sync manager. If Web Locks is unavailable, the
+browser keeps the previous per-tab behavior and multi-tab ownership is not
+guaranteed. Separate private-browsing sessions do not share Web Locks.
+
 The current browser implementation opportunistically establishes a direct
 WebRTC connection for each simultaneously online device pair so CRDT updates do
 not depend on peer-to-peer relaying. This is an implementation choice rather
