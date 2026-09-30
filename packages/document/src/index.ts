@@ -3,6 +3,7 @@ export {
   DEFAULT_TAG_COLOR,
   TAG_COLORS,
   NoteProject,
+  automaticTagColor,
   isTagColor,
 } from "./project.js";
 export { parsePortableProjectImport } from "./portable-import.js";

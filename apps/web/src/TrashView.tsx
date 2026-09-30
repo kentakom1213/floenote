@@ -34,7 +34,7 @@ export function TrashView({
     return (
       <TrashNotePreview
         document={selectedDocument}
-        getTagColor={(tag) => project.getTagColor(tag)}
+        getTagColor={(tag) => project.resolveTagColor(project.getDocumentProjectId(selectedDocument.id)!, tag)}
         onRestore={() => onRestoreDocument(selectedDocument.id)}
         onRequestPermanentDelete={() =>
           onRequestPermanentDelete(selectedDocument.id)

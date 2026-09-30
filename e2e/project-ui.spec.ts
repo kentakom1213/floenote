@@ -104,6 +104,40 @@ test("scopes notes, creates in the selected Project, and reconciles URLs, histor
   await expect(page.getByRole("dialog", { name: "Move note…" }).getByRole("button", { name: "Research" })).toHaveCount(0);
 });
 
+test("renames a Project tag and searches Notes by Project context", async ({ page }) => {
+  await createSecuredProject(page);
+  await createProject(page, "Research");
+  await page.getByRole("button", { name: "New note" }).click();
+  await page.getByLabel("Note title").fill("Graph notes");
+  await page.getByRole("button", { name: "Add tag" }).click();
+  await page.getByRole("combobox", { name: "Add tag" }).fill("todo");
+  await page.getByRole("combobox", { name: "Add tag" }).press("Enter");
+  await expect(page.getByLabel("Change todo color")).toBeVisible();
+  await page.getByLabel("Change todo color").click();
+  await page.getByRole("textbox", { name: "Rename todo" }).fill("papers");
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(page.getByLabel("Change papers color")).toBeVisible();
+
+  await page.getByLabel("Filter notes by tags").click();
+  await page.getByRole("checkbox", { name: "papers" }).check();
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "Notes", exact: true }).click();
+  await expect(page.getByLabel("Switch Project, current Notes")).toBeVisible();
+  await page.getByLabel("Filter notes by tags").click();
+  await expect(page.getByRole("checkbox", { name: "papers" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Search all notes" }).click();
+  const search = page.getByRole("searchbox", { name: "Search all notes" });
+  await search.fill("research graph");
+  const result = page.getByRole("option", { name: /Graph notes/ });
+  await expect(result).toContainText("Research");
+  await result.click();
+  await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
+  await page.getByRole("button", { name: "Search all notes" }).click();
+  await search.fill("papers");
+  await expect(page.getByRole("option", { name: /Graph notes/ })).toBeVisible();
+});
+
 test("renames, archives, reopens and persists zero active Projects", async ({ page }) => {
   const { projectId } = await createSecuredProject(page);
   await page.getByLabel("Note actions").click();

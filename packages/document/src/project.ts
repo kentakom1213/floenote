@@ -52,6 +52,19 @@ export type TagColor = (typeof TAG_COLORS)[number];
 
 export const DEFAULT_TAG_COLOR: TagColor = "gray";
 
+const AUTOMATIC_TAG_COLORS = TAG_COLORS.filter((color) => color !== "gray");
+
+export function automaticTagColor(projectId: ProjectId, tag: string): TagColor {
+  // FNV-1a over UTF-16 code units is stable across JavaScript runtimes.
+  let hash = 2166136261;
+  const key = `${projectId}\0${tag}`;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return AUTOMATIC_TAG_COLORS[(hash >>> 0) % AUTOMATIC_TAG_COLORS.length]!;
+}
+
 export function isTagColor(value: unknown): value is TagColor {
   return typeof value === "string" && TAG_COLORS.includes(value as TagColor);
 }
@@ -95,7 +108,6 @@ export class NoteProject {
     manifest.getMap("metadata");
     manifest.getMap("deviceDisplayNames");
     manifest.getMap("editHistoryCheckpoints");
-    manifest.getMap("tagColors");
     const initialProject = manifest
       .getMap("projects")
       .ensureMergeableMap(createProjectId());
@@ -254,18 +266,53 @@ export class NoteProject {
     this.#emit();
   }
 
-  getTagColor(tag: string): TagColor {
-    const value = this.#manifest.getMap("tagColors").get(tag);
-    return isTagColor(value) ? value : DEFAULT_TAG_COLOR;
+  getExplicitTagColor(projectId: ProjectId, tag: string): TagColor | undefined {
+    const value = this.#requireProject(projectId).get("tagColors");
+    const color = isProjectMap(value) ? value.get(tag) : undefined;
+    return isTagColor(color) ? color : undefined;
   }
 
-  setTagColor(tag: string, color: TagColor): void {
+  resolveTagColor(projectId: ProjectId, tag: string): TagColor {
+    return (
+      this.getExplicitTagColor(projectId, tag) ?? automaticTagColor(projectId, tag)
+    );
+  }
+
+  setTagColor(projectId: ProjectId, tag: string, color: TagColor): void {
     if (!isTagColor(color)) {
       throw new TypeError("Invalid tag color");
     }
 
-    this.#manifest.getMap("tagColors").set(tag, color);
-    this.#manifest.commit();
+    this.#requireProject(projectId)
+      .ensureMergeableMap("tagColors")
+      .set(tag, color);
+    this.#commitManifest();
+  }
+
+  renameTag(projectId: ProjectId, oldTag: string, newTag: string): void {
+    this.#requireProject(projectId);
+    const source = oldTag.trim();
+    const destination = newTag.trim();
+    if (!source || !destination) throw new TypeError("Tag must not be empty");
+    if (source === destination) return;
+
+    for (const document of this.#documents.values()) {
+      if (this.getDocumentProjectId(document.id) !== projectId) continue;
+      if (!document.tags.includes(source)) continue;
+      document.setTags(
+        document.tags.map((tag) => (tag === source ? destination : tag)),
+      );
+    }
+
+    const colors = this.#requireProject(projectId).get("tagColors");
+    if (isProjectMap(colors)) {
+      const sourceColor = colors.get(source);
+      if (isTagColor(sourceColor) && !isTagColor(colors.get(destination))) {
+        colors.set(destination, sourceColor);
+      }
+      colors.delete(source);
+      this.#commitManifest();
+    }
     this.#emit();
   }
 
@@ -290,6 +337,19 @@ export class NoteProject {
 
   getAllDocuments(): readonly NoteDocument[] {
     return [...this.#documents.values()];
+  }
+
+  listProjectTags(projectId: ProjectId): string[] {
+    this.#requireProject(projectId);
+    return [
+      ...new Set(
+        [...this.#documents.values()]
+          .filter(
+            (document) => this.getDocumentProjectId(document.id) === projectId,
+          )
+          .flatMap((document) => document.tags),
+      ),
+    ].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
   }
 
   listEditHistoryCheckpoints(

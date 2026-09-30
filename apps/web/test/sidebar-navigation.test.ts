@@ -17,6 +17,7 @@ import {
   type SidebarNavigationNote,
 } from "../src/sidebar-navigation.js";
 import { SidebarNavigationToolbar } from "../src/SidebarNavigationToolbar.js";
+import { getTagAssignmentOptions } from "../src/NoteProperties.js";
 import {
   SIDEBAR_TAG_LIMIT,
   SidebarNoteRow,
@@ -45,6 +46,29 @@ const NOTES = [
 ];
 
 describe("sidebar navigation", () => {
+  it("uses only the selected Project's tags for suggestions and filter options", () => {
+    const workspace = NoteProject.create();
+    const a = workspace.listProjects()[0]!.id;
+    const b = workspace.createProject("B").id;
+    workspace.createDocument("A", a).addTag("research");
+    workspace.createDocument("B", b).addTag("todo");
+    const renderTags = (tags: readonly string[]) => renderToStaticMarkup(
+      createElement(SidebarNavigationToolbar, {
+        query: "", searchOpen: false, sort: DEFAULT_NOTE_SORT, tags,
+        selectedTags: [], tagFilterMode: DEFAULT_TAG_FILTER_MODE,
+        onQueryChange: vi.fn(), onSearchOpenChange: vi.fn(), onSortChange: vi.fn(),
+        onSelectedTagsChange: vi.fn(), onTagFilterModeChange: vi.fn(), onCreateDocument: vi.fn(),
+      }),
+    );
+    expect(workspace.listProjectTags(a)).toEqual(["research"]);
+    expect(workspace.listProjectTags(b)).toEqual(["todo"]);
+    expect(getTagAssignmentOptions(workspace.listProjectTags(a), [], "").map(({ tag }) => tag)).toEqual(["research"]);
+    expect(getTagAssignmentOptions(workspace.listProjectTags(b), [], "").map(({ tag }) => tag)).toEqual(["todo"]);
+    expect(renderTags(workspace.listProjectTags(a))).toContain("research");
+    expect(renderTags(workspace.listProjectTags(a))).not.toContain("todo");
+    expect(renderTags(workspace.listProjectTags(b))).toContain("todo");
+    expect(renderTags(workspace.listProjectTags(b))).not.toContain("research");
+  });
   it("renders Search, Sort, and New note toolbar controls", () => {
     const markup = renderToStaticMarkup(
       createElement(SidebarNavigationToolbar, {

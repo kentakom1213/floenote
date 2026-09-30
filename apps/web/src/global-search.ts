@@ -1,14 +1,17 @@
 import type { NoteDocument, NoteProject } from "@floe-note/document";
-import type { DocumentId } from "@floe-note/domain";
+import type { DocumentId, ProjectId } from "@floe-note/domain";
 
 const RESULT_LIMIT = 50;
 const SNIPPET_RADIUS_BEFORE = 48;
 const SNIPPET_LENGTH = 176;
 
-export type GlobalSearchMatchField = "title" | "tag" | "body";
+export type GlobalSearchMatchField = "title" | "project" | "tag" | "body";
 
 export type GlobalSearchResult = {
   id: DocumentId;
+  projectId: ProjectId;
+  projectName: string;
+  projectLabel: string;
   title: string;
   matchedTags: readonly string[];
   snippet: string | null;
@@ -19,6 +22,7 @@ export type GlobalSearchResult = {
 
 type SearchDocument = {
   id: DocumentId;
+  projectId: ProjectId;
   title: string;
   tags: readonly string[];
   body: string;
@@ -36,16 +40,31 @@ type RankedMatch = {
 
 export class GlobalSearchCache {
   readonly #documents = new Map<DocumentId, SearchDocument>();
+  readonly #projects = new Map<
+    ProjectId,
+    { name: string; normalizedName: string }
+  >();
 
   syncProject(project: NoteProject): void {
     const activeIds = new Set<DocumentId>();
+    this.#projects.clear();
+    for (const item of project.listProjects()) {
+      this.#projects.set(item.id, {
+        name: item.name,
+        normalizedName: normalizeSearchText(item.name),
+      });
+    }
 
     for (const summary of project.listDocuments()) {
       activeIds.add(summary.id);
-      if (this.#documents.has(summary.id)) continue;
+      const projectId = project.getDocumentProjectId(summary.id);
+      if (
+        !projectId ||
+        this.#documents.get(summary.id)?.projectId === projectId
+      ) continue;
 
       const document = project.getDocument(summary.id);
-      if (document) this.updateDocument(document);
+      if (document) this.updateDocument(document, projectId);
     }
 
     for (const id of this.#documents.keys()) {
@@ -53,7 +72,7 @@ export class GlobalSearchCache {
     }
   }
 
-  updateDocument(document: NoteDocument): void {
+  updateDocument(document: NoteDocument, projectId: ProjectId): void {
     const existing = this.#documents.get(document.id);
     const title = document.title;
     const tags = [...document.tags];
@@ -63,6 +82,7 @@ export class GlobalSearchCache {
     if (!existing) {
       this.#documents.set(document.id, {
         id: document.id,
+        projectId,
         title,
         tags,
         body,
@@ -73,6 +93,8 @@ export class GlobalSearchCache {
       });
       return;
     }
+
+    existing.projectId = projectId;
 
     if (existing.title !== title) {
       existing.title = title;
@@ -101,6 +123,32 @@ export class GlobalSearchCache {
     lastOpenedAt: ReadonlyMap<DocumentId, number>,
   ): GlobalSearchResult[] {
     const terms = splitSearchTerms(query);
+    const nameCounts = new Map<string, number>();
+    for (const metadata of this.#projects.values()) {
+      nameCounts.set(metadata.name, (nameCounts.get(metadata.name) ?? 0) + 1);
+    }
+    const context = (document: SearchDocument) => {
+      const name =
+        this.#projects.get(document.projectId)?.name ?? "Unknown Project";
+      let suffixLength = 8;
+      while (
+        suffixLength < document.projectId.length &&
+        [...this.#projects].some(
+          ([id, metadata]) =>
+            id !== document.projectId &&
+            metadata.name === name &&
+            id.slice(-suffixLength) === document.projectId.slice(-suffixLength),
+        )
+      ) suffixLength += 4;
+      return {
+        projectId: document.projectId,
+        projectName: name,
+        projectLabel:
+          (nameCounts.get(name) ?? 0) > 1
+            ? `${name} · ${document.projectId.slice(-suffixLength)}`
+            : name,
+      };
+    };
 
     if (terms.length === 0) {
       return [...this.#documents.values()]
@@ -110,6 +158,7 @@ export class GlobalSearchCache {
         .slice(0, RESULT_LIMIT)
         .map((document) => ({
           id: document.id,
+          ...context(document),
           title: document.title,
           matchedTags: [],
           snippet: null,
@@ -127,7 +176,11 @@ export class GlobalSearchCache {
       let matchedAll = true;
 
       for (const term of terms) {
-        const termRank = rankTerm(document, term);
+        const termRank = rankTerm(
+          document,
+          this.#projects.get(document.projectId)?.normalizedName ?? "",
+          term,
+        );
         if (termRank === 0) {
           matchedAll = false;
           break;
@@ -158,12 +211,14 @@ export class GlobalSearchCache {
       .slice(0, RESULT_LIMIT)
       .map(({ document, rank, bodyMatched }) => ({
         id: document.id,
+        ...context(document),
         title: document.title,
         matchedTags: findMatchingTags(document, terms),
         snippet: bodyMatched
           ? createBodySnippet(document.body, document.normalizedBody, terms)
           : null,
-        matchField: rank === 3 ? "title" : rank === 2 ? "tag" : "body",
+        matchField:
+          rank === 4 ? "title" : rank === 3 ? "project" : rank === 2 ? "tag" : "body",
         updatedAt: document.updatedAt,
         lastOpenedAt: lastOpenedAt.get(document.id) ?? null,
       }));
@@ -194,8 +249,13 @@ function findMatchingTags(
   });
 }
 
-function rankTerm(document: SearchDocument, term: string): number {
-  if (document.normalizedTitle.includes(term)) return 3;
+function rankTerm(
+  document: SearchDocument,
+  normalizedProjectName: string,
+  term: string,
+): number {
+  if (document.normalizedTitle.includes(term)) return 4;
+  if (normalizedProjectName.includes(term)) return 3;
   if (document.normalizedTags.some((tag) => tag.includes(term))) return 2;
   if (document.normalizedBody.includes(term)) return 1;
   return 0;

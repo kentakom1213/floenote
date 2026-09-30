@@ -30,6 +30,22 @@ vi.mock("../src/EditorModeView.js", () => ({
 }));
 
 describe("TrashView", () => {
+  it("resolves a deleted Note's tag color from its own Project", () => {
+    const workspace = NoteProject.create();
+    const a = workspace.listProjects()[0]!.id;
+    const b = workspace.createProject("Other").id;
+    const deleted = workspace.createDocument("Deleted", b);
+    deleted.addTag("research");
+    workspace.setTagColor(a, "research", "blue");
+    workspace.setTagColor(b, "research", "orange");
+    workspace.deleteDocument(deleted.id);
+    const markup = renderToStaticMarkup(createElement(TrashView, {
+      project: workspace, selectedDocumentId: deleted.id,
+      onSelectDocument: vi.fn(), onRestoreDocument: vi.fn(), onRequestPermanentDelete: vi.fn(),
+    }));
+    expect(markup).toContain('data-tag-color="orange"');
+    expect(markup).not.toContain('data-tag-color="blue"');
+  });
   it("renders an empty Trash state", () => {
     const project = NoteProject.create();
     const markup = renderToStaticMarkup(
@@ -52,7 +68,7 @@ describe("TrashView", () => {
     const project = NoteProject.create();
     const document = project.createDocument("Deleted preview");
     document.setTags(["research", "draft"]);
-    project.setTagColor("research", "blue");
+    project.setTagColor(project.listProjects()[0]!.id, "research", "blue");
     const binding = document.getEditorBinding();
     binding.getText(binding.doc).insert(0, "# Preview body");
     binding.doc.commit();
@@ -73,7 +89,7 @@ describe("TrashView", () => {
     expect(markup).toContain("research");
     expect(markup).toContain("draft");
     expect(markup).toContain('data-tag-color="blue"');
-    expect(markup).toContain('data-tag-color="gray"');
+    expect(markup).toContain(`data-tag-color="${project.resolveTagColor(project.listProjects()[0]!.id, "draft")}"`);
     expect(markup).toContain("Preview body");
     expect(markup).toContain('data-preview-interactive="false"');
     expect(markup).toContain(">Restore<");
