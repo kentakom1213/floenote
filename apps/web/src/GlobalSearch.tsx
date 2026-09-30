@@ -145,6 +145,8 @@ export function GlobalSearch({
                 role="option"
                 aria-selected={index === activeIndex}
                 onMouseMove={() => {
+                  // Scrolling can move a result under a stationary pointer.
+                  // Only actual pointer movement should take over from keyboard navigation.
                   keyboardNavigationRef.current = false;
                   setActiveIndex(index);
                 }}
