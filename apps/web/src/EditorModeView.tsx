@@ -2,6 +2,7 @@ import type { NoteDocument } from "@floe-note/document";
 
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { MarkdownPreview } from "./MarkdownPreview.js";
+import { MarkdownRenderedLivePreview } from "./MarkdownRenderedLivePreview.js";
 import { getEditorModeLayout } from "./editor-mode-layout.js";
 import type { EditorMode } from "./editor-mode-preference.js";
 
@@ -26,6 +27,11 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
       {layout.showPreview ? (
         <div className="editor-view-pane editor-view-preview">
           <MarkdownPreview document={document} interactive={true} />
+        </div>
+      ) : null}
+      {layout.showLive ? (
+        <div className="editor-view-pane editor-view-live">
+          <MarkdownRenderedLivePreview document={document} />
         </div>
       ) : null}
     </div>
