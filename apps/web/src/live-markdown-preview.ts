@@ -1,5 +1,10 @@
-import { Decoration, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
-import type { DecorationSet, ViewUpdate } from "@codemirror/view";
+import { StateField, type EditorState } from "@codemirror/state";
+import {
+  Decoration,
+  EditorView,
+  WidgetType,
+  type DecorationSet,
+} from "@codemirror/view";
 
 import { renderMarkdown } from "./MarkdownPreview.js";
 import {
@@ -45,15 +50,15 @@ class MarkdownBlockWidget extends WidgetType {
   }
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
-  const blocks = collectLiveMarkdownBlocks(view.state);
+function buildDecorations(state: EditorState): DecorationSet {
+  const blocks = collectLiveMarkdownBlocks(state);
   const ranges = blocks.flatMap((block) =>
-    isActiveBlock(view, block)
+    isActiveBlock(state, block)
       ? []
       : [
           Decoration.replace({
             widget: new MarkdownBlockWidget(
-              view.state.sliceDoc(block.from, block.to),
+              state.sliceDoc(block.from, block.to),
               block.from,
             ),
             block: true,
@@ -64,8 +69,11 @@ function buildDecorations(view: EditorView): DecorationSet {
   return Decoration.set(ranges, true);
 }
 
-function isActiveBlock(view: EditorView, block: LiveMarkdownBlock): boolean {
-  return view.state.selection.ranges.some((range) => {
+function isActiveBlock(
+  state: EditorState,
+  block: LiveMarkdownBlock,
+): boolean {
+  return state.selection.ranges.some((range) => {
     if (range.empty) {
       return range.head >= block.from && range.head <= block.to;
     }
@@ -73,27 +81,16 @@ function isActiveBlock(view: EditorView, block: LiveMarkdownBlock): boolean {
   });
 }
 
-class LiveMarkdownPreviewPlugin {
-  decorations: DecorationSet;
-
-  constructor(view: EditorView) {
-    this.decorations = buildDecorations(view);
-  }
-
-  update(update: ViewUpdate): void {
-    if (
-      update.docChanged ||
-      update.selectionSet ||
-      update.viewportChanged
-    ) {
-      this.decorations = buildDecorations(update.view);
-    }
-  }
-}
-
-export const liveMarkdownPreview = ViewPlugin.fromClass(
-  LiveMarkdownPreviewPlugin,
-  {
-    decorations: (plugin) => plugin.decorations,
+const liveMarkdownPreviewField = StateField.define<DecorationSet>({
+  create(state) {
+    return buildDecorations(state);
   },
-);
+  update(_decorations, transaction) {
+    return buildDecorations(transaction.state);
+  },
+  provide(field) {
+    return EditorView.decorations.from(field);
+  },
+});
+
+export const liveMarkdownPreview = liveMarkdownPreviewField;
