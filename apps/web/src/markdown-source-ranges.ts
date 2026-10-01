@@ -25,7 +25,7 @@ export type MarkdownSourceBlock = {
   to: number;
   subtreeFrom: number;
   subtreeTo: number;
-  kind: "paragraph" | "heading" | "list-item" | "other";
+  kind: "paragraph" | "heading" | "list-item" | "empty" | "other";
   listIndent?: string;
   listMarker?: string;
   listContinuationIndent?: string;
@@ -40,6 +40,11 @@ export function annotateMarkdownSourceRanges(
 ): void {
   const tokens = marked.lexer(source, { gfm: true });
   const children = Array.from(document.body.children);
+  const topLevelBlocks: Array<{
+    element: HTMLElement;
+    from: number;
+    to: number;
+  }> = [];
   let childIndex = 0;
   let sourceOffset = 0;
 
@@ -74,8 +79,11 @@ export function annotateMarkdownSourceRanges(
       });
     }
 
+    topLevelBlocks.push({ element, from, to });
     childIndex += 1;
   }
+
+  insertExplicitEmptyBlocks(document, source, topLevelBlocks);
 }
 
 export function readMarkdownSourceRange(
@@ -105,6 +113,7 @@ export function readMarkdownSourceBlock(
     (kind !== "paragraph" &&
       kind !== "heading" &&
       kind !== "list-item" &&
+      kind !== "empty" &&
       kind !== "other")
   ) {
     return null;
@@ -139,6 +148,7 @@ export function markdownBlockEditorText(
   block: MarkdownSourceBlock,
 ): string {
   const raw = source.slice(block.from, block.to);
+  if (block.kind === "empty") return "";
   if (block.kind !== "list-item") return raw;
 
   const continuationIndent = block.listContinuationIndent ?? "";
@@ -169,6 +179,110 @@ export function markdownBlockSourceText(
       index === 0 || line.length === 0 ? line : continuationIndent + line,
     )
     .join("\n");
+}
+
+function insertExplicitEmptyBlocks(
+  document: Document,
+  source: string,
+  blocks: Array<{ element: HTMLElement; from: number; to: number }>,
+): void {
+  if (blocks.length === 0) return;
+
+  const first = blocks[0];
+  if (first) {
+    for (const span of explicitLeadingEmptyLines(source, 0, first.from)) {
+      first.element.before(createEmptyBlock(document, span));
+    }
+  }
+
+  for (let index = 1; index < blocks.length; index += 1) {
+    const previous = blocks[index - 1];
+    const current = blocks[index];
+    if (!previous || !current) continue;
+
+    for (const span of explicitMiddleEmptyLines(
+      source,
+      previous.to,
+      current.from,
+    )) {
+      current.element.before(createEmptyBlock(document, span));
+    }
+  }
+
+  const last = blocks[blocks.length - 1];
+  if (last) {
+    for (const span of explicitTrailingEmptyLines(
+      source,
+      last.to,
+      source.length,
+    )) {
+      document.body.append(createEmptyBlock(document, span));
+    }
+  }
+}
+
+function createEmptyBlock(
+  document: Document,
+  span: { from: number; to: number },
+): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "markdown-live-empty-block";
+  element.setAttribute("aria-label", "Empty Markdown block");
+  setSourceBlock(element, {
+    from: span.from,
+    to: span.to,
+    subtreeFrom: span.from,
+    subtreeTo: span.to,
+    kind: "empty",
+  });
+  return element;
+}
+
+function explicitLeadingEmptyLines(
+  source: string,
+  from: number,
+  to: number,
+): Array<{ from: number; to: number }> {
+  return lineBreakSpans(source, from, to);
+}
+
+function explicitMiddleEmptyLines(
+  source: string,
+  from: number,
+  to: number,
+): Array<{ from: number; to: number }> {
+  const spans = lineBreakSpans(source, from, to);
+  return spans.length <= 2 ? [] : spans.slice(1, -1);
+}
+
+function explicitTrailingEmptyLines(
+  source: string,
+  from: number,
+  to: number,
+): Array<{ from: number; to: number }> {
+  const spans = lineBreakSpans(source, from, to);
+  return spans.length <= 1 ? [] : spans.slice(1);
+}
+
+function lineBreakSpans(
+  source: string,
+  from: number,
+  to: number,
+): Array<{ from: number; to: number }> {
+  const spans: Array<{ from: number; to: number }> = [];
+  let offset = from;
+
+  while (offset < to) {
+    const newline = source.indexOf("\n", offset);
+    if (newline < 0 || newline >= to) break;
+
+    const start =
+      newline > from && source[newline - 1] === "\r" ? newline - 1 : newline;
+    spans.push({ from: start, to: newline + 1 });
+    offset = newline + 1;
+  }
+
+  return spans;
 }
 
 function annotateListItems(
