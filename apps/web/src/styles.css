@@ -3900,10 +3900,124 @@ h1 {
   font-size: 12px;
 }
 
+.invitation-share-card {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.invitation-qr-card {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 10px;
+  padding: 20px 16px 18px;
+}
+
+.invitation-qr-surface {
+  width: 208px;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, #ffffff);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.invitation-qr-code {
+  width: min(208px, 100%);
+  height: auto;
+  display: block;
+  background: #ffffff;
+}
+
+.invitation-qr-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.invitation-link-option {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  border-left: 1px solid var(--color-border);
+  padding: 24px;
+}
+
+.invitation-link-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.invitation-link-heading strong {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.invitation-share-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+.invitation-share-icon.muted {
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+.invitation-share-icon svg,
+.invite-copy-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
 .invite-link-box {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+.invite-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.invitation-secret-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.invitation-secret-note p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .invite-link-box input {
@@ -4612,6 +4726,21 @@ h1 {
   .theme-preview-grid,
   .invite-link-box {
     grid-template-columns: 1fr;
+  }
+
+  .invitation-share-card {
+    grid-template-columns: 1fr;
+  }
+
+  .invitation-qr-card {
+    justify-self: stretch;
+    padding-inline: 14px;
+  }
+
+  .invitation-link-option {
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
+    padding: 18px;
   }
 
   .editor-preference-options,
