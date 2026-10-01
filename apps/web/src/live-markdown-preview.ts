@@ -52,10 +52,17 @@ class MarkdownBlockWidget extends WidgetType {
 
 function buildDecorations(state: EditorState): DecorationSet {
   const blocks = collectLiveMarkdownBlocks(state);
-  const ranges = blocks.flatMap((block, index) => {
-    if (isActiveBlock(state, block)) return [];
+  const active = blocks.map((block) => isActiveBlock(state, block));
 
+  const ranges = blocks.flatMap((block, index) => {
+    if (active[index]) return [];
+
+    const previousBlock = blocks[index - 1];
     const nextBlock = blocks[index + 1];
+    const replaceFrom =
+      previousBlock && active[index - 1]
+        ? leadingWhitespaceStart(state, previousBlock, block)
+        : block.from;
     const replaceTo = trailingWhitespaceEnd(state, block, nextBlock);
 
     return [
@@ -65,11 +72,23 @@ function buildDecorations(state: EditorState): DecorationSet {
           block.from,
         ),
         block: true,
-      }).range(block.from, replaceTo),
+      }).range(replaceFrom, replaceTo),
     ];
   });
 
   return Decoration.set(ranges, true);
+}
+
+function leadingWhitespaceStart(
+  state: EditorState,
+  previousBlock: LiveMarkdownBlock,
+  block: LiveMarkdownBlock,
+): number {
+  if (block.from <= previousBlock.to) return block.from;
+
+  return /^\s*$/u.test(state.sliceDoc(previousBlock.to, block.from))
+    ? previousBlock.to
+    : block.from;
 }
 
 function trailingWhitespaceEnd(
