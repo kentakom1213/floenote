@@ -474,7 +474,7 @@ function extractMath(source: string): {
       continue;
     }
 
-    if (trimmed === "$") {
+    if (trimmed === "$$") {
       const openingIndex = index;
       const block: string[] = [];
       let closed = false;
