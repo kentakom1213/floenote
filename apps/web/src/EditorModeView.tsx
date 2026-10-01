@@ -106,7 +106,7 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
           const heading = headingByLine.get(spacerPlan.line);
           if (!heading) continue;
 
-          const spacer = document.createElement("div");
+          const spacer = globalThis.document.createElement("div");
           spacer.dataset.floeLayoutSpacer = "";
           spacer.setAttribute("aria-hidden", "true");
           spacer.style.height = `${spacerPlan.height}px`;
