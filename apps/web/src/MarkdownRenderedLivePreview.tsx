@@ -229,10 +229,12 @@ function replaceActiveBlockWithEditor(
   textarea.rows = Math.max(1, source.slice(block.from, block.to).split("\n").length);
   textarea.textContent = source.slice(block.from, block.to);
 
-  if (target.tagName === "LI") {
-    target.classList.add("markdown-live-editing-list-item");
-    target.replaceChildren(textarea);
-    return;
+  const listItem = target.closest("li");
+  if (
+    listItem &&
+    target.classList.contains("markdown-live-list-item-content")
+  ) {
+    listItem.classList.add("markdown-live-editing-list-item");
   }
 
   target.replaceWith(textarea);
