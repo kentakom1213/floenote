@@ -24,25 +24,34 @@ export async function allocateInvitationForAuthorizedPresence(
   context: AuthorizedPresenceInvitationContext,
   allocate: (workspaceId: WorkspaceId) => Promise<Response>,
 ): Promise<AuthorizedInvitationAllocationResult> {
+  const authorization = authorizePresence(state, context);
+  if (authorization !== "authorized") return { kind: authorization };
+
+  return {
+    kind: "allocated",
+    response: await allocate(context.workspaceId),
+  };
+}
+
+export function authorizePresence(
+  state: SecurityState,
+  context: AuthorizedPresenceInvitationContext,
+): "authorized" | "stale-security-head" | "unauthorized-device" {
   if (context.workspaceId !== state.workspaceId) {
-    return { kind: "unauthorized-device" };
+    return "unauthorized-device";
   }
 
   if (context.securityHead !== bytesToHex(state.headHash)) {
-    return { kind: "stale-security-head" };
+    return "stale-security-head";
   }
 
   const authorized = state.devices.some(
     (device) => device.deviceId === context.deviceId,
   );
   if (!authorized) {
-    return { kind: "unauthorized-device" };
+    return "unauthorized-device";
   }
-
-  return {
-    kind: "allocated",
-    response: await allocate(context.workspaceId),
-  };
+  return "authorized";
 }
 
 function bytesToHex(value: Uint8Array): string {

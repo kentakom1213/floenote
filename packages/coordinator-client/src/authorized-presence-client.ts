@@ -6,6 +6,7 @@ import {
 
 import { parseInviteId, type CreatedInvitation } from "./invitation.js";
 import { parseSessionId, type SessionId } from "./session-id.js";
+import { parseTurnCredentials, TurnCredentialCache, type TurnCredentials } from "./turn-credentials.js";
 import {
   AUTHORIZED_PRESENCE_CHALLENGE_BYTES,
   SECURITY_HEAD_HASH_BYTES,
@@ -83,6 +84,11 @@ export class AuthorizedPresenceClient {
       reject: (error: Error) => void;
     }
   >();
+  readonly #pendingTurnRequests = new Map<
+    number,
+    { resolve: (credentials: TurnCredentials) => void; reject: (error: Error) => void }
+  >();
+  readonly #turnCache = new TurnCredentialCache();
 
   constructor(options: AuthorizedPresenceClientOptions) {
     this.#url = createPresenceWebSocketUrl(
@@ -255,6 +261,24 @@ export class AuthorizedPresenceClient {
     });
   }
 
+  requestTurnCredentials(): Promise<TurnCredentials> {
+    return this.#turnCache.get(() => {
+      if (this.#socket?.readyState !== WebSocket.OPEN || this.#state !== "open") {
+        return Promise.reject(new Error("Authorized presence WebSocket is not open"));
+      }
+      const requestId = this.#nextRequestId++;
+      return new Promise<TurnCredentials>((resolve, reject) => {
+        this.#pendingTurnRequests.set(requestId, { resolve, reject });
+        try {
+          this.#socket?.send(JSON.stringify({ type: "request-turn-credentials", requestId }));
+        } catch (error) {
+          this.#pendingTurnRequests.delete(requestId);
+          reject(error instanceof Error ? error : new Error("Failed to request TURN credentials"));
+        }
+      });
+    });
+  }
+
   close(): void {
     if (!this.#started && !this.#socket && !this.#reconnectTimer) return;
 
@@ -312,12 +336,23 @@ export class AuthorizedPresenceClient {
       }
 
       if (isControlErrorMessage(parsed)) {
-        const pending = this.#pendingInvitationRequests.get(parsed.requestId);
+        const pending = this.#pendingInvitationRequests.get(parsed.requestId) ??
+          this.#pendingTurnRequests.get(parsed.requestId);
         if (!pending) {
           throw new Error("Unknown authorized-presence control request");
         }
         this.#pendingInvitationRequests.delete(parsed.requestId);
+        this.#pendingTurnRequests.delete(parsed.requestId);
         pending.reject(new Error(parsed.message));
+        return;
+      }
+
+      if (isTurnCredentialsMessage(parsed)) {
+        const pending = this.#pendingTurnRequests.get(parsed.requestId);
+        if (!pending) throw new Error("Unknown TURN credential request");
+        const credentials = parseTurnCredentials(parsed);
+        this.#pendingTurnRequests.delete(parsed.requestId);
+        pending.resolve(credentials);
         return;
       }
 
@@ -427,6 +462,10 @@ export class AuthorizedPresenceClient {
       pending.reject(error);
     }
     this.#pendingInvitationRequests.clear();
+    for (const pending of this.#pendingTurnRequests.values()) {
+      pending.reject(error);
+    }
+    this.#pendingTurnRequests.clear();
   }
 
   #setState(state: AuthorizedPresenceConnectionState): void {
@@ -469,6 +508,21 @@ type ControlErrorMessage = {
   requestId: number;
   message: string;
 };
+
+type TurnCredentialsMessage = {
+  type: "turn-credentials";
+  requestId: number;
+  iceServers: unknown;
+  expiresAt: unknown;
+};
+
+function isTurnCredentialsMessage(value: unknown): value is TurnCredentialsMessage {
+  return typeof value === "object" && value !== null &&
+    "type" in value && value.type === "turn-credentials" &&
+    "requestId" in value && typeof value.requestId === "number" &&
+    Number.isSafeInteger(value.requestId) &&
+    "iceServers" in value && "expiresAt" in value;
+}
 
 function isChallengeMessage(value: unknown): value is PresenceChallengeMessage {
   return (

@@ -68,8 +68,31 @@ describe("TURN credentials", () => {
 
   it("requires a configured endpoint for relay-only attempts", async () => {
     await expect(resolveRelayRtcConfiguration(null)).rejects.toThrow(
-      "TURN credential endpoint is not configured",
+      "TURN credentials are unavailable",
     );
+  });
+
+  it("uses coordinator credentials for invitation ICE setup without a manual endpoint", async () => {
+    const iceServers = [{ urls: "turn:turn.cloudflare.com:3478", username: "short", credential: "temporary" }];
+    const request = vi.fn(async () => ({ iceServers, expiresAt: Date.now() + 86_400_000 }));
+    await expect(resolveRtcConfiguration(null, request)).resolves.toEqual({ iceServers });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("uses coordinator credentials for a relay-only reconnect attempt", async () => {
+    const iceServers = [{ urls: "turn:turn.cloudflare.com:3478", username: "short", credential: "temporary" }];
+    const request = vi.fn(async () => ({ iceServers, expiresAt: Date.now() + 86_400_000 }));
+    await expect(resolveRelayRtcConfiguration(null, request)).resolves.toEqual({
+      iceServers,
+      iceTransportPolicy: "relay",
+    });
+  });
+
+  it("keeps invitation direct connectivity available when TURN issuance fails", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await expect(resolveRtcConfiguration(null, async () => {
+      throw new Error("TURN relay is unavailable");
+    })).resolves.toBeUndefined();
   });
 
   it("rejects credential responses without a TURN server", async () => {

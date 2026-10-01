@@ -3,6 +3,18 @@
   "name": "floe-note-coordinator",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-22",
+  "ratelimits": [
+    {
+      "name": "TURN_DEVICE_RATE_LIMIT",
+      "namespace_id": "15501",
+      "simple": { "limit": 5, "period": 60 }
+    },
+    {
+      "name": "TURN_INVITE_RATE_LIMIT",
+      "namespace_id": "15502",
+      "simple": { "limit": 3, "period": 60 }
+    }
+  ],
   "preview_urls": true,
   "routes": [
     {
@@ -43,6 +55,7 @@
     "vars": {
       "FLOE_VERSION": "preview",
       "FLOE_BUILD": "preview",
+      "TURN_ENABLED": "false",
     },
     "durable_objects": {
       "bindings": [

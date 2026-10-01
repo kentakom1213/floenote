@@ -673,7 +673,10 @@ function NoteApp({
 
           const transport = new WebRtcTransport(
             project.id,
-            await resolveRtcConfiguration(turnCredentialEndpoint),
+            await resolveRtcConfiguration(
+              import.meta.env.DEV ? turnCredentialEndpoint : null,
+              authorizedSync.requestTurnCredentials,
+            ),
             createConsoleDebugLogger("invite-host-webrtc"),
           );
           invitationTransport = transport;
@@ -830,6 +833,7 @@ function NoteApp({
     return;
   }, [
     authorizedSync.createInvitation,
+    authorizedSync.requestTurnCredentials,
     invitationHostActive,
     project,
     signalSessionId,

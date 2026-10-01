@@ -1,8 +1,9 @@
 # Releases and versioning
 
 Floe Note releases the Web client and coordinator independently. Production
-releases are normally created from GitHub Actions. TURN is separate optional
-infrastructure and is not part of this release workflow.
+releases are normally created from GitHub Actions. Production TURN issuance is
+part of the coordinator runtime; the legacy `apps/turn` Worker is separate
+development/self-host infrastructure and is not part of this release workflow.
 
 ## Version policy
 
@@ -130,10 +131,12 @@ Before the first release, configure the repository:
 The values are Cloudflare deployment credentials used by Wrangler. Do not put
 their values in the repository, workflow YAML, logs, or artifacts.
 
-The Cloudflare deployment credentials are unrelated to the optional TURN Worker
-runtime secrets such as `TURN_KEY_ID`, `TURN_KEY_API_TOKEN`, and
-`TURN_ACCESS_TOKEN`. Those TURN secrets are not passed to the Release
-workflow.
+The Cloudflare deployment credentials are unrelated to the coordinator's TURN
+runtime secrets `TURN_ENABLED`, `TURN_KEY_ID`, and `TURN_KEY_API_TOKEN`. Configure
+these on the production coordinator Worker, independently of any staging key.
+They are not passed through the Release workflow or web build. See
+`docs/turn.md`. `TURN_ACCESS_TOKEN` belongs only to the legacy `apps/turn`
+development/self-host Worker.
 
 The `prepare-release` job uses the built-in `GITHUB_TOKEN` with only
 `contents: write` so it can update `main` and create the tag. The deploy job
