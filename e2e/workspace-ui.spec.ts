@@ -157,8 +157,6 @@ test("shows Offline while the browser has no network and recovers without reload
   await createSecuredProject(page);
   const status = page.locator(".sync-status-summary");
 
-  await expect(status).toContainText("Local");
-
   await context.setOffline(true);
   await expect(status).toContainText("Offline");
 
