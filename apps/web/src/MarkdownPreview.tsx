@@ -15,6 +15,7 @@ import {
   extractMarkdownImages,
   type MarkdownImageDescriptor,
 } from "./markdown-images.js";
+import { annotateMarkdownSourceAnchors } from "./markdown-source-anchors.js";
 import { sanitizeMarkdownHtml } from "./markdown-sanitizer.js";
 import {
   extractMarkdownTasks,
@@ -198,6 +199,7 @@ export function renderMarkdownWithImagePolicy(
   );
   hydrateMath(parsed, extractedMath.math);
   hydrateImages(parsed, extractedImages.images, options.loadExternalImages);
+  annotateMarkdownSourceAnchors(parsed, extractedMath.markdown);
 
   return {
     html: parsed.body.innerHTML,
@@ -472,13 +474,14 @@ function extractMath(source: string): {
       continue;
     }
 
-    if (trimmed === "$$") {
+    if (trimmed === "$") {
+      const openingIndex = index;
       const block: string[] = [];
       let closed = false;
 
       for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
         const candidate = lines[cursor] ?? "";
-        if (candidate.trim() === "$$") {
+        if (candidate.trim() === "$") {
           index = cursor;
           closed = true;
           break;
@@ -488,6 +491,13 @@ function extractMath(source: string): {
 
       if (closed) {
         output.push(addMath(block.join("\n"), true));
+        for (
+          let consumedLine = openingIndex + 1;
+          consumedLine <= index;
+          consumedLine += 1
+        ) {
+          output.push("");
+        }
         continue;
       }
     }
