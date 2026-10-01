@@ -43,7 +43,7 @@ describe("rendered live preview", () => {
     }
   });
 
-  it("edits a parent list item without replacing its nested list", async () => {
+  it("edits list content without exposing the list marker", async () => {
     const source = [
       "- parent",
       "  - child",
@@ -64,11 +64,11 @@ describe("rendered live preview", () => {
       await click(blocks[0] ?? null);
 
       const textarea = liveEditor(fixture.container);
-      expect(textarea.value.trimStart()).toBe("- parent");
+      expect(textarea.value).toBe("parent");
       expect(fixture.container.textContent).toContain("child");
       expect(fixture.container.textContent).toContain("grandchild");
 
-      textarea.value = "- renamed parent";
+      textarea.value = "renamed parent";
 
       await act(async () => {
         textarea.blur();
@@ -85,6 +85,45 @@ describe("rendered live preview", () => {
       );
       expect(fixture.container.textContent).toContain("renamed parent");
       expect(fixture.container.textContent).toContain("grandchild");
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("edits all own lines of a multiline list block", async () => {
+    const source = [
+      "- first line",
+      "  second line",
+      "  third line",
+      "  - child",
+      "- next",
+    ].join("\n");
+    const fixture = await renderLive(source);
+
+    try {
+      await click(listBlocks(fixture.container)[0] ?? null);
+
+      const textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe(
+        ["first line", "second line", "third line"].join("\n"),
+      );
+
+      textarea.value = ["renamed", "continued", "again"].join("\n");
+
+      await act(async () => {
+        textarea.blur();
+        await Promise.resolve();
+      });
+
+      expect(fixture.note.bodyText).toBe(
+        [
+          "- renamed",
+          "  continued",
+          "  again",
+          "  - child",
+          "- next",
+        ].join("\n"),
+      );
     } finally {
       await unmount(fixture.root);
     }
@@ -149,7 +188,7 @@ describe("rendered live preview", () => {
     }
   });
 
-  it("creates a same-level list item after the current subtree", async () => {
+  it("creates a first child when Enter is pressed on a parent list item", async () => {
     const source = ["- parent", "  - child", "- second"].join("\n");
     const fixture = await renderLive(source);
 
@@ -158,20 +197,48 @@ describe("rendered live preview", () => {
       await click(parent);
 
       const textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("parent");
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
       await key(textarea, "Enter");
 
       const pending = fixture.container.querySelector<HTMLTextAreaElement>(
         ".markdown-live-pending-editor",
       );
-      expect(pending?.value).toBe("- ");
+      expect(pending?.value).toBe("");
 
-      if (!pending) throw new Error("Expected pending list item editor");
-      pending.value = "- inserted";
+      if (!pending) throw new Error("Expected pending child editor");
+      pending.value = "inserted";
       await key(pending, "Escape");
 
       expect(fixture.note.bodyText).toBe(
-        ["- parent", "  - child", "- inserted", "- second"].join("\n"),
+        ["- parent", "  - inserted", "  - child", "- second"].join("\n"),
+      );
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("creates a sibling when Enter is pressed on a leaf list item", async () => {
+    const fixture = await renderLive(["- first", "- second"].join("\n"));
+
+    try {
+      await click(listBlocks(fixture.container)[0] ?? null);
+
+      const textarea = liveEditor(fixture.container);
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      await key(textarea, "Enter");
+
+      const pending = fixture.container.querySelector<HTMLTextAreaElement>(
+        ".markdown-live-pending-editor",
+      );
+      if (!pending) throw new Error("Expected pending sibling editor");
+
+      expect(pending.value).toBe("");
+      pending.value = "inserted";
+      await key(pending, "Escape");
+
+      expect(fixture.note.bodyText).toBe(
+        ["- first", "- inserted", "- second"].join("\n"),
       );
     } finally {
       await unmount(fixture.root);
