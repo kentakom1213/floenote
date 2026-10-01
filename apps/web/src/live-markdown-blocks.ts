@@ -1,6 +1,8 @@
 import { syntaxTree } from "@codemirror/language";
 import type { EditorState } from "@codemirror/state";
 
+type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
+
 export type LiveMarkdownBlockKind =
   | "heading"
   | "paragraph"
@@ -33,7 +35,7 @@ export function collectLiveMarkdownBlocks(
   ) {
     if (node.name === "BulletList" || node.name === "OrderedList") {
       const ordered = node.name === "OrderedList";
-      const items = [];
+      const items: SyntaxNode[] = [];
       for (let item = node.firstChild; item; item = item.nextSibling) {
         if (item.name === "ListItem") items.push(item);
       }
@@ -77,7 +79,7 @@ export function collectLiveMarkdownBlocks(
 
 function orderedListStart(
   state: EditorState,
-  item: ReturnType<typeof syntaxTree>["topNode"] | undefined,
+  item: SyntaxNode | undefined,
 ): number {
   if (!item) return 1;
 
