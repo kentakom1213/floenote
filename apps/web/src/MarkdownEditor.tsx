@@ -215,11 +215,13 @@ export const floeEditorSearch = [
 type MarkdownEditorProps = {
   document: NoteDocument;
   readOnly?: boolean;
+  onViewportLineChange?: (line: number) => void;
 };
 
 export function MarkdownEditor({
   document,
   readOnly = false,
+  onViewportLineChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +289,41 @@ export function MarkdownEditor({
       view.dispatch({});
     });
 
+    const scrollContainer = host.closest<HTMLElement>(".main-pane");
+    const reportViewportLine = () => {
+      if (!onViewportLineChange) return;
+
+      const contentRect = view.contentDOM.getBoundingClientRect();
+      const scrollRect = scrollContainer?.getBoundingClientRect();
+      const viewportTop = scrollRect?.top ?? 0;
+
+      let position = view.viewport.from;
+      if (contentRect.bottom <= viewportTop) {
+        position = view.state.doc.length;
+      } else if (contentRect.height > 0) {
+        const x = Math.min(
+          Math.max(contentRect.left + 1, contentRect.left),
+          Math.max(contentRect.left, contentRect.right - 1),
+        );
+        const y = Math.min(
+          Math.max(contentRect.top + 1, viewportTop + 1),
+          Math.max(contentRect.top + 1, contentRect.bottom - 1),
+        );
+        position = view.posAtCoords({ x, y }, false) ?? position;
+      }
+
+      onViewportLineChange(view.state.doc.lineAt(position).number);
+    };
+
+    scrollContainer?.addEventListener("scroll", reportViewportLine, {
+      passive: true,
+    });
+    view.scrollDOM.addEventListener("scroll", reportViewportLine, {
+      passive: true,
+    });
+    window.addEventListener("resize", reportViewportLine);
+    reportViewportLine();
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
@@ -348,10 +385,13 @@ export function MarkdownEditor({
     return () => {
       unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
+      scrollContainer?.removeEventListener("scroll", reportViewportLine);
+      view.scrollDOM.removeEventListener("scroll", reportViewportLine);
+      window.removeEventListener("resize", reportViewportLine);
       view.destroy();
       undoManager?.free();
     };
-  }, [document, readOnly]);
+  }, [document, onViewportLineChange, readOnly]);
 
   return <div className="editor" ref={hostRef} />;
 }
