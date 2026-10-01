@@ -20,7 +20,10 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
     >
       {layout.showEditor ? (
         <div className="editor-view-pane editor-view-source">
-          <MarkdownEditor document={document} />
+          <MarkdownEditor
+            document={document}
+            livePreview={layout.live}
+          />
         </div>
       ) : null}
       {layout.showPreview ? (
