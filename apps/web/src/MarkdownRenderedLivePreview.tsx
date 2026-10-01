@@ -22,6 +22,8 @@ import {
 } from "./MarkdownPreview.js";
 import {
   annotateMarkdownSourceRanges,
+  markdownBlockEditorText,
+  markdownBlockSourceText,
   readMarkdownSourceBlock,
   type MarkdownSourceBlock,
 } from "./markdown-source-ranges.js";
@@ -43,10 +45,14 @@ type PendingBlock = {
   sourceSnapshot: string;
   insertAt: number;
   prefix: string;
+  suffix: string;
   initialValue: string;
+  structuralFromOffset: number;
+  placement: "after" | "first-child";
   kind: "paragraph" | "list-item";
   listIndent?: string;
   listMarker?: string;
+  listContinuationIndent?: string;
   anchorFrom: number;
   anchorTo: number;
 };
@@ -99,9 +105,7 @@ export function MarkdownRenderedLivePreview({
       }
 
       const caret =
-        activeBlock?.focusAt === "start"
-          ? editableStartOffset(textarea.value, activeBlock.kind)
-          : textarea.value.length;
+        activeBlock?.focusAt === "start" ? 0 : textarea.value.length;
       textarea.setSelectionRange(caret, caret);
       return;
     }
@@ -120,16 +124,17 @@ export function MarkdownRenderedLivePreview({
         return null;
       }
 
+      const replacement = markdownBlockSourceText(value, block);
       const binding = document.getEditorBinding();
       binding
         .getText(binding.doc)
-        .splice(block.from, block.to - block.from, value);
+        .splice(block.from, block.to - block.from, replacement);
       binding.doc.commit();
 
-      const delta = value.length - (block.to - block.from);
+      const delta = replacement.length - (block.to - block.from);
       const source =
         block.sourceSnapshot.slice(0, block.from) +
-        value +
+        replacement +
         block.sourceSnapshot.slice(block.to);
 
       return {
@@ -137,8 +142,11 @@ export function MarkdownRenderedLivePreview({
         delta,
         block: {
           ...block,
-          to: block.from + value.length,
+          to: block.from + replacement.length,
           subtreeTo: block.subtreeTo + delta,
+          ...(block.firstChildAt === undefined
+            ? {}
+            : { firstChildAt: block.firstChildAt + delta }),
           sourceSnapshot: source,
         },
       };
@@ -155,7 +163,8 @@ export function MarkdownRenderedLivePreview({
         return null;
       }
 
-      const insertion = pending.prefix + value;
+      const encodedValue = encodePendingValue(value, pending);
+      const insertion = pending.prefix + encodedValue + pending.suffix;
       const binding = document.getEditorBinding();
       binding.getText(binding.doc).splice(pending.insertAt, 0, insertion);
       binding.doc.commit();
@@ -165,7 +174,9 @@ export function MarkdownRenderedLivePreview({
         insertion +
         pending.sourceSnapshot.slice(pending.insertAt);
       const from = pending.insertAt + pending.prefix.length;
-      const to = from + value.length;
+      const to = from + encodedValue.length;
+      const subtreeFrom =
+        pending.insertAt + pending.structuralFromOffset;
 
       return {
         source,
@@ -173,6 +184,7 @@ export function MarkdownRenderedLivePreview({
         block: {
           from,
           to,
+          subtreeFrom,
           subtreeTo: to,
           kind: pending.kind,
           ...(pending.listIndent === undefined
@@ -181,6 +193,9 @@ export function MarkdownRenderedLivePreview({
           ...(pending.listMarker === undefined
             ? {}
             : { listMarker: pending.listMarker }),
+          ...(pending.listContinuationIndent === undefined
+            ? {}
+            : { listContinuationIndent: pending.listContinuationIndent }),
           sourceSnapshot: source,
           focusAt: "end",
         },
@@ -286,7 +301,6 @@ export function MarkdownRenderedLivePreview({
         }
 
         if (!activeBlock) return;
-        target.dataset.floeLiveHandled = "true";
         const committed = commitActive(activeBlock, target.value);
         setActiveBlock(null);
         setPendingBlock(null);
@@ -336,6 +350,7 @@ export function MarkdownRenderedLivePreview({
         }
 
         if (!activeBlock) return;
+        target.dataset.floeLiveHandled = "true";
         const committed = commitActive(activeBlock, target.value);
         if (!committed) {
           setActiveBlock(null);
@@ -457,15 +472,13 @@ function replaceActiveBlockWithEditor(
   const target = findBlockElement(document.body, block);
   if (!target) return;
 
+  const editorText = markdownBlockEditorText(source, block);
   const textarea = document.createElement("textarea");
   textarea.className = "markdown-live-editor";
   textarea.setAttribute("aria-label", "Markdown block editor");
   textarea.setAttribute("spellcheck", "true");
-  textarea.rows = Math.max(
-    1,
-    source.slice(block.from, block.to).split("\n").length,
-  );
-  textarea.textContent = source.slice(block.from, block.to);
+  textarea.rows = Math.max(1, editorText.split("\n").length);
+  textarea.textContent = editorText;
   writeBlockAttributes(textarea, block);
 
   const listItem = target.closest("li");
@@ -504,6 +517,16 @@ function insertPendingEditor(
     const pendingItem = document.createElement("li");
     pendingItem.className = "markdown-live-pending-list-item";
     pendingItem.append(textarea);
+
+    if (pending.placement === "first-child") {
+      const childList = Array.from(anchorItem.children).find(
+        (child) => child.tagName === "UL" || child.tagName === "OL",
+      );
+      if (!childList) return;
+      childList.prepend(pendingItem);
+      return;
+    }
+
     anchorItem.insertAdjacentElement("afterend", pendingItem);
     return;
   }
@@ -524,16 +547,48 @@ function markSelectedBlock(
 
 function pendingAfter(block: ActiveBlock, source: string): PendingBlock {
   if (block.kind === "list-item") {
+    if (
+      block.firstChildAt !== undefined &&
+      block.childIndent !== undefined &&
+      block.childMarker !== undefined
+    ) {
+      const continuationIndent =
+        block.childIndent + " ".repeat(block.childMarker.length + 1);
+      return {
+        sourceSnapshot: source,
+        insertAt: block.firstChildAt,
+        prefix: `${block.childIndent}${block.childMarker} `,
+        suffix: "\n",
+        initialValue: "",
+        structuralFromOffset: 0,
+        placement: "first-child",
+        kind: "list-item",
+        listIndent: block.childIndent,
+        listMarker: block.childMarker,
+        listContinuationIndent: continuationIndent,
+        anchorFrom: block.from,
+        anchorTo: block.to,
+      };
+    }
+
     const listIndent = block.listIndent ?? "";
     const listMarker = block.listMarker ?? "-";
+    const continuationIndent =
+      block.listContinuationIndent ??
+      listIndent + " ".repeat(listMarker.length + 1);
+
     return {
       sourceSnapshot: source,
       insertAt: block.subtreeTo,
-      prefix: `\n${listIndent}`,
-      initialValue: `${listMarker} `,
+      prefix: `\n${listIndent}${listMarker} `,
+      suffix: "",
+      initialValue: "",
+      structuralFromOffset: 1,
+      placement: "after",
       kind: "list-item",
       listIndent,
       listMarker,
+      listContinuationIndent: continuationIndent,
       anchorFrom: block.from,
       anchorTo: block.to,
     };
@@ -543,11 +598,31 @@ function pendingAfter(block: ActiveBlock, source: string): PendingBlock {
     sourceSnapshot: source,
     insertAt: block.subtreeTo,
     prefix: "\n\n",
+    suffix: "",
     initialValue: "",
+    structuralFromOffset: 2,
+    placement: "after",
     kind: "paragraph",
     anchorFrom: block.from,
     anchorTo: block.to,
   };
+}
+
+function encodePendingValue(
+  value: string,
+  pending: PendingBlock,
+): string {
+  if (pending.kind !== "list-item") return value;
+
+  const continuationIndent = pending.listContinuationIndent ?? "";
+  if (!continuationIndent) return value;
+
+  return value
+    .split("\n")
+    .map((line, index) =>
+      index === 0 || line.length === 0 ? line : continuationIndent + line,
+    )
+    .join("\n");
 }
 
 function adjacentBlock(
@@ -575,13 +650,18 @@ function adjustBlockAfterEdit(
   edited: MarkdownSourceBlock,
   delta: number,
 ): MarkdownSourceBlock {
-  const shift = (offset: number) => (offset >= edited.to ? offset + delta : offset);
+  const shift = (offset: number) =>
+    offset >= edited.to ? offset + delta : offset;
 
   return {
     ...target,
     from: shift(target.from),
     to: shift(target.to),
+    subtreeFrom: shift(target.subtreeFrom),
     subtreeTo: shift(target.subtreeTo),
+    ...(target.firstChildAt === undefined
+      ? {}
+      : { firstChildAt: shift(target.firstChildAt) }),
   };
 }
 
@@ -602,6 +682,7 @@ function writeBlockAttributes(
 ): void {
   element.setAttribute("data-floe-source-from", String(block.from));
   element.setAttribute("data-floe-source-to", String(block.to));
+  element.setAttribute("data-floe-subtree-from", String(block.subtreeFrom));
   element.setAttribute("data-floe-subtree-to", String(block.subtreeTo));
   element.setAttribute("data-floe-block-kind", block.kind);
 
@@ -611,14 +692,24 @@ function writeBlockAttributes(
   if (block.listMarker !== undefined) {
     element.setAttribute("data-floe-list-marker", block.listMarker);
   }
-}
-
-function editableStartOffset(
-  value: string,
-  kind: MarkdownSourceBlock["kind"],
-): number {
-  if (kind !== "list-item") return 0;
-  return value.match(/^(?:[-+*]|\d+[.)])\s+/u)?.[0].length ?? 0;
+  if (block.listContinuationIndent !== undefined) {
+    element.setAttribute(
+      "data-floe-list-continuation-indent",
+      block.listContinuationIndent,
+    );
+  }
+  if (block.firstChildAt !== undefined) {
+    element.setAttribute(
+      "data-floe-first-child-at",
+      String(block.firstChildAt),
+    );
+  }
+  if (block.childIndent !== undefined) {
+    element.setAttribute("data-floe-child-indent", block.childIndent);
+  }
+  if (block.childMarker !== undefined) {
+    element.setAttribute("data-floe-child-marker", block.childMarker);
+  }
 }
 
 function isFirstLogicalLine(value: string, caret: number): boolean {
