@@ -21,6 +21,7 @@ import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 type NotePropertiesProps = {
   document: NoteDocument;
+  compact?: boolean;
   availableTags?: readonly string[];
   getTagColor?: (tag: string) => TagColor;
   onTagColorChange?: (tag: string, color: TagColor) => void;
@@ -46,6 +47,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
 
 export function NoteProperties({
   document,
+  compact = false,
   availableTags = [],
   getTagColor = () => DEFAULT_TAG_COLOR,
   onTagColorChange = () => {},
@@ -135,40 +137,52 @@ export function NoteProperties({
   }
 
   return (
-    <section className="note-properties" aria-label="Note properties">
+    <section
+      className={compact ? "note-properties note-properties-compact" : "note-properties"}
+      aria-label="Note properties"
+    >
       <div className="note-tags-row">
-        <span className="note-properties-label">Tags</span>
+        {compact ? null : <span className="note-properties-label">Tags</span>}
         <div className="note-tag-list">
-          {document.tags.map((tag) => {
-            const color = getTagColor(tag);
-            return (
-              <span
-                className="note-tag-control"
-                data-tag-color={color}
-                key={tag}
-              >
-                <NoteTagColorControl
+          {compact
+            ? document.tags.map((tag) => (
+                <TagChip
+                  key={tag}
                   tag={tag}
-                  color={color}
-                  onColorChange={(nextColor) =>
-                    onTagColorChange(tag, nextColor)
-                  }
-                  availableTags={availableTags}
-                  onRename={onTagRename}
+                  color={getTagColor(tag)}
+                  compact
                 />
-                <button
-                  className="note-tag-remove"
-                  type="button"
-                  aria-label={`Remove tag ${tag}`}
-                  onClick={() => removeTagFromProperties(document, tag)}
-                >
-                  <RemoveTagIcon />
-                </button>
-              </span>
-            );
-          })}
+              ))
+            : document.tags.map((tag) => {
+                const color = getTagColor(tag);
+                return (
+                  <span
+                    className="note-tag-control"
+                    data-tag-color={color}
+                    key={tag}
+                  >
+                    <NoteTagColorControl
+                      tag={tag}
+                      color={color}
+                      onColorChange={(nextColor) =>
+                        onTagColorChange(tag, nextColor)
+                      }
+                      availableTags={availableTags}
+                      onRename={onTagRename}
+                    />
+                    <button
+                      className="note-tag-remove"
+                      type="button"
+                      aria-label={`Remove tag ${tag}`}
+                      onClick={() => removeTagFromProperties(document, tag)}
+                    >
+                      <RemoveTagIcon />
+                    </button>
+                  </span>
+                );
+              })}
 
-          {addingTag ? (
+          {!compact && addingTag ? (
             <form
               ref={tagFormRef}
               className="note-tag-form"
@@ -248,7 +262,7 @@ export function NoteProperties({
                 </div>
               ) : null}
             </form>
-          ) : (
+          ) : !compact ? (
             <button
               ref={addTagButtonRef}
               className="note-tag-add"
@@ -262,21 +276,23 @@ export function NoteProperties({
               <span aria-hidden="true">＋</span>
               <span>Add tag</span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
       <div className="note-properties-footer">
-        <dl className="note-properties-grid">
-          <div>
-            <dt>Created</dt>
-            <dd>{renderTimestamp(document.createdAt)}</dd>
-          </div>
-          <div>
-            <dt>Updated</dt>
-            <dd>{renderTimestamp(document.updatedAt)}</dd>
-          </div>
-        </dl>
+        {!compact ? (
+          <dl className="note-properties-grid">
+            <div>
+              <dt>Created</dt>
+              <dd>{renderTimestamp(document.createdAt)}</dd>
+            </div>
+            <div>
+              <dt>Updated</dt>
+              <dd>{renderTimestamp(document.updatedAt)}</dd>
+            </div>
+          </dl>
+        ) : null}
         {trailingControl ? (
           <div className="note-properties-trailing">{trailingControl}</div>
         ) : null}
