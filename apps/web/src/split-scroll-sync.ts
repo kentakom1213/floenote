@@ -91,11 +91,13 @@ export function syncPreviewToSourceLine(
   );
 }
 
-export function sourceLineAtPreviewTop(previewPane: HTMLElement): number {
-  return interpolateSourceLine(
-    readPreviewAnchors(previewPane),
-    previewPane.scrollTop,
-  );
+export function sourceLineAtPreviewTop(
+  previewPane: HTMLElement,
+): number | null {
+  const anchors = readPreviewAnchors(previewPane);
+  if (anchors.length === 0) return null;
+
+  return interpolateSourceLine(anchors, previewPane.scrollTop);
 }
 
 function readPreviewAnchors(
