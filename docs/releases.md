@@ -3,7 +3,7 @@
 Floe Note releases the Web client and coordinator independently. Production
 releases are normally created from GitHub Actions. Production TURN issuance is
 part of the coordinator runtime; the legacy `apps/turn` Worker is separate
-development/self-host infrastructure and is not part of this release workflow.
+development infrastructure and is not part of this release workflow.
 
 ## Version policy
 
@@ -136,7 +136,7 @@ runtime secrets `TURN_ENABLED`, `TURN_KEY_ID`, and `TURN_KEY_API_TOKEN`. Configu
 these on the production coordinator Worker, independently of any staging key.
 They are not passed through the Release workflow or web build. See
 `docs/turn.md`. `TURN_ACCESS_TOKEN` belongs only to the legacy `apps/turn`
-development/self-host Worker.
+development Worker.
 
 The `prepare-release` job uses the built-in `GITHUB_TOKEN` with only
 `contents: write` so it can update `main` and create the tag. The deploy job

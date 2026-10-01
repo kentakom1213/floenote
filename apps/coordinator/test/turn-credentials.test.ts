@@ -54,6 +54,7 @@ function env(overrides: Record<string, unknown> = {}) {
     TURN_KEY_API_TOKEN: "server-secret",
     TURN_DEVICE_RATE_LIMIT: rateLimit(5),
     TURN_INVITE_RATE_LIMIT: rateLimit(3),
+    TURN_INVITATION_CREATION_RATE_LIMIT: rateLimit(2),
     ...overrides,
   };
 }
@@ -67,12 +68,12 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("Cloudflare TURN generation", () => {
   it("uses the 24-hour ICE API and returns only short-lived client fields", async () => {
-    const result = await generateTurnCredentials(env(), "device:opaque-id");
+    const result = await generateTurnCredentials(env());
     expect(result).toEqual({ iceServers: ICE_SERVERS, expiresAt: expect.any(Number) });
     expect(result.expiresAt).toBeGreaterThan(Date.now() + 86_000_000);
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(url).toBe("https://rtc.live.cloudflare.com/v1/turn/keys/key-id/credentials/generate-ice-servers");
-    expect(init?.body).toBe(JSON.stringify({ ttl: 86_400, customIdentifier: "device:opaque-id" }));
+    expect(init?.body).toBe(JSON.stringify({ ttl: 86_400 }));
     expect(init?.headers).toEqual(expect.objectContaining({ Authorization: "Bearer server-secret" }));
   });
 
@@ -81,15 +82,15 @@ describe("Cloudflare TURN generation", () => {
     [{ TURN_KEY_ID: undefined }, "not configured"],
     [{ TURN_KEY_API_TOKEN: undefined }, "not configured"],
   ])("fails cleanly for disabled or missing configuration", async (configuration, message) => {
-    await expect(generateTurnCredentials(env(configuration), "device:test")).rejects.toThrow(message);
+    await expect(generateTurnCredentials(env(configuration))).rejects.toThrow(message);
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it("rejects Cloudflare failures and malformed ICE data", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("failure", { status: 500 })));
-    await expect(generateTurnCredentials(env(), "device:test")).rejects.toThrow("Could not generate");
+    await expect(generateTurnCredentials(env())).rejects.toThrow("Could not generate");
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ iceServers: [{ urls: "turn:bad" }] })));
-    await expect(generateTurnCredentials(env(), "device:test")).rejects.toThrow("invalid response");
+    await expect(generateTurnCredentials(env())).rejects.toThrow("invalid response");
   });
 });
 
@@ -127,7 +128,10 @@ describe("authorized Presence TURN issuance", () => {
     const request = async (requestId: number) => coordinator.webSocketMessage(
       socket, JSON.stringify({ type: "request-turn-credentials", requestId }),
     );
-    return { sent, close, attachment, request, coordinator, socket, store };
+    const createInvitation = async (requestId: number) => coordinator.webSocketMessage(
+      socket, JSON.stringify({ type: "create-invitation", requestId }),
+    );
+    return { sent, close, attachment, request, createInvitation, coordinator, socket, store };
   }
 
   it("responds to an authenticated current device with the matching requestId", async () => {
@@ -201,6 +205,63 @@ describe("authorized Presence TURN issuance", () => {
     expect(limiter.limit).toHaveBeenCalledWith({ key: otherDeviceId });
   });
 
+  it("limits TURN-enabled invitation creation per authorized DeviceId", async () => {
+    const limiter = rateLimit(2);
+    const invitationNamespace = {
+      idFromName: (name: string) => name,
+      get: () => ({ fetch: async () => new Response(null, { status: 201 }) }),
+    };
+    const first = await setup({
+      TURN_INVITATION_CREATION_RATE_LIMIT: limiter,
+      INVITATION_COORDINATOR: invitationNamespace,
+    });
+    await first.createInvitation(1);
+    await first.createInvitation(2);
+    await first.createInvitation(3);
+    expect(first.sent.map((message) => (message as { type: string }).type)).toEqual([
+      "invitation-created", "invitation-created", "control-error",
+    ]);
+    expect(first.sent[2]).toEqual({
+      type: "control-error", requestId: 3, message: "Invitation creation rate limited",
+    });
+    expect(limiter.limit).toHaveBeenCalledWith({ key: deviceId });
+
+    const otherDeviceId = createDeviceId();
+    const otherState = deriveInitialSecurityState(
+      attachCreateWorkspaceSignature(
+        createUnsignedCreateWorkspaceTransition(workspaceId, {
+          deviceId: otherDeviceId,
+          encryptionPublicKey: new Uint8Array(32).fill(5),
+          signingPublicKey: new Uint8Array(32).fill(6),
+        }),
+        new Uint8Array(64).fill(7),
+      ),
+      new Uint8Array(32).fill(8),
+    );
+    const other = await setup({
+      TURN_INVITATION_CREATION_RATE_LIMIT: limiter,
+      INVITATION_COORDINATOR: invitationNamespace,
+    }, otherState, otherDeviceId);
+    await other.createInvitation(4);
+    expect(other.sent[0]).toEqual(expect.objectContaining({ type: "invitation-created", requestId: 4 }));
+    expect(limiter.limit).toHaveBeenCalledWith({ key: otherDeviceId });
+  });
+
+  it("does not rate-limit invitation creation while TURN is disabled", async () => {
+    const limiter = rateLimit(0);
+    const context = await setup({
+      TURN_ENABLED: "false",
+      TURN_INVITATION_CREATION_RATE_LIMIT: limiter,
+      INVITATION_COORDINATOR: {
+        idFromName: (name: string) => name,
+        get: () => ({ fetch: async () => new Response(null, { status: 201 }) }),
+      },
+    });
+    await context.createInvitation(9);
+    expect(context.sent[0]).toEqual(expect.objectContaining({ type: "invitation-created", requestId: 9 }));
+    expect(limiter.limit).not.toHaveBeenCalled();
+  });
+
   it("does not deliver credentials if SecurityState changes during upstream issuance", async () => {
     const context = await setup();
     vi.stubGlobal("fetch", vi.fn(async () => {
@@ -241,7 +302,7 @@ describe("claimed invitation TURN issuance", () => {
     const response = await request();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ iceServers: ICE_SERVERS, expiresAt: expect.any(Number) });
-    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toContain(`invite:${INVITE_ID}`);
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ ttl: 86_400 }));
   });
 
   it.each(["waiting", "cancelled", "consumed", "expired"])("rejects %s invitations", async (state) => {

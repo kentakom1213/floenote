@@ -13,6 +13,11 @@
       "name": "TURN_INVITE_RATE_LIMIT",
       "namespace_id": "15502",
       "simple": { "limit": 3, "period": 60 }
+    },
+    {
+      "name": "TURN_INVITATION_CREATION_RATE_LIMIT",
+      "namespace_id": "15503",
+      "simple": { "limit": 2, "period": 60 }
     }
   ],
   "preview_urls": true,

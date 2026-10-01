@@ -51,17 +51,18 @@ missing, credential requests fail cleanly even when TURN is enabled.
 
 The coordinator uses Cloudflare Workers rate-limit bindings as coarse abuse
 brakes: `TURN_DEVICE_RATE_LIMIT` allows 5 issuance requests per minute per
-`DeviceId`, and `TURN_INVITE_RATE_LIMIT` allows 3 per minute per `InviteId`.
-Cloudflare applies these counters per location and approximately, so they are
-not quotas. Issuance includes only a non-content `customIdentifier`:
-`device:<DeviceId>` or `invite:<InviteId>`, for Cloudflare TURN analytics.
-Credentials, usernames, passwords, and long-lived secrets are never logged.
+`DeviceId`, `TURN_INVITE_RATE_LIMIT` allows 3 per minute per `InviteId`, and
+`TURN_INVITATION_CREATION_RATE_LIMIT` allows 2 invitation creations per minute
+per authorized `DeviceId` while TURN is configured and enabled. Cloudflare
+applies these counters per location and approximately, so they are not quotas.
+The documented `generate-ice-servers` request accepts `ttl`; this flow does
+not send a custom analytics identifier. Credentials, usernames, passwords,
+and long-lived secrets are never logged.
 
 ## Development compatibility
 
-`apps/turn` remains for development and self-host compatibility. Its
-`TURN_ACCESS_TOKEN` capability URL is not the official production client path.
-Development builds can still configure that endpoint in Settings → Network;
-production builds use coordinator issuance without a manual endpoint. New
-deployments should prefer the coordinator flow rather than distributing a
-shared endpoint URL.
+`apps/turn` remains for development compatibility. Its `TURN_ACCESS_TOKEN`
+capability URL is available through Settings → Network in development builds
+only. Production builds, including self-hosted builds, use coordinator
+issuance without a manual endpoint. Self-hosted production coordinators need
+their own TURN key and runtime secrets.

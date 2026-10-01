@@ -47,6 +47,7 @@ interface Env {
   TURN_KEY_API_TOKEN?: string;
   TURN_DEVICE_RATE_LIMIT: RateLimit;
   TURN_INVITE_RATE_LIMIT: RateLimit;
+  TURN_INVITATION_CREATION_RATE_LIMIT: RateLimit;
 }
 
 type SignalingSocketAttachment = {
@@ -1179,8 +1180,17 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
         deviceId,
         securityHead: attachment.securityHead,
       },
-      (authorizedWorkspaceId) =>
-        createInvitation(this.env, authorizedWorkspaceId),
+      async (authorizedWorkspaceId) => {
+        if (this.env.TURN_ENABLED === "true" && this.env.TURN_KEY_ID && this.env.TURN_KEY_API_TOKEN) {
+          try {
+            const { success } = await this.env.TURN_INVITATION_CREATION_RATE_LIMIT.limit({ key: deviceId });
+            if (!success) return new Response("Invitation creation rate limited", { status: 429 });
+          } catch {
+            return new Response("Invitation creation is unavailable", { status: 503 });
+          }
+        }
+        return createInvitation(this.env, authorizedWorkspaceId);
+      },
     );
     if (allocation.kind === "stale-security-head") {
       socket.close(1008, "SecurityState changed during authorized presence");
@@ -1262,7 +1272,7 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
         sendJson(socket, { type: "control-error", requestId, message: "TURN credential request rate limited" });
         return;
       }
-      const credentials = await generateTurnCredentials(this.env, `device:${deviceId}`);
+      const credentials = await generateTurnCredentials(this.env);
       const currentState = await this.#loadSecurityState(workspaceId);
       if (
         currentState instanceof Response ||
@@ -1488,7 +1498,7 @@ export class InvitationCoordinator extends DurableObject<Env> {
     try {
       const { success } = await this.env.TURN_INVITE_RATE_LIMIT.limit({ key: inviteId });
       if (!success) return new Response("TURN credential request rate limited", { status: 429 });
-      const credentials = await generateTurnCredentials(this.env, `invite:${inviteId}`);
+      const credentials = await generateTurnCredentials(this.env);
       const currentRecord = await this.ctx.storage.get<InvitationRecord>("invite");
       if (
         !currentRecord ||

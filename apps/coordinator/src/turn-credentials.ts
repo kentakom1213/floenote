@@ -23,7 +23,6 @@ export class TurnCredentialError extends Error {
 
 export async function generateTurnCredentials(
   env: TurnConfiguration,
-  customIdentifier: string,
 ): Promise<TurnCredentials> {
   if (env.TURN_ENABLED !== "true") {
     throw new TurnCredentialError("TURN relay is unavailable", 503);
@@ -43,10 +42,7 @@ export async function generateTurnCredentials(
           Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ttl: TURN_CREDENTIAL_TTL_SECONDS,
-          customIdentifier,
-        }),
+        body: JSON.stringify({ ttl: TURN_CREDENTIAL_TTL_SECONDS }),
         signal: AbortSignal.timeout(10_000),
       },
     );
