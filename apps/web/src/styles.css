@@ -1875,16 +1875,47 @@ input:focus-visible {
 .editor-view[data-editor-mode="live"] .live-markdown-block {
   width: auto;
   margin: 0;
-  padding: 2px 0;
+  padding: 1px 0;
+  line-height: 1.6;
   cursor: text;
 }
 
-.editor-view[data-editor-mode="live"] .live-markdown-block > :first-child {
-  margin-top: 0;
+.editor-view[data-editor-mode="live"] .live-markdown-block > :first-child,
+.editor-view[data-editor-mode="live"] .live-markdown-block > :last-child {
+  margin-block: 0;
 }
 
-.editor-view[data-editor-mode="live"] .live-markdown-block > :last-child {
-  margin-bottom: 0;
+.editor-view[data-editor-mode="live"] .live-markdown-block h1,
+.editor-view[data-editor-mode="live"] .live-markdown-block h2,
+.editor-view[data-editor-mode="live"] .live-markdown-block h3,
+.editor-view[data-editor-mode="live"] .live-markdown-block h4,
+.editor-view[data-editor-mode="live"] .live-markdown-block h5,
+.editor-view[data-editor-mode="live"] .live-markdown-block h6,
+.editor-view[data-editor-mode="live"] .live-markdown-block p,
+.editor-view[data-editor-mode="live"] .live-markdown-block ul,
+.editor-view[data-editor-mode="live"] .live-markdown-block ol,
+.editor-view[data-editor-mode="live"] .live-markdown-block blockquote,
+.editor-view[data-editor-mode="live"] .live-markdown-block pre,
+.editor-view[data-editor-mode="live"] .live-markdown-block table {
+  margin-block: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block h2 {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block li > p {
+  margin: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block li + li {
+  margin-top: 0.2em;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block .markdown-math-block {
+  margin: 0.35em 0;
+  padding: 0;
 }
 
 .markdown-preview > :first-child {
