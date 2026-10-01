@@ -1884,7 +1884,19 @@ input:focus-visible {
   background: color-mix(in srgb, var(--color-surface-hover) 45%, transparent);
 }
 
-.editor-view-live .markdown-preview li[data-floe-source-from]:hover {
+.editor-view-live .markdown-live-list-item-content {
+  min-width: 0;
+}
+
+.editor-view-live .markdown-live-list-item-content > :first-child {
+  margin-top: 0;
+}
+
+.editor-view-live .markdown-live-list-item-content > :last-child {
+  margin-bottom: 0;
+}
+
+.editor-view-live .markdown-live-list-item-content:hover {
   border-radius: 6px;
 }
 
