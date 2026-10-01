@@ -150,6 +150,20 @@ test("keeps device shortcuts and detailed management in Settings", async ({
   ).toBeVisible();
 });
 
+test("shows Offline while the browser has no network and recovers without reload", async ({
+  page,
+  context,
+}) => {
+  await createSecuredProject(page);
+  const status = page.locator(".sync-status-summary");
+
+  await context.setOffline(true);
+  await expect(status).toContainText("Offline");
+
+  await context.setOffline(false);
+  await expect(status).not.toContainText("Offline");
+});
+
 test("removes only the selected Workspace from this device", async ({
   page,
 }) => {

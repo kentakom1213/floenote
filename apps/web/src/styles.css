@@ -2166,9 +2166,11 @@ input:focus-visible {
   background: var(--color-active);
 }
 
-.status-dot[data-kind="connecting"],
-.status-dot[data-kind="online"],
-.status-dot[data-kind="reconnecting"] {
+.status-dot[data-kind="available"] {
+  background: var(--color-accent);
+}
+
+.status-dot[data-kind="connecting"] {
   background: var(--color-attention);
 }
 

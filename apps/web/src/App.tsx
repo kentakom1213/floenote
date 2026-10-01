@@ -256,6 +256,7 @@ function NoteApp({
   deviceVaultSessionOwner: DeviceVaultSessionOwner;
 }) {
   const [themePreference, setThemePreference] = useThemePreference();
+  const [browserOnline, setBrowserOnline] = useState(() => navigator.onLine);
   const [turnCredentialEndpoint, setTurnCredentialEndpoint] =
     useTurnCredentialEndpoint();
   const [openedProject, setOpenedProject] = useState<OpenedProject | null>(null);
@@ -294,6 +295,18 @@ function NoteApp({
     useState<DeviceVaultUiState>("checking");
   const [localDeviceId, setLocalDeviceId] = useState<DeviceId | null>(null);
   const [localDeviceName, setLocalDeviceName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const updateBrowserOnline = () => setBrowserOnline(navigator.onLine);
+    window.addEventListener("online", updateBrowserOnline);
+    window.addEventListener("offline", updateBrowserOnline);
+    updateBrowserOnline();
+
+    return () => {
+      window.removeEventListener("online", updateBrowserOnline);
+      window.removeEventListener("offline", updateBrowserOnline);
+    };
+  }, []);
   const [deviceVaultError, setDeviceVaultError] = useState<string | null>(null);
   const [localSecurityBootstrapState, setLocalSecurityBootstrapState] =
     useState<LocalSecurityBootstrapUiState>("waiting");
@@ -2071,6 +2084,7 @@ function NoteApp({
   }
 
   const syncUiState = deriveSyncUiState({
+    browserOnline,
     presenceState: authorizedSync.presenceState,
     onlineDeviceIds: authorizedSync.onlineDeviceIds,
     ownsAutomaticPeerSync: authorizedSync.ownsAutomaticPeerSync,

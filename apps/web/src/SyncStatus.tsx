@@ -5,11 +5,10 @@ import { useDismissibleDetails } from "./useDismissibleDetails.js";
 
 export type SyncUiState =
   | { kind: "quiet" }
-  | { kind: "online" }
+  | { kind: "available" }
   | { kind: "connected" }
   | { kind: "offline" }
   | { kind: "connecting" }
-  | { kind: "reconnecting" }
   | { kind: "error"; detail?: string };
 
 export type SyncDeviceUi = {
@@ -32,12 +31,13 @@ const COPY: Record<
 > = {
   quiet: {
     label: "Local",
-    description: "Changes are saved on this device.",
-  },
-  online: {
-    label: "Online",
     description:
-      "Another device is reported online. This tab has no direct peer connection.",
+      "Changes are saved on this device. No other device is currently available for sync.",
+  },
+  available: {
+    label: "Available",
+    description:
+      "Another device is available for sync. This tab has no direct peer connection.",
   },
   connected: {
     label: "Connected",
@@ -46,16 +46,11 @@ const COPY: Record<
   offline: {
     label: "Offline",
     description:
-      "Changes are saved on this device. Floe Note will reconnect automatically.",
+      "This device is offline. Changes are saved locally and sync will resume when you're back online.",
   },
   connecting: {
     label: "Connecting…",
-    description: "Another device is online. Floe Note is connecting securely.",
-  },
-  reconnecting: {
-    label: "Reconnecting…",
-    description:
-      "Changes are saved on this device while Floe Note reconnects.",
+    description: "Floe Note is establishing remote sync.",
   },
 };
 

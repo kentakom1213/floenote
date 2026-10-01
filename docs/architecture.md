@@ -556,9 +556,11 @@ lock lets a waiting tab start a fresh peer-sync manager. If Web Locks is
 unavailable, the browser keeps the previous per-tab behavior and multi-tab
 ownership is not guaranteed. Separate private-browsing sessions do not share
 Web Locks.
-The status shown in a follower tab is Online when Presence reports another
-logical device online; it does not claim a direct connection. Stale Presence
-reports are tracked separately in Issue #204.
+The status shown in a follower tab is Available when Presence reports another
+logical device online; it does not claim a direct connection. Browser-reported
+network loss is shown separately as Offline. Coordinator or peer failures while
+the browser is online do not by themselves mean that the device is offline.
+Stale Presence reports are tracked separately in Issue #204.
 Within the owner tab, sync updates imported from WebRTC are forwarded through
 its encrypted BroadcastChannel transport, and updates imported from another
 local tab are forwarded through its encrypted WebRTC transports. Only update
