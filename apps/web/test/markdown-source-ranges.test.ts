@@ -9,15 +9,30 @@ import {
 } from "../src/markdown-source-ranges.js";
 
 describe("Markdown source ranges", () => {
-  it("maps rendered top-level blocks and list items back to source", () => {
-    const source = [
+  it("maps rendered top-level blocks back to source", () => {
+    const source = ["# Heading", "", "Paragraph."].join("\n");
+    const document = new DOMParser().parseFromString(
+      renderMarkdown(source),
+      "text/html",
+    );
+
+    annotateMarkdownSourceRanges(document, source);
+
+    expect(sourceFor(document.body.querySelector("h1"), source)).toBe(
       "# Heading",
-      "",
+    );
+    expect(sourceFor(document.body.querySelector("p"), source)).toBe(
       "Paragraph.",
-      "",
-      "1. first",
-      "   - nested",
-      "2. second",
+    );
+  });
+
+  it("maps each nested list item's own content without including child lists", () => {
+    const source = [
+      "- parent",
+      "  - child",
+      "    - grandchild",
+      "  - sibling",
+      "- second",
     ].join("\n");
     const document = new DOMParser().parseFromString(
       renderMarkdown(source),
@@ -26,18 +41,21 @@ describe("Markdown source ranges", () => {
 
     annotateMarkdownSourceRanges(document, source);
 
-    const heading = document.body.querySelector("h1");
-    const paragraph = document.body.querySelector("p");
-    const list = document.body.querySelector("ol");
-    const items = Array.from(document.body.querySelectorAll(":scope > ol > li"));
+    const blocks = Array.from(
+      document.body.querySelectorAll(".markdown-live-list-item-content"),
+    );
 
-    expect(sourceFor(heading, source)).toBe("# Heading");
-    expect(sourceFor(paragraph, source)).toBe("Paragraph.");
-    expect(sourceFor(list, source)).toContain("1. first");
-    expect(items.map((item) => sourceFor(item, source))).toEqual([
-      "1. first\n   - nested",
-      "2. second",
+    expect(
+      blocks.map((block) => sourceFor(block, source)?.trimStart()),
+    ).toEqual([
+      "- parent",
+      "- child",
+      "- grandchild",
+      "- sibling",
+      "- second",
     ]);
+    expect(document.body.querySelectorAll("li")).toHaveLength(5);
+    expect(document.body.querySelectorAll("ul")).toHaveLength(3);
   });
 });
 
