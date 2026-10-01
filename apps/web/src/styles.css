@@ -1803,7 +1803,6 @@ input:focus-visible {
   top: 0;
   height: 100dvh;
   overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .editor-view-split .editor .cm-scroller {
