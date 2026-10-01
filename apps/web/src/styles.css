@@ -1874,6 +1874,12 @@ input:focus-visible {
     flex: 0 0 auto;
   }
 
+  .app-shell[data-sidebar-collapsed="true"]
+    .document-current-view[data-editor-mode="split"]
+    .document-header {
+    padding-left: 64px;
+  }
+
   .document-current-view[data-editor-mode="split"] .note-menu-trigger {
     width: 32px;
     height: 32px;
