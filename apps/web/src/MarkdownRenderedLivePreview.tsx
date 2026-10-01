@@ -286,6 +286,7 @@ export function MarkdownRenderedLivePreview({
         }
 
         if (!activeBlock) return;
+        target.dataset.floeLiveHandled = "true";
         const committed = commitActive(activeBlock, target.value);
         setActiveBlock(null);
         setPendingBlock(null);
@@ -315,13 +316,13 @@ export function MarkdownRenderedLivePreview({
         target.selectionEnd === target.value.length
       ) {
         event.preventDefault();
-        target.dataset.floeLiveHandled = "true";
 
         if (target.dataset.floePending === "true") {
           if (!pendingBlock || target.value === pendingBlock.initialValue) {
             return;
           }
 
+          target.dataset.floeLiveHandled = "true";
           const committed = commitPending(pendingBlock, target.value);
           if (!committed) {
             setPendingBlock(null);
