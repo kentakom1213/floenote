@@ -2,12 +2,25 @@ import { marked } from "marked";
 
 const SOURCE_FROM_ATTRIBUTE = "data-floe-source-from";
 const SOURCE_TO_ATTRIBUTE = "data-floe-source-to";
+const SUBTREE_TO_ATTRIBUTE = "data-floe-subtree-to";
+const BLOCK_KIND_ATTRIBUTE = "data-floe-block-kind";
+const LIST_INDENT_ATTRIBUTE = "data-floe-list-indent";
+const LIST_MARKER_ATTRIBUTE = "data-floe-list-marker";
 
 type MarkedToken = ReturnType<typeof marked.lexer>[number];
 type MarkedListToken = Extract<MarkedToken, { type: "list" }>;
 
 type SourceCursor = {
   offset: number;
+};
+
+export type MarkdownSourceBlock = {
+  from: number;
+  to: number;
+  subtreeTo: number;
+  kind: "paragraph" | "heading" | "list-item" | "other";
+  listIndent?: string;
+  listMarker?: string;
 };
 
 export function annotateMarkdownSourceRanges(
@@ -41,7 +54,12 @@ export function annotateMarkdownSourceRanges(
     if (isListToken(token)) {
       annotateListItems(element, token, source, { offset: from });
     } else {
-      setSourceRange(element, from, to);
+      setSourceBlock(element, {
+        from,
+        to,
+        subtreeTo: to,
+        kind: blockKind(token),
+      });
     }
 
     childIndex += 1;
@@ -51,12 +69,43 @@ export function annotateMarkdownSourceRanges(
 export function readMarkdownSourceRange(
   element: Element,
 ): { from: number; to: number } | null {
+  const block = readMarkdownSourceBlock(element);
+  return block ? { from: block.from, to: block.to } : null;
+}
+
+export function readMarkdownSourceBlock(
+  element: Element,
+): MarkdownSourceBlock | null {
   const from = Number(element.getAttribute(SOURCE_FROM_ATTRIBUTE));
   const to = Number(element.getAttribute(SOURCE_TO_ATTRIBUTE));
-  if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || to <= from) {
+  const subtreeTo = Number(element.getAttribute(SUBTREE_TO_ATTRIBUTE));
+  const kind = element.getAttribute(BLOCK_KIND_ATTRIBUTE);
+
+  if (
+    !Number.isSafeInteger(from) ||
+    !Number.isSafeInteger(to) ||
+    !Number.isSafeInteger(subtreeTo) ||
+    to <= from ||
+    subtreeTo < to ||
+    (kind !== "paragraph" &&
+      kind !== "heading" &&
+      kind !== "list-item" &&
+      kind !== "other")
+  ) {
     return null;
   }
-  return { from, to };
+
+  const listIndent = element.getAttribute(LIST_INDENT_ATTRIBUTE);
+  const listMarker = element.getAttribute(LIST_MARKER_ATTRIBUTE);
+
+  return {
+    from,
+    to,
+    subtreeTo,
+    kind,
+    ...(listIndent === null ? {} : { listIndent }),
+    ...(listMarker === null ? {} : { listMarker }),
+  };
 }
 
 function annotateListItems(
@@ -77,7 +126,19 @@ function annotateListItems(
         ? wrapListItemOwnContent(itemElement)
         : null;
       if (contentElement) {
-        setSourceRange(contentElement, sourceLine.from, sourceLine.to);
+        setSourceBlock(contentElement, {
+          from: sourceLine.from,
+          to: sourceLine.to,
+          subtreeTo: findListItemSubtreeTo(
+            source,
+            sourceLine.next,
+            sourceLine.indent.length,
+            sourceLine.to,
+          ),
+          kind: "list-item",
+          listIndent: sourceLine.indent,
+          listMarker: sourceLine.marker,
+        });
       }
     }
 
@@ -97,7 +158,13 @@ function findNextListItemLine(
   source: string,
   from: number,
   itemRaw: string,
-): { from: number; to: number; next: number } | null {
+): {
+  from: number;
+  to: number;
+  next: number;
+  indent: string;
+  marker: string;
+} | null {
   const firstLine = itemRaw.split(/\r?\n/u)[0] ?? "";
   const needle = firstLine.trim();
   if (!needle) return null;
@@ -111,11 +178,19 @@ function findNextListItemLine(
     const line = source.slice(lineStart, lineEnd);
 
     if (line.trim() === needle) {
-      const leadingWhitespace = line.length - line.trimStart().length;
+      const indent = line.match(/^\s*/u)?.[0] ?? "";
+      const marker = line
+        .slice(indent.length)
+        .match(/^(?:[-+*]|\d+[.)])(?=\s)/u)?.[0];
+
+      if (!marker) return null;
+
       return {
-        from: lineStart + leadingWhitespace,
+        from: lineStart + indent.length,
         to: lineEnd,
         next: newline < 0 ? source.length : newline + 1,
+        indent,
+        marker,
       };
     }
 
@@ -124,6 +199,35 @@ function findNextListItemLine(
   }
 
   return null;
+}
+
+function findListItemSubtreeTo(
+  source: string,
+  from: number,
+  indentLength: number,
+  ownLineTo: number,
+): number {
+  let subtreeTo = ownLineTo;
+  let lineStart = from;
+
+  while (lineStart < source.length) {
+    const newline = source.indexOf("\n", lineStart);
+    const rawEnd = newline < 0 ? source.length : newline;
+    const lineEnd =
+      rawEnd > lineStart && source[rawEnd - 1] === "\r" ? rawEnd - 1 : rawEnd;
+    const line = source.slice(lineStart, lineEnd);
+
+    if (line.trim().length > 0) {
+      const nextIndent = line.length - line.trimStart().length;
+      if (nextIndent <= indentLength) break;
+      subtreeTo = lineEnd;
+    }
+
+    if (newline < 0) break;
+    lineStart = newline + 1;
+  }
+
+  return subtreeTo;
 }
 
 function directListItems(listElement: HTMLElement): HTMLElement[] {
@@ -179,9 +283,33 @@ function isListToken(token: MarkedToken): token is MarkedListToken {
   return token.type === "list";
 }
 
-function setSourceRange(element: HTMLElement, from: number, to: number): void {
-  element.setAttribute(SOURCE_FROM_ATTRIBUTE, String(from));
-  element.setAttribute(SOURCE_TO_ATTRIBUTE, String(to));
+function blockKind(token: MarkedToken): MarkdownSourceBlock["kind"] {
+  switch (token.type) {
+    case "heading":
+      return "heading";
+    case "paragraph":
+    case "text":
+      return "paragraph";
+    default:
+      return "other";
+  }
+}
+
+function setSourceBlock(
+  element: HTMLElement,
+  block: MarkdownSourceBlock,
+): void {
+  element.setAttribute(SOURCE_FROM_ATTRIBUTE, String(block.from));
+  element.setAttribute(SOURCE_TO_ATTRIBUTE, String(block.to));
+  element.setAttribute(SUBTREE_TO_ATTRIBUTE, String(block.subtreeTo));
+  element.setAttribute(BLOCK_KIND_ATTRIBUTE, block.kind);
+
+  if (block.listIndent !== undefined) {
+    element.setAttribute(LIST_INDENT_ATTRIBUTE, block.listIndent);
+  }
+  if (block.listMarker !== undefined) {
+    element.setAttribute(LIST_MARKER_ATTRIBUTE, block.listMarker);
+  }
 }
 
 function trimTrailingLineBreaks(
