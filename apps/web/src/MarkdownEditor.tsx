@@ -17,6 +17,7 @@ import {
   EDITOR_UNDO_MERGE_INTERVAL_MS,
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
+import { liveMarkdownPreview } from "./live-markdown-preview.js";
 
 function setSearchOptionsOpen(
   panel: HTMLElement,
@@ -215,11 +216,13 @@ export const floeEditorSearch = [
 type MarkdownEditorProps = {
   document: NoteDocument;
   readOnly?: boolean;
+  livePreview?: boolean;
 };
 
 export function MarkdownEditor({
   document,
   readOnly = false,
+  livePreview = false,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -252,6 +255,7 @@ export function MarkdownEditor({
           markdown(),
           floeMarkdownIndentation,
           ...floeCodeMirrorAppearance,
+          ...(livePreview ? [liveMarkdownPreview] : []),
           EditorView.lineWrapping,
           EditorState.readOnly.of(readOnly),
           EditorView.editable.of(!readOnly),
@@ -351,7 +355,7 @@ export function MarkdownEditor({
       view.destroy();
       undoManager?.free();
     };
-  }, [document, readOnly]);
+  }, [document, livePreview, readOnly]);
 
   return <div className="editor" ref={hostRef} />;
 }
