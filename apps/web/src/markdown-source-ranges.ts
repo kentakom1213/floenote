@@ -3,6 +3,9 @@ import { marked } from "marked";
 const SOURCE_FROM_ATTRIBUTE = "data-floe-source-from";
 const SOURCE_TO_ATTRIBUTE = "data-floe-source-to";
 
+type MarkedToken = ReturnType<typeof marked.lexer>[number];
+type MarkedListToken = Extract<MarkedToken, { type: "list" }>;
+
 export function annotateMarkdownSourceRanges(
   document: Document,
   source: string,
@@ -31,10 +34,10 @@ export function annotateMarkdownSourceRanges(
     const element = children[childIndex] as HTMLElement | undefined;
     if (!element) break;
 
-    setSourceRange(element, from, to);
-
     if (token.type === "list") {
-      annotateTopLevelListItems(element, token.raw, token.items, from, source);
+      annotateListItems(element, token, from, source);
+    } else {
+      setSourceRange(element, from, to);
     }
 
     childIndex += 1;
@@ -52,31 +55,117 @@ export function readMarkdownSourceRange(
   return { from, to };
 }
 
-function annotateTopLevelListItems(
+function annotateListItems(
   listElement: HTMLElement,
-  listRaw: string,
-  items: readonly { raw: string }[],
+  token: MarkedListToken,
   listFrom: number,
   source: string,
 ): void {
-  const elements = Array.from(listElement.children).filter(
-    (child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI",
-  );
-  let searchOffset = 0;
+  const itemElements = directListItems(listElement);
+  let itemSearchOffset = 0;
 
-  items.forEach((item, index) => {
-    const relativeFrom = listRaw.indexOf(item.raw, searchOffset);
-    if (relativeFrom < 0) return;
+  token.items.forEach((item, index) => {
+    const relativeItemFrom = token.raw.indexOf(item.raw, itemSearchOffset);
+    if (relativeItemFrom < 0) return;
 
-    const from = listFrom + relativeFrom;
-    const to = trimTrailingLineBreaks(source, from, from + item.raw.length);
-    const element = elements[index];
-    if (element && to > from) {
-      setSourceRange(element, from, to);
+    const itemFrom = listFrom + relativeItemFrom;
+    const nestedTokens = item.tokens.filter(isListToken);
+    const nestedRanges = nestedTokens
+      .map((nested) => {
+        const relativeFrom = item.raw.indexOf(nested.raw);
+        return relativeFrom < 0
+          ? null
+          : { token: nested, relativeFrom };
+      })
+      .filter(
+        (
+          nested,
+        ): nested is { token: MarkedListToken; relativeFrom: number } =>
+          nested !== null,
+      )
+      .sort((left, right) => left.relativeFrom - right.relativeFrom);
+
+    const ownEnd =
+      nestedRanges[0]?.relativeFrom === undefined
+        ? itemFrom + item.raw.length
+        : itemFrom + nestedRanges[0].relativeFrom;
+    const ownTo = trimTrailingWhitespace(source, itemFrom, ownEnd);
+
+    const itemElement = itemElements[index];
+    if (itemElement) {
+      const contentElement = wrapListItemOwnContent(itemElement);
+      if (contentElement && ownTo > itemFrom) {
+        setSourceRange(contentElement, itemFrom, ownTo);
+      }
+
+      const nestedElements = directNestedLists(itemElement);
+      nestedRanges.forEach((nested, nestedIndex) => {
+        const nestedElement = nestedElements[nestedIndex];
+        if (!nestedElement) return;
+
+        annotateListItems(
+          nestedElement,
+          nested.token,
+          itemFrom + nested.relativeFrom,
+          source,
+        );
+      });
     }
 
-    searchOffset = relativeFrom + item.raw.length;
+    itemSearchOffset = relativeItemFrom + item.raw.length;
   });
+}
+
+function directListItems(listElement: HTMLElement): HTMLElement[] {
+  return Array.from(listElement.children).filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement && child.tagName === "LI",
+  );
+}
+
+function directNestedLists(itemElement: HTMLElement): HTMLElement[] {
+  return Array.from(itemElement.children).filter(
+    (child): child is HTMLElement =>
+      child instanceof HTMLElement &&
+      (child.tagName === "UL" || child.tagName === "OL"),
+  );
+}
+
+function wrapListItemOwnContent(
+  itemElement: HTMLElement,
+): HTMLElement | null {
+  const firstNestedList = Array.from(itemElement.children).find(
+    (child) => child.tagName === "UL" || child.tagName === "OL",
+  );
+  const ownNodes: ChildNode[] = [];
+
+  for (const node of Array.from(itemElement.childNodes)) {
+    if (node === firstNestedList) break;
+    ownNodes.push(node);
+  }
+
+  if (
+    ownNodes.length === 0 ||
+    ownNodes.every(
+      (node) => node.nodeType === Node.TEXT_NODE && !(node.textContent ?? "").trim(),
+    )
+  ) {
+    return null;
+  }
+
+  const wrapper = itemElement.ownerDocument.createElement("div");
+  wrapper.className = "markdown-live-list-item-content";
+  itemElement.insertBefore(wrapper, ownNodes[0] ?? firstNestedList ?? null);
+
+  for (const node of ownNodes) {
+    wrapper.append(node);
+  }
+
+  return wrapper;
+}
+
+function isListToken(token: MarkedToken): token is MarkedListToken {
+  return token.type === "list";
 }
 
 function setSourceRange(element: HTMLElement, from: number, to: number): void {
@@ -96,9 +185,19 @@ function trimTrailingLineBreaks(
   return to;
 }
 
-function renderedTagName(
-  token: ReturnType<typeof marked.lexer>[number],
-): string | null {
+function trimTrailingWhitespace(
+  source: string,
+  from: number,
+  end: number,
+): number {
+  let to = Math.min(end, source.length);
+  while (to > from && /\s/u.test(source[to - 1] ?? "")) {
+    to -= 1;
+  }
+  return to;
+}
+
+function renderedTagName(token: MarkedToken): string | null {
   switch (token.type) {
     case "heading":
       return `h${token.depth}`;
