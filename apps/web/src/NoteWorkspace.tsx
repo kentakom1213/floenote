@@ -44,6 +44,7 @@ const EDITOR_MODE_OPTIONS = [
   { mode: "edit", label: "Edit" },
   { mode: "split", label: "Split" },
   { mode: "preview", label: "Preview" },
+  { mode: "live", label: "Live" },
 ] satisfies readonly { mode: EditorMode; label: string }[];
 
 type NoteWorkspaceProps = {
