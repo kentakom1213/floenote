@@ -245,6 +245,87 @@ describe("rendered live preview", () => {
     }
   });
 
+  it("materializes a pending paragraph as an explicit empty block on Escape", async () => {
+    const fixture = await renderLive("First\n\nSecond");
+
+    try {
+      await click(
+        fixture.container.querySelector("p[data-floe-source-from]"),
+      );
+
+      const textarea = liveEditor(fixture.container);
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      await key(textarea, "Enter");
+
+      const pending = fixture.container.querySelector<HTMLTextAreaElement>(
+        ".markdown-live-pending-editor",
+      );
+      if (!pending) throw new Error("Expected pending empty block");
+      expect(pending.value).toBe("");
+
+      await key(pending, "Escape");
+
+      expect(fixture.note.bodyText).toBe("First\n\n\nSecond");
+      const selected = fixture.container.querySelector(
+        ".markdown-live-empty-block.markdown-live-selected-block",
+      );
+      expect(selected).not.toBeNull();
+      expect(document.activeElement).toBe(selected);
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("edits an explicit empty block into a paragraph", async () => {
+    const fixture = await renderLive("First\n\n\nSecond");
+
+    try {
+      const empty = fixture.container.querySelector(
+        ".markdown-live-empty-block",
+      );
+      expect(empty).not.toBeNull();
+
+      await click(empty);
+      const textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("");
+
+      textarea.value = "Middle";
+      await key(textarea, "Escape");
+
+      expect(fixture.note.bodyText).toBe("First\n\nMiddle\n\nSecond");
+      expect(
+        fixture.container.querySelector(".markdown-live-selected-block")
+          ?.textContent,
+      ).toBe("Middle");
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("moves through an explicit empty block with ArrowDown", async () => {
+    const fixture = await renderLive("First\n\n\nSecond");
+
+    try {
+      await click(
+        fixture.container.querySelector("p[data-floe-source-from]"),
+      );
+
+      let textarea = liveEditor(fixture.container);
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      await key(textarea, "ArrowDown");
+
+      textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("");
+
+      await key(textarea, "ArrowDown");
+      textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("Second");
+      expect(textarea.selectionStart).toBe(0);
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
   it("moves editing to adjacent blocks with ArrowUp and ArrowDown", async () => {
     const fixture = await renderLive("First\n\nSecond");
 
