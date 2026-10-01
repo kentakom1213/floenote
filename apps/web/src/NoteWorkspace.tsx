@@ -623,12 +623,12 @@ function DocumentPane({
 
   useEffect(() => {
     const input = titleRef.current;
-    if (!input) return;
+    if (!input || mode === "split") return;
 
     const resize = () => resizeTitleInput(input);
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
-  }, [document.id]);
+  }, [document.id, mode]);
 
   useEffect(() => {
     if (!focusTitle) return;
