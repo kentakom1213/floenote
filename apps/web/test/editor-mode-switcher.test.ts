@@ -36,10 +36,12 @@ describe("EditorModeSwitcher", () => {
         "Edit",
         "Split",
         "Preview",
+        "Live",
       ]);
       expect(buttons.map((button) => button.getAttribute("aria-pressed"))).toEqual([
         "false",
         "true",
+        "false",
         "false",
       ]);
     } finally {
