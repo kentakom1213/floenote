@@ -12,6 +12,7 @@ function blocks(source: string) {
   return collectLiveMarkdownBlocks(state).map((block) => ({
     source: state.sliceDoc(block.from, block.to),
     kind: block.kind,
+    ...(block.list ? { list: block.list } : {}),
   }));
 }
 
@@ -38,32 +39,36 @@ describe("live Markdown blocks", () => {
   });
 
 
-  it("treats each top-level list item as one block", () => {
+  it("treats each top-level list item as one block with list context", () => {
     expect(
       blocks([
         "- first",
         "  - nested",
         "- second",
         "",
-        "1. ordered",
-        "2. list",
+        "3. ordered",
+        "1. list",
       ].join("\n")),
     ).toEqual([
       {
         source: "- first\n  - nested",
         kind: "list",
+        list: { ordered: false, number: null },
       },
       {
         source: "- second",
         kind: "list",
+        list: { ordered: false, number: null },
       },
       {
-        source: "1. ordered",
+        source: "3. ordered",
         kind: "list",
+        list: { ordered: true, number: 3 },
       },
       {
-        source: "2. list",
+        source: "1. list",
         kind: "list",
+        list: { ordered: true, number: 4 },
       },
     ]);
   });
