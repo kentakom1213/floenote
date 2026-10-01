@@ -10,58 +10,100 @@ export function interpolatePreviewScrollTop(
   sourceLine: number,
   maxScrollTop: number,
 ): number {
-  if (anchors.length === 0 || maxScrollTop <= 0) return 0;
+  const points = toInterpolationPoints(anchors);
+  if (points.length === 0 || maxScrollTop <= 0) return 0;
 
   const line = Math.max(1, sourceLine);
-  const first = anchors[0];
+  const first = points[0];
   if (!first) return 0;
-
-  if (line <= first.sourceStart) {
+  if (line <= first.sourceLine) {
     return clamp(first.top, 0, maxScrollTop);
   }
 
-  for (let index = 0; index < anchors.length; index += 1) {
-    const current = anchors[index];
-    if (!current) continue;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (!previous || !current || line > current.sourceLine) continue;
 
-    const next = anchors[index + 1];
-
-    if (line < current.sourceEnd) {
-      const sourceSpan = Math.max(1, current.sourceEnd - current.sourceStart);
-      const ratio = clamp(
-        (line - current.sourceStart) / sourceSpan,
-        0,
-        1,
-      );
-      const visualEnd = next?.top ?? Math.max(current.bottom, current.top);
-      return clamp(
-        current.top + (visualEnd - current.top) * ratio,
-        0,
-        maxScrollTop,
-      );
-    }
-
-    if (next && line < next.sourceStart) {
-      const sourceSpan = Math.max(1, next.sourceStart - current.sourceEnd);
-      const ratio = clamp((line - current.sourceEnd) / sourceSpan, 0, 1);
-      return clamp(
-        current.bottom + (next.top - current.bottom) * ratio,
-        0,
-        maxScrollTop,
-      );
-    }
+    const sourceSpan = Math.max(1, current.sourceLine - previous.sourceLine);
+    const ratio = clamp(
+      (line - previous.sourceLine) / sourceSpan,
+      0,
+      1,
+    );
+    return clamp(
+      previous.top + (current.top - previous.top) * ratio,
+      0,
+      maxScrollTop,
+    );
   }
 
-  const last = anchors[anchors.length - 1];
+  const last = points[points.length - 1];
   return clamp(last?.top ?? 0, 0, maxScrollTop);
+}
+
+export function interpolateSourceLine(
+  anchors: readonly PreviewAnchorPosition[],
+  scrollTop: number,
+): number {
+  const points = toInterpolationPoints(anchors);
+  if (points.length === 0) return 1;
+
+  const top = Math.max(0, scrollTop);
+  const first = points[0];
+  if (!first) return 1;
+  if (top <= first.top) return first.sourceLine;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    if (!previous || !current || top > current.top) continue;
+
+    const visualSpan = current.top - previous.top;
+    if (visualSpan <= 0) return current.sourceLine;
+
+    const ratio = clamp((top - previous.top) / visualSpan, 0, 1);
+    return Math.max(
+      1,
+      Math.round(
+        previous.sourceLine +
+          (current.sourceLine - previous.sourceLine) * ratio,
+      ),
+    );
+  }
+
+  return points[points.length - 1]?.sourceLine ?? 1;
 }
 
 export function syncPreviewToSourceLine(
   previewPane: HTMLElement,
   sourceLine: number,
 ): void {
+  const anchors = readPreviewAnchors(previewPane);
+  const maxScrollTop = Math.max(
+    0,
+    previewPane.scrollHeight - previewPane.clientHeight,
+  );
+  previewPane.scrollTop = interpolatePreviewScrollTop(
+    anchors,
+    sourceLine,
+    maxScrollTop,
+  );
+}
+
+export function sourceLineAtPreviewTop(previewPane: HTMLElement): number {
+  return interpolateSourceLine(
+    readPreviewAnchors(previewPane),
+    previewPane.scrollTop,
+  );
+}
+
+function readPreviewAnchors(
+  previewPane: HTMLElement,
+): PreviewAnchorPosition[] {
   const paneRect = previewPane.getBoundingClientRect();
-  const anchors = Array.from(
+
+  return Array.from(
     previewPane.querySelectorAll<HTMLElement>(
       "[data-floe-source-start][data-floe-source-end]",
     ),
@@ -82,16 +124,30 @@ export function syncPreviewToSourceLine(
       },
     ];
   });
+}
 
-  const maxScrollTop = Math.max(
-    0,
-    previewPane.scrollHeight - previewPane.clientHeight,
-  );
-  previewPane.scrollTop = interpolatePreviewScrollTop(
-    anchors,
-    sourceLine,
-    maxScrollTop,
-  );
+function toInterpolationPoints(
+  anchors: readonly PreviewAnchorPosition[],
+): Array<{ sourceLine: number; top: number }> {
+  if (anchors.length === 0) return [];
+
+  const points = anchors.map((anchor) => ({
+    sourceLine: anchor.sourceStart,
+    top: anchor.top,
+  }));
+  const last = anchors[anchors.length - 1];
+
+  if (
+    last &&
+    (last.sourceEnd > last.sourceStart || last.bottom > last.top)
+  ) {
+    points.push({
+      sourceLine: Math.max(last.sourceStart, last.sourceEnd),
+      top: Math.max(last.top, last.bottom),
+    });
+  }
+
+  return points;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
