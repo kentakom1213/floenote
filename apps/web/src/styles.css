@@ -1880,6 +1880,13 @@ input:focus-visible {
     padding-left: 64px;
   }
 
+  .app-shell[data-sidebar-collapsed="true"]:has(
+      .document-current-view[data-editor-mode="split"]
+    )
+    .sidebar-restore-button {
+    top: 10px;
+  }
+
   .document-current-view[data-editor-mode="split"] .note-menu-trigger {
     width: 32px;
     height: 32px;
