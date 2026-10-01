@@ -45,3 +45,4 @@ export type {
   AuthorizedPresenceConnectionState,
   ReconnectTransportMode,
 } from "./authorized-presence-client.js";
+export type { TurnCredentials } from "./turn-credentials.js";

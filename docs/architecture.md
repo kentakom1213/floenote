@@ -675,12 +675,14 @@ authorization authority. The signaling SessionId therefore remains an
 unguessable short-lived capability rather than a deterministic value derived
 from public Workspace/device metadata.
 
-Automatic sync starts with a direct STUN-only attempt. When a device has a TURN
-credential endpoint configured and the initiating side has not connected within
-six seconds, it abandons that PeerConnection, creates a fresh signaling
-SessionId, and requests `relay` mode. Both peers then create fresh
-relay-only PeerConnections. A failed relay attempt returns to the normal
-reconnect backoff and the next attempt starts direct again.
+Automatic sync starts with a direct STUN-only attempt. If the initiating side
+has not connected within six seconds, it abandons that PeerConnection, creates
+a fresh signaling SessionId, and requests `relay` mode. Both peers then obtain
+or reuse short-lived TURN credentials through the authenticated coordinator
+flow and create fresh relay-only PeerConnections. A failed relay attempt returns
+to the normal reconnect backoff and the next attempt starts direct again.
+Initial invitation pairing may include TURN candidates from the start; the
+claimed invitation authorizes temporary coordinator issuance for the joiner.
 
 Workspace-scoped signaling remains in `WorkspaceCoordinatorDO(WorkspaceId)`. Because a
 join URL intentionally does not expose `WorkspaceId`, short-lived invitation

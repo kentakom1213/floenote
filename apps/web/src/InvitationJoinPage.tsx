@@ -180,7 +180,10 @@ export function InvitationJoinPage({
 
         const transport = new WebRtcTransport(
           claimed.workspaceId,
-          await resolveRtcConfiguration(turnCredentialEndpoint),
+          await resolveRtcConfiguration(
+            import.meta.env.DEV ? turnCredentialEndpoint : null,
+            () => invitationClient.requestTurnCredentials(parsedInviteId, claimId),
+          ),
           createConsoleDebugLogger("invite-join-webrtc"),
         );
         const stopTransportStatus = transport.onStatusChange(setWebRtcStatus);

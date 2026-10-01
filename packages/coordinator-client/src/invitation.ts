@@ -1,6 +1,7 @@
 import { parseWorkspaceId, type WorkspaceId } from "@floe-note/domain";
 
 import { parseSessionId, type SessionId } from "./session-id.js";
+import { parseTurnCredentials, TurnCredentialCache, type TurnCredentials } from "./turn-credentials.js";
 
 declare const inviteIdBrand: unique symbol;
 declare const claimIdBrand: unique symbol;
@@ -35,6 +36,7 @@ const PAIRING_SECRET_PATTERN = /^[0-9a-f]{64}$/i;
 
 export class InvitationClient {
   readonly #baseUrl: URL;
+  readonly #turnCaches = new Map<string, TurnCredentialCache>();
 
   constructor(coordinatorBaseUrl: string) {
     this.#baseUrl = new URL(coordinatorBaseUrl);
@@ -78,6 +80,28 @@ export class InvitationClient {
   async consumeInvite(inviteId: InviteId): Promise<void> {
     const response = await this.#postInviteAction(inviteId, "consume");
     await ensureOk(response);
+  }
+
+  requestTurnCredentials(inviteId: InviteId, claimId: ClaimId): Promise<TurnCredentials> {
+    const key = `${inviteId}:${claimId}`;
+    let cache = this.#turnCaches.get(key);
+    if (!cache) {
+      cache = new TurnCredentialCache();
+      this.#turnCaches.set(key, cache);
+    }
+    return cache.get(async () => {
+      const response = await fetch(
+        new URL(`/invites/${encodeURIComponent(inviteId)}/turn-credentials`, this.#baseUrl),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ claimId }),
+          cache: "no-store",
+        },
+      );
+      await ensureOk(response);
+      return parseTurnCredentials(await response.json());
+    });
   }
 
   async cancelInvite(inviteId: InviteId): Promise<void> {

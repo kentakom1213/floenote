@@ -1,85 +1,68 @@
-# TURN relay setup
+# TURN relay
 
-Floe Note prefers direct WebRTC connections. An optional Cloudflare Realtime
-TURN credential endpoint can be configured per device to provide relay
-candidates when direct ICE connectivity is unavailable.
+The official Floe Note client uses Cloudflare Realtime TURN automatically when
+direct WebRTC connectivity fails. The coordinator issues temporary ICE
+credentials; it never receives WorkspaceKeys or note/CRDT content. The data
+path remains `Loro update → WorkspaceKey encryption → WebRTC DataChannel →
+direct connection or TURN relay`. TURN relays already application-encrypted
+traffic and is neither Workspace authorization nor offline storage.
 
-The TURN service is not shared by Floe Note. Each deployment uses its own
-Cloudflare TURN key and Worker.
+## Connection behavior
 
-## 1. Create a Cloudflare TURN key
+- Normal synchronization tries direct STUN/WebRTC first. If the existing
+  six-second direct attempt does not connect, the initiating device creates a
+  new signaling session and both devices request or reuse TURN credentials for
+  a relay-only `RTCPeerConnection` (`iceTransportPolicy: "relay"`). Failed
+  relay issuance returns to the existing reconnect backoff and leaves local
+  editing, Workspace access, and SecurityState intact.
+- Initial invitation pairing asks for TURN during its initial WebRTC setup so
+  direct and relay candidates can be available together. The host uses its
+  authenticated Presence socket; the joiner uses `InviteId + ClaimId` only
+  after a successful claim. `PairingSecret` remains in the invitation URL
+  fragment and peer authentication, never in the coordinator TURN request.
 
-Create a Realtime TURN key in the Cloudflare dashboard and keep its key ID and
-API token. The long-lived TURN key must stay server-side; do not put it in the
-Floe web app.
+The coordinator calls Cloudflare's
+[`generate-ice-servers` API](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
+with a 24-hour (`86_400` second) TTL and returns only `iceServers` and an
+`expiresAt` timestamp. The client caches credentials in memory until one
+minute before expiry and obtains new ones on the next relay attempt. It does
+not persist them or refresh a live peer connection. A revoked device cannot
+obtain new credentials, although credentials issued earlier may remain usable
+as transport capabilities until they expire. They do not restore Workspace
+authorization or WorkspaceKey access.
 
-## 2. Configure the credential Worker
+## Coordinator configuration
 
-The Worker in `apps/turn` needs three secrets:
+The official coordinator uses these runtime values in every environment:
 
+- `TURN_ENABLED`: set to `true` to issue credentials; absent or `false` is the
+  operational kill switch for new issuance.
 - `TURN_KEY_ID`: Cloudflare Realtime TURN key ID.
-- `TURN_KEY_API_TOKEN`: API token for that TURN key.
-- `TURN_ACCESS_TOKEN`: a random capability token that protects the public
-  credential endpoint.
+- `TURN_KEY_API_TOKEN`: server-side Cloudflare TURN API token.
 
-For local development, copy `apps/turn/.dev.vars.example` to
-`apps/turn/.dev.vars` and replace the placeholder values.
+Configure them as coordinator Worker secrets, for example with
+`pnpm --filter @floe-note/coordinator exec wrangler secret put <NAME>`.
+Create a separate Cloudflare TURN key for production and for any controlled
+TURN-enabled staging coordinator. Keep both long-lived values out of the web
+build, source control, and ordinary PR previews. Production and staging can
+then be disabled or rotated independently. Ordinary PR previews explicitly set
+`TURN_ENABLED=false` and require no TURN secrets. If the key or token is
+missing, credential requests fail cleanly even when TURN is enabled.
 
-For a deployed Worker, set the secrets with Wrangler:
+The coordinator uses Cloudflare Workers rate-limit bindings as coarse abuse
+brakes: `TURN_DEVICE_RATE_LIMIT` allows 5 issuance requests per minute per
+`DeviceId`, `TURN_INVITE_RATE_LIMIT` allows 3 per minute per `InviteId`, and
+`TURN_INVITATION_CREATION_RATE_LIMIT` allows 2 invitation creations per minute
+per authorized `DeviceId` while TURN is configured and enabled. Cloudflare
+applies these counters per location and approximately, so they are not quotas.
+The documented `generate-ice-servers` request accepts `ttl`; this flow does
+not send a custom analytics identifier. Credentials, usernames, passwords,
+and long-lived secrets are never logged.
 
-```sh
-pnpm --filter @floe-note/turn exec wrangler secret put TURN_KEY_ID
-pnpm --filter @floe-note/turn exec wrangler secret put TURN_KEY_API_TOKEN
-pnpm --filter @floe-note/turn exec wrangler secret put TURN_ACCESS_TOKEN
-```
+## Development compatibility
 
-A random access token can be generated with, for example:
-
-```sh
-openssl rand -hex 32
-```
-
-## 3. Run or deploy
-
-Local development:
-
-```sh
-pnpm dev:turn
-```
-
-Deployment:
-
-```sh
-pnpm deploy:turn
-```
-
-The Worker exposes credentials at:
-
-```text
-https://<worker-host>/credentials/<TURN_ACCESS_TOKEN>
-```
-
-Treat the complete URL as a secret. The Worker exchanges its long-lived
-Cloudflare TURN key for short-lived ICE credentials and never sends the
-long-lived key to the browser.
-
-## 4. Configure Floe Note
-
-Open Settings -> Network and paste the complete URL into
-`TURN credential endpoint`. Use `Test` to verify that short-lived TURN
-credentials can be fetched, then save it.
-
-The endpoint is stored only on that browser/device and is shared by all Floe
-Workspaces on the device. It is not synchronized to other devices.
-
-If the setting is absent, Floe uses its default STUN-only WebRTC
-configuration. When a TURN endpoint is configured, automatic device sync first
-tries a direct STUN connection. If that attempt has not connected within six
-seconds, Floe starts a new signaling session in relay-only mode. Both devices
-then fetch their own short-lived TURN credentials and create new peer
-connections with `iceTransportPolicy: "relay"`.
-
-If relay credential retrieval fails, that relay attempt fails rather than
-silently becoming another direct attempt. Automatic reconnect will retry from
-the direct stage after its normal backoff. Invitation bootstrap continues to
-use the regular ICE configuration with direct and relay candidates available.
+`apps/turn` remains for development compatibility. Its `TURN_ACCESS_TOKEN`
+capability URL is available through Settings → Network in development builds
+only. Production builds, including self-hosted builds, use coordinator
+issuance without a manual endpoint. Self-hosted production coordinators need
+their own TURN key and runtime secrets.

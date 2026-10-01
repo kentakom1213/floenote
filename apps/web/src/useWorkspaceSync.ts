@@ -6,6 +6,7 @@ import {
   type CreatedInvitation,
   type ReconnectTransportMode,
   type SessionId,
+  type TurnCredentials,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
 import type { DeviceId } from "@floe-note/domain";
@@ -44,6 +45,7 @@ export type AuthorizedWorkspaceSyncState = {
   coordinationError: string | null;
   error: string | null;
   createInvitation: () => Promise<CreatedInvitation>;
+  requestTurnCredentials: () => Promise<TurnCredentials>;
 };
 
 const IDLE_AUTOMATIC_SYNC_STATUS: AutomaticPeerSyncStatus = {
@@ -130,6 +132,12 @@ export function useAuthorizedWorkspaceSync({
       );
     }
     return presence.createInvitation();
+  }, []);
+
+  const requestTurnCredentials = useCallback(() => {
+    const presence = presenceRef.current;
+    if (!presence) return Promise.reject(new Error("Authorized presence is not available"));
+    return presence.requestTurnCredentials();
   }, []);
 
   useEffect(() => {
@@ -437,10 +445,13 @@ export function useAuthorizedWorkspaceSync({
         securityState,
         vaultSession,
         presence,
-        relayFallbackEnabled: turnCredentialEndpoint !== null,
+        relayFallbackEnabled: true,
         rtcConfigurationProvider: (mode) =>
           mode === "relay"
-            ? resolveRelayRtcConfiguration(turnCredentialEndpoint)
+            ? resolveRelayRtcConfiguration(
+                import.meta.env.DEV ? turnCredentialEndpoint : null,
+                () => presence.requestTurnCredentials(),
+              )
             : Promise.resolve(undefined),
         onStatusChange: setAutomaticSyncStatus,
       });
@@ -490,6 +501,7 @@ export function useAuthorizedWorkspaceSync({
     coordinationError: presenceError,
     error: automaticSyncStatus.error,
     createInvitation,
+    requestTurnCredentials,
   };
 }
 

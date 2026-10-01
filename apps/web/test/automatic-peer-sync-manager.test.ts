@@ -368,6 +368,36 @@ describe("AutomaticPeerSyncManager reconnect retry", () => {
     manager.stop();
   });
 
+  it("never requests TURN after a direct connection succeeds", async () => {
+    const presence = createPresence();
+    const rtcConfigurationProvider = vi.fn(async () => undefined);
+    const manager = createManager(presence, { relayFallbackEnabled: true, rtcConfigurationProvider });
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
+    harness.FakeWebRtcTransport.instances[0]?.emit("connected");
+    harness.FakeWebRtcTransport.instances[0]?.emitDataChannel("open");
+    await vi.advanceTimersByTimeAsync(AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS);
+    expect(rtcConfigurationProvider).toHaveBeenCalledTimes(1);
+    expect(rtcConfigurationProvider).toHaveBeenCalledWith("direct");
+    manager.stop();
+  });
+
+  it("returns to direct retry after TURN credentials fail without changing local project state", async () => {
+    const presence = createPresence();
+    const rtcConfigurationProvider = vi.fn(async (mode: "direct" | "relay") => {
+      if (mode === "relay") throw new Error("TURN relay is unavailable");
+      return undefined;
+    });
+    const manager = createManager(presence, { relayFallbackEnabled: true, rtcConfigurationProvider });
+    manager.updateOnlineDevices([LOCAL_DEVICE_ID, PEER_DEVICE_ID]);
+    await flushConnectionCleanup();
+    await vi.advanceTimersByTimeAsync(AUTOMATIC_DIRECT_FALLBACK_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(AUTOMATIC_RECONNECT_RETRY_DELAYS_MS[0]);
+    expect(presence.sent.map((value) => value.transportMode)).toEqual(["direct", "direct"]);
+    expect(harness.FakeWebRtcTransport.instances).toHaveLength(2);
+    manager.stop();
+  });
+
   it("retries a connection that stays disconnected past the grace period", async () => {
     const presence = createPresence();
     const manager = createManager(presence);

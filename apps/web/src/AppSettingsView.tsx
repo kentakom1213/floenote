@@ -205,59 +205,59 @@ export function AppSettingsView({
         )}
       </div>
 
-      <div className="settings-section">
-        <div className="settings-section-heading">
-          <div>
+      {import.meta.env.DEV ? (
+        <div className="settings-section">
+          <div className="settings-section-heading">
             <h2>Network</h2>
-            <p>Configure optional relay connectivity for this device.</p>
           </div>
-        </div>
-        <div className="settings-form-row">
-          <label className="settings-field">
-            <span>TURN credential endpoint</span>
-            <input
-              type="url"
-              value={turnDraft}
-              disabled={turnTesting}
-              placeholder="https://floe-note-turn.example.workers.dev/credentials/…"
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => {
-                setTurnDraft(event.target.value);
-                setTurnTestMessage(null);
-                setTurnError(null);
-              }}
-            />
-          </label>
-          <div className="settings-form-actions">
-            <button
-              className="settings-primary-action"
-              type="button"
-              disabled={!normalizedTurnEndpoint || turnTesting}
-              onClick={() => void testTurnEndpoint()}
-            >
-              {turnTesting ? "Testing…" : "Test"}
-            </button>
-            <button
-              className="settings-primary-action"
-              type="button"
-              disabled={!turnEndpointChanged || turnTesting}
-              onClick={saveTurnEndpoint}
-            >
-              Save
-            </button>
+          <div className="settings-form-row">
+            <label className="settings-field">
+              <span>TURN credential endpoint</span>
+              <input
+                type="url"
+                value={turnDraft}
+                disabled={turnTesting}
+                placeholder="https://floe-note-turn.example.workers.dev/credentials/…"
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) => {
+                  setTurnDraft(event.target.value);
+                  setTurnTestMessage(null);
+                  setTurnError(null);
+                }}
+              />
+            </label>
+            <div className="settings-form-actions">
+              <button
+                className="settings-primary-action"
+                type="button"
+                disabled={!normalizedTurnEndpoint || turnTesting}
+                onClick={() => void testTurnEndpoint()}
+              >
+                {turnTesting ? "Testing…" : "Test"}
+              </button>
+              <button
+                className="settings-primary-action"
+                type="button"
+                disabled={!turnEndpointChanged || turnTesting}
+                onClick={saveTurnEndpoint}
+              >
+                Save
+              </button>
+            </div>
           </div>
+          <p className="settings-field-hint">
+            Development only. Stored on this device and used by all Workspaces
+            as a relay fallback. Treat the endpoint URL as a secret.
+          </p>
+          {turnTestMessage ? (
+            <p className="turn-test-status" data-state="success">✓ {turnTestMessage}</p>
+          ) : null}
+          {turnError ? (
+            <p className="turn-test-status" data-state="error">× {turnError}</p>
+          ) : null}
         </div>
-        <p className="settings-field-hint">
-          Optional and stored only on this device. All Workspaces on this device
-          use it as an ICE relay fallback when direct WebRTC connectivity is
-          unavailable. Treat the endpoint URL as a secret.
-        </p>
-        {turnTestMessage ? (
-          <p className="turn-test-status" data-state="success">✓ {turnTestMessage}</p>
-        ) : null}
-        {turnError ? <p className="turn-test-status" data-state="error">× {turnError}</p> : null}
-      </div>
+      ) : null}
 
       <div className="settings-section">
         <h2>About</h2>

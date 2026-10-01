@@ -133,6 +133,39 @@ describe("AuthorizedPresenceClient reconnect", () => {
     vi.useRealTimers();
   });
 
+  it("correlates TURN responses and errors with Presence requestIds and reuses valid credentials", async () => {
+    const client = createClient();
+    client.start();
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+
+    const invitation = client.createInvitation();
+    const credentials = client.requestTurnCredentials();
+    expect(JSON.parse(socket.sent[1]!)).toEqual({ type: "create-invitation", requestId: 1 });
+    expect(JSON.parse(socket.sent[2]!)).toEqual({ type: "request-turn-credentials", requestId: 2 });
+    const iceServers = [{ urls: "turn:turn.example:3478", username: "short", credential: "secret" }];
+    socket.message({ type: "turn-credentials", requestId: 2, iceServers, expiresAt: Date.now() + 86_400_000 });
+    socket.message({ type: "control-error", requestId: 1, message: "Invitation unavailable" });
+    await expect(credentials).resolves.toEqual({ iceServers, expiresAt: expect.any(Number) });
+    await expect(invitation).rejects.toThrow("Invitation unavailable");
+
+    await expect(client.requestTurnCredentials()).resolves.toEqual({ iceServers, expiresAt: expect.any(Number) });
+    expect(socket.sent).toHaveLength(3);
+    client.close();
+  });
+
+  it("rejects a TURN control error without closing Presence", async () => {
+    const client = createClient();
+    client.start();
+    const socket = FakeWebSocket.instances[0]!;
+    await authenticate(client, socket);
+    const pending = client.requestTurnCredentials();
+    socket.message({ type: "control-error", requestId: 1, message: "TURN relay is unavailable" });
+    await expect(pending).rejects.toThrow("TURN relay is unavailable");
+    expect(client.state).toBe("open");
+    client.close();
+  });
+
   it.each([1000, 1006])(
     "reconnects after transient close code %i",
     async (code) => {

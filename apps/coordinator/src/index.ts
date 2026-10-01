@@ -30,14 +30,24 @@ import {
   type SecurityTransitionWirePayload,
 } from "@floe-note/security";
 
-import { allocateInvitationForAuthorizedPresence } from "./invitation-authorization.js";
+import {
+  allocateInvitationForAuthorizedPresence,
+  authorizePresence,
+} from "./invitation-authorization.js";
 import { findPresenceSocketsForDevice } from "./presence-routing.js";
+import { generateTurnCredentials, TurnCredentialError } from "./turn-credentials.js";
 
 interface Env {
   WORKSPACE_COORDINATOR: DurableObjectNamespace<WorkspaceCoordinator>;
   INVITATION_COORDINATOR: DurableObjectNamespace<InvitationCoordinator>;
   FLOE_VERSION: string;
   FLOE_BUILD: string;
+  TURN_ENABLED?: string;
+  TURN_KEY_ID?: string;
+  TURN_KEY_API_TOKEN?: string;
+  TURN_DEVICE_RATE_LIMIT: RateLimit;
+  TURN_INVITE_RATE_LIMIT: RateLimit;
+  TURN_INVITATION_CREATION_RATE_LIMIT: RateLimit;
 }
 
 type SignalingSocketAttachment = {
@@ -130,14 +140,17 @@ export default {
       }
 
       const id = env.INVITATION_COORDINATOR.idFromName(inviteAction.inviteId);
+      const internalPath = inviteAction.action === "turn-credentials"
+        ? `turn-credentials/${inviteAction.inviteId}`
+        : inviteAction.action;
       const internalRequest =
-        inviteAction.action === "claim"
-          ? new Request("https://invitation.internal/claim", {
+        inviteAction.action === "claim" || inviteAction.action === "turn-credentials"
+          ? new Request(`https://invitation.internal/${internalPath}`, {
               method: "POST",
               body: await request.text(),
             })
           : new Request(
-              `https://invitation.internal/${inviteAction.action}`,
+              `https://invitation.internal/${internalPath}`,
               { method: "POST" },
             );
       const response = await env.INVITATION_COORDINATOR
@@ -1042,6 +1055,25 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
     }
 
     if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "type" in payload &&
+      payload.type === "request-turn-credentials"
+    ) {
+      if (
+        !("requestId" in payload) ||
+        typeof payload.requestId !== "number" ||
+        !Number.isSafeInteger(payload.requestId) ||
+        payload.requestId < 0
+      ) {
+        socket.close(1007, "Invalid TURN credential request");
+        return;
+      }
+      await this.#requestTurnCredentials(socket, attachment, payload.requestId);
+      return;
+    }
+
+    if (
       typeof payload !== "object" ||
       payload === null ||
       !("type" in payload) ||
@@ -1148,8 +1180,17 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
         deviceId,
         securityHead: attachment.securityHead,
       },
-      (authorizedWorkspaceId) =>
-        createInvitation(this.env, authorizedWorkspaceId),
+      async (authorizedWorkspaceId) => {
+        if (this.env.TURN_ENABLED === "true" && this.env.TURN_KEY_ID && this.env.TURN_KEY_API_TOKEN) {
+          try {
+            const { success } = await this.env.TURN_INVITATION_CREATION_RATE_LIMIT.limit({ key: deviceId });
+            if (!success) return new Response("Invitation creation rate limited", { status: 429 });
+          } catch {
+            return new Response("Invitation creation is unavailable", { status: 503 });
+          }
+        }
+        return createInvitation(this.env, authorizedWorkspaceId);
+      },
     );
     if (allocation.kind === "stale-security-head") {
       socket.close(1008, "SecurityState changed during authorized presence");
@@ -1184,6 +1225,74 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
       sessionId: invitation.sessionId,
       expiresAt: invitation.expiresAt,
     });
+  }
+
+  async #requestTurnCredentials(
+    socket: WebSocket,
+    attachment: PresenceSocketAttachment & { deviceId: string },
+    requestId: number,
+  ): Promise<void> {
+    let workspaceId: WorkspaceId;
+    let deviceId: DeviceId;
+    try {
+      workspaceId = parseWorkspaceId(attachment.workspaceId);
+      deviceId = parseDeviceId(attachment.deviceId);
+    } catch {
+      socket.close(1008, "Invalid authorized-presence TURN identity");
+      return;
+    }
+
+    const state = await this.#loadSecurityState(workspaceId);
+    if (state instanceof Response) {
+      sendJson(socket, { type: "control-error", requestId, message: "Workspace SecurityState is unavailable" });
+      return;
+    }
+    const authorization = authorizePresence(state, {
+      workspaceId, deviceId, securityHead: attachment.securityHead,
+    });
+    if (authorization !== "authorized") {
+      sendJson(socket, {
+        type: "control-error", requestId,
+        message: authorization === "stale-security-head"
+          ? "SecurityState changed during authorized presence"
+          : "Device is not authorized for this Workspace",
+      });
+      socket.close(1008, "SecurityState changed");
+      return;
+    }
+
+    if (this.env.TURN_ENABLED !== "true") {
+      sendJson(socket, { type: "control-error", requestId, message: "TURN relay is unavailable" });
+      return;
+    }
+
+    try {
+      const { success } = await this.env.TURN_DEVICE_RATE_LIMIT.limit({ key: deviceId });
+      if (!success) {
+        sendJson(socket, { type: "control-error", requestId, message: "TURN credential request rate limited" });
+        return;
+      }
+      const credentials = await generateTurnCredentials(this.env);
+      const currentState = await this.#loadSecurityState(workspaceId);
+      if (
+        currentState instanceof Response ||
+        authorizePresence(currentState, {
+          workspaceId,
+          deviceId,
+          securityHead: attachment.securityHead,
+        }) !== "authorized"
+      ) {
+        sendJson(socket, { type: "control-error", requestId, message: "SecurityState changed during authorized presence" });
+        socket.close(1008, "SecurityState changed");
+        return;
+      }
+      sendJson(socket, { type: "turn-credentials", requestId, ...credentials });
+    } catch (error) {
+      sendJson(socket, {
+        type: "control-error", requestId,
+        message: error instanceof TurnCredentialError ? error.message : "TURN credential service is unavailable",
+      });
+    }
   }
 
   #handleSocketDeparture(socket: WebSocket): void {
@@ -1259,6 +1368,9 @@ export class InvitationCoordinator extends DurableObject<Env> {
       case "/cancel":
         return this.#cancel();
       default:
+        if (url.pathname.startsWith("/turn-credentials/")) {
+          return this.#turnCredentials(request, url.pathname.slice("/turn-credentials/".length));
+        }
         return new Response("Not found", { status: 404 });
     }
   }
@@ -1354,6 +1466,55 @@ export class InvitationCoordinator extends DurableObject<Env> {
     });
 
     return response ?? new Response("Failed to claim invitation", { status: 500 });
+  }
+
+  async #turnCredentials(request: Request, inviteId: string): Promise<Response> {
+    if (!INVITE_ID_PATTERN.test(inviteId)) {
+      return new Response("Invalid invitation identifier", { status: 400 });
+    }
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return new Response("Invalid TURN credential request", { status: 400 });
+    }
+    if (typeof payload !== "object" || payload === null ||
+      !("claimId" in payload) || typeof payload.claimId !== "string" ||
+      !CLAIM_ID_PATTERN.test(payload.claimId)) {
+      return new Response("Invalid claim identifier", { status: 400 });
+    }
+    const record = await this.ctx.storage.get<InvitationRecord>("invite");
+    if (!record) return new Response("Invitation not found", { status: 404 });
+    if (record.expiresAt <= Date.now()) {
+      return new Response("Invitation expired", { status: 410 });
+    }
+    if (record.state !== "claimed" || record.claimId !== payload.claimId) {
+      return new Response("Invitation is not claimed by this device", { status: 409 });
+    }
+    if (this.env.TURN_ENABLED !== "true") {
+      return new Response("TURN relay is unavailable", { status: 503 });
+    }
+
+    try {
+      const { success } = await this.env.TURN_INVITE_RATE_LIMIT.limit({ key: inviteId });
+      if (!success) return new Response("TURN credential request rate limited", { status: 429 });
+      const credentials = await generateTurnCredentials(this.env);
+      const currentRecord = await this.ctx.storage.get<InvitationRecord>("invite");
+      if (
+        !currentRecord ||
+        currentRecord.state !== "claimed" ||
+        currentRecord.claimId !== payload.claimId ||
+        currentRecord.expiresAt <= Date.now()
+      ) {
+        return new Response("Invitation is no longer claimed by this device", { status: 409 });
+      }
+      return Response.json(credentials, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) {
+      return new Response(
+        error instanceof TurnCredentialError ? error.message : "TURN credential service is unavailable",
+        { status: error instanceof TurnCredentialError ? error.status : 503 },
+      );
+    }
   }
 
   async #consume(): Promise<Response> {
@@ -1473,15 +1634,15 @@ function parseInviteActionRoute(
 ):
   | {
       inviteId: string;
-      action: "claim" | "consume" | "cancel";
+      action: "claim" | "consume" | "cancel" | "turn-credentials";
     }
   | null {
-  const match = /^\/invites\/([^/]+)\/(claim|consume|cancel)$/.exec(pathname);
+  const match = /^\/invites\/([^/]+)\/(claim|consume|cancel|turn-credentials)$/.exec(pathname);
   if (!match) return null;
 
   const [, inviteId, action] = match;
   if (!inviteId || !INVITE_ID_PATTERN.test(inviteId)) return null;
-  if (action !== "claim" && action !== "consume" && action !== "cancel") {
+  if (action !== "claim" && action !== "consume" && action !== "cancel" && action !== "turn-credentials") {
     return null;
   }
 

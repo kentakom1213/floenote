@@ -4,31 +4,34 @@ type TurnCredentialResponse = {
 
 export async function resolveRtcConfiguration(
   endpoint: string | null,
+  coordinatorCredentials?: () => Promise<TurnCredentials>,
 ): Promise<RTCConfiguration | undefined> {
-  if (!endpoint) return undefined;
+  if (!endpoint && !coordinatorCredentials) return undefined;
 
   try {
     return {
-      iceServers: await fetchTurnIceServers(endpoint),
+      iceServers: endpoint
+        ? await fetchTurnIceServers(endpoint)
+        : (await coordinatorCredentials!()).iceServers,
     };
-  } catch (error: unknown) {
-    console.warn(
-      "TURN credentials are unavailable; continuing with the default STUN configuration.",
-      error instanceof Error ? error.message : String(error),
-    );
+  } catch {
+    console.warn("TURN credentials are unavailable; continuing with the default STUN configuration.");
     return undefined;
   }
 }
 
 export async function resolveRelayRtcConfiguration(
   endpoint: string | null,
+  coordinatorCredentials?: () => Promise<TurnCredentials>,
 ): Promise<RTCConfiguration> {
-  if (!endpoint) {
-    throw new Error("TURN credential endpoint is not configured on this device");
+  if (!endpoint && !coordinatorCredentials) {
+    throw new Error("TURN credentials are unavailable on this device");
   }
 
   return {
-    iceServers: await fetchTurnIceServers(endpoint),
+    iceServers: endpoint
+      ? await fetchTurnIceServers(endpoint)
+      : (await coordinatorCredentials!()).iceServers,
     iceTransportPolicy: "relay",
   };
 }
@@ -140,3 +143,4 @@ function isTurnCredentialResponse(
     return true;
   });
 }
+import type { TurnCredentials } from "@floe-note/coordinator-client";

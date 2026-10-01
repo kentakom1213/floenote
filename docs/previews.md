@@ -106,6 +106,8 @@ created for that Preview.
 
 ## TURN
 
-TURN remains separate optional infrastructure. Pull request Previews do not
-deploy `apps/turn` and do not modify TURN credentials or endpoint
-preferences.
+Ordinary pull request coordinator Previews set `TURN_ENABLED=false` and do not
+receive production TURN secrets. Direct WebRTC and local editing continue to
+work. Controlled TURN-enabled staging needs its own coordinator deployment and
+Cloudflare TURN key; it must not reuse the production key. Previews do not
+deploy the legacy `apps/turn` Worker.

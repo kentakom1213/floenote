@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 const STORAGE_KEY = "floe-note-turn-credential-endpoint";
 
 export function readTurnCredentialEndpoint(): string | null {
+  if (!import.meta.env.DEV) return null;
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY)?.trim();
     return stored ? stored : null;
