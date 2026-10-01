@@ -8,10 +8,16 @@ export type LiveMarkdownBlockKind =
   | "list"
   | "math";
 
+export type LiveMarkdownListContext = {
+  ordered: boolean;
+  number: number | null;
+};
+
 export type LiveMarkdownBlock = {
   from: number;
   to: number;
   kind: LiveMarkdownBlockKind;
+  list?: LiveMarkdownListContext;
 };
 
 export function collectLiveMarkdownBlocks(
@@ -26,14 +32,24 @@ export function collectLiveMarkdownBlocks(
     node = node.nextSibling
   ) {
     if (node.name === "BulletList" || node.name === "OrderedList") {
+      const ordered = node.name === "OrderedList";
+      const items = [];
       for (let item = node.firstChild; item; item = item.nextSibling) {
-        if (item.name !== "ListItem") continue;
+        if (item.name === "ListItem") items.push(item);
+      }
+
+      const start = ordered ? orderedListStart(state, items[0]) : 1;
+      items.forEach((item, index) => {
         syntaxBlocks.push({
           from: item.from,
           to: item.to,
           kind: "list",
+          list: {
+            ordered,
+            number: ordered ? start + index : null,
+          },
         });
-      }
+      });
       continue;
     }
 
@@ -57,6 +73,25 @@ export function collectLiveMarkdownBlocks(
         blocks[index]?.kind === "math",
     )
     .sort((left, right) => left.from - right.from || left.to - right.to);
+}
+
+function orderedListStart(
+  state: EditorState,
+  item: ReturnType<typeof syntaxTree>["topNode"] | undefined,
+): number {
+  if (!item) return 1;
+
+  for (let child = item.firstChild; child; child = child.nextSibling) {
+    if (child.name !== "ListMark") continue;
+
+    const match = /^(\d+)[.)]$/u.exec(state.sliceDoc(child.from, child.to));
+    if (!match) return 1;
+
+    const start = Number(match[1]);
+    return Number.isSafeInteger(start) && start >= 0 ? start : 1;
+  }
+
+  return 1;
 }
 
 function syntaxNodeKind(name: string): LiveMarkdownBlockKind | null {
