@@ -1798,6 +1798,14 @@ input:focus-visible {
   border-right: 1px solid var(--color-border);
 }
 
+.editor-view-split .editor-view-preview {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .editor-view-split .editor .cm-scroller {
   padding-inline: 28px;
 }
@@ -4633,6 +4641,12 @@ h1 {
     min-height: 44dvh;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .editor-view-split .editor-view-preview {
+    position: static;
+    height: auto;
+    overflow-y: visible;
   }
 
   .editor-view-split .editor,
