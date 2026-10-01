@@ -34,7 +34,7 @@ export function annotateMarkdownSourceRanges(
     const element = children[childIndex] as HTMLElement | undefined;
     if (!element) break;
 
-    if (token.type === "list") {
+    if (isListToken(token)) {
       annotateListItems(element, token, from, source);
     } else {
       setSourceRange(element, from, to);
