@@ -38,7 +38,7 @@ describe("live Markdown blocks", () => {
   });
 
 
-  it("treats each top-level list as one block", () => {
+  it("treats each top-level list item as one block", () => {
     expect(
       blocks([
         "- first",
@@ -50,11 +50,19 @@ describe("live Markdown blocks", () => {
       ].join("\n")),
     ).toEqual([
       {
-        source: "- first\n  - nested\n- second",
+        source: "- first\n  - nested",
         kind: "list",
       },
       {
-        source: "1. ordered\n2. list",
+        source: "- second",
+        kind: "list",
+      },
+      {
+        source: "1. ordered",
+        kind: "list",
+      },
+      {
+        source: "2. list",
         kind: "list",
       },
     ]);
