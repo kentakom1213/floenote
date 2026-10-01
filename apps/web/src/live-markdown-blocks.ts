@@ -5,6 +5,7 @@ export type LiveMarkdownBlockKind =
   | "heading"
   | "paragraph"
   | "code"
+  | "list"
   | "math";
 
 export type LiveMarkdownBlock = {
@@ -56,6 +57,7 @@ function syntaxNodeKind(name: string): LiveMarkdownBlockKind | null {
 
   if (name === "Paragraph") return "paragraph";
   if (name === "FencedCode") return "code";
+  if (name === "BulletList" || name === "OrderedList") return "list";
   return null;
 }
 
