@@ -290,7 +290,7 @@ describe("Markdown sanitizer", () => {
 
   it("hydrates inline and display KaTeX after sanitizing Markdown HTML", () => {
     const html = renderMarkdown(
-      "Inline $x^2$\n\n$$\n\\frac{a}{b}\n$$",
+      "Inline $x^2$\n\n$\n\\frac{a}{b}\n$",
     );
     const body = parseHtml(html);
 
@@ -298,6 +298,40 @@ describe("Markdown sanitizer", () => {
     expect(
       body.querySelector(".markdown-math-block .katex-display"),
     ).not.toBeNull();
+  });
+
+  it("annotates top-level preview blocks with source line ranges", () => {
+    const body = parseHtml(
+      renderMarkdown("# First\n\nParagraph\n\n- one\n- two\n\n## Second"),
+    );
+
+    expect(body.querySelector("h1")?.dataset.floeSourceStart).toBe("1");
+    expect(body.querySelector("p")?.dataset.floeSourceStart).toBe("3");
+    expect(body.querySelector("ul")?.dataset.floeSourceStart).toBe("5");
+    expect(body.querySelector("h2")?.dataset.floeSourceStart).toBe("8");
+  });
+
+  it("keeps source anchors aligned after multiline display math", () => {
+    const source = [
+      "# First",
+      "",
+      "Paragraph",
+      "",
+      "$",
+      "a + b",
+      "= c",
+      "$",
+      "",
+      "## Second",
+    ].join("\n");
+    const body = parseHtml(renderMarkdown(source));
+
+    expect(body.querySelector("h1")?.dataset.floeSourceStart).toBe("1");
+    expect(
+      body.querySelector(".markdown-math-block")?.closest("p")?.dataset
+        .floeSourceStart,
+    ).toBe("5");
+    expect(body.querySelector("h2")?.dataset.floeSourceStart).toBe("10");
   });
 });
 
