@@ -1780,13 +1780,29 @@ input:focus-visible {
   width: min(1280px, calc(100% - 64px));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
   margin-inline: auto;
   border-top: 1px solid var(--color-border);
 }
 
 .editor-view-pane {
   min-width: 0;
+}
+
+.editor-view-split .editor-view-pane {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  box-sizing: border-box;
+}
+
+.editor-view-split .editor-view-source {
+  overflow: hidden;
+}
+
+.editor-view-split .editor-view-preview {
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .editor-view-source {
@@ -1798,7 +1814,16 @@ input:focus-visible {
   border-right: 1px solid var(--color-border);
 }
 
+.editor-view-split .editor,
+.editor-view-split .editor .cm-editor {
+  height: 100%;
+  min-height: 0;
+}
+
 .editor-view-split .editor .cm-scroller {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-inline: 28px;
 }
 
@@ -4629,18 +4654,31 @@ h1 {
     border-top: 1px solid var(--color-border);
   }
 
+  .editor-view-split .editor-view-pane {
+    position: static;
+    height: auto;
+  }
+
   .editor-view-split .editor-view-source {
     min-height: 44dvh;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
 
+  .editor-view-split .editor-view-preview {
+    overflow-y: visible;
+  }
+
   .editor-view-split .editor,
   .editor-view-split .editor .cm-editor {
+    height: auto;
     min-height: 44dvh;
   }
 
   .editor-view-split .editor .cm-scroller {
+    height: auto;
+    overflow-y: visible;
     padding-inline: 16px;
   }
 
