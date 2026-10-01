@@ -9,6 +9,7 @@ import type {
   WebRtcTransport,
 } from "@floe-note/transport/webrtc";
 import { useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 export type DeviceAuthorizationUiState =
   | "waiting"
@@ -117,30 +118,48 @@ export function InvitationHostPanel({
           </div>
         </div>
 
-        <div className="invite-link-box">
-          <input
-            aria-label="Invitation link"
-            readOnly
-            value={inviteUrl}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <button
-            className="settings-primary-action"
-            type="button"
-            onClick={() => void copyInvite()}
-          >
-            {copyState === "copied" ? "Copied" : "Copy link"}
-          </button>
+        <div className="invitation-share-options">
+          <div className="invitation-qr-card">
+            <QRCodeSVG
+              className="invitation-qr-code"
+              value={inviteUrl}
+              size={208}
+              level="M"
+              marginSize={4}
+              bgColor="#ffffff"
+              fgColor="#111111"
+              title="Invitation QR code"
+            />
+            <p>Scan with the device you want to add.</p>
+          </div>
+
+          <div className="invitation-link-option">
+            <div className="invite-link-box">
+              <input
+                aria-label="Invitation link"
+                readOnly
+                value={inviteUrl}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <button
+                className="settings-primary-action"
+                type="button"
+                onClick={() => void copyInvite()}
+              >
+                {copyState === "copied" ? "Copied" : "Copy link"}
+              </button>
+            </div>
+            {copyState === "error" ? (
+              <p className="dialog-error">
+                Could not copy automatically. Select the link and copy it manually.
+              </p>
+            ) : null}
+            <p className="settings-field-hint">
+              The QR code and link contain the same invitation secret. The secret
+              stays in the URL fragment and is not sent to the coordinator.
+            </p>
+          </div>
         </div>
-        {copyState === "error" ? (
-          <p className="dialog-error">
-            Could not copy automatically. Select the link and copy it manually.
-          </p>
-        ) : null}
-        <p className="settings-field-hint">
-          The secret needed to authenticate this invitation stays in the URL
-          fragment and is not sent to the coordinator.
-        </p>
       </div>
 
       <div className="invitation-section">
