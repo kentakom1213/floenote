@@ -245,6 +245,72 @@ describe("rendered live preview", () => {
     }
   });
 
+  it("splits a paragraph at the caret and edits the second block", async () => {
+    const fixture = await renderLive("HelloWorld");
+
+    try {
+      await click(
+        fixture.container.querySelector("p[data-floe-source-from]"),
+      );
+
+      let textarea = liveEditor(fixture.container);
+      textarea.setSelectionRange(5, 5);
+      await key(textarea, "Enter");
+
+      expect(fixture.note.bodyText).toBe("Hello\n\nWorld");
+      textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("World");
+      expect(textarea.selectionStart).toBe(0);
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("splits a list item at the caret without exposing its marker", async () => {
+    const fixture = await renderLive(["- helloWorld", "- next"].join("\n"));
+
+    try {
+      await click(listBlocks(fixture.container)[0] ?? null);
+
+      let textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("helloWorld");
+      textarea.setSelectionRange(5, 5);
+      await key(textarea, "Enter");
+
+      expect(fixture.note.bodyText).toBe(
+        ["- hello", "- World", "- next"].join("\n"),
+      );
+      textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("World");
+      expect(textarea.selectionStart).toBe(0);
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
+  it("moves existing children to the second item when splitting a parent", async () => {
+    const fixture = await renderLive(
+      ["- parentText", "  - child", "- second"].join("\n"),
+    );
+
+    try {
+      await click(listBlocks(fixture.container)[0] ?? null);
+
+      let textarea = liveEditor(fixture.container);
+      textarea.setSelectionRange(6, 6);
+      await key(textarea, "Enter");
+
+      expect(fixture.note.bodyText).toBe(
+        ["- parent", "- Text", "  - child", "- second"].join("\n"),
+      );
+      textarea = liveEditor(fixture.container);
+      expect(textarea.value).toBe("Text");
+      expect(fixture.container.textContent).toContain("child");
+    } finally {
+      await unmount(fixture.root);
+    }
+  });
+
   it("materializes a pending paragraph as an explicit empty block on Escape", async () => {
     const fixture = await renderLive("First\n\nSecond");
 
