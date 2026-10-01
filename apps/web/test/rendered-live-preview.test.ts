@@ -56,4 +56,75 @@ describe("rendered live preview", () => {
       await act(async () => root.unmount());
     }
   });
+
+  it("edits a parent list item without replacing its nested list", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const note = NoteDocument.create(createDocumentId(), "Nested", 100);
+    const source = [
+      "- parent",
+      "  - child",
+      "    - grandchild",
+      "  - sibling",
+    ].join("\n");
+    const binding = note.getEditorBinding();
+    binding.getText(binding.doc).insert(0, source);
+    binding.doc.commit();
+    await Promise.resolve();
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(MarkdownRenderedLivePreview, { document: note }),
+        );
+      });
+
+      const blocks = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          ".markdown-live-list-item-content",
+        ),
+      );
+      expect(blocks.map((block) => block.textContent?.trim())).toEqual([
+        "parent",
+        "child",
+        "grandchild",
+        "sibling",
+      ]);
+
+      await act(async () => {
+        blocks[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+
+      const textarea =
+        container.querySelector<HTMLTextAreaElement>(".markdown-live-editor");
+      expect(textarea?.value.trimStart()).toBe("- parent");
+      expect(container.textContent).toContain("child");
+      expect(container.textContent).toContain("grandchild");
+
+      if (!textarea) throw new Error("Expected parent list item editor");
+      textarea.value = "- renamed parent";
+
+      await act(async () => {
+        textarea.blur();
+        await Promise.resolve();
+      });
+
+      expect(note.bodyText).toBe(
+        [
+          "- renamed parent",
+          "  - child",
+          "    - grandchild",
+          "  - sibling",
+        ].join("\n"),
+      );
+      expect(container.textContent).toContain("renamed parent");
+      expect(container.textContent).toContain("grandchild");
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+
 });
