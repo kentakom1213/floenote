@@ -687,6 +687,7 @@ function DocumentPane({
               ? "document-current-view document-current-view-hidden"
               : "document-current-view"
           }
+          data-editor-mode={mode}
           aria-hidden={historicalDocument ? "true" : undefined}
         >
           <header className="document-header">
@@ -746,6 +747,7 @@ function DocumentPane({
 
           <NoteProperties
             document={document}
+            compact={mode === "split"}
             availableTags={availableTags}
             getTagColor={(tag) =>
               project.resolveTagColor(project.getDocumentProjectId(document.id)!, tag)
