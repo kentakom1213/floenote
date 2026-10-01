@@ -6,6 +6,10 @@ const SOURCE_TO_ATTRIBUTE = "data-floe-source-to";
 type MarkedToken = ReturnType<typeof marked.lexer>[number];
 type MarkedListToken = Extract<MarkedToken, { type: "list" }>;
 
+type SourceCursor = {
+  offset: number;
+};
+
 export function annotateMarkdownSourceRanges(
   document: Document,
   source: string,
@@ -35,7 +39,7 @@ export function annotateMarkdownSourceRanges(
     if (!element) break;
 
     if (isListToken(token)) {
-      annotateListItems(element, token, from, source);
+      annotateListItems(element, token, source, { offset: from });
     } else {
       setSourceRange(element, from, to);
     }
@@ -58,62 +62,68 @@ export function readMarkdownSourceRange(
 function annotateListItems(
   listElement: HTMLElement,
   token: MarkedListToken,
-  listFrom: number,
   source: string,
+  cursor: SourceCursor,
 ): void {
   const itemElements = directListItems(listElement);
-  let itemSearchOffset = 0;
 
   token.items.forEach((item, index) => {
-    const relativeItemFrom = token.raw.indexOf(item.raw, itemSearchOffset);
-    if (relativeItemFrom < 0) return;
-
-    const itemFrom = listFrom + relativeItemFrom;
-    const nestedTokens = item.tokens.filter(isListToken);
-    const nestedRanges = nestedTokens
-      .map((nested) => {
-        const relativeFrom = findNestedRawOffset(item.raw, nested.raw);
-        return relativeFrom < 0
-          ? null
-          : { token: nested, relativeFrom };
-      })
-      .filter(
-        (
-          nested,
-        ): nested is { token: MarkedListToken; relativeFrom: number } =>
-          nested !== null,
-      )
-      .sort((left, right) => left.relativeFrom - right.relativeFrom);
-
-    const ownEnd =
-      nestedRanges[0]?.relativeFrom === undefined
-        ? itemFrom + item.raw.length
-        : itemFrom + nestedRanges[0].relativeFrom;
-    const ownTo = trimTrailingWhitespace(source, itemFrom, ownEnd);
-
+    const sourceLine = findNextListItemLine(source, cursor.offset, item.raw);
     const itemElement = itemElements[index];
-    if (itemElement) {
-      const contentElement = wrapListItemOwnContent(itemElement);
-      if (contentElement && ownTo > itemFrom) {
-        setSourceRange(contentElement, itemFrom, ownTo);
+
+    if (sourceLine) {
+      cursor.offset = sourceLine.next;
+      const contentElement = itemElement
+        ? wrapListItemOwnContent(itemElement)
+        : null;
+      if (contentElement) {
+        setSourceRange(contentElement, sourceLine.from, sourceLine.to);
       }
-
-      const nestedElements = directNestedLists(itemElement);
-      nestedRanges.forEach((nested, nestedIndex) => {
-        const nestedElement = nestedElements[nestedIndex];
-        if (!nestedElement) return;
-
-        annotateListItems(
-          nestedElement,
-          nested.token,
-          itemFrom + nested.relativeFrom,
-          source,
-        );
-      });
     }
 
-    itemSearchOffset = relativeItemFrom + item.raw.length;
+    if (!itemElement) return;
+
+    const nestedTokens = item.tokens.filter(isListToken);
+    const nestedElements = directNestedLists(itemElement);
+    nestedTokens.forEach((nested, nestedIndex) => {
+      const nestedElement = nestedElements[nestedIndex];
+      if (!nestedElement) return;
+      annotateListItems(nestedElement, nested, source, cursor);
+    });
   });
+}
+
+function findNextListItemLine(
+  source: string,
+  from: number,
+  itemRaw: string,
+): { from: number; to: number; next: number } | null {
+  const firstLine = itemRaw.split(/\r?\n/u)[0] ?? "";
+  const needle = firstLine.trim();
+  if (!needle) return null;
+
+  let lineStart = from;
+  while (lineStart <= source.length) {
+    const newline = source.indexOf("\n", lineStart);
+    const rawEnd = newline < 0 ? source.length : newline;
+    const lineEnd =
+      rawEnd > lineStart && source[rawEnd - 1] === "\r" ? rawEnd - 1 : rawEnd;
+    const line = source.slice(lineStart, lineEnd);
+
+    if (line.trim() === needle) {
+      const leadingWhitespace = line.length - line.trimStart().length;
+      return {
+        from: lineStart + leadingWhitespace,
+        to: lineEnd,
+        next: newline < 0 ? source.length : newline + 1,
+      };
+    }
+
+    if (newline < 0) break;
+    lineStart = newline + 1;
+  }
+
+  return null;
 }
 
 function directListItems(listElement: HTMLElement): HTMLElement[] {
@@ -147,7 +157,8 @@ function wrapListItemOwnContent(
   if (
     ownNodes.length === 0 ||
     ownNodes.every(
-      (node) => node.nodeType === Node.TEXT_NODE && !(node.textContent ?? "").trim(),
+      (node) =>
+        node.nodeType === Node.TEXT_NODE && !(node.textContent ?? "").trim(),
     )
   ) {
     return null;
@@ -162,30 +173,6 @@ function wrapListItemOwnContent(
   }
 
   return wrapper;
-}
-
-function findNestedRawOffset(containerRaw: string, nestedRaw: string): number {
-  const exact = containerRaw.indexOf(nestedRaw);
-  if (exact >= 0) return exact;
-
-  const firstNestedLine =
-    nestedRaw.split(/\r?\n/u).find((line) => line.trim().length > 0) ?? "";
-  const needle = firstNestedLine.trimStart();
-  if (!needle) return -1;
-
-  let lineStart = 0;
-  while (lineStart < containerRaw.length) {
-    const lineEnd = containerRaw.indexOf("\n", lineStart);
-    const end = lineEnd < 0 ? containerRaw.length : lineEnd;
-    const line = containerRaw.slice(lineStart, end);
-    if (line.trimStart() === needle) {
-      return lineStart + (line.length - line.trimStart().length);
-    }
-    if (lineEnd < 0) break;
-    lineStart = lineEnd + 1;
-  }
-
-  return -1;
 }
 
 function isListToken(token: MarkedToken): token is MarkedListToken {
@@ -204,18 +191,6 @@ function trimTrailingLineBreaks(
 ): number {
   let to = Math.min(end, source.length);
   while (to > from && (source[to - 1] === "\n" || source[to - 1] === "\r")) {
-    to -= 1;
-  }
-  return to;
-}
-
-function trimTrailingWhitespace(
-  source: string,
-  from: number,
-  end: number,
-): number {
-  let to = Math.min(end, source.length);
-  while (to > from && /\s/u.test(source[to - 1] ?? "")) {
     to -= 1;
   }
   return to;
