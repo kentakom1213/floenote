@@ -613,8 +613,13 @@ function DocumentPane({
 
   useEffect(() => {
     const input = titleRef.current;
-    if (input) resizeTitleInput(input);
-  }, [document.id, document.title]);
+    if (!input || mode === "split") return;
+
+    // Split mode constrains the title to a compact one-line header. Recompute
+    // the normal textarea height whenever we leave Split so that a height
+    // measured under the compact CSS cannot leak into Edit/Preview.
+    resizeTitleInput(input);
+  }, [document.id, document.title, mode]);
 
   useEffect(() => {
     const input = titleRef.current;
