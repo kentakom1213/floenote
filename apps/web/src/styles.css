@@ -1900,6 +1900,16 @@ input:focus-visible {
   border-radius: 6px;
 }
 
+.editor-view-live .markdown-live-empty-block {
+  min-height: 1.55em;
+  margin: 0 0 0.25em;
+  border-radius: 6px;
+}
+
+.editor-view-live .markdown-live-empty-block:hover {
+  background: color-mix(in srgb, var(--color-surface-hover) 45%, transparent);
+}
+
 .editor-view-live .markdown-live-selected-block {
   border-radius: 7px;
   outline: 2px solid var(--color-border-strong);
