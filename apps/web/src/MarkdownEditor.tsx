@@ -5,7 +5,7 @@ import { EditorView, ViewPlugin } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
 import { UndoManager } from "loro-crdt";
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import type { NoteDocument } from "@floe-note/document";
 
@@ -218,12 +218,51 @@ type MarkdownEditorProps = {
   onViewportLineChange?: (line: number) => void;
 };
 
-export function MarkdownEditor({
-  document,
-  readOnly = false,
-  onViewportLineChange,
-}: MarkdownEditorProps) {
+export type MarkdownEditorHandle = {
+  scrollToLine: (line: number) => void;
+};
+
+export const MarkdownEditor = forwardRef<
+  MarkdownEditorHandle,
+  MarkdownEditorProps
+>(function MarkdownEditor(
+  {
+    document,
+    readOnly = false,
+    onViewportLineChange,
+  },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToLine(line: number) {
+        const host = hostRef.current;
+        const view = viewRef.current;
+        if (!host || !view) return;
+
+        const scrollContainer = host.closest<HTMLElement>(".main-pane");
+        if (!scrollContainer) return;
+
+        const clampedLine = Math.min(
+          Math.max(1, Math.round(line)),
+          view.state.doc.lines,
+        );
+        const position = view.state.doc.line(clampedLine).from;
+        const block = view.lineBlockAt(position);
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const contentRect = view.contentDOM.getBoundingClientRect();
+        const contentTop =
+          contentRect.top - containerRect.top + scrollContainer.scrollTop;
+
+        scrollContainer.scrollTop = Math.max(0, contentTop + block.top);
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -277,6 +316,8 @@ export function MarkdownEditor({
         ],
       }),
     });
+
+    viewRef.current = view;
 
     // Initialize CodeMirror from the current NoteDocument synchronously instead
     // of relying on loro-codemirror's initialization microtask. In
@@ -388,10 +429,13 @@ export function MarkdownEditor({
       scrollContainer?.removeEventListener("scroll", reportViewportLine);
       view.scrollDOM.removeEventListener("scroll", reportViewportLine);
       window.removeEventListener("resize", reportViewportLine);
+      if (viewRef.current === view) {
+        viewRef.current = null;
+      }
       view.destroy();
       undoManager?.free();
     };
   }, [document, onViewportLineChange, readOnly]);
 
   return <div className="editor" ref={hostRef} />;
-}
+});
