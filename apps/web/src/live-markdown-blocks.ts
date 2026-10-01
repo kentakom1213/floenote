@@ -25,6 +25,18 @@ export function collectLiveMarkdownBlocks(
     node;
     node = node.nextSibling
   ) {
+    if (node.name === "BulletList" || node.name === "OrderedList") {
+      for (let item = node.firstChild; item; item = item.nextSibling) {
+        if (item.name !== "ListItem") continue;
+        syntaxBlocks.push({
+          from: item.from,
+          to: item.to,
+          kind: "list",
+        });
+      }
+      continue;
+    }
+
     const kind = syntaxNodeKind(node.name);
     if (!kind) continue;
 
@@ -57,7 +69,6 @@ function syntaxNodeKind(name: string): LiveMarkdownBlockKind | null {
 
   if (name === "Paragraph") return "paragraph";
   if (name === "FencedCode") return "code";
-  if (name === "BulletList" || name === "OrderedList") return "list";
   return null;
 }
 
