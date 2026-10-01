@@ -10,25 +10,37 @@ import { renderMarkdown } from "./MarkdownPreview.js";
 import {
   collectLiveMarkdownBlocks,
   type LiveMarkdownBlock,
+  type LiveMarkdownListContext,
 } from "./live-markdown-blocks.js";
 
 class MarkdownBlockWidget extends WidgetType {
   constructor(
     readonly source: string,
     readonly from: number,
+    readonly list: LiveMarkdownListContext | undefined,
   ) {
     super();
   }
 
   eq(other: MarkdownBlockWidget): boolean {
-    return this.source === other.source && this.from === other.from;
+    return (
+      this.source === other.source &&
+      this.from === other.from &&
+      this.list?.ordered === other.list?.ordered &&
+      this.list?.number === other.list?.number
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("div");
     wrapper.className = "markdown-preview live-markdown-block";
-    wrapper.innerHTML = renderMarkdown(this.source);
     wrapper.dataset.floeLiveSourceFrom = String(this.from);
+
+    if (this.list) {
+      renderListItem(wrapper, this.source, this.list);
+    } else {
+      wrapper.innerHTML = renderMarkdown(this.source);
+    }
 
     wrapper.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
@@ -48,6 +60,43 @@ class MarkdownBlockWidget extends WidgetType {
   ignoreEvent(): boolean {
     return true;
   }
+}
+
+function renderListItem(
+  wrapper: HTMLElement,
+  source: string,
+  list: LiveMarkdownListContext,
+): void {
+  const rendered = new DOMParser().parseFromString(
+    renderMarkdown(source),
+    "text/html",
+  );
+  const renderedList = Array.from(rendered.body.children).find(
+    (element) => element.tagName === "UL" || element.tagName === "OL",
+  );
+  const renderedItem = renderedList?.querySelector(":scope > li");
+
+  if (!renderedItem) {
+    wrapper.innerHTML = renderMarkdown(source);
+    return;
+  }
+
+  const row = document.createElement("div");
+  row.className = "live-markdown-list-item";
+
+  const marker = document.createElement("span");
+  marker.className = "live-markdown-list-marker";
+  marker.textContent = list.ordered ? `${list.number ?? 1}.` : "•";
+  marker.setAttribute("aria-hidden", "true");
+
+  const content = document.createElement("div");
+  content.className = "live-markdown-list-content";
+  for (const child of Array.from(renderedItem.childNodes)) {
+    content.append(child.cloneNode(true));
+  }
+
+  row.append(marker, content);
+  wrapper.append(row);
 }
 
 function buildDecorations(state: EditorState): DecorationSet {
@@ -70,6 +119,7 @@ function buildDecorations(state: EditorState): DecorationSet {
         widget: new MarkdownBlockWidget(
           state.sliceDoc(block.from, block.to),
           block.from,
+          block.list,
         ),
         block: true,
       }).range(replaceFrom, replaceTo),
