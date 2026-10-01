@@ -72,7 +72,7 @@ function annotateListItems(
     const nestedTokens = item.tokens.filter(isListToken);
     const nestedRanges = nestedTokens
       .map((nested) => {
-        const relativeFrom = item.raw.indexOf(nested.raw);
+        const relativeFrom = findNestedRawOffset(item.raw, nested.raw);
         return relativeFrom < 0
           ? null
           : { token: nested, relativeFrom };
@@ -162,6 +162,30 @@ function wrapListItemOwnContent(
   }
 
   return wrapper;
+}
+
+function findNestedRawOffset(containerRaw: string, nestedRaw: string): number {
+  const exact = containerRaw.indexOf(nestedRaw);
+  if (exact >= 0) return exact;
+
+  const firstNestedLine =
+    nestedRaw.split(/\r?\n/u).find((line) => line.trim().length > 0) ?? "";
+  const needle = firstNestedLine.trimStart();
+  if (!needle) return -1;
+
+  let lineStart = 0;
+  while (lineStart < containerRaw.length) {
+    const lineEnd = containerRaw.indexOf("\n", lineStart);
+    const end = lineEnd < 0 ? containerRaw.length : lineEnd;
+    const line = containerRaw.slice(lineStart, end);
+    if (line.trimStart() === needle) {
+      return lineStart + (line.length - line.trimStart().length);
+    }
+    if (lineEnd < 0) break;
+    lineStart = lineEnd + 1;
+  }
+
+  return -1;
 }
 
 function isListToken(token: MarkedToken): token is MarkedListToken {
