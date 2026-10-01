@@ -37,6 +37,29 @@ describe("live Markdown blocks", () => {
     ]);
   });
 
+
+  it("treats each top-level list as one block", () => {
+    expect(
+      blocks([
+        "- first",
+        "  - nested",
+        "- second",
+        "",
+        "1. ordered",
+        "2. list",
+      ].join("\n")),
+    ).toEqual([
+      {
+        source: "- first\n  - nested\n- second",
+        kind: "list",
+      },
+      {
+        source: "1. ordered\n2. list",
+        kind: "list",
+      },
+    ]);
+  });
+
   it("treats display math as one block", () => {
     expect(
       blocks([
