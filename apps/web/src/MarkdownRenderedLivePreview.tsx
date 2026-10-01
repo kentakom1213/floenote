@@ -53,6 +53,9 @@ type PendingBlock = {
   listIndent?: string;
   listMarker?: string;
   listContinuationIndent?: string;
+  emptyInsertAt?: number;
+  emptyInsertion?: string;
+  emptyBlockOffset?: number;
   anchorFrom: number;
   anchorTo: number;
 };
@@ -124,7 +127,10 @@ export function MarkdownRenderedLivePreview({
         return null;
       }
 
-      const replacement = markdownBlockSourceText(value, block);
+      const replacement =
+        block.kind === "empty"
+          ? emptyBlockReplacement(expected, value)
+          : markdownBlockSourceText(value, block);
       const binding = document.getEditorBinding();
       binding
         .getText(binding.doc)
@@ -136,6 +142,24 @@ export function MarkdownRenderedLivePreview({
         block.sourceSnapshot.slice(0, block.from) +
         replacement +
         block.sourceSnapshot.slice(block.to);
+
+      if (block.kind === "empty" && value.length > 0) {
+        const lineBreakLength = replacement.startsWith("\r\n") ? 2 : 1;
+        const from = block.from + lineBreakLength;
+        return {
+          source,
+          delta,
+          block: {
+            from,
+            to: from + value.length,
+            subtreeFrom: from,
+            subtreeTo: from + value.length,
+            kind: "paragraph",
+            sourceSnapshot: source,
+            focusAt: "end",
+          },
+        };
+      }
 
       return {
         source,
@@ -156,11 +180,44 @@ export function MarkdownRenderedLivePreview({
 
   const commitPending = useCallback(
     (pending: PendingBlock, value: string): CommitResult | null => {
-      if (
-        value === pending.initialValue ||
-        document.bodyText !== pending.sourceSnapshot
-      ) {
+      if (document.bodyText !== pending.sourceSnapshot) {
         return null;
+      }
+
+      if (value === pending.initialValue) {
+        if (
+          pending.emptyInsertAt === undefined ||
+          pending.emptyInsertion === undefined ||
+          pending.emptyBlockOffset === undefined
+        ) {
+          return null;
+        }
+
+        const binding = document.getEditorBinding();
+        binding
+          .getText(binding.doc)
+          .splice(pending.emptyInsertAt, 0, pending.emptyInsertion);
+        binding.doc.commit();
+
+        const source =
+          pending.sourceSnapshot.slice(0, pending.emptyInsertAt) +
+          pending.emptyInsertion +
+          pending.sourceSnapshot.slice(pending.emptyInsertAt);
+        const from = pending.emptyInsertAt + pending.emptyBlockOffset;
+
+        return {
+          source,
+          delta: pending.emptyInsertion.length,
+          block: {
+            from,
+            to: from + 1,
+            subtreeFrom: from,
+            subtreeTo: from + 1,
+            kind: "empty",
+            sourceSnapshot: source,
+            focusAt: "end",
+          },
+        };
       }
 
       const encodedValue = encodePendingValue(value, pending);
@@ -332,9 +389,7 @@ export function MarkdownRenderedLivePreview({
         event.preventDefault();
 
         if (target.dataset.floePending === "true") {
-          if (!pendingBlock || target.value === pendingBlock.initialValue) {
-            return;
-          }
+          if (!pendingBlock) return;
 
           target.dataset.floeLiveHandled = "true";
           const committed = commitPending(pendingBlock, target.value);
@@ -594,6 +649,25 @@ function pendingAfter(block: ActiveBlock, source: string): PendingBlock {
     };
   }
 
+  if (block.kind === "empty") {
+    return {
+      sourceSnapshot: source,
+      insertAt: block.to,
+      prefix: "\n",
+      suffix: "\n",
+      initialValue: "",
+      structuralFromOffset: 1,
+      placement: "after",
+      kind: "paragraph",
+      emptyInsertAt: block.to,
+      emptyInsertion: "\n",
+      emptyBlockOffset: 0,
+      anchorFrom: block.from,
+      anchorTo: block.to,
+    };
+  }
+
+  const empty = emptyMaterializationAfter(source, block.subtreeTo);
   return {
     sourceSnapshot: source,
     insertAt: block.subtreeTo,
@@ -603,8 +677,78 @@ function pendingAfter(block: ActiveBlock, source: string): PendingBlock {
     structuralFromOffset: 2,
     placement: "after",
     kind: "paragraph",
+    emptyInsertAt: empty.insertAt,
+    emptyInsertion: empty.insertion,
+    emptyBlockOffset: empty.blockOffset,
     anchorFrom: block.from,
     anchorTo: block.to,
+  };
+}
+
+function emptyBlockReplacement(
+  expected: string,
+  value: string,
+): string {
+  if (value.length === 0) return expected;
+
+  const lineBreak = expected === "\r\n" ? "\r\n" : "\n";
+  return lineBreak + value + lineBreak;
+}
+
+function emptyMaterializationAfter(
+  source: string,
+  blockEnd: number,
+): { insertAt: number; insertion: string; blockOffset: number } {
+  const suffix = source.slice(blockEnd);
+  const nonWhitespace = suffix.search(/\S/u);
+
+  if (nonWhitespace < 0) {
+    const trailing = suffix.match(/(?:\r?\n)/gu) ?? [];
+    if (trailing.length === 0) {
+      return {
+        insertAt: source.length,
+        insertion: "\n\n",
+        blockOffset: 1,
+      };
+    }
+
+    return {
+      insertAt: source.length,
+      insertion: "\n",
+      blockOffset: 0,
+    };
+  }
+
+  const gapEnd = blockEnd + nonWhitespace;
+  const gap = source.slice(blockEnd, gapEnd);
+  const newlineMatches = Array.from(gap.matchAll(/\r?\n/gu));
+
+  if (newlineMatches.length >= 2) {
+    const first = newlineMatches[0];
+    const firstIndex = first?.index ?? 0;
+    const firstLength = first?.[0].length ?? 1;
+    return {
+      insertAt: blockEnd + firstIndex + firstLength,
+      insertion: "\n",
+      blockOffset: 0,
+    };
+  }
+
+  if (newlineMatches.length === 1) {
+    const first = newlineMatches[0];
+    const firstIndex = first?.index ?? 0;
+    const firstLength = first?.[0].length ?? 1;
+    return {
+      insertAt: blockEnd + firstIndex + firstLength,
+      insertion: "\n\n",
+      blockOffset: 0,
+    };
+  }
+
+  return {
+    insertAt: blockEnd,
+    insertion: "\n\n\n",
+    blockOffset: 1,
   };
 }
 
