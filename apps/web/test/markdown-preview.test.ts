@@ -290,7 +290,7 @@ describe("Markdown sanitizer", () => {
 
   it("hydrates inline and display KaTeX after sanitizing Markdown HTML", () => {
     const html = renderMarkdown(
-      "Inline $x^2$\n\n$\n\\frac{a}{b}\n$",
+      "Inline $x^2$\n\n$$\n\\frac{a}{b}\n$$",
     );
     const body = parseHtml(html);
 
@@ -317,10 +317,10 @@ describe("Markdown sanitizer", () => {
       "",
       "Paragraph",
       "",
-      "$",
+      "$$",
       "a + b",
       "= c",
-      "$",
+      "$$",
       "",
       "## Second",
     ].join("\n");
