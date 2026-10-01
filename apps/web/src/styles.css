@@ -1872,6 +1872,52 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.editor-view-live .markdown-rendered-live-preview {
+  width: 100%;
+}
+
+.editor-view-live .markdown-preview [data-floe-source-from] {
+  cursor: text;
+}
+
+.editor-view-live .markdown-preview [data-floe-source-from]:hover {
+  background: color-mix(in srgb, var(--color-surface-hover) 45%, transparent);
+}
+
+.editor-view-live .markdown-preview li[data-floe-source-from]:hover {
+  border-radius: 6px;
+}
+
+.markdown-live-editor {
+  width: 100%;
+  min-height: 1.6em;
+  display: block;
+  resize: none;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  outline: none;
+  padding: 7px 9px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.markdown-live-editor:focus {
+  border-color: var(--color-border-strong);
+}
+
+.markdown-preview .markdown-live-editing-list-item {
+  list-style: none;
+}
+
+.markdown-preview .markdown-live-editing-list-item > .markdown-live-editor {
+  margin: 0.2em 0;
+}
+
 .markdown-preview > :first-child {
   margin-top: 0;
 }
