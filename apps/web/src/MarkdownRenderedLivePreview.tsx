@@ -178,6 +178,81 @@ export function MarkdownRenderedLivePreview({
     [document],
   );
 
+  const splitActive = useCallback(
+    (
+      block: ActiveBlock,
+      value: string,
+      caret: number,
+    ): ActiveBlock | null => {
+      if (
+        (block.kind !== "paragraph" && block.kind !== "list-item") ||
+        caret <= 0 ||
+        caret >= value.length ||
+        document.bodyText !== block.sourceSnapshot
+      ) {
+        return null;
+      }
+
+      const expected = block.sourceSnapshot.slice(block.from, block.to);
+      if (document.bodyText.slice(block.from, block.to) !== expected) {
+        return null;
+      }
+
+      const before = value.slice(0, caret);
+      const after = value.slice(caret);
+      let replacement: string;
+      let nextFrom: number;
+      let nextSubtreeFrom: number;
+
+      if (block.kind === "list-item") {
+        const marker = block.listMarker ?? "-";
+        const indent = block.listIndent ?? "";
+        const separator = `\n${indent}${marker} `;
+        const beforeSource = markdownBlockSourceText(before, block);
+        const afterSource = markdownBlockSourceText(after, block);
+
+        replacement = beforeSource + separator + afterSource;
+        nextSubtreeFrom = block.from + beforeSource.length + 1;
+        nextFrom = block.from + beforeSource.length + separator.length;
+      } else {
+        replacement = before + "\n\n" + after;
+        nextFrom = block.from + before.length + 2;
+        nextSubtreeFrom = nextFrom;
+      }
+
+      const binding = document.getEditorBinding();
+      binding
+        .getText(binding.doc)
+        .splice(block.from, block.to - block.from, replacement);
+      binding.doc.commit();
+
+      const delta = replacement.length - (block.to - block.from);
+      const source =
+        block.sourceSnapshot.slice(0, block.from) +
+        replacement +
+        block.sourceSnapshot.slice(block.to);
+      const nextTo =
+        nextFrom +
+        (block.kind === "list-item"
+          ? markdownBlockSourceText(after, block).length
+          : after.length);
+
+      return {
+        ...block,
+        from: nextFrom,
+        to: nextTo,
+        subtreeFrom: nextSubtreeFrom,
+        subtreeTo: block.subtreeTo + delta,
+        ...(block.firstChildAt === undefined
+          ? {}
+          : { firstChildAt: block.firstChildAt + delta }),
+        sourceSnapshot: source,
+        focusAt: "start",
+      };
+    },
+    [document],
+  );
+
   const commitPending = useCallback(
     (pending: PendingBlock, value: string): CommitResult | null => {
       if (document.bodyText !== pending.sourceSnapshot) {
@@ -317,7 +392,7 @@ export function MarkdownRenderedLivePreview({
       }
       setActiveBlock(null);
     },
-    [activeBlock, commitActive, commitPending, pendingBlock],
+    [activeBlock, commitActive, commitPending, pendingBlock, splitActive],
   );
 
   const handleKeyDown = useCallback(
@@ -380,6 +455,35 @@ export function MarkdownRenderedLivePreview({
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey;
+
+      if (
+        plainEnter &&
+        target.dataset.floePending !== "true" &&
+        activeBlock &&
+        target.selectionStart === target.selectionEnd &&
+        target.selectionStart > 0 &&
+        target.selectionStart < target.value.length &&
+        (activeBlock.kind === "paragraph" ||
+          activeBlock.kind === "list-item")
+      ) {
+        event.preventDefault();
+        target.dataset.floeLiveHandled = "true";
+
+        const split = splitActive(
+          activeBlock,
+          target.value,
+          target.selectionStart,
+        );
+        if (!split) {
+          setActiveBlock(null);
+          return;
+        }
+
+        setPendingBlock(null);
+        setSelectedBlock(null);
+        setActiveBlock(split);
+        return;
+      }
 
       if (
         plainEnter &&
