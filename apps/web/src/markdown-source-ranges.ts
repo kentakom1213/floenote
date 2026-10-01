@@ -319,7 +319,9 @@ function measureListItemRanges(
   return {
     ownTo,
     subtreeTo,
-    ...(firstChildAt === undefined
+    ...(firstChildAt === undefined ||
+    childIndent === undefined ||
+    childMarker === undefined
       ? {}
       : { firstChildAt, childIndent, childMarker }),
   };
