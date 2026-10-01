@@ -1900,6 +1900,17 @@ input:focus-visible {
   border-radius: 6px;
 }
 
+.editor-view-live .markdown-live-selected-block {
+  border-radius: 7px;
+  outline: 2px solid var(--color-border-strong);
+  outline-offset: 3px;
+  background: color-mix(in srgb, var(--color-surface-selected) 58%, transparent);
+}
+
+.editor-view-live .markdown-live-selected-block:focus {
+  outline-color: var(--color-focus);
+}
+
 .markdown-live-editor {
   width: 100%;
   min-height: 1.6em;
@@ -1927,6 +1938,15 @@ input:focus-visible {
 }
 
 .markdown-preview .markdown-live-editing-list-item > .markdown-live-editor {
+  margin: 0.2em 0;
+}
+
+.markdown-preview .markdown-live-pending-list-item {
+  list-style: none;
+}
+
+.markdown-preview .markdown-live-pending-list-item > .markdown-live-editor,
+.markdown-live-pending-editor {
   margin: 0.2em 0;
 }
 
