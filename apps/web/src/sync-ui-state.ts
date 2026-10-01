@@ -31,12 +31,12 @@ export function deriveSyncUiState({
     return { kind: "offline" };
   }
 
-  if (error) {
-    return { kind: "error", detail: error };
-  }
-
   if (ownsAutomaticPeerSync && connectedDeviceIds.length > 0) {
     return { kind: "connected" };
+  }
+
+  if (error) {
+    return { kind: "error", detail: error };
   }
 
   if (presenceState === "connecting" || presenceState === "authenticating") {

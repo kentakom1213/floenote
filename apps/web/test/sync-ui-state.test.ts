@@ -38,7 +38,25 @@ describe("deriveSyncUiState", () => {
     ).toEqual({ kind: "connected" });
   });
 
-  it("keeps explicit sync errors above connection state while online", () => {
+  it("keeps Connected when another peer fails but a direct peer remains connected", () => {
+    const localDeviceId = createDeviceId();
+    const connectedDeviceId = createDeviceId();
+    const failedDeviceId = createDeviceId();
+
+    expect(
+      deriveSyncUiState({
+        browserOnline: true,
+        presenceState: "open",
+        onlineDeviceIds: [localDeviceId, connectedDeviceId, failedDeviceId],
+        ownsAutomaticPeerSync: true,
+        connectedDeviceIds: [connectedDeviceId],
+        localDeviceId,
+        error: "peer failed",
+      }),
+    ).toEqual({ kind: "connected" });
+  });
+
+  it("shows Sync issue for an explicit sync error when no peer remains connected", () => {
     const localDeviceId = createDeviceId();
     const remoteDeviceId = createDeviceId();
 
@@ -46,9 +64,9 @@ describe("deriveSyncUiState", () => {
       deriveSyncUiState({
         browserOnline: true,
         presenceState: "open",
-        onlineDeviceIds: [remoteDeviceId],
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
         ownsAutomaticPeerSync: true,
-        connectedDeviceIds: [remoteDeviceId],
+        connectedDeviceIds: [],
         localDeviceId,
         error: "peer failed",
       }),
