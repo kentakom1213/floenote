@@ -1913,6 +1913,43 @@ input:focus-visible {
   margin-top: 0.2em;
 }
 
+.editor-view[data-editor-mode="live"] .live-markdown-list-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.55em;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-marker {
+  min-width: 1.25em;
+  color: var(--color-text);
+  text-align: right;
+  user-select: none;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-content {
+  min-width: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-content > :first-child {
+  margin-top: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-content > :last-child {
+  margin-bottom: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-content > p {
+  margin: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-list-content > ul,
+.editor-view[data-editor-mode="live"] .live-markdown-list-content > ol {
+  margin: 0.2em 0 0;
+  padding-left: 1.45em;
+}
+
 .editor-view[data-editor-mode="live"] .live-markdown-block .markdown-math-block {
   margin: 0.35em 0;
   padding: 0;
