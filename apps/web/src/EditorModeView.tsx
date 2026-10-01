@@ -32,9 +32,9 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
         <div className="editor-view-pane editor-view-source">
           <MarkdownEditor
             document={document}
-            onViewportLineChange={
-              layout.split ? handleEditorViewportLineChange : undefined
-            }
+            {...(layout.split
+              ? { onViewportLineChange: handleEditorViewportLineChange }
+              : {})}
           />
         </div>
       ) : null}
