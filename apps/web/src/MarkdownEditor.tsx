@@ -1,7 +1,18 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { search } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
-import { EditorView, ViewPlugin } from "@codemirror/view";
+import {
+  EditorState,
+  StateEffect,
+  StateField,
+  type Extension,
+} from "@codemirror/state";
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  WidgetType,
+  type DecorationSet,
+} from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { LoroExtensions } from "loro-codemirror";
 import { UndoManager } from "loro-crdt";
@@ -17,6 +28,68 @@ import {
   EDITOR_UNDO_MERGE_INTERVAL_MS,
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
+
+
+type AlignmentSpacer = {
+  line: number;
+  height: number;
+};
+
+class AlignmentSpacerWidget extends WidgetType {
+  constructor(readonly height: number) {
+    super();
+  }
+
+  eq(other: AlignmentSpacerWidget): boolean {
+    return this.height === other.height;
+  }
+
+  toDOM(): HTMLElement {
+    const element = document.createElement("div");
+    element.className = "cm-alignment-spacer";
+    element.style.height = `${this.height}px`;
+    element.setAttribute("aria-hidden", "true");
+    return element;
+  }
+}
+
+const setAlignmentSpacersEffect =
+  StateEffect.define<readonly AlignmentSpacer[]>();
+
+const alignmentSpacersField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(spacers, transaction) {
+    spacers = spacers.map(transaction.changes);
+
+    for (const effect of transaction.effects) {
+      if (!effect.is(setAlignmentSpacersEffect)) continue;
+
+      const ranges = effect.value.flatMap(({ line, height }) => {
+        if (height <= 0 || line < 1 || line > transaction.state.doc.lines) {
+          return [];
+        }
+
+        const position = transaction.state.doc.line(line).from;
+        return [
+          Decoration.widget({
+            widget: new AlignmentSpacerWidget(height),
+            block: true,
+            side: -1,
+          }).range(position),
+        ];
+      });
+
+      spacers = Decoration.set(ranges, true);
+    }
+
+    return spacers;
+  },
+  provide(field): Extension {
+    return EditorView.decorations.from(field);
+  },
+});
 
 function setSearchOptionsOpen(
   panel: HTMLElement,
@@ -219,7 +292,8 @@ type MarkdownEditorProps = {
 };
 
 export type MarkdownEditorHandle = {
-  scrollToLine: (line: number) => void;
+  getLineTop: (line: number) => number | null;
+  setAlignmentSpacers: (spacers: readonly AlignmentSpacer[]) => void;
 };
 
 export const MarkdownEditor = forwardRef<
@@ -239,26 +313,25 @@ export const MarkdownEditor = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      scrollToLine(line: number) {
-        const host = hostRef.current;
+      getLineTop(line: number) {
         const view = viewRef.current;
-        if (!host || !view) return;
-
-        const scrollContainer = host.closest<HTMLElement>(".main-pane");
-        if (!scrollContainer) return;
+        if (!view) return null;
 
         const clampedLine = Math.min(
           Math.max(1, Math.round(line)),
           view.state.doc.lines,
         );
         const position = view.state.doc.line(clampedLine).from;
-        const block = view.lineBlockAt(position);
-        const containerRect = scrollContainer.getBoundingClientRect();
         const contentRect = view.contentDOM.getBoundingClientRect();
-        const contentTop =
-          contentRect.top - containerRect.top + scrollContainer.scrollTop;
+        return contentRect.top + view.lineBlockAt(position).top;
+      },
+      setAlignmentSpacers(spacers: readonly AlignmentSpacer[]) {
+        const view = viewRef.current;
+        if (!view) return;
 
-        scrollContainer.scrollTop = Math.max(0, contentTop + block.top);
+        view.dispatch({
+          effects: setAlignmentSpacersEffect.of(spacers),
+        });
       },
     }),
     [],
@@ -289,6 +362,7 @@ export const MarkdownEditor = forwardRef<
         doc: document.bodyText,
         extensions: [
           basicSetup,
+          alignmentSpacersField,
           floeEditorSearch,
           markdown(),
           floeMarkdownIndentation,
