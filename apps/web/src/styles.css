@@ -1875,7 +1875,7 @@ input:focus-visible {
 .editor-view[data-editor-mode="live"] .live-markdown-block {
   width: auto;
   margin: 0;
-  padding: 3px 0;
+  padding: 2px 0;
   cursor: text;
 }
 
