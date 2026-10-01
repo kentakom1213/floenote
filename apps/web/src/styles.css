@@ -1872,6 +1872,21 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.editor-view[data-editor-mode="live"] .live-markdown-block {
+  width: auto;
+  margin: 0;
+  padding: 3px 0;
+  cursor: text;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block > :first-child {
+  margin-top: 0;
+}
+
+.editor-view[data-editor-mode="live"] .live-markdown-block > :last-child {
+  margin-bottom: 0;
+}
+
 .markdown-preview > :first-child {
   margin-top: 0;
 }
