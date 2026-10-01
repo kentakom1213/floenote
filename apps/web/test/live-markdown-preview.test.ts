@@ -34,4 +34,29 @@ describe("live Markdown preview", () => {
     expect(host.querySelector(".live-markdown-block")).not.toBeNull();
     expect(host.textContent).toContain("Inactive paragraph");
   });
+
+  it("renders ordered list item widgets with document numbering", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const source = ["1. first", "1. second", "1. third"].join("\n");
+
+    view = new EditorView({
+      parent: host,
+      state: EditorState.create({
+        doc: source,
+        selection: { anchor: source.indexOf("second") },
+        extensions: [markdown(), liveMarkdownPreview],
+      }),
+    });
+
+    const markers = Array.from(
+      host.querySelectorAll<HTMLElement>(".live-markdown-list-marker"),
+    ).map((element) => element.textContent);
+
+    expect(markers).toEqual(["1.", "3."]);
+    expect(host.textContent).toContain("first");
+    expect(host.textContent).toContain("second");
+    expect(host.textContent).toContain("third");
+  });
+
 });
