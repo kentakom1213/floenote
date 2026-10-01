@@ -104,6 +104,36 @@ describe("Markdown source ranges", () => {
     expect(document.body.querySelectorAll("ul")).toHaveLength(3);
   });
 
+  it("derives only extra blank lines as explicit empty blocks", () => {
+    const ordinary = ["First", "", "Second"].join("\n");
+    const ordinaryDocument = new DOMParser().parseFromString(
+      renderMarkdown(ordinary),
+      "text/html",
+    );
+    annotateMarkdownSourceRanges(ordinaryDocument, ordinary);
+    expect(
+      ordinaryDocument.body.querySelectorAll(".markdown-live-empty-block"),
+    ).toHaveLength(0);
+
+    const source = ["First", "", "", "Second"].join("\n");
+    const document = new DOMParser().parseFromString(
+      renderMarkdown(source),
+      "text/html",
+    );
+    annotateMarkdownSourceRanges(document, source);
+
+    const empty = document.body.querySelector(".markdown-live-empty-block");
+    expect(
+      document.body.querySelectorAll(".markdown-live-empty-block"),
+    ).toHaveLength(1);
+    if (!empty) throw new Error("Expected explicit empty block");
+
+    const block = readMarkdownSourceBlock(empty);
+    expect(block).toMatchObject({ kind: "empty" });
+    expect(block ? source.slice(block.from, block.to) : null).toBe("\n");
+    expect(markdownBlockEditorText(source, block!)).toBe("");
+  });
+
   it("maps multiline list content as one editable block", () => {
     const source = [
       "- first line",
