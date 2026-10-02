@@ -215,11 +215,17 @@ export const floeEditorSearch = [
 type MarkdownEditorProps = {
   document: NoteDocument;
   readOnly?: boolean;
+  onViewportSourcePositionChange?: (sourcePosition: number) => void;
+  onScrollToSourcePositionReady?: (
+    scrollToSourcePosition: ((sourcePosition: number) => void) | null,
+  ) => void;
 };
 
 export function MarkdownEditor({
   document,
   readOnly = false,
+  onViewportSourcePositionChange,
+  onScrollToSourcePositionReady,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +293,79 @@ export function MarkdownEditor({
       view.dispatch({});
     });
 
+    let viewportReportFrame: number | null = null;
+
+    const scrollToSourcePosition = (sourcePosition: number) => {
+      const maxScrollTop = Math.max(
+        0,
+        view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight,
+      );
+
+      if (sourcePosition <= 1) {
+        view.scrollDOM.scrollTop = 0;
+        return;
+      }
+      if (sourcePosition >= view.state.doc.lines + 1) {
+        view.scrollDOM.scrollTop = maxScrollTop;
+        return;
+      }
+
+      const rawLineNumber = Math.floor(sourcePosition);
+      const lineNumber = Math.min(
+        view.state.doc.lines,
+        Math.max(1, rawLineNumber),
+      );
+      const fraction = Math.min(
+        1,
+        Math.max(0, sourcePosition - rawLineNumber),
+      );
+      const line = view.state.doc.line(lineNumber);
+      const block = view.lineBlockAt(line.from);
+      view.scrollDOM.scrollTop = Math.min(
+        maxScrollTop,
+        Math.max(0, block.top + block.height * fraction),
+      );
+    };
+
+    onScrollToSourcePositionReady?.(scrollToSourcePosition);
+
+    const reportViewportSourcePosition = () => {
+      viewportReportFrame = null;
+      if (!onViewportSourcePositionChange) return;
+
+      const scrollTop = Math.max(0, view.scrollDOM.scrollTop);
+      const block = view.lineBlockAtHeight(scrollTop);
+      const line = view.state.doc.lineAt(block.from);
+      const fraction =
+        block.height > 0
+          ? Math.min(1, Math.max(0, (scrollTop - block.top) / block.height))
+          : 0;
+
+      onViewportSourcePositionChange(line.number + fraction);
+    };
+
+    const scheduleViewportSourcePositionReport = () => {
+      if (
+        !onViewportSourcePositionChange ||
+        viewportReportFrame !== null
+      ) {
+        return;
+      }
+
+      viewportReportFrame = window.requestAnimationFrame(
+        reportViewportSourcePosition,
+      );
+    };
+
+    if (onViewportSourcePositionChange) {
+      view.scrollDOM.addEventListener(
+        "scroll",
+        scheduleViewportSourcePositionReport,
+        { passive: true },
+      );
+      scheduleViewportSourcePositionReport();
+    }
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
 
@@ -348,10 +427,23 @@ export function MarkdownEditor({
     return () => {
       unregisterExternalBodyMutationHandler();
       host.removeEventListener("pointerdown", handlePointerDown);
+      view.scrollDOM.removeEventListener(
+        "scroll",
+        scheduleViewportSourcePositionReport,
+      );
+      if (viewportReportFrame !== null) {
+        window.cancelAnimationFrame(viewportReportFrame);
+      }
+      onScrollToSourcePositionReady?.(null);
       view.destroy();
       undoManager?.free();
     };
-  }, [document, readOnly]);
+  }, [
+    document,
+    onScrollToSourcePositionReady,
+    onViewportSourcePositionChange,
+    readOnly,
+  ]);
 
   return <div className="editor" ref={hostRef} />;
 }
