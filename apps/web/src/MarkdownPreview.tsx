@@ -15,6 +15,7 @@ import {
   extractMarkdownImages,
   type MarkdownImageDescriptor,
 } from "./markdown-images.js";
+import { annotateMarkdownSourceAnchors } from "./markdown-source-anchors.js";
 import { sanitizeMarkdownHtml } from "./markdown-sanitizer.js";
 import {
   extractMarkdownTasks,
@@ -198,6 +199,7 @@ export function renderMarkdownWithImagePolicy(
   );
   hydrateMath(parsed, extractedMath.math);
   hydrateImages(parsed, extractedImages.images, options.loadExternalImages);
+  annotateMarkdownSourceAnchors(parsed, extractedMath.markdown);
 
   return {
     html: parsed.body.innerHTML,
@@ -473,6 +475,7 @@ function extractMath(source: string): {
     }
 
     if (trimmed === "$$") {
+      const openingIndex = index;
       const block: string[] = [];
       let closed = false;
 
@@ -488,6 +491,15 @@ function extractMath(source: string): {
 
       if (closed) {
         output.push(addMath(block.join("\n"), true));
+        // Keep transformed Markdown line-for-line with the source so preview
+        // source anchors remain valid after display-math extraction.
+        for (
+          let consumedLine = openingIndex + 1;
+          consumedLine <= index;
+          consumedLine += 1
+        ) {
+          output.push("");
+        }
         continue;
       }
     }

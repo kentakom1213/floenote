@@ -1777,7 +1777,8 @@ input:focus-visible {
 }
 
 .editor-view-split {
-  width: min(1280px, calc(100% - 64px));
+  width: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: stretch;
@@ -1789,6 +1790,20 @@ input:focus-visible {
   min-width: 0;
 }
 
+.editor-view-split .editor-view-pane {
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.editor-view-split .editor-view-source {
+  overflow: hidden;
+}
+
+.editor-view-split .editor-view-preview {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .editor-view-source {
   container-name: editor-source;
   container-type: inline-size;
@@ -1798,15 +1813,135 @@ input:focus-visible {
   border-right: 1px solid var(--color-border);
 }
 
+.editor-view-split .editor,
+.editor-view-split .editor .cm-editor {
+  height: 100%;
+  min-height: 0;
+}
+
 .editor-view-split .editor .cm-scroller {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-inline: 28px;
 }
 
 .editor-view-split .markdown-preview {
-  width: auto;
-  min-height: calc(100vh - 180px);
-  margin: 0;
-  padding: 12px 28px 96px;
+  width: min(var(--editor-content-width, 820px), calc(100% - 56px));
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 12px 0 96px;
+}
+
+@media (min-width: 761px) {
+  .document-current-view[data-editor-mode="split"] {
+    height: 100dvh;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    grid-template-rows: 54px minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .document-current-view[data-editor-mode="split"] .document-header {
+    width: auto;
+    min-width: 0;
+    height: 54px;
+    box-sizing: border-box;
+    align-items: center;
+    margin: 0;
+    padding: 10px 6px 10px 18px;
+  }
+
+  .document-current-view[data-editor-mode="split"] .title-input {
+    height: 32px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-block: 5px;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+
+  .document-current-view[data-editor-mode="split"] .title-input::-webkit-scrollbar {
+    display: none;
+  }
+
+  .document-current-view[data-editor-mode="split"] .document-header-actions {
+    flex: 0 0 auto;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"]
+    .document-current-view[data-editor-mode="split"]
+    .document-header {
+    padding-left: 64px;
+  }
+
+  .app-shell[data-sidebar-collapsed="true"]:has(
+      .document-current-view[data-editor-mode="split"]
+    )
+    .sidebar-restore-button {
+    top: 10px;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-menu-trigger {
+    width: 32px;
+    height: 32px;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact {
+    width: auto;
+    min-width: 0;
+    max-width: min(56vw, 760px);
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 10px 18px 10px 8px;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tags-row {
+    min-width: 0;
+    min-height: 0;
+    display: block;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tag-list {
+    min-height: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .tag-chip {
+    flex: 0 0 auto;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-properties-footer {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-properties-trailing {
+    margin-left: 0;
+  }
+
+  .document-current-view[data-editor-mode="split"] > .editor-view-split {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+  }
+
+  .document-current-view[data-editor-mode="split"] .editor-view-pane {
+    height: 100%;
+  }
 }
 
 .editor {
@@ -4629,18 +4764,31 @@ h1 {
     border-top: 1px solid var(--color-border);
   }
 
+  .editor-view-split .editor-view-pane {
+    position: static;
+    height: auto;
+  }
+
   .editor-view-split .editor-view-source {
     min-height: 44dvh;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
 
+  .editor-view-split .editor-view-preview {
+    overflow-y: visible;
+  }
+
   .editor-view-split .editor,
   .editor-view-split .editor .cm-editor {
+    height: auto;
     min-height: 44dvh;
   }
 
   .editor-view-split .editor .cm-scroller {
+    height: auto;
+    overflow-y: visible;
     padding-inline: 16px;
   }
 
