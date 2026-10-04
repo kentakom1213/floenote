@@ -264,10 +264,6 @@ export class WorkspaceSyncEngine {
             });
             return;
           }
-          if (!this.#initialRemoteStateReceived) {
-            this.#initialRemoteStateReceived = true;
-            this.#onInitialRemoteStateReceived?.();
-          }
           if (
             this.#remoteSupportsDocumentAck &&
             this.#onRemoteDocumentVersionConfirmed
@@ -275,6 +271,10 @@ export class WorkspaceSyncEngine {
             for (const document of this.#project.getAllDocuments()) {
               this.#sendDocumentAck(document);
             }
+          }
+          if (!this.#initialRemoteStateReceived) {
+            this.#initialRemoteStateReceived = true;
+            this.#onInitialRemoteStateReceived?.();
           }
           return;
 
