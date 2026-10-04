@@ -135,11 +135,12 @@ The preview shows the historical:
 - tags;
 - Markdown body.
 
+It also derives a simple line-oriented Markdown body diff from the selected
+checkpoint to the current note. The diff is computed on demand from the two
+document states and is not persisted in checkpoint metadata.
+
 Document identity, Workspace membership, Trash state, and other lifecycle state
 are not part of the historical content snapshot.
-
-v1 does not include a diff view. A later version may derive diffs from two Loro
-history positions without changing the checkpoint model.
 
 ## 7. Restore semantics
 
@@ -199,6 +200,7 @@ Opening History shows:
 - `Current` at the top;
 - checkpoint timestamps, newest first;
 - a read-only historical preview for the selected checkpoint;
+- a compact line diff showing body changes since that checkpoint;
 - `Back to current`;
 - `Restore this version`.
 
@@ -208,8 +210,8 @@ the content is read-only historical state rather than the current editor.
 Before restore, the UI explains that the current state remains available in edit
 history. After restore, the UI returns to the current editor.
 
-No diff view, branch visualization, device attribution, version naming, or
-manual checkpoint UI is part of v1.
+No branch visualization, device attribution, version naming, semantic change
+summary, or manual checkpoint UI is part of v1.
 
 ## 9. Trash and purge
 
