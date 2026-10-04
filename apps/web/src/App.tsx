@@ -374,14 +374,19 @@ function NoteApp({
 
   useEffect(() => {
     let cancelled = false;
+    const session = deviceVaultSessionRef.current;
 
-    if (!project || !observedDocumentId) {
+    if (!project || !observedDocumentId || !localSecurityState || !session) {
       setReplicationObservations([]);
       return;
     }
 
     void workspaceStorage
-      .listDocumentReplicationObservations(project.id, observedDocumentId)
+      .listDocumentReplicationObservations(
+        project.id,
+        observedDocumentId,
+        session,
+      )
       .then((observations) => {
         if (!cancelled) setReplicationObservations(observations);
       })
@@ -396,7 +401,12 @@ function NoteApp({
     return () => {
       cancelled = true;
     };
-  }, [observedDocumentId, project, replicationRevision]);
+  }, [
+    localSecurityState,
+    observedDocumentId,
+    project,
+    replicationRevision,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -653,16 +663,21 @@ function NoteApp({
 
   const handleDocumentVersionConfirmed = useCallback(
     (deviceId: DeviceId, documentId: DocumentId, frontiers: Uint8Array) => {
-      if (!project) return;
+      const session = deviceVaultSessionRef.current;
+      if (!project || !localSecurityState || !session) return;
 
       void workspaceStorage
-        .saveDocumentReplicationObservation({
-          workspaceId: project.id,
-          deviceId,
-          documentId,
-          frontiers,
-          confirmedAt: Date.now(),
-        })
+        .saveDocumentReplicationObservation(
+          {
+            workspaceId: project.id,
+            deviceId,
+            documentId,
+            frontiers,
+            confirmedAt: Date.now(),
+          },
+          session,
+          localSecurityState.keyEpoch,
+        )
         .then(() => setReplicationRevision((value) => value + 1))
         .catch((error: unknown) => {
           console.warn(
@@ -672,7 +687,7 @@ function NoteApp({
           );
         });
     },
-    [project],
+    [localSecurityState, project],
   );
 
   const authorizedSync = useAuthorizedWorkspaceSync({
@@ -2026,12 +2041,13 @@ function NoteApp({
     if (invitationSyncEngineRef.current) return;
 
     const session = deviceVaultSessionRef.current;
-    if (!session || !webRtcTransport) {
+    if (!session || !webRtcTransport || !joiningDevice) {
       setCoordinationError(
-        "Vault session and WebRTC transport are required for initial sync",
+        "Vault session, joining device, and WebRTC transport are required for initial sync",
       );
       return;
     }
+    const joiningDeviceId = joiningDevice.deviceId;
 
     const encryptedTransport = new EncryptedSyncTransport(
       webRtcTransport,
@@ -2063,6 +2079,13 @@ function NoteApp({
       encryptedTransport,
       {
         debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
+        onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+          handleDocumentVersionConfirmed(
+            joiningDeviceId,
+            documentId,
+            frontiers,
+          );
+        },
       },
     );
     invitationSyncEngineRef.current = syncEngine;
