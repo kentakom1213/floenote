@@ -4731,24 +4731,6 @@ h1 {
     display: none;
   }
 
-  .tag-color-remove-action {
-    width: 100%;
-    display: block;
-    margin-top: 8px;
-    border: 0;
-    border-top: 1px solid var(--color-border);
-    border-radius: 0 0 6px 6px;
-    padding: 10px 8px 4px;
-    color: var(--color-danger);
-    background: transparent;
-    font-size: 11px;
-    text-align: left;
-  }
-
-  .tag-color-remove-action:hover {
-    background: var(--color-surface-hover);
-  }
-
   .note-tag-add,
   .note-tag-input {
     min-height: 32px;
@@ -6166,6 +6148,26 @@ h1 {
 
 .tag-color-remove-action {
   display: none;
+}
+
+@media (max-width: 760px) {
+  .tag-color-remove-action {
+    width: 100%;
+    display: block;
+    margin-top: 8px;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 6px 6px;
+    padding: 10px 8px 4px;
+    color: var(--color-danger);
+    background: transparent;
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .tag-color-remove-action:hover {
+    background: var(--color-surface-hover);
+  }
 }
 
 .tag-rename-control {
