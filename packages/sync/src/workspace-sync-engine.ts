@@ -1,4 +1,5 @@
 import type { NoteDocument, NoteProject } from "@floe-note/document";
+import type { DocumentId } from "@floe-note/domain";
 import type { Transport } from "@floe-note/transport";
 
 import { decodeSyncMessage, encodeSyncMessage } from "./protocol.js";
@@ -16,7 +17,7 @@ export type WorkspaceSyncEngineOptions = {
   onInitialRemoteStateReceived?: () => void;
   onInitialSyncError?: (error: Error) => void;
   onRemoteDocumentVersionConfirmed?: (
-    documentId: string,
+    documentId: DocumentId,
     frontiers: Uint8Array,
   ) => void;
   relayScope?: "local-tab" | "remote-peer";
@@ -33,7 +34,7 @@ export class WorkspaceSyncEngine {
   readonly #onInitialRemoteStateReceived: (() => void) | null;
   readonly #onInitialSyncError: ((error: Error) => void) | null;
   readonly #onRemoteDocumentVersionConfirmed:
-    | ((documentId: string, frontiers: Uint8Array) => void)
+    | ((documentId: DocumentId, frontiers: Uint8Array) => void)
     | null;
   readonly #relayScope: "local-tab" | "remote-peer" | null;
   readonly #documentSubscriptions = new Map<string, () => void>();
