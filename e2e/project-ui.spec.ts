@@ -190,6 +190,66 @@ test("creates a Project from the zero-active empty state", async ({ page }) => {
   await expect(page.getByRole("button", { name: "New note" })).toBeEnabled();
 });
 
+test("shows imported Project tags as assignment suggestions", async ({ page }) => {
+  await createSecuredProject(page);
+
+  await page.getByRole("button", { name: "Add tag" }).click();
+  let tagInput = page.getByRole("combobox", { name: "Add tag" });
+  await tagInput.fill("current-tag");
+  await tagInput.press("Enter");
+
+  await page.getByRole("button", { name: "New note" }).click();
+  await page.getByLabel("Note title").fill("Suggestion source");
+  await page.getByRole("button", { name: "Add tag" }).click();
+  tagInput = page.getByRole("combobox", { name: "Add tag" });
+  await tagInput.fill("imported-suggestion");
+  await tagInput.press("Enter");
+
+  await page
+    .getByRole("navigation", { name: "Notes" })
+    .getByRole("button", { name: "Welcome to Floe Note" })
+    .click();
+
+  await openSelectedProjectSettings(page);
+  await page.getByLabel("Project name").fill("Tag source");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export Project", exact: true }).click();
+  const download = await downloadPromise;
+  const archivePath = await download.path();
+  if (!archivePath) throw new Error("Export download is unavailable");
+  const archive = await readFile(archivePath);
+
+  await page
+    .getByRole("navigation", { name: "Notes" })
+    .getByRole("button", { name: "Welcome to Floe Note" })
+    .click();
+  await page.getByLabel(/Switch Project, current/).click();
+  await page.getByRole("button", { name: "New / Import Project…" }).click();
+  await page.getByRole("button", { name: /Import…/ }).click();
+  await page.getByRole("button", { name: "Import Floe export" }).click();
+  await page
+    .getByRole("dialog", { name: "Import Floe export" })
+    .locator('input[type="file"]')
+    .setInputFiles({
+      name: "Tag source.floe.zip",
+      mimeType: "application/zip",
+      buffer: archive,
+    });
+
+  await expect(page.getByLabel("Switch Project, current Tag source")).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Notes" })
+    .getByRole("button", { name: "Welcome to Floe Note" })
+    .click();
+
+  await page.getByRole("button", { name: "Add tag" }).click();
+  await expect(
+    page.getByRole("option").filter({ hasText: "imported-suggestion" }),
+  ).toBeVisible();
+});
+
 test("exports one Project and imports it into the existing Workspace", async ({ page }) => {
   const { projectId, documentId } = await createSecuredProject(page);
   const importedBody = "# Imported body\n\nUnique imported editor text";
@@ -385,6 +445,13 @@ test("keeps mobile tag controls and selected note content within their container
   const firstTag = page.locator(".note-tag-control").first();
   await expect(firstTag.locator(".note-tag-remove")).toBeVisible();
 
+  await page.getByRole("button", { name: "New note" }).click();
+  await page.getByLabel("Note title").fill("Untagged mobile note");
+  await page
+    .getByRole("navigation", { name: "Notes" })
+    .getByRole("button", { name: /Long mobile note title/ })
+    .click();
+
   await page.setViewportSize({ width: 390, height: 844 });
 
   for (const tag of [
@@ -430,6 +497,30 @@ test("keeps mobile tag controls and selected note content within their container
     );
   });
   expect(selectedContentFits).toBe(true);
+
+  const allRowsFit = await page.locator(".note-list").evaluate((list) => {
+    const listRect = list.getBoundingClientRect();
+
+    return [...list.querySelectorAll(".note-row")].every((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const item = row.querySelector(".note-item");
+      if (!item) return false;
+
+      const itemRect = item.getBoundingClientRect();
+      const tags = row.querySelector(".note-item-tags");
+      const tagsRect = tags?.getBoundingClientRect();
+
+      return (
+        rowRect.left >= listRect.left &&
+        rowRect.right <= listRect.right &&
+        itemRect.left >= rowRect.left &&
+        itemRect.right <= rowRect.right &&
+        (!tagsRect ||
+          (tagsRect.left >= itemRect.left && tagsRect.right <= itemRect.right))
+      );
+    });
+  });
+  expect(allRowsFit).toBe(true);
 
   await selectedRow.locator(".note-row-menu-trigger").click();
   const noteMenu = selectedRow.locator(".note-row-menu-popover");
