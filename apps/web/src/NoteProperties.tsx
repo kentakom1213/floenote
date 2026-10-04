@@ -169,6 +169,7 @@ export function NoteProperties({
                       }
                       availableTags={availableTags}
                       onRename={onTagRename}
+                      onRemove={() => removeTagFromProperties(document, tag)}
                     />
                     <button
                       className="note-tag-remove"
@@ -315,12 +316,14 @@ function NoteTagColorControl({
   onColorChange,
   availableTags,
   onRename,
+  onRemove,
 }: {
   tag: string;
   color: TagColor;
   onColorChange: (color: TagColor) => void;
   availableTags: readonly string[];
   onRename: ((oldTag: string, newTag: string) => void) | undefined;
+  onRemove: () => void;
 }) {
   const pickerRef = useRef<HTMLDetailsElement>(null);
   const [name, setName] = useState(tag);
@@ -351,7 +354,6 @@ function NoteTagColorControl({
         <TagChip tag={tag} color={color} />
       </summary>
       <div className="tag-color-popover">
-        <p className="tag-color-popover-label">{tag}</p>
         {onRename ? (
           <div className="tag-rename-control">
             <label htmlFor={`rename-${tag}`}>Name</label>
@@ -404,6 +406,16 @@ function NoteTagColorControl({
             pickerRef.current?.removeAttribute("open");
           }}
         />
+        <button
+          className="tag-color-remove-action"
+          type="button"
+          onClick={() => {
+            pickerRef.current?.removeAttribute("open");
+            onRemove();
+          }}
+        >
+          Remove tag
+        </button>
       </div>
     </details>
   );

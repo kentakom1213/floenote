@@ -368,3 +368,80 @@ test("shows Project settings within the mobile viewport and saves its name", asy
   await expect(page.getByRole("heading", { name: "Mobile notes" })).toBeVisible();
   await expect(page.getByLabel("Switch Project, current Mobile notes")).toBeVisible();
 });
+
+
+test("keeps mobile tag controls and selected note content within their containers", async ({ page }) => {
+  await createSecuredProject(page);
+
+  await page
+    .getByLabel("Note title")
+    .fill(`Long mobile note title ${"x".repeat(80)}`);
+
+  await page.getByRole("button", { name: "Add tag" }).click();
+  let input = page.getByRole("combobox", { name: "Add tag" });
+  await input.fill("very-long-mobile-tag-alpha");
+  await input.press("Enter");
+
+  const firstTag = page.locator(".note-tag-control").first();
+  await expect(firstTag.locator(".note-tag-remove")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  for (const tag of [
+    "very-long-mobile-tag-beta",
+    "very-long-mobile-tag-gamma",
+  ]) {
+    await page.getByRole("button", { name: "Add tag" }).click();
+    input = page.getByRole("combobox", { name: "Add tag" });
+    await input.fill(tag);
+    await input.press("Enter");
+  }
+
+  await expect(firstTag.locator(".note-tag-remove")).toBeHidden();
+  await firstTag.locator(".note-tag-color-summary").click();
+
+  const removeFromMenu = firstTag.getByRole("button", { name: "Remove tag" });
+  await expect(removeFromMenu).toBeVisible();
+  await removeFromMenu.click();
+  await expect(
+    page.getByLabel("Change very-long-mobile-tag-alpha color"),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const selectedRow = page.locator(".note-row.selected");
+  await expect(selectedRow).toBeVisible();
+
+  const selectedContentFits = await selectedRow.evaluate((row) => {
+    const item = row.querySelector(".note-item")!;
+    const title = row.querySelector(".note-item-title")!;
+    const tags = row.querySelector(".note-item-tags")!;
+    const rowRect = row.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const tagsRect = tags.getBoundingClientRect();
+
+    return (
+      itemRect.left >= rowRect.left &&
+      itemRect.right <= rowRect.right &&
+      titleRect.left >= itemRect.left &&
+      titleRect.right <= itemRect.right &&
+      tagsRect.left >= itemRect.left &&
+      tagsRect.right <= itemRect.right
+    );
+  });
+  expect(selectedContentFits).toBe(true);
+
+  await selectedRow.locator(".note-row-menu-trigger").click();
+  const noteMenu = selectedRow.locator(".note-row-menu-popover");
+  await expect(noteMenu).toBeVisible();
+  const menuExtendsPastRow = await selectedRow.evaluate((row) => {
+    const menu = row.querySelector(".note-row-menu-popover")!;
+    return menu.getBoundingClientRect().bottom > row.getBoundingClientRect().bottom;
+  });
+  expect(menuExtendsPastRow).toBe(true);
+
+  const moveAction = noteMenu.getByRole("button", { name: "Move note…" });
+  await expect(moveAction).toBeVisible();
+  await moveAction.click();
+  await expect(page.getByRole("dialog", { name: "Move note…" })).toBeVisible();
+});
