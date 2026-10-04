@@ -354,7 +354,6 @@ function NoteTagColorControl({
         <TagChip tag={tag} color={color} />
       </summary>
       <div className="tag-color-popover">
-        <p className="tag-color-popover-label">{tag}</p>
         {onRename ? (
           <div className="tag-rename-control">
             <label htmlFor={`rename-${tag}`}>Name</label>
