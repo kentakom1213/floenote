@@ -4,7 +4,7 @@ import type {
 } from "@floe-note/document";
 import type { CheckpointId } from "@floe-note/domain";
 
-import { MarkdownEditor } from "./MarkdownEditor.js";
+import { renderMarkdown } from "./MarkdownPreview.js";
 
 type EditHistoryPanelProps = {
   checkpoints: readonly EditHistoryCheckpoint[];
@@ -94,14 +94,17 @@ export function HistoricalVersionView({
   onBackToCurrent,
   onRestore,
 }: HistoricalVersionViewProps) {
-  const bodyDiff = createLineDiff(document.bodyText, currentDocument.bodyText);
+  const bodyDiff = renderInlineHistoryDiff(
+    document.bodyText,
+    currentDocument.bodyText,
+  );
 
   return (
     <section className="historical-version-view">
       <div className="historical-version-banner">
         <div>
           <strong>Version from {formatCheckpointTime(checkpoint.createdAt)}</strong>
-          <span>Read-only historical version</span>
+          <span>Compared with current · read-only</span>
         </div>
         <div className="historical-version-actions">
           <button type="button" onClick={onBackToCurrent}>
@@ -128,23 +131,11 @@ export function HistoricalVersionView({
         ) : null}
       </header>
 
-      <section className="historical-version-diff" aria-label="Changes since this version">
-        <h2>Changes since this version</h2>
-        {bodyDiff.length > 0 ? (
-          <pre>
-            {bodyDiff.map((line, index) => (
-              <span className={`historical-version-diff-${line.kind}`} key={index}>
-                {line.kind === "added" ? "+" : "-"} {line.text || " "}
-                {"\n"}
-              </span>
-            ))}
-          </pre>
-        ) : (
-          <p>No body changes.</p>
-        )}
-      </section>
-
-      <MarkdownEditor document={document} readOnly />
+      <div
+        className="markdown-preview historical-inline-diff"
+        aria-label="Historical version compared with current"
+        dangerouslySetInnerHTML={{ __html: bodyDiff.html }}
+      />
 
       <p className="historical-version-restore-note">
         Restoring applies this content as a new edit. Your current state remains
@@ -154,62 +145,184 @@ export function HistoricalVersionView({
   );
 }
 
-type DiffLine = {
-  kind: "added" | "removed";
+type DiffOperation = {
+  kind: "equal" | "added" | "removed";
   text: string;
 };
 
-export function createLineDiff(before: string, after: string): DiffLine[] {
-  const beforeLines = before.split("\n");
-  const afterLines = after.split("\n");
+export function renderInlineHistoryDiff(
+  historical: string,
+  current: string,
+): { html: string; hasChanges: boolean } {
+  if (historical === current) {
+    return {
+      html: renderMarkdown(historical),
+      hasChanges: false,
+    };
+  }
+
+  const lines = createLineOperations(historical, current);
+  const output: string[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    const operation = lines[index]!;
+    if (operation.kind === "equal") {
+      output.push(operation.text);
+      index += 1;
+      continue;
+    }
+
+    const removed: string[] = [];
+    const added: string[] = [];
+
+    while (index < lines.length && lines[index]!.kind !== "equal") {
+      const changed = lines[index]!;
+      if (changed.kind === "removed") removed.push(changed.text);
+      if (changed.kind === "added") added.push(changed.text);
+      index += 1;
+    }
+
+    const paired = Math.min(removed.length, added.length);
+    for (let pair = 0; pair < paired; pair += 1) {
+      output.push(renderChangedLine(removed[pair]!, added[pair]!));
+    }
+    for (let rest = paired; rest < removed.length; rest += 1) {
+      output.push(renderWholeLineChange(removed[rest]!, "removed"));
+    }
+    for (let rest = paired; rest < added.length; rest += 1) {
+      output.push(renderWholeLineChange(added[rest]!, "added"));
+    }
+  }
+
+  return {
+    html: renderMarkdown(output.join("\n")),
+    hasChanges: true,
+  };
+}
+
+function renderChangedLine(before: string, after: string): string {
+  const beforeParts = splitMarkdownLinePrefix(before);
+  const afterParts = splitMarkdownLinePrefix(after);
+
+  if (beforeParts.prefix !== afterParts.prefix) {
+    return [
+      renderWholeLineChange(before, "removed"),
+      renderWholeLineChange(after, "added"),
+    ].join("\n");
+  }
+
+  return beforeParts.prefix + createTokenOperations(
+    beforeParts.content,
+    afterParts.content,
+  )
+    .map((operation) => {
+      switch (operation.kind) {
+        case "equal":
+          return operation.text;
+        case "removed":
+          return "<del>" + operation.text + "</del>";
+        case "added":
+          return "<mark>" + operation.text + "</mark>";
+      }
+    })
+    .join("");
+}
+
+function renderWholeLineChange(
+  line: string,
+  kind: "added" | "removed",
+): string {
+  const { prefix, content } = splitMarkdownLinePrefix(line);
+  if (!content) return line;
+
+  return kind === "added"
+    ? prefix + "<mark>" + content + "</mark>"
+    : prefix + "<del>" + content + "</del>";
+}
+
+function splitMarkdownLinePrefix(line: string): {
+  prefix: string;
+  content: string;
+} {
+  const match = /^(\s{0,3}(?:(?:#{1,6}|>)\s+|(?:[-+*]|\d+[.)])\s+)?)(.*)$/u.exec(
+    line,
+  );
+  return {
+    prefix: match?.[1] ?? "",
+    content: match?.[2] ?? line,
+  };
+}
+
+function createLineOperations(
+  before: string,
+  after: string,
+): DiffOperation[] {
+  return createSequenceOperations(before.split("\n"), after.split("\n"));
+}
+
+function createTokenOperations(
+  before: string,
+  after: string,
+): DiffOperation[] {
+  return createSequenceOperations(tokenizeDiffText(before), tokenizeDiffText(after));
+}
+
+function tokenizeDiffText(value: string): string[] {
+  return value.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]+/gu) ?? [];
+}
+
+function createSequenceOperations(
+  before: readonly string[],
+  after: readonly string[],
+): DiffOperation[] {
   const lengths = Array.from(
-    { length: beforeLines.length + 1 },
-    () => new Uint32Array(afterLines.length + 1),
+    { length: before.length + 1 },
+    () => new Uint32Array(after.length + 1),
   );
 
-  for (let beforeIndex = beforeLines.length - 1; beforeIndex >= 0; beforeIndex -= 1) {
-    for (let afterIndex = afterLines.length - 1; afterIndex >= 0; afterIndex -= 1) {
-      lengths[beforeIndex]![afterIndex] =
-        beforeLines[beforeIndex] === afterLines[afterIndex]
-          ? lengths[beforeIndex + 1]![afterIndex + 1]! + 1
+  for (let left = before.length - 1; left >= 0; left -= 1) {
+    for (let right = after.length - 1; right >= 0; right -= 1) {
+      lengths[left]![right] =
+        before[left] === after[right]
+          ? lengths[left + 1]![right + 1]! + 1
           : Math.max(
-              lengths[beforeIndex + 1]![afterIndex]!,
-              lengths[beforeIndex]![afterIndex + 1]!,
+              lengths[left + 1]![right]!,
+              lengths[left]![right + 1]!,
             );
     }
   }
 
-  const diff: DiffLine[] = [];
-  let beforeIndex = 0;
-  let afterIndex = 0;
+  const operations: DiffOperation[] = [];
+  let left = 0;
+  let right = 0;
 
-  while (beforeIndex < beforeLines.length || afterIndex < afterLines.length) {
+  while (left < before.length || right < after.length) {
     if (
-      beforeIndex < beforeLines.length &&
-      afterIndex < afterLines.length &&
-      beforeLines[beforeIndex] === afterLines[afterIndex]
+      left < before.length &&
+      right < after.length &&
+      before[left] === after[right]
     ) {
-      beforeIndex += 1;
-      afterIndex += 1;
+      operations.push({ kind: "equal", text: before[left]! });
+      left += 1;
+      right += 1;
       continue;
     }
 
     if (
-      afterIndex < afterLines.length &&
-      (beforeIndex === beforeLines.length ||
-        lengths[beforeIndex]![afterIndex + 1]! >=
-          lengths[beforeIndex + 1]![afterIndex]!)
+      right < after.length &&
+      (left === before.length ||
+        lengths[left]![right + 1]! >= lengths[left + 1]![right]!)
     ) {
-      diff.push({ kind: "added", text: afterLines[afterIndex]! });
-      afterIndex += 1;
+      operations.push({ kind: "added", text: after[right]! });
+      right += 1;
       continue;
     }
 
-    diff.push({ kind: "removed", text: beforeLines[beforeIndex]! });
-    beforeIndex += 1;
+    operations.push({ kind: "removed", text: before[left]! });
+    left += 1;
   }
 
-  return diff;
+  return operations;
 }
 
 export function formatCheckpointTime(timestamp: number): string {
