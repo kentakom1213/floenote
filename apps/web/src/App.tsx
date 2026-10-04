@@ -47,6 +47,7 @@ import {
 } from "@floe-note/security";
 import {
   DexieWorkspaceStorage,
+  type DocumentReplicationObservation,
   type StoredWorkspaceSummary,
 } from "@floe-note/storage";
 import {
@@ -270,6 +271,10 @@ function NoteApp({
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [replicationRevision, setReplicationRevision] = useState(0);
+  const [replicationObservations, setReplicationObservations] = useState<
+    readonly DocumentReplicationObservation[]
+  >([]);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
   const [focusTitleDocumentId, setFocusTitleDocumentId] =
     useState<DocumentId | null>(null);
@@ -352,6 +357,34 @@ function NoteApp({
   useEffect(() => {
     if (project) writeSelectedProjectId(project.id, selectedProjectId);
   }, [project, selectedProjectId]);
+
+  const observedDocumentId = routeNoteId ?? selectedId;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!project || !observedDocumentId) {
+      setReplicationObservations([]);
+      return;
+    }
+
+    void workspaceStorage
+      .listDocumentReplicationObservations(project.id, observedDocumentId)
+      .then((observations) => {
+        if (!cancelled) setReplicationObservations(observations);
+      })
+      .catch((error: unknown) => {
+        console.warn(
+          error instanceof Error
+            ? `Failed to load replication observations: ${error.message}`
+            : "Failed to load replication observations",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [observedDocumentId, project, replicationRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -606,6 +639,30 @@ function NoteApp({
   const automaticReconnectEnabled =
     useAutomaticReconnect && !invitationHostActive;
 
+  const handleDocumentVersionConfirmed = useCallback(
+    (deviceId: DeviceId, documentId: DocumentId, frontiers: Uint8Array) => {
+      if (!project) return;
+
+      void workspaceStorage
+        .saveDocumentReplicationObservation({
+          workspaceId: project.id,
+          deviceId,
+          documentId,
+          frontiers,
+          confirmedAt: Date.now(),
+        })
+        .then(() => setReplicationRevision((value) => value + 1))
+        .catch((error: unknown) => {
+          console.warn(
+            error instanceof Error
+              ? `Failed to persist replication confirmation: ${error.message}`
+              : "Failed to persist replication confirmation",
+          );
+        });
+    },
+    [project],
+  );
+
   const authorizedSync = useAuthorizedWorkspaceSync({
     coordinatorBaseUrl,
     project,
@@ -616,6 +673,7 @@ function NoteApp({
     automaticReconnectEnabled,
     turnCredentialEndpoint,
     onSecurityStateChanged: handleSecurityStateChanged,
+    onDocumentVersionConfirmed: handleDocumentVersionConfirmed,
   });
 
   useEncryptedLocalTabSync({
@@ -2127,6 +2185,17 @@ function NoteApp({
             ? "online"
             : "offline";
 
+      const observation = replicationObservations.find(
+        (candidate) => candidate.deviceId === deviceId,
+      );
+      const replication: SyncDeviceUi["replication"] = isCurrent
+        ? undefined
+        : observation && selectedDocument
+          ? selectedDocument.matchesHistoryFrontiers(observation.frontiers)
+            ? "current"
+            : "stale"
+          : "unknown";
+
       return [
         {
           deviceId,
@@ -2136,6 +2205,8 @@ function NoteApp({
               ? localDeviceName ?? "This device"
               : "Unnamed device"),
           state,
+          replication,
+          confirmedAt: observation?.confirmedAt,
         },
       ];
     })
