@@ -40,6 +40,7 @@ const ALLOWED_MARKDOWN_TAGS = [
 ] as const;
 
 const CODE_LANGUAGE_CLASS = /^language-[a-z0-9_+-]+$/iu;
+const HISTORY_DIFF_CLASS = /^historical-diff-(?:added|removed)$/u;
 
 export function sanitizeMarkdownHtml(html: string): string {
   const sanitized = String(
@@ -106,8 +107,18 @@ function normalizeMarkdownAttributes(root: HTMLElement): void {
         CODE_LANGUAGE_CLASS.test(attribute.value);
       const keepDetailsOpen =
         tag === "details" && attribute.name === "open";
+      const keepHistoryDiffClass =
+        (tag === "mark" || tag === "del") &&
+        attribute.name === "class" &&
+        HISTORY_DIFF_CLASS.test(attribute.value);
 
-      if (!keepHref && !keepTitle && !keepCodeClass && !keepDetailsOpen) {
+      if (
+        !keepHref &&
+        !keepTitle &&
+        !keepCodeClass &&
+        !keepDetailsOpen &&
+        !keepHistoryDiffClass
+      ) {
         element.removeAttribute(attribute.name);
       }
     }
