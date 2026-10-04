@@ -781,6 +781,7 @@ function DocumentPane({
           <HistoricalVersionView
             checkpoint={selectedCheckpoint}
             document={historicalDocument}
+            currentDocument={document}
             onBackToCurrent={() => setSelectedCheckpointId(null)}
             onRestore={restoreHistoricalVersion}
           />
