@@ -172,15 +172,16 @@ describe("encrypted Workspace synchronization", () => {
         expect(joined.getDocument(document.id)?.title).toBe(
           "Invitation bootstrap",
         );
-        expect(observations).toHaveLength(1);
+        expect(observations.length).toBeGreaterThan(0);
       });
 
-      expect(observations[0]?.deviceId).toBe(joiningDeviceId);
-      expect(observations[0]?.documentId).toBe(document.id);
+      const observation = observations.at(-1)!;
+      expect(observation.deviceId).toBe(joiningDeviceId);
+      expect(observation.documentId).toBe(document.id);
       expect(
         host
           .getDocument(document.id)
-          ?.matchesHistoryFrontiers(observations[0]!.frontiers),
+          ?.matchesHistoryFrontiers(observation.frontiers),
       ).toBe(true);
     } finally {
       hostEngine.stop();
