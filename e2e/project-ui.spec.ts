@@ -199,7 +199,7 @@ test("shows imported Project tags as assignment suggestions", async ({ page }) =
   await tagInput.press("Enter");
 
   await page.getByRole("button", { name: "New note" }).click();
-  await page.getByLabel("Note title").fill("Suggestion source");
+  await page.getByRole("textbox", { name: "Note title", exact: true }).fill("Suggestion source");
   await page.getByRole("button", { name: "Add tag" }).click();
   tagInput = page.getByRole("combobox", { name: "Add tag" });
   await tagInput.fill("imported-suggestion");
@@ -241,7 +241,7 @@ test("shows imported Project tags as assignment suggestions", async ({ page }) =
   await expect(page.getByLabel("Switch Project, current Tag source")).toBeVisible();
 
   await page.getByRole("button", { name: "New note" }).click();
-  await expect(page.getByLabel("Note title")).toHaveValue("Untitled");
+  await expect(page.getByRole("textbox", { name: "Note title", exact: true })).toHaveValue("Untitled");
   await page.getByRole("button", { name: "Add tag" }).click();
   await expect(
     page.getByRole("option").filter({ hasText: "current-tag" }),
@@ -447,7 +447,7 @@ test("keeps mobile tag controls and selected note content within their container
   await expect(firstTag.locator(".note-tag-remove")).toBeVisible();
 
   await page.getByRole("button", { name: "New note" }).click();
-  await page.getByLabel("Note title").fill("Untagged mobile note");
+  await page.getByRole("textbox", { name: "Note title", exact: true }).fill("Untagged mobile note");
   await page
     .getByRole("navigation", { name: "Notes" })
     .getByRole("button", { name: /Long mobile note title/ })
