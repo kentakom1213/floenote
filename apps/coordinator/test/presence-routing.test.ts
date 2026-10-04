@@ -19,11 +19,12 @@ function socket(name: string, attachment: unknown): FakeSocket {
 }
 
 describe("presence reconnect routing", () => {
-  it("returns every presence socket for the target device", () => {
+  it("returns every live presence socket for the target device", () => {
     const target = "00000000-0000-7000-8000-000000000001";
+    const now = 1_000_000;
     const sockets = [
-      socket("stale", { kind: "presence", deviceId: target }),
-      socket("active", { kind: "presence", deviceId: target }),
+      socket("first", { kind: "presence", deviceId: target, lastSeenAt: now }),
+      socket("second", { kind: "presence", deviceId: target, lastSeenAt: now }),
       socket("other", {
         kind: "presence",
         deviceId: "00000000-0000-7000-8000-000000000002",
@@ -32,17 +33,17 @@ describe("presence reconnect routing", () => {
     ];
 
     expect(
-      findPresenceSocketsForDevice(sockets, target).map(
+      findPresenceSocketsForDevice(sockets, target, now).map(
         (candidate) => candidate.name,
       ),
-    ).toEqual(["stale", "active"]);
+    ).toEqual(["first", "second"]);
 
     // Closing one same-device Presence socket leaves the other routable.
     expect(
-      findPresenceSocketsForDevice(sockets.slice(1), target).map(
+      findPresenceSocketsForDevice(sockets.slice(1), target, now).map(
         (candidate) => candidate.name,
       ),
-    ).toEqual(["active"]);
+    ).toEqual(["second"]);
   });
 
   it("excludes expired lease-aware sockets while keeping live duplicates routable", () => {
