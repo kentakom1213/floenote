@@ -85,11 +85,12 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     },
     { workspaceId, documentId },
   );
-  // Dexie maps schema version 2 to IndexedDB version 20.
-  expect(persisted.version).toBe(20);
+  // Dexie maps schema version 3 to IndexedDB version 30.
+  expect(persisted.version).toBe(30);
   expect(persisted.stores).toEqual([
     "documents",
     "manifests",
+    "replicationObservations",
     "security",
     "workspaces",
   ]);
@@ -139,6 +140,27 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   await expect(
     page.locator(".edit-history-list .edit-history-item"),
   ).toHaveCount(2);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  const restoreButton = page.getByRole("button", {
+    name: "Restore this version",
+  });
+  await expect(restoreButton).toBeVisible();
+
+  const [historyPanelBox, restoreButtonBox] = await Promise.all([
+    page.locator(".edit-history-panel").boundingBox(),
+    restoreButton.boundingBox(),
+  ]);
+  expect(historyPanelBox).not.toBeNull();
+  expect(restoreButtonBox).not.toBeNull();
+  expect(historyPanelBox!.y).toBeGreaterThanOrEqual(
+    restoreButtonBox!.y + restoreButtonBox!.height,
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
 });
 
 test("resets pre-Project Workspace schema v1 before creating fresh data", async ({
@@ -245,7 +267,7 @@ test("resets pre-Project Workspace schema v1 before creating fresh data", async 
     { oldWorkspaceId, oldDocumentId, newWorkspaceId, newDocumentId },
   );
 
-  expect(persisted.version).toBe(20);
+  expect(persisted.version).toBe(30);
   expect(persisted.oldRows).toEqual([null, null, null, null]);
   expect(persisted.newRows.every((row) => row !== null)).toBe(true);
 });
