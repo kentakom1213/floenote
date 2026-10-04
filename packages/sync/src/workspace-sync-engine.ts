@@ -273,13 +273,15 @@ export class WorkspaceSyncEngine {
           );
           if (importedDocument) {
             this.#relayImportedUpdate(data);
-            this.#transport.send(
-              encodeSyncMessage({
-                type: "document-ack",
-                documentId: importedDocument.id,
-                frontiers: importedDocument.captureHistoryFrontiers(),
-              }),
-            );
+            if (this.#onRemoteDocumentVersionConfirmed) {
+              this.#transport.send(
+                encodeSyncMessage({
+                  type: "document-ack",
+                  documentId: importedDocument.id,
+                  frontiers: importedDocument.captureHistoryFrontiers(),
+                }),
+              );
+            }
           }
           return;
         }
