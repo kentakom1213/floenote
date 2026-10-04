@@ -271,6 +271,7 @@ function NoteApp({
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [, setObservedDocumentRevision] = useState(0);
   const [replicationRevision, setReplicationRevision] = useState(0);
   const [replicationObservations, setReplicationObservations] = useState<
     readonly DocumentReplicationObservation[]
@@ -359,6 +360,17 @@ function NoteApp({
   }, [project, selectedProjectId]);
 
   const observedDocumentId = routeNoteId ?? selectedId;
+
+  useEffect(() => {
+    if (!project || !observedDocumentId) return;
+
+    const document = project.getDocument(observedDocumentId);
+    if (!document) return;
+
+    return document.subscribe(() => {
+      setObservedDocumentRevision((value) => value + 1);
+    });
+  }, [observedDocumentId, project]);
 
   useEffect(() => {
     let cancelled = false;
