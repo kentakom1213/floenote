@@ -7,7 +7,7 @@ import {
   type WebRtcSignalingRole,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
-import type { DeviceId } from "@floe-note/domain";
+import type { DeviceId, DocumentId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 import {
   EncryptedSyncTransport,
@@ -70,6 +70,11 @@ export type AutomaticPeerSyncManagerOptions = {
     mode: ReconnectTransportMode,
   ) => Promise<RTCConfiguration | undefined>;
   onStatusChange: (status: AutomaticPeerSyncStatus) => void;
+  onDocumentVersionConfirmed?: (
+    deviceId: DeviceId,
+    documentId: DocumentId,
+    frontiers: Uint8Array,
+  ) => void;
 };
 
 export class AutomaticPeerSyncManager {
@@ -84,6 +89,13 @@ export class AutomaticPeerSyncManager {
     mode: ReconnectTransportMode,
   ) => Promise<RTCConfiguration | undefined>;
   readonly #onStatusChange: (status: AutomaticPeerSyncStatus) => void;
+  readonly #onDocumentVersionConfirmed:
+    | ((
+        deviceId: DeviceId,
+        documentId: DocumentId,
+        frontiers: Uint8Array,
+      ) => void)
+    | null;
   readonly #connections = new Map<DeviceId, AutomaticPeerConnection>();
   readonly #connectedDeviceIds = new Set<DeviceId>();
   readonly #retryStates = new Map<DeviceId, PeerRetryState>();
@@ -103,6 +115,8 @@ export class AutomaticPeerSyncManager {
     this.#rtcConfigurationProvider =
       options.rtcConfigurationProvider ?? (async () => undefined);
     this.#onStatusChange = options.onStatusChange;
+    this.#onDocumentVersionConfirmed =
+      options.onDocumentVersionConfirmed ?? null;
   }
 
   updateOnlineDevices(deviceIds: readonly DeviceId[]): void {
@@ -321,6 +335,13 @@ export class AutomaticPeerSyncManager {
       encryptedTransport,
       {
         debugLogger: createConsoleDebugLogger(`auto-${role}-sync`),
+        onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+          this.#onDocumentVersionConfirmed?.(
+            peerDeviceId,
+            documentId,
+            frontiers,
+          );
+        },
         relayScope: "remote-peer",
       },
     );
