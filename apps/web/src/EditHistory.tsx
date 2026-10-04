@@ -129,11 +129,22 @@ export function HistoricalVersionView({
       <div className="historical-version-banner">
         <div>
           <strong>Version from {formatCheckpointTime(checkpoint.createdAt)}</strong>
-          <span>
-            {createdByDeviceName
-              ? `Created on ${createdByDeviceName} · compared with current`
-              : "Compared with current · read-only"}
-          </span>
+          {createdByDeviceName && checkpoint.createdByDeviceId ? (
+            <span className="historical-version-device-meta">
+              <span
+                className="history-device-dot"
+                data-device-color={historyDeviceColor(
+                  checkpoint.createdByDeviceId,
+                )}
+                aria-hidden="true"
+              />
+              <span>
+                Created on {createdByDeviceName} · compared with current
+              </span>
+            </span>
+          ) : (
+            <span>Compared with current · read-only</span>
+          )}
         </div>
         <div className="historical-version-actions">
           <button type="button" onClick={onBackToCurrent}>
