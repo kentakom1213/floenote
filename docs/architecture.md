@@ -521,6 +521,16 @@ The joining side starts its encrypted listener before sending the
 the inviter starts its encrypted SyncEngine and sends full state. This ordering
 avoids requiring a second WebRTC connection for the initial synchronization.
 
+Web clients may remain on an older PWA build until the user accepts the update,
+so sync protocol v1 must tolerate a mixed old/new pair during rollout. The
+current `document-ack` extension uses one narrow compatibility signal: new
+clients append an ACK-support byte to `full-state-end`. Existing v1 decoders
+already ignore trailing bytes on that message. A new client sends
+`document-ack` only after the peer has advertised support, so an older v1
+client never receives the unknown message type. This is not a general feature
+negotiation framework; broader protocol-version negotiation remains out of
+scope until another incompatible extension requires it.
+
 ## 10. Peer-to-peer connectivity
 
 WebRTC DataChannels carry Workspace synchronization data directly between devices.
@@ -1403,8 +1413,9 @@ The AEAD additional authenticated data binds:
 domain separation
 WorkspaceId
 keyEpoch
-record kind = manifest | document
+record kind = manifest | document | replication-observation
 DocumentId for document records
+DeviceId + DocumentId for replication-observation records
 ```
 
 The envelope carries keyEpoch so records written under an older epoch remain
@@ -1430,7 +1441,20 @@ manifests
 
 documents
   [WorkspaceId, DocumentId] -> encrypted serialized note Loro state
+
+replicationObservations
+  [WorkspaceId, DeviceId, DocumentId]
+    -> cleartext index identity + encrypted { frontiers, confirmedAt }
 ```
+
+Replication observations are local-only metadata used to describe the last
+document version explicitly confirmed by a remote device. They are not
+collaborative Workspace manifest/CRDT state and are not synchronized to peers.
+Their durable version payload (`frontiers` and `confirmedAt`) still uses the
+existing Workspace storage encryption capability. The cleartext tuple exists
+only to index the local record; AEAD context binds the same WorkspaceId,
+DeviceId, and DocumentId so the ciphertext cannot be silently moved to another
+observation row.
 
 Future attachments and derived indexes must use the same Workspace boundary.
 
@@ -1691,7 +1715,8 @@ Workspace, Document, synchronization, and security boundaries:
 4. Document tombstone garbage collection.
 5. Future full backup/restore format for preserving the original Workspace identity.
 6. Background synchronization strategy.
-7. Detailed synchronization protocol-version negotiation beyond the current encrypted envelope.
+7. General synchronization protocol-version negotiation beyond the narrow
+   `document-ack` support bit carried by `full-state-end`.
 9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
 
 These details should be introduced only when required by an implementation or product requirement.
