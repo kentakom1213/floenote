@@ -2,7 +2,7 @@ import type {
   EditHistoryCheckpoint,
   NoteDocument,
 } from "@floe-note/document";
-import type { CheckpointId } from "@floe-note/domain";
+import type { CheckpointId, DeviceId } from "@floe-note/domain";
 
 import { renderMarkdown } from "./MarkdownPreview.js";
 
@@ -12,6 +12,7 @@ type EditHistoryPanelProps = {
   onSelectCheckpoint: (checkpointId: CheckpointId) => void;
   onSelectCurrent: () => void;
   onClose: () => void;
+  getDeviceName: (deviceId: DeviceId) => string | null;
 };
 
 export function EditHistoryPanel({
@@ -20,6 +21,7 @@ export function EditHistoryPanel({
   onSelectCheckpoint,
   onSelectCurrent,
   onClose,
+  getDeviceName,
 }: EditHistoryPanelProps) {
   return (
     <aside className="edit-history-panel" aria-label="Edit history">
@@ -45,30 +47,51 @@ export function EditHistoryPanel({
           type="button"
           onClick={onSelectCurrent}
         >
-          <span className="edit-history-current-dot" aria-hidden="true" />
+          <span className="edit-history-current-marker" aria-hidden="true" />
           <span>Current</span>
         </button>
 
         {checkpoints.length > 0 ? (
-          checkpoints.map((checkpoint) => (
-            <button
-              className={
-                checkpoint.id === selectedCheckpointId
-                  ? "edit-history-item selected"
-                  : "edit-history-item"
-              }
-              type="button"
-              key={checkpoint.id}
-              onClick={() => onSelectCheckpoint(checkpoint.id)}
-            >
-              <span className="edit-history-item-time">
-                {formatCheckpointTime(checkpoint.createdAt)}
-              </span>
-              {checkpoint.restoreSourceCheckpointId ? (
-                <span className="edit-history-item-kind">Restored</span>
-              ) : null}
-            </button>
-          ))
+          checkpoints.map((checkpoint) => {
+            const deviceName = checkpoint.createdByDeviceId
+              ? getDeviceName(checkpoint.createdByDeviceId) ?? "Unnamed device"
+              : null;
+
+            return (
+              <button
+                className={
+                  checkpoint.id === selectedCheckpointId
+                    ? "edit-history-item selected"
+                    : "edit-history-item"
+                }
+                type="button"
+                key={checkpoint.id}
+                onClick={() => onSelectCheckpoint(checkpoint.id)}
+              >
+                <span className="edit-history-item-time">
+                  {formatCheckpointTime(checkpoint.createdAt)}
+                </span>
+                {deviceName && checkpoint.createdByDeviceId ? (
+                  <span
+                    className="edit-history-device"
+                    title={`Created on ${deviceName}`}
+                  >
+                    <span
+                      className="history-device-dot"
+                      data-device-color={historyDeviceColor(
+                        checkpoint.createdByDeviceId,
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span>{deviceName}</span>
+                  </span>
+                ) : null}
+                {checkpoint.restoreSourceCheckpointId ? (
+                  <span className="edit-history-item-kind">Restored</span>
+                ) : null}
+              </button>
+            );
+          })
         ) : (
           <p className="edit-history-empty">
             Versions appear here after you edit this note.
@@ -83,6 +106,7 @@ type HistoricalVersionViewProps = {
   checkpoint: EditHistoryCheckpoint;
   document: NoteDocument;
   currentDocument: NoteDocument;
+  createdByDeviceName: string | null;
   onBackToCurrent: () => void;
   onRestore: () => void;
 };
@@ -91,6 +115,7 @@ export function HistoricalVersionView({
   checkpoint,
   document,
   currentDocument,
+  createdByDeviceName,
   onBackToCurrent,
   onRestore,
 }: HistoricalVersionViewProps) {
@@ -104,7 +129,11 @@ export function HistoricalVersionView({
       <div className="historical-version-banner">
         <div>
           <strong>Version from {formatCheckpointTime(checkpoint.createdAt)}</strong>
-          <span>Compared with current · read-only</span>
+          <span>
+            {createdByDeviceName
+              ? `Created on ${createdByDeviceName} · compared with current`
+              : "Compared with current · read-only"}
+          </span>
         </div>
         <div className="historical-version-actions">
           <button type="button" onClick={onBackToCurrent}>
@@ -323,6 +352,28 @@ function createSequenceOperations(
   }
 
   return operations;
+}
+
+const HISTORY_DEVICE_COLORS = [
+  "red",
+  "orange",
+  "green",
+  "sky",
+  "blue",
+  "purple",
+  "pink",
+  "brown",
+] as const;
+
+type HistoryDeviceColor = (typeof HISTORY_DEVICE_COLORS)[number];
+
+export function historyDeviceColor(deviceId: DeviceId): HistoryDeviceColor {
+  let hash = 2166136261;
+  for (let index = 0; index < deviceId.length; index += 1) {
+    hash ^= deviceId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return HISTORY_DEVICE_COLORS[(hash >>> 0) % HISTORY_DEVICE_COLORS.length]!;
 }
 
 export function formatCheckpointTime(timestamp: number): string {
