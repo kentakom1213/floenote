@@ -306,6 +306,7 @@ export function InvitationJoinPage({
 
                   void (async () => {
                     try {
+                      await encryptedTransport.flushPendingSends();
                       await storage.flushPendingWrites();
                       await storage.completeJoinedWorkspaceBootstrap(
                         securityState.workspaceId,
