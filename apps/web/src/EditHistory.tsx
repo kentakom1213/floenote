@@ -82,6 +82,7 @@ export function EditHistoryPanel({
 type HistoricalVersionViewProps = {
   checkpoint: EditHistoryCheckpoint;
   document: NoteDocument;
+  currentDocument: NoteDocument;
   onBackToCurrent: () => void;
   onRestore: () => void;
 };
@@ -89,9 +90,12 @@ type HistoricalVersionViewProps = {
 export function HistoricalVersionView({
   checkpoint,
   document,
+  currentDocument,
   onBackToCurrent,
   onRestore,
 }: HistoricalVersionViewProps) {
+  const bodyDiff = createLineDiff(document.bodyText, currentDocument.bodyText);
+
   return (
     <section className="historical-version-view">
       <div className="historical-version-banner">
@@ -124,6 +128,22 @@ export function HistoricalVersionView({
         ) : null}
       </header>
 
+      <section className="historical-version-diff" aria-label="Changes since this version">
+        <h2>Changes since this version</h2>
+        {bodyDiff.length > 0 ? (
+          <pre>
+            {bodyDiff.map((line, index) => (
+              <span className={`historical-version-diff-${line.kind}`} key={index}>
+                {line.kind === "added" ? "+" : "-"} {line.text || " "}
+                {"\n"}
+              </span>
+            ))}
+          </pre>
+        ) : (
+          <p>No body changes.</p>
+        )}
+      </section>
+
       <MarkdownEditor document={document} readOnly />
 
       <p className="historical-version-restore-note">
@@ -132,6 +152,64 @@ export function HistoricalVersionView({
       </p>
     </section>
   );
+}
+
+type DiffLine = {
+  kind: "added" | "removed";
+  text: string;
+};
+
+export function createLineDiff(before: string, after: string): DiffLine[] {
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+  const lengths = Array.from(
+    { length: beforeLines.length + 1 },
+    () => new Uint32Array(afterLines.length + 1),
+  );
+
+  for (let beforeIndex = beforeLines.length - 1; beforeIndex >= 0; beforeIndex -= 1) {
+    for (let afterIndex = afterLines.length - 1; afterIndex >= 0; afterIndex -= 1) {
+      lengths[beforeIndex]![afterIndex] =
+        beforeLines[beforeIndex] === afterLines[afterIndex]
+          ? lengths[beforeIndex + 1]![afterIndex + 1]! + 1
+          : Math.max(
+              lengths[beforeIndex + 1]![afterIndex]!,
+              lengths[beforeIndex]![afterIndex + 1]!,
+            );
+    }
+  }
+
+  const diff: DiffLine[] = [];
+  let beforeIndex = 0;
+  let afterIndex = 0;
+
+  while (beforeIndex < beforeLines.length || afterIndex < afterLines.length) {
+    if (
+      beforeIndex < beforeLines.length &&
+      afterIndex < afterLines.length &&
+      beforeLines[beforeIndex] === afterLines[afterIndex]
+    ) {
+      beforeIndex += 1;
+      afterIndex += 1;
+      continue;
+    }
+
+    if (
+      afterIndex < afterLines.length &&
+      (beforeIndex === beforeLines.length ||
+        lengths[beforeIndex]![afterIndex + 1]! >=
+          lengths[beforeIndex + 1]![afterIndex]!)
+    ) {
+      diff.push({ kind: "added", text: afterLines[afterIndex]! });
+      afterIndex += 1;
+      continue;
+    }
+
+    diff.push({ kind: "removed", text: beforeLines[beforeIndex]! });
+    beforeIndex += 1;
+  }
+
+  return diff;
 }
 
 export function formatCheckpointTime(timestamp: number): string {
