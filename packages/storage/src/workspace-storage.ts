@@ -1,5 +1,5 @@
 import type { NoteProject } from "@floe-note/document";
-import type { DocumentId, WorkspaceId } from "@floe-note/domain";
+import type { DeviceId, DocumentId, WorkspaceId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 
 export type OpenWorkspaceResult = {
@@ -13,6 +13,14 @@ export type StoredWorkspaceSummary = {
   name: string;
   createdAt: number;
   isActive: boolean;
+};
+
+export type DocumentReplicationObservation = {
+  workspaceId: WorkspaceId;
+  deviceId: DeviceId;
+  documentId: DocumentId;
+  frontiers: Uint8Array;
+  confirmedAt: number;
 };
 
 export type WorkspaceStorageRecordContext =
@@ -77,6 +85,15 @@ export interface WorkspaceStorage {
 
   loadSecurityState(workspaceId: WorkspaceId): Promise<SecurityState | null>;
   saveCommittedSecurityState(state: SecurityState): Promise<void>;
+
+  saveDocumentReplicationObservation(
+    observation: DocumentReplicationObservation,
+  ): Promise<void>;
+
+  listDocumentReplicationObservations(
+    workspaceId: WorkspaceId,
+    documentId: DocumentId,
+  ): Promise<readonly DocumentReplicationObservation[]>;
 
   watchWorkspace(
     project: NoteProject,
