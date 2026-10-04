@@ -460,7 +460,9 @@ export function useAuthorizedWorkspaceSync({
               )
             : Promise.resolve(undefined),
         onStatusChange: setAutomaticSyncStatus,
-        onDocumentVersionConfirmed,
+        ...(onDocumentVersionConfirmed
+          ? { onDocumentVersionConfirmed }
+          : {}),
       });
       automaticPeerSyncRef.current = automaticPeerSync;
 
