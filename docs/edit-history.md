@@ -135,9 +135,12 @@ The preview shows the historical:
 - tags;
 - Markdown body.
 
-It also derives a simple line-oriented Markdown body diff from the selected
-checkpoint to the current note. The diff is computed on demand from the two
-document states and is not persisted in checkpoint metadata.
+It also derives a Markdown body diff from the selected checkpoint to the
+current note. The historical text remains in the normal rendered document flow:
+removed historical text is shown in red with a strike-through, while text that
+exists only in the current note is shown in green inline. The diff is computed
+on demand from the two document states and is not persisted in checkpoint
+metadata.
 
 Document identity, Workspace membership, Trash state, and other lifecycle state
 are not part of the historical content snapshot.
@@ -200,7 +203,7 @@ Opening History shows:
 - `Current` at the top;
 - checkpoint timestamps, newest first;
 - a read-only historical preview for the selected checkpoint;
-- a compact line diff showing body changes since that checkpoint;
+- inline body highlights showing changes between that checkpoint and Current;
 - `Back to current`;
 - `Restore this version`.
 
