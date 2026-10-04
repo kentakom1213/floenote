@@ -267,6 +267,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
+      this.#db.replicationObservations,
       async () => {
         const remaining = await this.#db.workspaces
           .orderBy("createdAt")
