@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
-import type { CheckpointId, DocumentId, ProjectId } from "@floe-note/domain";
+import type {
+  CheckpointId,
+  DeviceId,
+  DocumentId,
+  ProjectId,
+} from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { EditorModeView } from "./EditorModeView.js";
@@ -53,6 +58,7 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   workspaceProjectControl: ReactNode;
   selectedProjectId: ProjectId | null;
+  localDeviceId: DeviceId | null;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
   trashActive: boolean;
@@ -77,6 +83,7 @@ export function NoteWorkspace({
   projectControl,
   workspaceProjectControl,
   selectedProjectId,
+  localDeviceId,
   sidebarFooter,
   mainContent,
   trashActive,
@@ -473,6 +480,7 @@ export function NoteWorkspace({
           <DocumentPane
             project={project}
             document={selectedDocument}
+            localDeviceId={localDeviceId}
             availableTags={projectTags}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
             onTitleFocusHandled={onTitleFocusHandled}
@@ -569,6 +577,7 @@ export function NoteWorkspace({
 type DocumentPaneProps = {
   project: NoteProject;
   document: NoteDocument;
+  localDeviceId: DeviceId | null;
   availableTags: readonly string[];
   focusTitle: boolean;
   onTitleFocusHandled: () => void;
@@ -580,6 +589,7 @@ type DocumentPaneProps = {
 function DocumentPane({
   project,
   document,
+  localDeviceId,
   availableTags,
   focusTitle,
   onTitleFocusHandled,
@@ -596,7 +606,7 @@ function DocumentPane({
   const [, setHistoryRevision] = useState(0);
 
   useDismissibleDetails(noteMenuRef);
-  useAutomaticEditHistory(project, document);
+  useAutomaticEditHistory(project, document, localDeviceId);
 
   useEffect(
     () =>
@@ -673,7 +683,9 @@ function DocumentPane({
   function restoreHistoricalVersion(): void {
     if (!selectedCheckpoint) return;
 
-    project.restoreEditHistoryCheckpoint(selectedCheckpoint.id);
+    project.restoreEditHistoryCheckpoint(selectedCheckpoint.id, {
+      createdByDeviceId: localDeviceId,
+    });
     setSelectedCheckpointId(null);
   }
 
@@ -782,6 +794,13 @@ function DocumentPane({
             checkpoint={selectedCheckpoint}
             document={historicalDocument}
             currentDocument={document}
+            createdByDeviceName={
+              selectedCheckpoint.createdByDeviceId
+                ? project.getDeviceDisplayName(
+                    selectedCheckpoint.createdByDeviceId,
+                  ) ?? "Unnamed device"
+                : null
+            }
             onBackToCurrent={() => setSelectedCheckpointId(null)}
             onRestore={restoreHistoricalVersion}
           />
@@ -801,6 +820,7 @@ function DocumentPane({
           selectedCheckpointId={selectedCheckpointId}
           onSelectCheckpoint={setSelectedCheckpointId}
           onSelectCurrent={() => setSelectedCheckpointId(null)}
+          getDeviceName={(deviceId) => project.getDeviceDisplayName(deviceId)}
           onClose={() => {
             setSelectedCheckpointId(null);
             setHistoryOpen(false);
