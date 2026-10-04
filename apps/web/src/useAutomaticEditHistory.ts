@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
+import type { DeviceId } from "@floe-note/domain";
 
 export const EDIT_HISTORY_IDLE_CHECKPOINT_MS = 2 * 60 * 1000;
 export const EDIT_HISTORY_CONTINUOUS_CHECKPOINT_MS = 10 * 60 * 1000;
@@ -8,6 +9,7 @@ export const EDIT_HISTORY_CONTINUOUS_CHECKPOINT_MS = 10 * 60 * 1000;
 export function useAutomaticEditHistory(
   project: NoteProject,
   document: NoteDocument,
+  localDeviceId: DeviceId | null,
 ): void {
   useEffect(() => {
     let dirty = false;
@@ -25,7 +27,9 @@ export function useAutomaticEditHistory(
       clearTimers();
       if (!dirty) return;
 
-      project.createEditHistoryCheckpoint(document.id);
+      project.createEditHistoryCheckpoint(document.id, {
+        createdByDeviceId: localDeviceId,
+      });
       dirty = false;
     };
 
@@ -50,8 +54,10 @@ export function useAutomaticEditHistory(
       clearTimers();
 
       if (dirty) {
-        project.createEditHistoryCheckpoint(document.id);
+        project.createEditHistoryCheckpoint(document.id, {
+          createdByDeviceId: localDeviceId,
+        });
       }
     };
-  }, [document, project]);
+  }, [document, localDeviceId, project]);
 }
