@@ -105,6 +105,8 @@ export function NoteWorkspace({
   const [, setNavigationRevision] = useState(0);
   const [, setRecencyRevision] = useState(0);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [focusEditorDocumentId, setFocusEditorDocumentId] =
+    useState<DocumentId | null>(null);
   const searchCacheHolderRef = useRef<{
     projectId: string;
     cache: GlobalSearchCache;
@@ -154,6 +156,7 @@ export function NoteWorkspace({
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
     setMovingDocumentId(null);
+    setFocusEditorDocumentId(null);
   }, [project.id]);
 
   const navigationDocumentIds = project
@@ -484,6 +487,8 @@ export function NoteWorkspace({
             availableTags={projectTags}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
             onTitleFocusHandled={onTitleFocusHandled}
+            focusEditor={focusEditorDocumentId === selectedDocument.id}
+            onEditorFocusHandled={() => setFocusEditorDocumentId(null)}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
             onMove={(documentId) => {
@@ -521,6 +526,7 @@ export function NoteWorkspace({
             recordNoteOpened(project.id, documentId);
             setRecencyRevision((value) => value + 1);
             setSelectedTrashDocumentId(null);
+            setFocusEditorDocumentId(documentId);
             onSelectDocument(documentId);
             setMobileNavigationOpen(false);
           }}
@@ -581,6 +587,8 @@ type DocumentPaneProps = {
   availableTags: readonly string[];
   focusTitle: boolean;
   onTitleFocusHandled: () => void;
+  focusEditor: boolean;
+  onEditorFocusHandled: () => void;
   onRename: (title: string) => void;
   onDelete: (documentId: DocumentId) => void;
   onMove: (documentId: DocumentId) => void;
@@ -593,6 +601,8 @@ function DocumentPane({
   availableTags,
   focusTitle,
   onTitleFocusHandled,
+  focusEditor,
+  onEditorFocusHandled,
   onRename,
   onDelete,
   onMove,
@@ -786,7 +796,12 @@ function DocumentPane({
             }
           />
 
-          <EditorModeView document={document} mode={mode} />
+          <EditorModeView
+            document={document}
+            mode={mode}
+            focusEditor={focusEditor}
+            onEditorFocusHandled={onEditorFocusHandled}
+          />
         </div>
 
         {selectedCheckpoint && historicalDocument ? (

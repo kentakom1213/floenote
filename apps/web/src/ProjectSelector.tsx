@@ -106,7 +106,7 @@ export function ProjectSelector({
           aria-label={`Switch Project, current ${selected?.name ?? "None"}`}
         >
           <span>{selected?.name ?? "No active Project"}</span>
-          <span aria-hidden="true">⌄</span>
+          <ChevronDownIcon />
         </summary>
         <div className="workspace-project-menu">
           <p className="project-switcher-menu-label">Projects</p>
@@ -385,6 +385,18 @@ export function ProjectSelector({
         document.body,
       ) : null}
     </div>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      className="workspace-project-chevron"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+    >
+      <path d="m6.5 8 3.5 3.5L13.5 8" />
+    </svg>
   );
 }
 
