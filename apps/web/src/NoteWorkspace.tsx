@@ -623,13 +623,13 @@ function DocumentPane({
 
   useEffect(() => {
     const input = titleRef.current;
-    if (!input || mode === "split") return;
+    if (!input || mode === "split" || selectedCheckpointId !== null) return;
 
-    // Split mode constrains the title to a compact one-line header. Recompute
-    // the normal textarea height whenever we leave Split so that a height
-    // measured under the compact CSS cannot leak into Edit/Preview.
+    // The current editor is hidden while a historical version is selected.
+    // Measuring a hidden textarea collapses its scrollHeight to zero, so defer
+    // title sizing until the current version is visible again.
     resizeTitleInput(input);
-  }, [document.id, document.title, mode]);
+  }, [document.id, document.title, mode, selectedCheckpointId]);
 
   useEffect(() => {
     const input = titleRef.current;
