@@ -62,7 +62,7 @@ describe("edit history UI", () => {
       }),
     );
 
-    expect(markup).toContain("Read-only historical version");
+    expect(markup).toContain("Compared with current");
     expect(markup).toContain("Historical");
     expect(markup).toContain("old");
     expect(markup).toContain("Restore this version");
@@ -103,8 +103,10 @@ describe("edit history UI", () => {
       }),
     );
 
-    expect(markup).toContain("Changes since this version");
-    expect(markup).toContain("- beta");
-    expect(markup).toContain("+ gamma");
+    expect(markup).toContain("historical-inline-diff");
+    expect(markup).toContain("historical-diff-removed");
+    expect(markup).toContain("historical-diff-added");
+    expect(markup).toContain(">beta</del>");
+    expect(markup).toContain(">gamma</mark>");
   });
 });
