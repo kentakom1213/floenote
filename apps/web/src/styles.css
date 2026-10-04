@@ -6164,6 +6164,10 @@ h1 {
   box-shadow: var(--shadow-popover);
 }
 
+.tag-color-remove-action {
+  display: none;
+}
+
 .tag-rename-control {
   margin-bottom: 10px;
   font-size: 11px;
@@ -6246,9 +6250,4 @@ h1 {
   border: 1px solid color-mix(in srgb, var(--tag-chip-color) 75%, var(--color-border));
   border-radius: 50%;
   background: var(--tag-chip-color);
-}
-
-
-.tag-color-remove-action {
-  display: none;
 }
