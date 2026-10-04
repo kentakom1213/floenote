@@ -5849,18 +5849,82 @@ h1 {
   background: var(--color-surface-selected);
 }
 
-.edit-history-current-dot {
-  width: 7px;
-  height: 7px;
+.edit-history-current-marker {
+  width: 8px;
+  height: 8px;
   flex: 0 0 auto;
+  border: 2px solid var(--color-text-faint);
   border-radius: 50%;
-  background: var(--color-accent);
+  background: transparent;
 }
 
 .edit-history-item-time {
   min-width: 0;
   flex: 1;
   font-size: 12px;
+}
+
+.edit-history-device,
+.historical-version-device-meta {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.edit-history-device {
+  max-width: 108px;
+  flex: 0 1 auto;
+  color: var(--color-text-faint);
+  font-size: 10px;
+}
+
+.edit-history-device > span:last-child,
+.historical-version-device-meta > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-device-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--history-device-color, var(--color-text-faint));
+}
+
+.history-device-dot[data-device-color="red"] {
+  --history-device-color: var(--tag-color-red);
+}
+
+.history-device-dot[data-device-color="orange"] {
+  --history-device-color: var(--tag-color-orange);
+}
+
+.history-device-dot[data-device-color="green"] {
+  --history-device-color: var(--tag-color-green);
+}
+
+.history-device-dot[data-device-color="sky"] {
+  --history-device-color: var(--tag-color-sky);
+}
+
+.history-device-dot[data-device-color="blue"] {
+  --history-device-color: var(--tag-color-blue);
+}
+
+.history-device-dot[data-device-color="purple"] {
+  --history-device-color: var(--tag-color-purple);
+}
+
+.history-device-dot[data-device-color="pink"] {
+  --history-device-color: var(--tag-color-pink);
+}
+
+.history-device-dot[data-device-color="brown"] {
+  --history-device-color: var(--tag-color-brown);
 }
 
 .edit-history-item-kind {
@@ -5911,6 +5975,11 @@ h1 {
 .historical-version-banner span {
   color: var(--color-text-faint);
   font-size: 10px;
+}
+
+.historical-version-device-meta .history-device-dot {
+  width: 7px;
+  height: 7px;
 }
 
 .historical-version-actions {
