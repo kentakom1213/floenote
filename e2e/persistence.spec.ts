@@ -127,6 +127,8 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     .getByRole("navigation", { name: "Notes" })
     .getByRole("button", { name: "Welcome to Floe Note" })
     .click();
+
+  await page.getByLabel("Note title").fill("Changed after checkpoint");
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "History" }).click();
   await expect(
@@ -161,6 +163,12 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
+
+  await restoreButton.click();
+  const restoredTitle = page.getByLabel("Note title");
+  await expect(restoredTitle).toHaveValue("Welcome to Floe Note");
+  await expect(restoredTitle).toBeVisible();
+  expect((await restoredTitle.boundingBox())?.height ?? 0).toBeGreaterThan(0);
 });
 
 test("resets pre-Project Workspace schema v1 before creating fresh data", async ({
