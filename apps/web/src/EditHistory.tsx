@@ -2,9 +2,9 @@ import type {
   EditHistoryCheckpoint,
   NoteDocument,
 } from "@floe-note/document";
-import type { CheckpointId } from "@floe-note/domain";
+import type { CheckpointId, DeviceId } from "@floe-note/domain";
 
-import { MarkdownEditor } from "./MarkdownEditor.js";
+import { renderMarkdown } from "./MarkdownPreview.js";
 
 type EditHistoryPanelProps = {
   checkpoints: readonly EditHistoryCheckpoint[];
@@ -12,6 +12,7 @@ type EditHistoryPanelProps = {
   onSelectCheckpoint: (checkpointId: CheckpointId) => void;
   onSelectCurrent: () => void;
   onClose: () => void;
+  getDeviceName: (deviceId: DeviceId) => string | null;
 };
 
 export function EditHistoryPanel({
@@ -20,6 +21,7 @@ export function EditHistoryPanel({
   onSelectCheckpoint,
   onSelectCurrent,
   onClose,
+  getDeviceName,
 }: EditHistoryPanelProps) {
   return (
     <aside className="edit-history-panel" aria-label="Edit history">
@@ -45,30 +47,51 @@ export function EditHistoryPanel({
           type="button"
           onClick={onSelectCurrent}
         >
-          <span className="edit-history-current-dot" aria-hidden="true" />
+          <span className="edit-history-current-marker" aria-hidden="true" />
           <span>Current</span>
         </button>
 
         {checkpoints.length > 0 ? (
-          checkpoints.map((checkpoint) => (
-            <button
-              className={
-                checkpoint.id === selectedCheckpointId
-                  ? "edit-history-item selected"
-                  : "edit-history-item"
-              }
-              type="button"
-              key={checkpoint.id}
-              onClick={() => onSelectCheckpoint(checkpoint.id)}
-            >
-              <span className="edit-history-item-time">
-                {formatCheckpointTime(checkpoint.createdAt)}
-              </span>
-              {checkpoint.restoreSourceCheckpointId ? (
-                <span className="edit-history-item-kind">Restored</span>
-              ) : null}
-            </button>
-          ))
+          checkpoints.map((checkpoint) => {
+            const deviceName = checkpoint.createdByDeviceId
+              ? getDeviceName(checkpoint.createdByDeviceId) ?? "Unnamed device"
+              : null;
+
+            return (
+              <button
+                className={
+                  checkpoint.id === selectedCheckpointId
+                    ? "edit-history-item selected"
+                    : "edit-history-item"
+                }
+                type="button"
+                key={checkpoint.id}
+                onClick={() => onSelectCheckpoint(checkpoint.id)}
+              >
+                <span className="edit-history-item-time">
+                  {formatCheckpointTime(checkpoint.createdAt)}
+                </span>
+                {deviceName && checkpoint.createdByDeviceId ? (
+                  <span
+                    className="edit-history-device"
+                    title={`Created on ${deviceName}`}
+                  >
+                    <span
+                      className="history-device-dot"
+                      data-device-color={historyDeviceColor(
+                        checkpoint.createdByDeviceId,
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span>{deviceName}</span>
+                  </span>
+                ) : null}
+                {checkpoint.restoreSourceCheckpointId ? (
+                  <span className="edit-history-item-kind">Restored</span>
+                ) : null}
+              </button>
+            );
+          })
         ) : (
           <p className="edit-history-empty">
             Versions appear here after you edit this note.
@@ -82,6 +105,8 @@ export function EditHistoryPanel({
 type HistoricalVersionViewProps = {
   checkpoint: EditHistoryCheckpoint;
   document: NoteDocument;
+  currentDocument: NoteDocument;
+  createdByDeviceName: string | null;
   onBackToCurrent: () => void;
   onRestore: () => void;
 };
@@ -89,15 +114,37 @@ type HistoricalVersionViewProps = {
 export function HistoricalVersionView({
   checkpoint,
   document,
+  currentDocument,
+  createdByDeviceName,
   onBackToCurrent,
   onRestore,
 }: HistoricalVersionViewProps) {
+  const bodyDiff = renderInlineHistoryDiff(
+    document.bodyText,
+    currentDocument.bodyText,
+  );
+
   return (
     <section className="historical-version-view">
       <div className="historical-version-banner">
         <div>
           <strong>Version from {formatCheckpointTime(checkpoint.createdAt)}</strong>
-          <span>Read-only historical version</span>
+          {createdByDeviceName && checkpoint.createdByDeviceId ? (
+            <span className="historical-version-device-meta">
+              <span
+                className="history-device-dot"
+                data-device-color={historyDeviceColor(
+                  checkpoint.createdByDeviceId,
+                )}
+                aria-hidden="true"
+              />
+              <span>
+                Created on {createdByDeviceName} · compared with current
+              </span>
+            </span>
+          ) : (
+            <span>Compared with current · read-only</span>
+          )}
         </div>
         <div className="historical-version-actions">
           <button type="button" onClick={onBackToCurrent}>
@@ -124,7 +171,11 @@ export function HistoricalVersionView({
         ) : null}
       </header>
 
-      <MarkdownEditor document={document} readOnly />
+      <div
+        className="markdown-preview historical-inline-diff"
+        aria-label="Historical version compared with current"
+        dangerouslySetInnerHTML={{ __html: bodyDiff.html }}
+      />
 
       <p className="historical-version-restore-note">
         Restoring applies this content as a new edit. Your current state remains
@@ -132,6 +183,141 @@ export function HistoricalVersionView({
       </p>
     </section>
   );
+}
+
+type DiffOperation = {
+  kind: "equal" | "added" | "removed";
+  text: string;
+};
+
+export function renderInlineHistoryDiff(
+  historical: string,
+  current: string,
+): { html: string; hasChanges: boolean } {
+  if (historical === current) {
+    return {
+      html: renderMarkdown(historical),
+      hasChanges: false,
+    };
+  }
+
+  const output = createLineOperations(historical, current).map((operation) => {
+    if (operation.kind === "equal") return operation.text;
+    return renderWholeLineChange(operation.text, operation.kind);
+  });
+
+  return {
+    html: renderMarkdown(output.join("\n")),
+    hasChanges: true,
+  };
+}
+
+function renderWholeLineChange(
+  line: string,
+  kind: "added" | "removed",
+): string {
+  const { prefix, content } = splitMarkdownLinePrefix(line);
+  if (!content) return line;
+
+  return kind === "added"
+    ? prefix + '<mark class="historical-diff-added">' + content + "</mark>"
+    : prefix + '<del class="historical-diff-removed">' + content + "</del>";
+}
+
+function splitMarkdownLinePrefix(line: string): {
+  prefix: string;
+  content: string;
+} {
+  const match = /^(\s{0,3}(?:(?:#{1,6}|>)\s+|(?:[-+*]|\d+[.)])\s+)?)(.*)$/u.exec(
+    line,
+  );
+  return {
+    prefix: match?.[1] ?? "",
+    content: match?.[2] ?? line,
+  };
+}
+
+function createLineOperations(
+  before: string,
+  after: string,
+): DiffOperation[] {
+  return createSequenceOperations(before.split("\n"), after.split("\n"));
+}
+
+function createSequenceOperations(
+  before: readonly string[],
+  after: readonly string[],
+): DiffOperation[] {
+  const lengths = Array.from(
+    { length: before.length + 1 },
+    () => new Uint32Array(after.length + 1),
+  );
+
+  for (let left = before.length - 1; left >= 0; left -= 1) {
+    for (let right = after.length - 1; right >= 0; right -= 1) {
+      lengths[left]![right] =
+        before[left] === after[right]
+          ? lengths[left + 1]![right + 1]! + 1
+          : Math.max(
+              lengths[left + 1]![right]!,
+              lengths[left]![right + 1]!,
+            );
+    }
+  }
+
+  const operations: DiffOperation[] = [];
+  let left = 0;
+  let right = 0;
+
+  while (left < before.length || right < after.length) {
+    if (
+      left < before.length &&
+      right < after.length &&
+      before[left] === after[right]
+    ) {
+      operations.push({ kind: "equal", text: before[left]! });
+      left += 1;
+      right += 1;
+      continue;
+    }
+
+    if (
+      right < after.length &&
+      (left === before.length ||
+        lengths[left]![right + 1]! >= lengths[left + 1]![right]!)
+    ) {
+      operations.push({ kind: "added", text: after[right]! });
+      right += 1;
+      continue;
+    }
+
+    operations.push({ kind: "removed", text: before[left]! });
+    left += 1;
+  }
+
+  return operations;
+}
+
+const HISTORY_DEVICE_COLORS = [
+  "red",
+  "orange",
+  "green",
+  "sky",
+  "blue",
+  "purple",
+  "pink",
+  "brown",
+] as const;
+
+type HistoryDeviceColor = (typeof HISTORY_DEVICE_COLORS)[number];
+
+export function historyDeviceColor(deviceId: DeviceId): HistoryDeviceColor {
+  let hash = 2166136261;
+  for (let index = 0; index < deviceId.length; index += 1) {
+    hash ^= deviceId.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return HISTORY_DEVICE_COLORS[(hash >>> 0) % HISTORY_DEVICE_COLORS.length]!;
 }
 
 export function formatCheckpointTime(timestamp: number): string {

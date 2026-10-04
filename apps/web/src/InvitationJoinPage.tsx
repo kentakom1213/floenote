@@ -306,6 +306,7 @@ export function InvitationJoinPage({
 
                   void (async () => {
                     try {
+                      await encryptedTransport.flushPendingSends();
                       await storage.flushPendingWrites();
                       await storage.completeJoinedWorkspaceBootstrap(
                         securityState.workspaceId,
@@ -341,6 +342,10 @@ export function InvitationJoinPage({
                     `Initial Workspace sync failed: ${syncError.message}`,
                   );
                 },
+                // Enable document acknowledgements during invitation bootstrap.
+                // The joining device does not persist confirmations about the
+                // existing host here; the host owns that local observation.
+                onRemoteDocumentVersionConfirmed: () => {},
               },
             );
             setInitialSyncState("syncing");

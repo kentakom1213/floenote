@@ -1,4 +1,4 @@
-import type { DocumentId, WorkspaceId } from "@floe-note/domain";
+import type { DeviceId, DocumentId, WorkspaceId } from "@floe-note/domain";
 import sodium from "libsodium-wrappers";
 
 import { WORKSPACE_KEY_BYTES } from "./workspace-key.js";
@@ -11,6 +11,11 @@ export type WorkspaceStorageRecordContext =
     }
   | {
       kind: "document";
+      documentId: DocumentId;
+    }
+  | {
+      kind: "replication-observation";
+      deviceId: DeviceId;
       documentId: DocumentId;
     };
 
@@ -137,7 +142,11 @@ function createAad(
   context: WorkspaceStorageRecordContext,
 ): Uint8Array {
   const recordId =
-    context.kind === "document" ? context.documentId : "";
+    context.kind === "document"
+      ? context.documentId
+      : context.kind === "replication-observation"
+        ? `${context.deviceId}\0${context.documentId}`
+        : "";
 
   return new TextEncoder().encode(
     `${AAD_CONTEXT}\0${workspaceId}\0${keyEpoch}\0${context.kind}\0${recordId}`,

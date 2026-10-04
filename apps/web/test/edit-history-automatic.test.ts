@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NoteDocument, NoteProject } from "@floe-note/document";
+import { createDeviceId, type DeviceId } from "@floe-note/domain";
 
 import {
   EDIT_HISTORY_CONTINUOUS_CHECKPOINT_MS,
@@ -15,11 +16,13 @@ import {
 function Harness({
   project,
   document,
+  deviceId = null,
 }: {
   project: NoteProject;
   document: NoteDocument;
+  deviceId?: DeviceId | null;
 }) {
-  useAutomaticEditHistory(project, document);
+  useAutomaticEditHistory(project, document, deviceId);
   return null;
 }
 
@@ -68,6 +71,38 @@ describe("automatic edit history checkpoints", () => {
         vi.advanceTimersByTime(1);
       });
       expect(project.listEditHistoryCheckpoints(note.id)).toHaveLength(1);
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+
+  it("records the device that created an automatic recovery point", async () => {
+    const project = NoteProject.create();
+    const note = project.createDocument("Attributed");
+    const deviceId = createDeviceId();
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(Harness, {
+            project,
+            document: note,
+            deviceId,
+          }),
+        );
+      });
+
+      await act(async () => {
+        editBody(note, "changed");
+        await Promise.resolve();
+        vi.advanceTimersByTime(EDIT_HISTORY_IDLE_CHECKPOINT_MS);
+      });
+
+      expect(
+        project.listEditHistoryCheckpoints(note.id)[0]?.createdByDeviceId,
+      ).toBe(deviceId);
     } finally {
       await act(async () => root.unmount());
     }

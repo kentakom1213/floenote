@@ -75,6 +75,10 @@ export class EncryptedSyncTransport implements Transport {
       });
   }
 
+  async flushPendingSends(): Promise<void> {
+    await this.#sendQueue;
+  }
+
   onMessage(handler: (data: Uint8Array) => void): () => void {
     if (this.#closed) {
       return () => undefined;

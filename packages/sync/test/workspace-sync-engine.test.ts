@@ -105,6 +105,71 @@ describe("WorkspaceSyncEngine", () => {
     }
   });
 
+  it("acknowledges the document version applied by a remote peer", () => {
+    const base = NoteProject.create();
+    const document = base.createDocument("Confirmation");
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const confirmations: Uint8Array[] = [];
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport, {
+      onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+        if (documentId === document.id) confirmations.push(frontiers);
+      },
+    });
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport, {
+      onRemoteDocumentVersionConfirmed: () => {},
+    });
+
+    leftEngine.start();
+    rightEngine.start();
+    confirmations.length = 0;
+
+    left.getDocument(document.id)?.setTitle("Confirmed remotely");
+
+    expect(right.getDocument(document.id)?.title).toBe("Confirmed remotely");
+    expect(confirmations).toHaveLength(1);
+    expect(
+      left.getDocument(document.id)?.matchesHistoryFrontiers(confirmations[0]!),
+    ).toBe(true);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
+  it("does not send document acknowledgements to a legacy v1 peer", () => {
+    const source = NoteProject.create();
+    const document = source.createDocument("Legacy peer");
+    const target = cloneProject(source);
+    const [legacyTransport, targetTransport] = createTransportPair();
+    const targetEngine = new WorkspaceSyncEngine(target, targetTransport, {
+      onRemoteDocumentVersionConfirmed: () => {},
+    });
+
+    targetEngine.start();
+    legacyTransport.send(encodeSyncMessage({ type: "full-state-end" }));
+    const sentBeforeUpdate = targetTransport.sent.length;
+
+    source.getDocument(document.id)?.setTitle("Legacy update");
+    legacyTransport.send(
+      encodeSyncMessage({
+        type: "document-update",
+        documentId: document.id,
+        update: source.getDocument(document.id)!.exportUpdate(),
+      }),
+    );
+
+    expect(target.getDocument(document.id)?.title).toBe("Legacy update");
+    expect(
+      targetTransport.sent
+        .slice(sentBeforeUpdate)
+        .map(decodeSyncMessage)
+        .some((message) => message.type === "document-ack"),
+    ).toBe(false);
+
+    targetEngine.stop();
+  });
+
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
     const otherProjectId = base.createProject("Other").id;

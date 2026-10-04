@@ -1,7 +1,9 @@
 import { NoteDocument, NoteProject } from "@floe-note/document";
 import {
+  parseDeviceId,
   parseDocumentId,
   parseWorkspaceId,
+  type DeviceId,
   type DocumentId,
   type WorkspaceId,
 } from "@floe-note/domain";
@@ -20,6 +22,7 @@ import {
   staleDocumentRowIds,
 } from "./document-persistence-reconciliation.js";
 import type {
+  DocumentReplicationObservation,
   OpenWorkspaceResult,
   WorkspaceStorage,
   WorkspaceStorageCrypto,
@@ -52,11 +55,22 @@ type DocumentRecord = {
   encryptedSnapshot: Uint8Array;
 };
 
+type DocumentReplicationObservationRecord = {
+  workspaceId: string;
+  deviceId: string;
+  documentId: string;
+  encryptedPayload: Uint8Array;
+};
+
 class FloeNoteDatabase extends Dexie {
   workspaces!: Table<WorkspaceRecord, string>;
   manifests!: Table<ManifestRecord, string>;
   documents!: Table<DocumentRecord, [string, string]>;
   security!: Table<SecurityStateWirePayload, string>;
+  replicationObservations!: Table<
+    DocumentReplicationObservationRecord,
+    [string, string, string]
+  >;
 
   constructor() {
     super(DATABASE_NAME);
@@ -79,6 +93,15 @@ class FloeNoteDatabase extends Dexie {
       await transaction.table("manifests").clear();
       await transaction.table("documents").clear();
       await transaction.table("security").clear();
+    });
+
+    this.version(3).stores({
+      workspaces: "&workspaceId,&localSlot,createdAt",
+      manifests: "&workspaceId",
+      documents: "[workspaceId+documentId],workspaceId,documentId",
+      security: "&workspaceId",
+      replicationObservations:
+        "[workspaceId+deviceId+documentId],workspaceId,[workspaceId+documentId]",
     });
   }
 }
@@ -193,6 +216,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
+      this.#db.replicationObservations,
       async () => {
         const existing = await this.#db.workspaces.get(project.id);
         if (existing) {
@@ -243,6 +267,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
+      this.#db.replicationObservations,
       async () => {
         const remaining = await this.#db.workspaces
           .orderBy("createdAt")
@@ -250,6 +275,10 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
           .toArray();
 
         await this.#db.documents
+          .where("workspaceId")
+          .equals(workspaceId)
+          .delete();
+        await this.#db.replicationObservations
           .where("workspaceId")
           .equals(workspaceId)
           .delete();
@@ -380,6 +409,71 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
 
   async saveCommittedSecurityState(state: SecurityState): Promise<void> {
     await this.#db.security.put(securityStateToWire(state));
+  }
+
+  async saveDocumentReplicationObservation(
+    observation: DocumentReplicationObservation,
+    crypto: WorkspaceStorageCrypto,
+    keyEpoch: number,
+  ): Promise<void> {
+    if (!Number.isFinite(observation.confirmedAt)) {
+      throw new TypeError("Replication confirmation time must be finite");
+    }
+
+    const encryptedPayload = await crypto.encryptWorkspaceStoragePayload(
+      observation.workspaceId,
+      keyEpoch,
+      replicationObservationContext(
+        observation.deviceId,
+        observation.documentId,
+      ),
+      encodeReplicationObservationPayload(
+        observation.frontiers,
+        observation.confirmedAt,
+      ),
+    );
+
+    await this.#db.replicationObservations.put({
+      workspaceId: observation.workspaceId,
+      deviceId: observation.deviceId,
+      documentId: observation.documentId,
+      encryptedPayload,
+    });
+  }
+
+  async listDocumentReplicationObservations(
+    workspaceId: WorkspaceId,
+    documentId: DocumentId,
+    crypto: WorkspaceStorageCrypto,
+  ): Promise<readonly DocumentReplicationObservation[]> {
+    const records = await this.#db.replicationObservations
+      .where("[workspaceId+documentId]")
+      .equals([workspaceId, documentId])
+      .toArray();
+
+    return Promise.all(
+      records.map(async (record) => {
+        const parsedWorkspaceId = parseWorkspaceId(record.workspaceId);
+        const deviceId = parseDeviceId(record.deviceId);
+        const parsedDocumentId = parseDocumentId(record.documentId);
+        const decrypted = await crypto.decryptWorkspaceStoragePayload(
+          parsedWorkspaceId,
+          replicationObservationContext(deviceId, parsedDocumentId),
+          record.encryptedPayload,
+        );
+        const payload = decodeReplicationObservationPayload(
+          decrypted.plaintext,
+        );
+
+        return {
+          workspaceId: parsedWorkspaceId,
+          deviceId,
+          documentId: parsedDocumentId,
+          frontiers: payload.frontiers,
+          confirmedAt: payload.confirmedAt,
+        };
+      }),
+    );
   }
 
   watchWorkspace(
@@ -668,4 +762,57 @@ function documentContext(
   documentId: DocumentId,
 ): WorkspaceStorageRecordContext {
   return { kind: "document", documentId };
+}
+
+
+const REPLICATION_OBSERVATION_TIMESTAMP_BYTES = 8;
+
+function replicationObservationContext(
+  deviceId: DeviceId,
+  documentId: DocumentId,
+): WorkspaceStorageRecordContext {
+  return {
+    kind: "replication-observation",
+    deviceId,
+    documentId,
+  };
+}
+
+function encodeReplicationObservationPayload(
+  frontiers: Uint8Array,
+  confirmedAt: number,
+): Uint8Array {
+  const payload = new Uint8Array(
+    REPLICATION_OBSERVATION_TIMESTAMP_BYTES + frontiers.byteLength,
+  );
+  new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  ).setFloat64(0, confirmedAt, false);
+  payload.set(frontiers, REPLICATION_OBSERVATION_TIMESTAMP_BYTES);
+  return payload;
+}
+
+function decodeReplicationObservationPayload(payload: Uint8Array): {
+  frontiers: Uint8Array;
+  confirmedAt: number;
+} {
+  if (payload.byteLength < REPLICATION_OBSERVATION_TIMESTAMP_BYTES) {
+    throw new Error("Replication observation payload is too short");
+  }
+
+  const confirmedAt = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  ).getFloat64(0, false);
+  if (!Number.isFinite(confirmedAt)) {
+    throw new Error("Replication observation confirmation time is invalid");
+  }
+
+  return {
+    frontiers: payload.slice(REPLICATION_OBSERVATION_TIMESTAMP_BYTES),
+    confirmedAt,
+  };
 }

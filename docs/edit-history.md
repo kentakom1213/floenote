@@ -48,12 +48,16 @@ type EditHistoryCheckpoint = {
   documentId: DocumentId;
   frontiers: Uint8Array;
   createdAt: number;
+  createdByDeviceId: DeviceId | null;
   restoreSourceCheckpointId: CheckpointId | null;
 };
 ```
 
 `frontiers` is the encoded Loro `Frontiers` value. `createdAt` is display
 metadata only and is never used for CRDT conflict resolution.
+`createdByDeviceId` identifies the device that created the recovery point; it
+does not mean that the version is synchronized to that device. Older checkpoint
+records may omit this field and are treated as unattributed.
 
 Checkpoint records are immutable after creation.
 
@@ -135,11 +139,17 @@ The preview shows the historical:
 - tags;
 - Markdown body.
 
+It also derives a line-level Markdown body diff from the selected checkpoint to
+the current note. Unchanged lines render normally. Historical-only lines are
+shown in red with a strike-through, while current-only lines are shown in green.
+For headings, blockquotes, and list items, the Markdown prefix remains outside
+the highlight so the rendered structure stays recognizable. v1 does not perform
+word-, token-, or character-level pairing inside a changed line. The diff is
+computed on demand from the two document states and is not persisted in
+checkpoint metadata.
+
 Document identity, Workspace membership, Trash state, and other lifecycle state
 are not part of the historical content snapshot.
-
-v1 does not include a diff view. A later version may derive diffs from two Loro
-history positions without changing the checkpoint model.
 
 ## 7. Restore semantics
 
@@ -196,20 +206,29 @@ The v1 UI exposes edit history from the note actions menu.
 
 Opening History shows:
 
-- `Current` at the top;
-- checkpoint timestamps, newest first;
-- a read-only historical preview for the selected checkpoint;
+- `Current` at the top, without a device color;
+- historical recovery versions ordered by time, newest first;
+- the creating device name and a stable device color when attribution is known;
+- a read-only historical preview for the selected version;
+- inline body highlights showing changes between that checkpoint and Current;
 - `Back to current`;
 - `Restore this version`.
 
-While viewing a historical checkpoint, the interface must clearly indicate that
-the content is read-only historical state rather than the current editor.
+While viewing a historical version, the interface must clearly indicate that
+the content is read-only historical state rather than the current editor. When
+available, the preview also says `Created on <device>`.
+
+The history device marker describes where the recovery point was created. It is
+not a replication indicator. Per-device synchronization confirmation belongs to
+Sync status, not History. Device colors are derived deterministically from
+DeviceId using the existing visual palette; v1 does not add device-color
+preferences.
 
 Before restore, the UI explains that the current state remains available in edit
 history. After restore, the UI returns to the current editor.
 
-No diff view, branch visualization, device attribution, version naming, or
-manual checkpoint UI is part of v1.
+No branch visualization, edit-operation attribution, version naming, semantic
+change summary, or manual checkpoint UI is part of v1.
 
 ## 9. Trash and purge
 
