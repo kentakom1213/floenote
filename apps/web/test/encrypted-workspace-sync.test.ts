@@ -4,7 +4,7 @@ import {
   generateWorkspaceKey,
 } from "@floe-note/crypto";
 import { NoteProject } from "@floe-note/document";
-import type { WorkspaceId } from "@floe-note/domain";
+import { createDeviceId, type WorkspaceId } from "@floe-note/domain";
 import {
   EncryptedSyncTransport,
   WorkspaceSyncEngine,
@@ -133,6 +133,58 @@ describe("encrypted Workspace synchronization", () => {
       });
     } finally {
       for (const engine of engines) engine.stop();
+      key.fill(0);
+    }
+  });
+
+  it("records an initial encrypted document acknowledgement for the joining device", async () => {
+    const key = await generateWorkspaceKey();
+    const host = NoteProject.create();
+    const document = host.createDocument("Invitation bootstrap");
+    const joined = NoteProject.empty(host.id);
+    const joiningDeviceId = createDeviceId();
+    const observations: {
+      deviceId: string;
+      documentId: string;
+      frontiers: Uint8Array;
+    }[] = [];
+    const [hostRaw, joinedRaw] = transportPair();
+    const hostEncrypted = encryptedTransport(hostRaw, host.id, key);
+    const joinedEncrypted = encryptedTransport(joinedRaw, joined.id, key);
+    const hostEngine = new WorkspaceSyncEngine(host, hostEncrypted, {
+      onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+        observations.push({
+          deviceId: joiningDeviceId,
+          documentId,
+          frontiers,
+        });
+      },
+    });
+    const joinedEngine = new WorkspaceSyncEngine(joined, joinedEncrypted, {
+      onRemoteDocumentVersionConfirmed: () => {},
+    });
+
+    try {
+      hostEngine.start();
+      joinedEngine.start();
+
+      await vi.waitFor(() => {
+        expect(joined.getDocument(document.id)?.title).toBe(
+          "Invitation bootstrap",
+        );
+        expect(observations).toHaveLength(1);
+      });
+
+      expect(observations[0]?.deviceId).toBe(joiningDeviceId);
+      expect(observations[0]?.documentId).toBe(document.id);
+      expect(
+        host
+          .getDocument(document.id)
+          ?.matchesHistoryFrontiers(observations[0]!.frontiers),
+      ).toBe(true);
+    } finally {
+      hostEngine.stop();
+      joinedEngine.stop();
       key.fill(0);
     }
   });
