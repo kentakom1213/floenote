@@ -1,4 +1,4 @@
-import { createDocumentId } from "@floe-note/domain";
+import { createDeviceId, createDocumentId } from "@floe-note/domain";
 import { UndoManager } from "loro-crdt";
 import { describe, expect, it, vi } from "vitest";
 
@@ -97,8 +97,10 @@ describe("NoteProject edit history", () => {
       updatedAt: 100,
       tags: ["history"],
     });
+    const deviceId = createDeviceId();
     const checkpoint = project.createEditHistoryCheckpoint(document.id, {
       createdAt: 200,
+      createdByDeviceId: deviceId,
     });
     expect(checkpoint).not.toBeNull();
 
@@ -116,6 +118,7 @@ describe("NoteProject edit history", () => {
     expect(checkpoints).toHaveLength(1);
     expect(checkpoints[0]?.id).toBe(checkpoint?.id);
     expect(checkpoints[0]?.frontiers).toEqual(checkpoint?.frontiers);
+    expect(checkpoints[0]?.createdByDeviceId).toBe(deviceId);
 
     const historical = checkpoint
       ? restored.createHistoricalDocument(checkpoint.id)
@@ -210,12 +213,16 @@ describe("NoteProject edit history", () => {
     const undoManager = createEditorUndoManager(document);
     now.mockReturnValue(200);
 
+    const restoringDeviceId = createDeviceId();
     const restored = oldCheckpoint
-      ? project.restoreEditHistoryCheckpoint(oldCheckpoint.id)
+      ? project.restoreEditHistoryCheckpoint(oldCheckpoint.id, {
+          createdByDeviceId: restoringDeviceId,
+        })
       : null;
 
     expect(restored?.restoreSourceCheckpointId).toBe(oldCheckpoint?.id);
     expect(restored?.createdAt).toBe(200);
+    expect(restored?.createdByDeviceId).toBe(restoringDeviceId);
     expect(
       project.listEditHistoryCheckpoints(document.id)[0]?.id,
     ).toBe(restored?.id);
