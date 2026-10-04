@@ -8,11 +8,6 @@ export function isPresenceLeaseActive(
   lastSeenAt: unknown,
   now = Date.now(),
 ): boolean {
-  // Attachments created before lease-aware Presence was deployed do not have a
-  // timestamp. Keep them routable until they reconnect rather than breaking
-  // already-open older clients during rollout.
-  if (lastSeenAt === undefined) return true;
-
   return (
     typeof lastSeenAt === "number" &&
     Number.isFinite(lastSeenAt) &&
