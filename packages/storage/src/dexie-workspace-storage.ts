@@ -1,5 +1,6 @@
 import { NoteDocument, NoteProject } from "@floe-note/document";
 import {
+  parseDeviceId,
   parseDocumentId,
   parseWorkspaceId,
   type DocumentId,
@@ -20,6 +21,7 @@ import {
   staleDocumentRowIds,
 } from "./document-persistence-reconciliation.js";
 import type {
+  DocumentReplicationObservation,
   OpenWorkspaceResult,
   WorkspaceStorage,
   WorkspaceStorageCrypto,
@@ -52,11 +54,23 @@ type DocumentRecord = {
   encryptedSnapshot: Uint8Array;
 };
 
+type DocumentReplicationObservationRecord = {
+  workspaceId: string;
+  deviceId: string;
+  documentId: string;
+  frontiers: Uint8Array;
+  confirmedAt: number;
+};
+
 class FloeNoteDatabase extends Dexie {
   workspaces!: Table<WorkspaceRecord, string>;
   manifests!: Table<ManifestRecord, string>;
   documents!: Table<DocumentRecord, [string, string]>;
   security!: Table<SecurityStateWirePayload, string>;
+  replicationObservations!: Table<
+    DocumentReplicationObservationRecord,
+    [string, string, string]
+  >;
 
   constructor() {
     super(DATABASE_NAME);
@@ -79,6 +93,15 @@ class FloeNoteDatabase extends Dexie {
       await transaction.table("manifests").clear();
       await transaction.table("documents").clear();
       await transaction.table("security").clear();
+    });
+
+    this.version(3).stores({
+      workspaces: "&workspaceId,&localSlot,createdAt",
+      manifests: "&workspaceId",
+      documents: "[workspaceId+documentId],workspaceId,documentId",
+      security: "&workspaceId",
+      replicationObservations:
+        "[workspaceId+deviceId+documentId],workspaceId,[workspaceId+documentId]",
     });
   }
 }
@@ -193,6 +216,7 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
       this.#db.manifests,
       this.#db.documents,
       this.#db.security,
+      this.#db.replicationObservations,
       async () => {
         const existing = await this.#db.workspaces.get(project.id);
         if (existing) {
@@ -250,6 +274,10 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
           .toArray();
 
         await this.#db.documents
+          .where("workspaceId")
+          .equals(workspaceId)
+          .delete();
+        await this.#db.replicationObservations
           .where("workspaceId")
           .equals(workspaceId)
           .delete();
@@ -380,6 +408,40 @@ export class DexieWorkspaceStorage implements WorkspaceStorage {
 
   async saveCommittedSecurityState(state: SecurityState): Promise<void> {
     await this.#db.security.put(securityStateToWire(state));
+  }
+
+  async saveDocumentReplicationObservation(
+    observation: DocumentReplicationObservation,
+  ): Promise<void> {
+    if (!Number.isFinite(observation.confirmedAt)) {
+      throw new TypeError("Replication confirmation time must be finite");
+    }
+
+    await this.#db.replicationObservations.put({
+      workspaceId: observation.workspaceId,
+      deviceId: observation.deviceId,
+      documentId: observation.documentId,
+      frontiers: observation.frontiers.slice(),
+      confirmedAt: observation.confirmedAt,
+    });
+  }
+
+  async listDocumentReplicationObservations(
+    workspaceId: WorkspaceId,
+    documentId: DocumentId,
+  ): Promise<readonly DocumentReplicationObservation[]> {
+    const records = await this.#db.replicationObservations
+      .where("[workspaceId+documentId]")
+      .equals([workspaceId, documentId])
+      .toArray();
+
+    return records.map((record) => ({
+      workspaceId: parseWorkspaceId(record.workspaceId),
+      deviceId: parseDeviceId(record.deviceId),
+      documentId: parseDocumentId(record.documentId),
+      frontiers: record.frontiers.slice(),
+      confirmedAt: record.confirmedAt,
+    }));
   }
 
   watchWorkspace(
