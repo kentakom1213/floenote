@@ -43,6 +43,7 @@ export class WorkspaceSyncEngine {
   #stopTransportSubscription: (() => void) | null = null;
   #initialRemoteStateReceived = false;
   #initialRemoteStateFailed = false;
+  #remoteSupportsDocumentAck = false;
   #started = false;
 
   constructor(
@@ -208,7 +209,10 @@ export class WorkspaceSyncEngine {
     }
 
     this.#transport.send(
-      encodeSyncMessage({ type: "full-state-end" }),
+      encodeSyncMessage({
+        type: "full-state-end",
+        supportsDocumentAck: true,
+      }),
     );
     this.#debug("full-state.end.send");
   }
@@ -230,6 +234,16 @@ export class WorkspaceSyncEngine {
     );
   }
 
+  #sendDocumentAck(document: NoteDocument): void {
+    this.#transport.send(
+      encodeSyncMessage({
+        type: "document-ack",
+        documentId: document.id,
+        frontiers: document.captureHistoryFrontiers(),
+      }),
+    );
+  }
+
   #handleMessage(data: Uint8Array): void {
     try {
       const message = decodeSyncMessage(data);
@@ -242,6 +256,8 @@ export class WorkspaceSyncEngine {
 
         case "full-state-end":
           this.#debug("full-state.end.receive");
+          this.#remoteSupportsDocumentAck =
+            message.supportsDocumentAck === true;
           if (this.#initialRemoteStateFailed) {
             this.#debug("full-state.end.ignore", {
               reason: "initial-sync-failed",
@@ -251,6 +267,14 @@ export class WorkspaceSyncEngine {
           if (!this.#initialRemoteStateReceived) {
             this.#initialRemoteStateReceived = true;
             this.#onInitialRemoteStateReceived?.();
+          }
+          if (
+            this.#remoteSupportsDocumentAck &&
+            this.#onRemoteDocumentVersionConfirmed
+          ) {
+            for (const document of this.#project.getAllDocuments()) {
+              this.#sendDocumentAck(document);
+            }
           }
           return;
 
@@ -273,14 +297,11 @@ export class WorkspaceSyncEngine {
           );
           if (importedDocument) {
             this.#relayImportedUpdate(data);
-            if (this.#onRemoteDocumentVersionConfirmed) {
-              this.#transport.send(
-                encodeSyncMessage({
-                  type: "document-ack",
-                  documentId: importedDocument.id,
-                  frontiers: importedDocument.captureHistoryFrontiers(),
-                }),
-              );
+            if (
+              this.#remoteSupportsDocumentAck &&
+              this.#onRemoteDocumentVersionConfirmed
+            ) {
+              this.#sendDocumentAck(importedDocument);
             }
           }
           return;
