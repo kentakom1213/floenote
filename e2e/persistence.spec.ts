@@ -164,6 +164,13 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   await expect(page.locator(".historical-diff-added")).toBeVisible();
   await expect(page.locator(".document-current-view")).toBeHidden();
 
+  await page.getByRole("button", { name: "Back to current" }).click();
+  await page
+    .getByLabel("Note view")
+    .getByRole("button", { name: "Edit" })
+    .click();
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
   await page.setViewportSize({ width: 390, height: 844 });
 
   const restoreButton = page.getByRole("button", {
@@ -184,7 +191,9 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
 
+  await page.setViewportSize({ width: 1280, height: 720 });
   await restoreButton.click();
+
   const restoredTitle = page.getByLabel("Note title");
   await expect(restoredTitle).toHaveValue("Welcome to Floe Note");
   await expect(restoredTitle).toBeVisible();
