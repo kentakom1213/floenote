@@ -168,20 +168,6 @@ export function ProjectSwitcher({
             className="project-switcher-action"
             type="button"
             disabled={disabled}
-            data-settings-entry
-            onClick={() => {
-              switcherRef.current?.removeAttribute("open");
-              onOpenSettings();
-            }}
-          >
-            <span aria-hidden="true">⚙</span>
-            <span>Workspace settings…</span>
-          </button>
-
-          <button
-            className="project-switcher-action"
-            type="button"
-            disabled={disabled}
             onClick={(event) => {
               event.currentTarget
                 .closest("details")
@@ -192,6 +178,20 @@ export function ProjectSwitcher({
           >
             <span aria-hidden="true">＋</span>
             <span>New workspace</span>
+          </button>
+
+          <button
+            className="project-switcher-action"
+            type="button"
+            disabled={disabled}
+            data-settings-entry
+            onClick={() => {
+              switcherRef.current?.removeAttribute("open");
+              onOpenSettings();
+            }}
+          >
+            <span aria-hidden="true">⚙</span>
+            <span>Workspace settings…</span>
           </button>
 
           {error && !newProjectOpen ? (
