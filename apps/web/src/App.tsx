@@ -47,6 +47,7 @@ import {
 } from "@floe-note/security";
 import {
   DexieWorkspaceStorage,
+  type DocumentReplicationObservation,
   type StoredWorkspaceSummary,
 } from "@floe-note/storage";
 import {
@@ -270,6 +271,11 @@ function NoteApp({
   >("note");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
+  const [, setObservedDocumentRevision] = useState(0);
+  const [replicationRevision, setReplicationRevision] = useState(0);
+  const [replicationObservations, setReplicationObservations] = useState<
+    readonly DocumentReplicationObservation[]
+  >([]);
   const [selectedId, setSelectedId] = useState<DocumentId | null>(null);
   const [focusTitleDocumentId, setFocusTitleDocumentId] =
     useState<DocumentId | null>(null);
@@ -352,6 +358,55 @@ function NoteApp({
   useEffect(() => {
     if (project) writeSelectedProjectId(project.id, selectedProjectId);
   }, [project, selectedProjectId]);
+
+  const observedDocumentId = routeNoteId ?? selectedId;
+
+  useEffect(() => {
+    if (!project || !observedDocumentId) return;
+
+    const document = project.getDocument(observedDocumentId);
+    if (!document) return;
+
+    return document.subscribe(() => {
+      setObservedDocumentRevision((value) => value + 1);
+    });
+  }, [observedDocumentId, project]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const session = deviceVaultSessionRef.current;
+
+    if (!project || !observedDocumentId || !localSecurityState || !session) {
+      setReplicationObservations([]);
+      return;
+    }
+
+    void workspaceStorage
+      .listDocumentReplicationObservations(
+        project.id,
+        observedDocumentId,
+        session,
+      )
+      .then((observations) => {
+        if (!cancelled) setReplicationObservations(observations);
+      })
+      .catch((error: unknown) => {
+        console.warn(
+          error instanceof Error
+            ? `Failed to load replication observations: ${error.message}`
+            : "Failed to load replication observations",
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    localSecurityState,
+    observedDocumentId,
+    project,
+    replicationRevision,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -606,6 +661,35 @@ function NoteApp({
   const automaticReconnectEnabled =
     useAutomaticReconnect && !invitationHostActive;
 
+  const handleDocumentVersionConfirmed = useCallback(
+    (deviceId: DeviceId, documentId: DocumentId, frontiers: Uint8Array) => {
+      const session = deviceVaultSessionRef.current;
+      if (!project || !localSecurityState || !session) return;
+
+      void workspaceStorage
+        .saveDocumentReplicationObservation(
+          {
+            workspaceId: project.id,
+            deviceId,
+            documentId,
+            frontiers,
+            confirmedAt: Date.now(),
+          },
+          session,
+          localSecurityState.keyEpoch,
+        )
+        .then(() => setReplicationRevision((value) => value + 1))
+        .catch((error: unknown) => {
+          console.warn(
+            error instanceof Error
+              ? `Failed to persist replication confirmation: ${error.message}`
+              : "Failed to persist replication confirmation",
+          );
+        });
+    },
+    [localSecurityState, project],
+  );
+
   const authorizedSync = useAuthorizedWorkspaceSync({
     coordinatorBaseUrl,
     project,
@@ -616,6 +700,7 @@ function NoteApp({
     automaticReconnectEnabled,
     turnCredentialEndpoint,
     onSecurityStateChanged: handleSecurityStateChanged,
+    onDocumentVersionConfirmed: handleDocumentVersionConfirmed,
   });
 
   useEncryptedLocalTabSync({
@@ -1956,12 +2041,13 @@ function NoteApp({
     if (invitationSyncEngineRef.current) return;
 
     const session = deviceVaultSessionRef.current;
-    if (!session || !webRtcTransport) {
+    if (!session || !webRtcTransport || !joiningDevice) {
       setCoordinationError(
-        "Vault session and WebRTC transport are required for initial sync",
+        "Vault session, joining device, and WebRTC transport are required for initial sync",
       );
       return;
     }
+    const joiningDeviceId = joiningDevice.deviceId;
 
     const encryptedTransport = new EncryptedSyncTransport(
       webRtcTransport,
@@ -1993,6 +2079,13 @@ function NoteApp({
       encryptedTransport,
       {
         debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
+        onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+          handleDocumentVersionConfirmed(
+            joiningDeviceId,
+            documentId,
+            frontiers,
+          );
+        },
       },
     );
     invitationSyncEngineRef.current = syncEngine;
@@ -2127,6 +2220,17 @@ function NoteApp({
             ? "online"
             : "offline";
 
+      const observation = replicationObservations.find(
+        (candidate) => candidate.deviceId === deviceId,
+      );
+      const replication: SyncDeviceUi["replication"] = isCurrent
+        ? undefined
+        : observation && selectedDocument
+          ? selectedDocument.matchesHistoryFrontiers(observation.frontiers)
+            ? "current"
+            : "stale"
+          : "unknown";
+
       return [
         {
           deviceId,
@@ -2136,6 +2240,8 @@ function NoteApp({
               ? localDeviceName ?? "This device"
               : "Unnamed device"),
           state,
+          ...(replication ? { replication } : {}),
+          ...(observation ? { confirmedAt: observation.confirmedAt } : {}),
         },
       ];
     })
@@ -2431,6 +2537,7 @@ function NoteApp({
       projectControl={projectControl}
       workspaceProjectControl={workspaceProjectControl}
       selectedProjectId={selectedProjectId}
+      localDeviceId={localDeviceId}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
       trashActive={mainView === "trash"}

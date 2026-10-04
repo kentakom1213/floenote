@@ -74,6 +74,7 @@ test("scopes notes, creates in the selected Project, and reconciles URLs, histor
   await page.getByRole("option", { name: /Research note/ }).click();
   await expect(page).toHaveURL(researchUrl);
   await expect(page.getByLabel("Switch Project, current Research")).toBeVisible();
+  await expect(page.locator('.editor [contenteditable="true"]')).toBeFocused();
 
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "Move note…" }).click();
@@ -309,12 +310,14 @@ test("keeps long Project names inside the selector and archive list", async ({ p
 
   const longName = `Research-${"x".repeat(180)}`;
   await createProject(page, longName);
+  await expect(page.locator(".workspace-project-chevron")).toHaveCount(1);
   const triggerFits = await page.locator(".workspace-project-trigger").evaluate((trigger) => {
     const control = trigger.closest(".workspace-project-control")!;
-    const [name, chevron] = trigger.querySelectorAll("span");
+    const name = trigger.querySelector("span")!;
+    const chevron = trigger.querySelector(".workspace-project-chevron")!;
     return (
       trigger.getBoundingClientRect().right <= control.getBoundingClientRect().right &&
-      name!.getBoundingClientRect().right <= chevron!.getBoundingClientRect().left
+      name.getBoundingClientRect().right <= chevron.getBoundingClientRect().left
     );
   });
   expect(triggerFits).toBe(true);
@@ -427,4 +430,18 @@ test("keeps mobile tag controls and selected note content within their container
     );
   });
   expect(selectedContentFits).toBe(true);
+
+  await selectedRow.locator(".note-row-menu-trigger").click();
+  const noteMenu = selectedRow.locator(".note-row-menu-popover");
+  await expect(noteMenu).toBeVisible();
+  const menuExtendsPastRow = await selectedRow.evaluate((row) => {
+    const menu = row.querySelector(".note-row-menu-popover")!;
+    return menu.getBoundingClientRect().bottom > row.getBoundingClientRect().bottom;
+  });
+  expect(menuExtendsPastRow).toBe(true);
+
+  const moveAction = noteMenu.getByRole("button", { name: "Move note…" });
+  await expect(moveAction).toBeVisible();
+  await moveAction.click();
+  await expect(page.getByRole("dialog", { name: "Move note…" })).toBeVisible();
 });

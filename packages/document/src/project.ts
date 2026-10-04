@@ -4,9 +4,11 @@ import {
   createProjectId,
   createWorkspaceId,
   parseCheckpointId,
+  parseDeviceId,
   parseDocumentId,
   parseProjectId,
   type CheckpointId,
+  type DeviceId,
   type DocumentId,
   type ProjectId,
   type WorkspaceId,
@@ -32,6 +34,7 @@ export type EditHistoryCheckpoint = {
   documentId: DocumentId;
   frontiers: Uint8Array;
   createdAt: number;
+  createdByDeviceId: DeviceId | null;
   restoreSourceCheckpointId: CheckpointId | null;
 };
 
@@ -71,7 +74,12 @@ export function isTagColor(value: unknown): value is TagColor {
 
 type CreateEditHistoryCheckpointOptions = {
   createdAt?: number;
+  createdByDeviceId?: DeviceId | null;
   restoreSourceCheckpointId?: CheckpointId | null;
+};
+
+type RestoreEditHistoryCheckpointOptions = {
+  createdByDeviceId?: DeviceId | null;
 };
 
 const DEFAULT_PROJECT_NAME = "Personal";
@@ -413,6 +421,7 @@ export class NoteProject {
       documentId,
       frontiers,
       createdAt,
+      createdByDeviceId: options.createdByDeviceId ?? null,
       restoreSourceCheckpointId:
         options.restoreSourceCheckpointId ?? null,
     };
@@ -421,6 +430,7 @@ export class NoteProject {
       documentId: checkpoint.documentId,
       frontiers: checkpoint.frontiers,
       createdAt: checkpoint.createdAt,
+      createdByDeviceId: checkpoint.createdByDeviceId,
       restoreSourceCheckpointId: checkpoint.restoreSourceCheckpointId,
     });
     this.#manifest.commit();
@@ -442,6 +452,7 @@ export class NoteProject {
 
   restoreEditHistoryCheckpoint(
     checkpointId: CheckpointId,
+    options: RestoreEditHistoryCheckpointOptions = {},
   ): EditHistoryCheckpoint | null {
     const checkpoint = this.getEditHistoryCheckpoint(checkpointId);
     if (!checkpoint) return null;
@@ -449,12 +460,15 @@ export class NoteProject {
     const document = this.getDocument(checkpoint.documentId);
     if (!document) return null;
 
-    this.createEditHistoryCheckpoint(document.id);
+    this.createEditHistoryCheckpoint(document.id, {
+      createdByDeviceId: options.createdByDeviceId ?? null,
+    });
     if (!document.restoreFromHistoryFrontiers(checkpoint.frontiers)) {
       return null;
     }
 
     return this.createEditHistoryCheckpoint(document.id, {
+      createdByDeviceId: options.createdByDeviceId ?? null,
       restoreSourceCheckpointId: checkpoint.id,
     });
   }
@@ -737,13 +751,22 @@ function parseEditHistoryCheckpoint(
 
   let checkpointId: CheckpointId;
   let documentId: DocumentId;
+  let createdByDeviceId: DeviceId | null = null;
   let restoreSourceCheckpointId: CheckpointId | null = null;
 
   try {
     checkpointId = parseCheckpointId(id);
     documentId = parseDocumentId(record.documentId);
 
-    if (record.restoreSourceCheckpointId !== null) {
+    if (
+      record.createdByDeviceId !== undefined &&
+      record.createdByDeviceId !== null
+    ) {
+      if (typeof record.createdByDeviceId !== "string") return null;
+      createdByDeviceId = parseDeviceId(record.createdByDeviceId);
+    }
+
+    if (record.restoreSourceCheckpointId !== null && record.restoreSourceCheckpointId !== undefined) {
       if (typeof record.restoreSourceCheckpointId !== "string") return null;
       restoreSourceCheckpointId = parseCheckpointId(
         record.restoreSourceCheckpointId,
@@ -758,6 +781,7 @@ function parseEditHistoryCheckpoint(
     documentId,
     frontiers: record.frontiers.slice(),
     createdAt: record.createdAt,
+    createdByDeviceId,
     restoreSourceCheckpointId,
   };
 }

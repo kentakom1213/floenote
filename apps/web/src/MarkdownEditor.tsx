@@ -215,6 +215,8 @@ export const floeEditorSearch = [
 type MarkdownEditorProps = {
   document: NoteDocument;
   readOnly?: boolean;
+  focusRequested?: boolean;
+  onFocusHandled?: () => void;
   onViewportSourcePositionChange?: (sourcePosition: number) => void;
   onScrollToSourcePositionReady?: (
     scrollToSourcePosition: ((sourcePosition: number) => void) | null,
@@ -224,10 +226,13 @@ type MarkdownEditorProps = {
 export function MarkdownEditor({
   document,
   readOnly = false,
+  focusRequested = false,
+  onFocusHandled,
   onViewportSourcePositionChange,
   onScrollToSourcePositionReady,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -281,6 +286,7 @@ export function MarkdownEditor({
         ],
       }),
     });
+    viewRef.current = view;
 
     // Initialize CodeMirror from the current NoteDocument synchronously instead
     // of relying on loro-codemirror's initialization microtask. In
@@ -435,6 +441,9 @@ export function MarkdownEditor({
         window.cancelAnimationFrame(viewportReportFrame);
       }
       onScrollToSourcePositionReady?.(null);
+      if (viewRef.current === view) {
+        viewRef.current = null;
+      }
       view.destroy();
       undoManager?.free();
     };
@@ -444,6 +453,16 @@ export function MarkdownEditor({
     onViewportSourcePositionChange,
     readOnly,
   ]);
+
+  useEffect(() => {
+    if (!focusRequested) return;
+
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.focus();
+    onFocusHandled?.();
+  }, [document, focusRequested, onFocusHandled]);
 
   return <div className="editor" ref={hostRef} />;
 }

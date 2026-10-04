@@ -14,17 +14,30 @@ import {
 type EditorModeViewProps = {
   document: NoteDocument;
   mode: EditorMode;
+  focusEditor: boolean;
+  onEditorFocusHandled: () => void;
 };
 
 type ScrollToSourcePosition = (sourcePosition: number) => void;
 
-export function EditorModeView({ document, mode }: EditorModeViewProps) {
+export function EditorModeView({
+  document,
+  mode,
+  focusEditor,
+  onEditorFocusHandled,
+}: EditorModeViewProps) {
   const layout = getEditorModeLayout(mode);
   const previewPaneRef = useRef<HTMLDivElement>(null);
   const scrollEditorToSourcePositionRef =
     useRef<ScrollToSourcePosition | null>(null);
   const suppressEditorScrollRef = useRef(false);
   const suppressPreviewScrollRef = useRef(false);
+
+  useEffect(() => {
+    if (focusEditor && !layout.showEditor) {
+      onEditorFocusHandled();
+    }
+  }, [focusEditor, layout.showEditor, onEditorFocusHandled]);
 
   const clearSuppressionNextFrame = useCallback(
     (ref: { current: boolean }) => {
@@ -118,6 +131,8 @@ export function EditorModeView({ document, mode }: EditorModeViewProps) {
         <div className="editor-view-pane editor-view-source">
           <MarkdownEditor
             document={document}
+            focusRequested={focusEditor}
+            onFocusHandled={onEditorFocusHandled}
             {...(layout.split
               ? {
                   onViewportSourcePositionChange: handleEditorViewportChange,

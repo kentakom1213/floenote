@@ -85,11 +85,12 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     },
     { workspaceId, documentId },
   );
-  // Dexie maps schema version 2 to IndexedDB version 20.
-  expect(persisted.version).toBe(20);
+  // Dexie maps schema version 3 to IndexedDB version 30.
+  expect(persisted.version).toBe(30);
   expect(persisted.stores).toEqual([
     "documents",
     "manifests",
+    "replicationObservations",
     "security",
     "workspaces",
   ]);
@@ -139,6 +140,64 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   await expect(
     page.locator(".edit-history-list .edit-history-item"),
   ).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Current" }).click();
+  await page.locator('.editor [contenteditable="true"]').fill(
+    "Current body differs from the recovery version.",
+  );
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  const historicalDiff = page.locator(".historical-inline-diff");
+  await expect(historicalDiff).toBeVisible();
+  await expect(page.locator(".historical-diff-removed")).toBeVisible();
+  await expect(page.locator(".historical-diff-added")).toBeVisible();
+
+  await page.getByRole("button", { name: "Back to current" }).click();
+  await page
+    .getByLabel("Note view")
+    .getByRole("button", { name: "Split" })
+    .click();
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  await expect(historicalDiff).toBeVisible();
+  await expect(page.locator(".historical-diff-removed")).toBeVisible();
+  await expect(page.locator(".historical-diff-added")).toBeVisible();
+  await expect(page.locator(".document-current-view")).toBeHidden();
+
+  await page.getByRole("button", { name: "Back to current" }).click();
+  await page
+    .getByLabel("Note view")
+    .getByRole("button", { name: "Edit" })
+    .click();
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const restoreButton = page.getByRole("button", {
+    name: "Restore this version",
+  });
+  await expect(restoreButton).toBeVisible();
+
+  const [historyPanelBox, restoreButtonBox] = await Promise.all([
+    page.locator(".edit-history-panel").boundingBox(),
+    restoreButton.boundingBox(),
+  ]);
+  expect(historyPanelBox).not.toBeNull();
+  expect(restoreButtonBox).not.toBeNull();
+  expect(historyPanelBox!.y).toBeGreaterThanOrEqual(
+    restoreButtonBox!.y + restoreButtonBox!.height,
+  );
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await restoreButton.click();
+
+  const restoredTitle = page.getByLabel("Note title");
+  await expect(restoredTitle).toHaveValue("Welcome to Floe Note");
+  await expect(restoredTitle).toBeVisible();
+  expect((await restoredTitle.boundingBox())?.height ?? 0).toBeGreaterThan(0);
 });
 
 test("resets pre-Project Workspace schema v1 before creating fresh data", async ({
@@ -245,7 +304,7 @@ test("resets pre-Project Workspace schema v1 before creating fresh data", async 
     { oldWorkspaceId, oldDocumentId, newWorkspaceId, newDocumentId },
   );
 
-  expect(persisted.version).toBe(20);
+  expect(persisted.version).toBe(30);
   expect(persisted.oldRows).toEqual([null, null, null, null]);
   expect(persisted.newRows.every((row) => row !== null)).toBe(true);
 });

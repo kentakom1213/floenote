@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
-import type { CheckpointId, DocumentId, ProjectId } from "@floe-note/domain";
+import type {
+  CheckpointId,
+  DeviceId,
+  DocumentId,
+  ProjectId,
+} from "@floe-note/domain";
 
 import { AppShell } from "./AppShell.js";
 import { EditorModeView } from "./EditorModeView.js";
@@ -53,6 +58,7 @@ type NoteWorkspaceProps = {
   projectControl: ReactNode;
   workspaceProjectControl: ReactNode;
   selectedProjectId: ProjectId | null;
+  localDeviceId: DeviceId | null;
   sidebarFooter: ReactNode;
   mainContent?: ReactNode;
   trashActive: boolean;
@@ -77,6 +83,7 @@ export function NoteWorkspace({
   projectControl,
   workspaceProjectControl,
   selectedProjectId,
+  localDeviceId,
   sidebarFooter,
   mainContent,
   trashActive,
@@ -98,6 +105,8 @@ export function NoteWorkspace({
   const [, setNavigationRevision] = useState(0);
   const [, setRecencyRevision] = useState(0);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [focusEditorDocumentId, setFocusEditorDocumentId] =
+    useState<DocumentId | null>(null);
   const searchCacheHolderRef = useRef<{
     projectId: string;
     cache: GlobalSearchCache;
@@ -147,6 +156,7 @@ export function NoteWorkspace({
     setSelectedTrashDocumentId(null);
     setPendingPurgeDocumentId(null);
     setMovingDocumentId(null);
+    setFocusEditorDocumentId(null);
   }, [project.id]);
 
   const navigationDocumentIds = project
@@ -473,9 +483,12 @@ export function NoteWorkspace({
           <DocumentPane
             project={project}
             document={selectedDocument}
+            localDeviceId={localDeviceId}
             availableTags={projectTags}
             focusTitle={focusTitleDocumentId === selectedDocument.id}
             onTitleFocusHandled={onTitleFocusHandled}
+            focusEditor={focusEditorDocumentId === selectedDocument.id}
+            onEditorFocusHandled={() => setFocusEditorDocumentId(null)}
             onRename={onRenameDocument}
             onDelete={onDeleteDocument}
             onMove={(documentId) => {
@@ -513,6 +526,7 @@ export function NoteWorkspace({
             recordNoteOpened(project.id, documentId);
             setRecencyRevision((value) => value + 1);
             setSelectedTrashDocumentId(null);
+            setFocusEditorDocumentId(documentId);
             onSelectDocument(documentId);
             setMobileNavigationOpen(false);
           }}
@@ -569,9 +583,12 @@ export function NoteWorkspace({
 type DocumentPaneProps = {
   project: NoteProject;
   document: NoteDocument;
+  localDeviceId: DeviceId | null;
   availableTags: readonly string[];
   focusTitle: boolean;
   onTitleFocusHandled: () => void;
+  focusEditor: boolean;
+  onEditorFocusHandled: () => void;
   onRename: (title: string) => void;
   onDelete: (documentId: DocumentId) => void;
   onMove: (documentId: DocumentId) => void;
@@ -580,9 +597,12 @@ type DocumentPaneProps = {
 function DocumentPane({
   project,
   document,
+  localDeviceId,
   availableTags,
   focusTitle,
   onTitleFocusHandled,
+  focusEditor,
+  onEditorFocusHandled,
   onRename,
   onDelete,
   onMove,
@@ -596,7 +616,7 @@ function DocumentPane({
   const [, setHistoryRevision] = useState(0);
 
   useDismissibleDetails(noteMenuRef);
-  useAutomaticEditHistory(project, document);
+  useAutomaticEditHistory(project, document, localDeviceId);
 
   useEffect(
     () =>
@@ -613,13 +633,13 @@ function DocumentPane({
 
   useEffect(() => {
     const input = titleRef.current;
-    if (!input || mode === "split") return;
+    if (!input || mode === "split" || selectedCheckpointId !== null) return;
 
-    // Split mode constrains the title to a compact one-line header. Recompute
-    // the normal textarea height whenever we leave Split so that a height
-    // measured under the compact CSS cannot leak into Edit/Preview.
+    // The current editor is hidden while a historical version is selected.
+    // Measuring a hidden textarea collapses its scrollHeight to zero, so defer
+    // title sizing until the current version is visible again.
     resizeTitleInput(input);
-  }, [document.id, document.title, mode]);
+  }, [document.id, document.title, mode, selectedCheckpointId]);
 
   useEffect(() => {
     const input = titleRef.current;
@@ -673,7 +693,9 @@ function DocumentPane({
   function restoreHistoricalVersion(): void {
     if (!selectedCheckpoint) return;
 
-    project.restoreEditHistoryCheckpoint(selectedCheckpoint.id);
+    project.restoreEditHistoryCheckpoint(selectedCheckpoint.id, {
+      createdByDeviceId: localDeviceId,
+    });
     setSelectedCheckpointId(null);
   }
 
@@ -774,13 +796,26 @@ function DocumentPane({
             }
           />
 
-          <EditorModeView document={document} mode={mode} />
+          <EditorModeView
+            document={document}
+            mode={mode}
+            focusEditor={focusEditor}
+            onEditorFocusHandled={onEditorFocusHandled}
+          />
         </div>
 
         {selectedCheckpoint && historicalDocument ? (
           <HistoricalVersionView
             checkpoint={selectedCheckpoint}
             document={historicalDocument}
+            currentDocument={document}
+            createdByDeviceName={
+              selectedCheckpoint.createdByDeviceId
+                ? project.getDeviceDisplayName(
+                    selectedCheckpoint.createdByDeviceId,
+                  ) ?? "Unnamed device"
+                : null
+            }
             onBackToCurrent={() => setSelectedCheckpointId(null)}
             onRestore={restoreHistoricalVersion}
           />
@@ -800,6 +835,7 @@ function DocumentPane({
           selectedCheckpointId={selectedCheckpointId}
           onSelectCheckpoint={setSelectedCheckpointId}
           onSelectCurrent={() => setSelectedCheckpointId(null)}
+          getDeviceName={(deviceId) => project.getDeviceDisplayName(deviceId)}
           onClose={() => {
             setSelectedCheckpointId(null);
             setHistoryOpen(false);

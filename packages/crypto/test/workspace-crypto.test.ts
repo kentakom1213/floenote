@@ -117,6 +117,59 @@ describe("encrypted Workspace sync", () => {
 });
 
 describe("encrypted Workspace storage", () => {
+  it("binds replication observations to device and document identity", async () => {
+    const workspaceId = createWorkspaceId();
+    const deviceId = createDeviceId();
+    const documentId = createDocumentId();
+    const workspaceKey = await generateWorkspaceKey();
+    const plaintext = Uint8Array.of(1, 2, 3, 4);
+    const context = {
+      kind: "replication-observation" as const,
+      deviceId,
+      documentId,
+    };
+
+    const envelope = await encryptWorkspaceStoragePayload(
+      workspaceId,
+      2,
+      context,
+      workspaceKey,
+      plaintext,
+    );
+
+    await expect(
+      decryptWorkspaceStoragePayload(
+        workspaceId,
+        2,
+        context,
+        workspaceKey,
+        envelope,
+      ),
+    ).resolves.toEqual(plaintext);
+
+    await expect(
+      decryptWorkspaceStoragePayload(
+        workspaceId,
+        2,
+        { ...context, deviceId: createDeviceId() },
+        workspaceKey,
+        envelope,
+      ),
+    ).rejects.toThrow("Could not authenticate encrypted Workspace storage payload");
+
+    await expect(
+      decryptWorkspaceStoragePayload(
+        workspaceId,
+        2,
+        { ...context, documentId: createDocumentId() },
+        workspaceKey,
+        envelope,
+      ),
+    ).rejects.toThrow("Could not authenticate encrypted Workspace storage payload");
+
+    workspaceKey.fill(0);
+  });
+
   it("round-trips and rejects epoch or record-context mismatch", async () => {
     const workspaceId = createWorkspaceId();
     const documentId = createDocumentId();

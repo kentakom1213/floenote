@@ -9,16 +9,22 @@ const enum MessageType {
   ManifestUpdate = 2,
   DocumentUpdate = 3,
   FullStateEnd = 4,
+  DocumentAck = 5,
 }
 
 export type SyncMessage =
   | { type: "hello" }
-  | { type: "full-state-end" }
+  | { type: "full-state-end"; supportsDocumentAck?: boolean }
   | { type: "manifest-update"; update: Uint8Array }
   | {
       type: "document-update";
       documentId: DocumentId;
       update: Uint8Array;
+    }
+  | {
+      type: "document-ack";
+      documentId: DocumentId;
+      frontiers: Uint8Array;
     };
 
 function encodeDocumentId(documentId: DocumentId): Uint8Array {
@@ -52,7 +58,9 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
       return Uint8Array.of(PROTOCOL_VERSION, MessageType.Hello);
 
     case "full-state-end":
-      return Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd);
+      return message.supportsDocumentAck
+        ? Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd, 1)
+        : Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd);
 
     case "manifest-update": {
       const encoded = new Uint8Array(HEADER_LENGTH + message.update.length);
@@ -62,15 +70,21 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
       return encoded;
     }
 
-    case "document-update": {
+    case "document-update":
+    case "document-ack": {
       const id = encodeDocumentId(message.documentId);
+      const payload =
+        message.type === "document-update" ? message.update : message.frontiers;
       const encoded = new Uint8Array(
-        HEADER_LENGTH + DOCUMENT_ID_LENGTH + message.update.length,
+        HEADER_LENGTH + DOCUMENT_ID_LENGTH + payload.length,
       );
       encoded[0] = PROTOCOL_VERSION;
-      encoded[1] = MessageType.DocumentUpdate;
+      encoded[1] =
+        message.type === "document-update"
+          ? MessageType.DocumentUpdate
+          : MessageType.DocumentAck;
       encoded.set(id, HEADER_LENGTH);
-      encoded.set(message.update, HEADER_LENGTH + DOCUMENT_ID_LENGTH);
+      encoded.set(payload, HEADER_LENGTH + DOCUMENT_ID_LENGTH);
       return encoded;
     }
   }
@@ -90,7 +104,10 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
       return { type: "hello" };
 
     case MessageType.FullStateEnd:
-      return { type: "full-state-end" };
+      return {
+        type: "full-state-end",
+        supportsDocumentAck: data[2] === 1,
+      };
 
     case MessageType.ManifestUpdate:
       return {
@@ -98,20 +115,20 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
         update: data.slice(HEADER_LENGTH),
       };
 
-    case MessageType.DocumentUpdate: {
+    case MessageType.DocumentUpdate:
+    case MessageType.DocumentAck: {
       if (data.length < HEADER_LENGTH + DOCUMENT_ID_LENGTH) {
-        throw new Error("Document update message is too short");
+        throw new Error("Document message is too short");
       }
 
       const documentId = decodeDocumentId(
         data.slice(HEADER_LENGTH, HEADER_LENGTH + DOCUMENT_ID_LENGTH),
       );
+      const payload = data.slice(HEADER_LENGTH + DOCUMENT_ID_LENGTH);
 
-      return {
-        type: "document-update",
-        documentId,
-        update: data.slice(HEADER_LENGTH + DOCUMENT_ID_LENGTH),
-      };
+      return data[1] === MessageType.DocumentUpdate
+        ? { type: "document-update", documentId, update: payload }
+        : { type: "document-ack", documentId, frontiers: payload };
     }
 
     default:

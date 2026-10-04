@@ -13,6 +13,10 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await page.getByLabel("Switch workspace").click();
   await expect(page.getByRole("button", { name: "Workspace settings…" })).toBeVisible();
   await expect(page.getByRole("button", { name: "New workspace" })).toBeVisible();
+  await expect(page.locator(".project-switcher-action")).toHaveText([
+    "＋New workspace",
+    "⚙Workspace settings…",
+  ]);
   await page.getByRole("button", { name: "New workspace" }).click();
   const newWorkspaceDialog = page.getByRole("dialog", { name: "New workspace" });
   const createWorkspace = newWorkspaceDialog.getByRole("button", {
