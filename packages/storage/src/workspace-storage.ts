@@ -30,6 +30,11 @@ export type WorkspaceStorageRecordContext =
   | {
       kind: "document";
       documentId: DocumentId;
+    }
+  | {
+      kind: "replication-observation";
+      deviceId: DeviceId;
+      documentId: DocumentId;
     };
 
 export interface WorkspaceStorageCrypto {
@@ -88,11 +93,14 @@ export interface WorkspaceStorage {
 
   saveDocumentReplicationObservation(
     observation: DocumentReplicationObservation,
+    crypto: WorkspaceStorageCrypto,
+    keyEpoch: number,
   ): Promise<void>;
 
   listDocumentReplicationObservations(
     workspaceId: WorkspaceId,
     documentId: DocumentId,
+    crypto: WorkspaceStorageCrypto,
   ): Promise<readonly DocumentReplicationObservation[]>;
 
   watchWorkspace(
