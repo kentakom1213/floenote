@@ -239,12 +239,13 @@ test("shows imported Project tags as assignment suggestions", async ({ page }) =
     });
 
   await expect(page.getByLabel("Switch Project, current Tag source")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Notes" })
-    .getByRole("button", { name: "Welcome to Floe Note" })
-    .click();
 
+  await page.getByRole("button", { name: "New note" }).click();
+  await expect(page.getByLabel("Note title")).toHaveValue("Untitled");
   await page.getByRole("button", { name: "Add tag" }).click();
+  await expect(
+    page.getByRole("option").filter({ hasText: "current-tag" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("option").filter({ hasText: "imported-suggestion" }),
   ).toBeVisible();
