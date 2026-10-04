@@ -5,7 +5,10 @@ import { createDeviceId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
 import { DexieWorkspaceStorage } from "../src/dexie-workspace-storage.js";
-import type { WorkspaceStorageCrypto } from "../src/workspace-storage.js";
+import type {
+  WorkspaceStorageCrypto,
+  WorkspaceStorageRecordContext,
+} from "../src/workspace-storage.js";
 
 const crypto: WorkspaceStorageCrypto = {
   async encryptWorkspaceStoragePayload(
@@ -75,25 +78,62 @@ describe("Project-aware Workspace persistence", () => {
     ).toEqual([]);
   });
 
-  it("persists local document replication observations across reloads", async () => {
+  it("encrypts and reloads local document replication observations", async () => {
     const storage = new DexieWorkspaceStorage();
     const { project: workspace } = await storage.createWorkspace("Replication");
     const note = workspace.createDocument("Observed");
     const deviceId = createDeviceId();
     const frontiers = note.captureHistoryFrontiers();
+    const contexts: WorkspaceStorageRecordContext[] = [];
+    const observationCrypto: WorkspaceStorageCrypto = {
+      async encryptWorkspaceStoragePayload(
+        _workspaceId,
+        _keyEpoch,
+        context,
+        plaintext,
+      ) {
+        contexts.push(context);
+        return Uint8Array.from(plaintext, (byte) => byte ^ 0xff);
+      },
+      async decryptWorkspaceStoragePayload(
+        _workspaceId,
+        context,
+        envelope,
+      ) {
+        contexts.push(context);
+        return {
+          keyEpoch: 1,
+          plaintext: Uint8Array.from(envelope, (byte) => byte ^ 0xff),
+        };
+      },
+    };
 
-    await storage.saveDocumentReplicationObservation({
-      workspaceId: workspace.id,
+    await storage.saveDocumentReplicationObservation(
+      {
+        workspaceId: workspace.id,
+        deviceId,
+        documentId: note.id,
+        frontiers,
+        confirmedAt: 1234,
+      },
+      observationCrypto,
+      1,
+    );
+
+    const rawRecord = await readReplicationObservationRecord(
+      workspace.id,
       deviceId,
-      documentId: note.id,
-      frontiers,
-      confirmedAt: 1234,
-    });
+      note.id,
+    );
+    expect(rawRecord).not.toHaveProperty("frontiers");
+    expect(rawRecord).not.toHaveProperty("confirmedAt");
+    expect(rawRecord.encryptedPayload).toBeInstanceOf(Uint8Array);
 
     const observations =
       await new DexieWorkspaceStorage().listDocumentReplicationObservations(
         workspace.id,
         note.id,
+        observationCrypto,
       );
 
     expect(observations).toEqual([
@@ -103,6 +143,18 @@ describe("Project-aware Workspace persistence", () => {
         documentId: note.id,
         frontiers,
         confirmedAt: 1234,
+      },
+    ]);
+    expect(contexts).toEqual([
+      {
+        kind: "replication-observation",
+        deviceId,
+        documentId: note.id,
+      },
+      {
+        kind: "replication-observation",
+        deviceId,
+        documentId: note.id,
       },
     ]);
   });
@@ -133,3 +185,30 @@ describe("Project-aware Workspace persistence", () => {
     expect(reopened.getDocument(note.id)?.title).toBe("Joined note");
   });
 });
+
+
+async function readReplicationObservationRecord(
+  workspaceId: string,
+  deviceId: string,
+  documentId: string,
+): Promise<Record<string, unknown>> {
+  const request = indexedDB.open("floe-note-workspaces");
+  const database = await new Promise<IDBDatabase>((resolve, reject) => {
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+
+  try {
+    const get = database
+      .transaction("replicationObservations")
+      .objectStore("replicationObservations")
+      .get([workspaceId, deviceId, documentId]);
+
+    return await new Promise<Record<string, unknown>>((resolve, reject) => {
+      get.onerror = () => reject(get.error);
+      get.onsuccess = () => resolve(get.result as Record<string, unknown>);
+    });
+  } finally {
+    database.close();
+  }
+}
