@@ -201,71 +201,15 @@ export function renderInlineHistoryDiff(
     };
   }
 
-  const lines = createLineOperations(historical, current);
-  const output: string[] = [];
-
-  for (let index = 0; index < lines.length;) {
-    const operation = lines[index]!;
-    if (operation.kind === "equal") {
-      output.push(operation.text);
-      index += 1;
-      continue;
-    }
-
-    const removed: string[] = [];
-    const added: string[] = [];
-
-    while (index < lines.length && lines[index]!.kind !== "equal") {
-      const changed = lines[index]!;
-      if (changed.kind === "removed") removed.push(changed.text);
-      if (changed.kind === "added") added.push(changed.text);
-      index += 1;
-    }
-
-    const paired = Math.min(removed.length, added.length);
-    for (let pair = 0; pair < paired; pair += 1) {
-      output.push(renderChangedLine(removed[pair]!, added[pair]!));
-    }
-    for (let rest = paired; rest < removed.length; rest += 1) {
-      output.push(renderWholeLineChange(removed[rest]!, "removed"));
-    }
-    for (let rest = paired; rest < added.length; rest += 1) {
-      output.push(renderWholeLineChange(added[rest]!, "added"));
-    }
-  }
+  const output = createLineOperations(historical, current).map((operation) => {
+    if (operation.kind === "equal") return operation.text;
+    return renderWholeLineChange(operation.text, operation.kind);
+  });
 
   return {
     html: renderMarkdown(output.join("\n")),
     hasChanges: true,
   };
-}
-
-function renderChangedLine(before: string, after: string): string {
-  const beforeParts = splitMarkdownLinePrefix(before);
-  const afterParts = splitMarkdownLinePrefix(after);
-
-  if (beforeParts.prefix !== afterParts.prefix) {
-    return [
-      renderWholeLineChange(before, "removed"),
-      renderWholeLineChange(after, "added"),
-    ].join("\n");
-  }
-
-  return beforeParts.prefix + createTokenOperations(
-    beforeParts.content,
-    afterParts.content,
-  )
-    .map((operation) => {
-      switch (operation.kind) {
-        case "equal":
-          return operation.text;
-        case "removed":
-          return '<del class="historical-diff-removed">' + operation.text + "</del>";
-        case "added":
-          return '<mark class="historical-diff-added">' + operation.text + "</mark>";
-      }
-    })
-    .join("");
 }
 
 function renderWholeLineChange(
@@ -298,17 +242,6 @@ function createLineOperations(
   after: string,
 ): DiffOperation[] {
   return createSequenceOperations(before.split("\n"), after.split("\n"));
-}
-
-function createTokenOperations(
-  before: string,
-  after: string,
-): DiffOperation[] {
-  return createSequenceOperations(tokenizeDiffText(before), tokenizeDiffText(after));
-}
-
-function tokenizeDiffText(value: string): string[] {
-  return value.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]+/gu) ?? [];
 }
 
 function createSequenceOperations(
