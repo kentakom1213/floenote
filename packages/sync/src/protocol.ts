@@ -14,7 +14,7 @@ const enum MessageType {
 
 export type SyncMessage =
   | { type: "hello" }
-  | { type: "full-state-end" }
+  | { type: "full-state-end"; supportsDocumentAck?: boolean }
   | { type: "manifest-update"; update: Uint8Array }
   | {
       type: "document-update";
@@ -58,7 +58,9 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
       return Uint8Array.of(PROTOCOL_VERSION, MessageType.Hello);
 
     case "full-state-end":
-      return Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd);
+      return message.supportsDocumentAck
+        ? Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd, 1)
+        : Uint8Array.of(PROTOCOL_VERSION, MessageType.FullStateEnd);
 
     case "manifest-update": {
       const encoded = new Uint8Array(HEADER_LENGTH + message.update.length);
@@ -102,7 +104,10 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
       return { type: "hello" };
 
     case MessageType.FullStateEnd:
-      return { type: "full-state-end" };
+      return {
+        type: "full-state-end",
+        supportsDocumentAck: data[2] === 1,
+      };
 
     case MessageType.ManifestUpdate:
       return {
