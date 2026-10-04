@@ -5771,7 +5771,7 @@ h1 {
   min-width: 0;
 }
 
-.document-current-view-hidden {
+.document-current-view.document-current-view-hidden {
   display: none;
 }
 
