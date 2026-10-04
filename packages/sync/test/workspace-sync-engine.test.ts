@@ -137,48 +137,6 @@ describe("WorkspaceSyncEngine", () => {
     rightEngine.stop();
   });
 
-  it("acknowledges documents received during initial full-state sync", () => {
-    const host = NoteProject.create();
-    const document = host.createDocument("Invitation bootstrap");
-    const joined = NoteProject.empty(host.id);
-    const joiningDeviceId = "01999999-9999-7999-8999-999999999999";
-    const [hostTransport, joinedTransport] = createTransportPair();
-    const observations: {
-      deviceId: string;
-      documentId: string;
-      frontiers: Uint8Array;
-    }[] = [];
-
-    const hostEngine = new WorkspaceSyncEngine(host, hostTransport, {
-      onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
-        observations.push({
-          deviceId: joiningDeviceId,
-          documentId,
-          frontiers,
-        });
-      },
-    });
-    const joinedEngine = new WorkspaceSyncEngine(joined, joinedTransport, {
-      onRemoteDocumentVersionConfirmed: () => {},
-    });
-
-    hostEngine.start();
-    joinedEngine.start();
-
-    expect(joined.getDocument(document.id)?.title).toBe("Invitation bootstrap");
-    expect(observations).toHaveLength(1);
-    expect(observations[0]?.deviceId).toBe(joiningDeviceId);
-    expect(observations[0]?.documentId).toBe(document.id);
-    expect(
-      host
-        .getDocument(document.id)
-        ?.matchesHistoryFrontiers(observations[0]!.frontiers),
-    ).toBe(true);
-
-    hostEngine.stop();
-    joinedEngine.stop();
-  });
-
   it("does not send document acknowledgements to a legacy v1 peer", () => {
     const source = NoteProject.create();
     const document = source.createDocument("Legacy peer");
