@@ -2217,8 +2217,8 @@ function NoteApp({
               ? localDeviceName ?? "This device"
               : "Unnamed device"),
           state,
-          replication,
-          confirmedAt: observation?.confirmedAt,
+          ...(replication ? { replication } : {}),
+          ...(observation ? { confirmedAt: observation.confirmedAt } : {}),
         },
       ];
     })
