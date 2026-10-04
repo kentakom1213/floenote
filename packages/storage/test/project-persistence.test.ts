@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 
 import { NoteProject } from "@floe-note/document";
+import { createDeviceId } from "@floe-note/domain";
 import { describe, expect, it } from "vitest";
 
 import { DexieWorkspaceStorage } from "../src/dexie-workspace-storage.js";
@@ -72,6 +73,38 @@ describe("Project-aware Workspace persistence", () => {
     expect(
       reopened.listProjects().filter((project) => project.status === "active"),
     ).toEqual([]);
+  });
+
+  it("persists local document replication observations across reloads", async () => {
+    const storage = new DexieWorkspaceStorage();
+    const { project: workspace } = await storage.createWorkspace("Replication");
+    const note = workspace.createDocument("Observed");
+    const deviceId = createDeviceId();
+    const frontiers = note.captureHistoryFrontiers();
+
+    await storage.saveDocumentReplicationObservation({
+      workspaceId: workspace.id,
+      deviceId,
+      documentId: note.id,
+      frontiers,
+      confirmedAt: 1234,
+    });
+
+    const observations =
+      await new DexieWorkspaceStorage().listDocumentReplicationObservations(
+        workspace.id,
+        note.id,
+      );
+
+    expect(observations).toEqual([
+      {
+        workspaceId: workspace.id,
+        deviceId,
+        documentId: note.id,
+        frontiers,
+        confirmedAt: 1234,
+      },
+    ]);
   });
 
   it("persists joined manifest state without creating another Notes Project", async () => {
