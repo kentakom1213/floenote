@@ -15,6 +15,10 @@ export type WorkspaceSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
   onInitialRemoteStateReceived?: () => void;
   onInitialSyncError?: (error: Error) => void;
+  onRemoteDocumentVersionConfirmed?: (
+    documentId: string,
+    frontiers: Uint8Array,
+  ) => void;
   relayScope?: "local-tab" | "remote-peer";
 };
 
@@ -28,6 +32,9 @@ export class WorkspaceSyncEngine {
   readonly #debugLogger: SyncDebugLogger | null;
   readonly #onInitialRemoteStateReceived: (() => void) | null;
   readonly #onInitialSyncError: ((error: Error) => void) | null;
+  readonly #onRemoteDocumentVersionConfirmed:
+    | ((documentId: string, frontiers: Uint8Array) => void)
+    | null;
   readonly #relayScope: "local-tab" | "remote-peer" | null;
   readonly #documentSubscriptions = new Map<string, () => void>();
   #stopProjectSubscription: (() => void) | null = null;
@@ -48,6 +55,8 @@ export class WorkspaceSyncEngine {
     this.#onInitialRemoteStateReceived =
       options.onInitialRemoteStateReceived ?? null;
     this.#onInitialSyncError = options.onInitialSyncError ?? null;
+    this.#onRemoteDocumentVersionConfirmed =
+      options.onRemoteDocumentVersionConfirmed ?? null;
     this.#relayScope = options.relayScope ?? null;
   }
 
@@ -263,9 +272,26 @@ export class WorkspaceSyncEngine {
           );
           if (importedDocument) {
             this.#relayImportedUpdate(data);
+            this.#transport.send(
+              encodeSyncMessage({
+                type: "document-ack",
+                documentId: importedDocument.id,
+                frontiers: importedDocument.captureHistoryFrontiers(),
+              }),
+            );
           }
           return;
         }
+
+        case "document-ack":
+          this.#debug("document.ack.receive", {
+            documentId: message.documentId,
+          });
+          this.#onRemoteDocumentVersionConfirmed?.(
+            message.documentId,
+            message.frontiers,
+          );
+          return;
       }
     } catch (error) {
       const syncError =
