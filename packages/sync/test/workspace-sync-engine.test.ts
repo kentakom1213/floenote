@@ -137,6 +137,39 @@ describe("WorkspaceSyncEngine", () => {
     rightEngine.stop();
   });
 
+  it("does not send document acknowledgements to a legacy v1 peer", () => {
+    const source = NoteProject.create();
+    const document = source.createDocument("Legacy peer");
+    const target = cloneProject(source);
+    const [legacyTransport, targetTransport] = createTransportPair();
+    const targetEngine = new WorkspaceSyncEngine(target, targetTransport, {
+      onRemoteDocumentVersionConfirmed: () => {},
+    });
+
+    targetEngine.start();
+    legacyTransport.send(encodeSyncMessage({ type: "full-state-end" }));
+    const sentBeforeUpdate = targetTransport.sent.length;
+
+    source.getDocument(document.id)?.setTitle("Legacy update");
+    legacyTransport.send(
+      encodeSyncMessage({
+        type: "document-update",
+        documentId: document.id,
+        update: source.getDocument(document.id)!.exportUpdate(),
+      }),
+    );
+
+    expect(target.getDocument(document.id)?.title).toBe("Legacy update");
+    expect(
+      targetTransport.sent
+        .slice(sentBeforeUpdate)
+        .map(decodeSyncMessage)
+        .some((message) => message.type === "document-ack"),
+    ).toBe(false);
+
+    targetEngine.stop();
+  });
+
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
     const otherProjectId = base.createProject("Other").id;
