@@ -124,7 +124,7 @@ describe("edit history UI", () => {
     const project = NoteProject.create();
     const note = project.createDocumentWithInitialState({
       title: "Diff",
-      body: "alpha\nbeta",
+      body: "alpha\n- beta old",
       createdAt: 100,
       updatedAt: 100,
       tags: [],
@@ -135,7 +135,7 @@ describe("edit history UI", () => {
     expect(checkpoint).not.toBeNull();
 
     note.getEditorBinding().getText(note.getEditorBinding().doc).update(
-      "alpha\ngamma",
+      "alpha\n- beta new",
     );
     note.getEditorBinding().doc.commit();
 
@@ -158,7 +158,8 @@ describe("edit history UI", () => {
     expect(markup).toContain("historical-inline-diff");
     expect(markup).toContain("historical-diff-removed");
     expect(markup).toContain("historical-diff-added");
-    expect(markup).toContain(">beta</del>");
-    expect(markup).toContain(">gamma</mark>");
+    expect(markup).toContain(">beta old</del>");
+    expect(markup).toContain(">beta new</mark>");
+    expect(markup).toContain("<li");
   });
 });
