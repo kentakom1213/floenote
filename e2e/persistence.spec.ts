@@ -154,7 +154,7 @@ test("persists an edited note across reload and Device Vault unlock", async ({
 
   await page.getByRole("button", { name: "Back to current" }).click();
   await page
-    .getByRole("group", { name: "Note view" })
+    .getByLabel("Note view")
     .getByRole("button", { name: "Split" })
     .click();
   await page.locator(".edit-history-list .edit-history-item").nth(1).click();
