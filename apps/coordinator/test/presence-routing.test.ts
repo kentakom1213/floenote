@@ -59,14 +59,13 @@ describe("presence reconnect routing", () => {
         deviceId: target,
         lastSeenAt: now - AUTHORIZED_PRESENCE_LEASE_MS + 1,
       }),
-      socket("legacy", { kind: "presence", deviceId: target }),
     ];
 
     expect(
       findPresenceSocketsForDevice(sockets, target, now).map(
         (candidate) => candidate.name,
       ),
-    ).toEqual(["live", "legacy"]);
+    ).toEqual(["live"]);
   });
 });
 
@@ -85,7 +84,7 @@ describe("presence lease", () => {
     ).toBe(false);
   });
 
-  it("keeps pre-lease attachments live during rollout", () => {
-    expect(isPresenceLeaseActive(undefined, 1_000_000)).toBe(true);
+  it("does not treat attachments without a lease timestamp as live", () => {
+    expect(isPresenceLeaseActive(undefined, 1_000_000)).toBe(false);
   });
 });
