@@ -369,38 +369,40 @@ test("shows Project settings within the mobile viewport and saves its name", asy
 
 test("keeps mobile tag controls and selected note content within their containers", async ({ page }) => {
   await createSecuredProject(page);
-  await page.setViewportSize({ width: 390, height: 844 });
 
   await page
     .getByLabel("Note title")
     .fill(`Long mobile note title ${"x".repeat(80)}`);
 
+  await page.getByRole("button", { name: "Add tag" }).click();
+  let input = page.getByRole("combobox", { name: "Add tag" });
+  await input.fill("very-long-mobile-tag-alpha");
+  await input.press("Enter");
+
+  const firstTag = page.locator(".note-tag-control").first();
+  await expect(firstTag.locator(".note-tag-remove")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+
   for (const tag of [
-    "very-long-mobile-tag-alpha",
     "very-long-mobile-tag-beta",
     "very-long-mobile-tag-gamma",
   ]) {
     await page.getByRole("button", { name: "Add tag" }).click();
-    const input = page.getByRole("combobox", { name: "Add tag" });
+    input = page.getByRole("combobox", { name: "Add tag" });
     await input.fill(tag);
     await input.press("Enter");
   }
 
-  const firstTag = page.locator(".note-tag-control").first();
-  const removeTag = firstTag.locator(".note-tag-remove");
-  const tagFits = await firstTag.evaluate((control) => {
-    const remove = control.querySelector(".note-tag-remove")!;
-    const controlRect = control.getBoundingClientRect();
-    const removeRect = remove.getBoundingClientRect();
-    return (
-      removeRect.top >= controlRect.top &&
-      removeRect.right <= controlRect.right &&
-      removeRect.bottom <= controlRect.bottom &&
-      removeRect.left >= controlRect.left
-    );
-  });
-  expect(tagFits).toBe(true);
-  await expect(removeTag).toBeVisible();
+  await expect(firstTag.locator(".note-tag-remove")).toBeHidden();
+  await firstTag.locator(".note-tag-color-summary").click();
+
+  const removeFromMenu = firstTag.getByRole("button", { name: "Remove tag" });
+  await expect(removeFromMenu).toBeVisible();
+  await removeFromMenu.click();
+  await expect(
+    page.getByLabel("Change very-long-mobile-tag-alpha color"),
+  ).toHaveCount(0);
 
   await page.getByRole("button", { name: "Open navigation" }).click();
   const selectedRow = page.locator(".note-row.selected");
