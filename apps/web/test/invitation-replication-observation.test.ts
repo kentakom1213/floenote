@@ -2,7 +2,9 @@ import "fake-indexeddb/auto";
 
 import {
   decryptWorkspaceStoragePayload,
+  decryptWorkspaceSyncPayload,
   encryptWorkspaceStoragePayload,
+  encryptWorkspaceSyncPayload,
   generateWorkspaceKey,
   readWorkspaceStoragePayloadKeyEpoch,
 } from "@floe-note/crypto";
