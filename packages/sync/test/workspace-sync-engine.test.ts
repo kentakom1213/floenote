@@ -105,6 +105,38 @@ describe("WorkspaceSyncEngine", () => {
     }
   });
 
+  it("acknowledges the document version applied by a remote peer", () => {
+    const base = NoteProject.create();
+    const document = base.createDocument("Confirmation");
+    const left = cloneProject(base);
+    const right = cloneProject(base);
+    const [leftTransport, rightTransport] = createTransportPair();
+    const confirmations: Uint8Array[] = [];
+    const leftEngine = new WorkspaceSyncEngine(left, leftTransport, {
+      onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
+        if (documentId === document.id) confirmations.push(frontiers);
+      },
+    });
+    const rightEngine = new WorkspaceSyncEngine(right, rightTransport, {
+      onRemoteDocumentVersionConfirmed: () => {},
+    });
+
+    leftEngine.start();
+    rightEngine.start();
+    confirmations.length = 0;
+
+    left.getDocument(document.id)?.setTitle("Confirmed remotely");
+
+    expect(right.getDocument(document.id)?.title).toBe("Confirmed remotely");
+    expect(confirmations).toHaveLength(1);
+    expect(
+      left.getDocument(document.id)?.matchesHistoryFrontiers(confirmations[0]!),
+    ).toBe(true);
+
+    leftEngine.stop();
+    rightEngine.stop();
+  });
+
   it("synchronizes Project tag colors through ordinary manifest updates", () => {
     const base = NoteProject.create();
     const otherProjectId = base.createProject("Other").id;
