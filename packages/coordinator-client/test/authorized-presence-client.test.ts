@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS,
   AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS,
   AuthorizedPresenceClient,
 } from "../src/authorized-presence-client.js";
@@ -131,6 +132,45 @@ describe("AuthorizedPresenceClient reconnect", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it("sends heartbeats only while authenticated Presence is open", async () => {
+    const client = createClient();
+    client.start();
+    const socket = FakeWebSocket.instances[0]!;
+
+    socket.open();
+    socket.message({
+      type: "presence-challenge",
+      challenge: bytesToHex(CHALLENGE),
+      securityHead: bytesToHex(SECURITY_HEAD),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(socket.sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS);
+    expect(socket.sent).toHaveLength(1);
+
+    socket.message({
+      type: "presence-state",
+      deviceIds: [DEVICE_ID],
+    });
+    expect(client.state).toBe("open");
+
+    await vi.advanceTimersByTimeAsync(
+      AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS - 1,
+    );
+    expect(socket.sent).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(JSON.parse(socket.sent[1]!)).toEqual({ type: "presence-heartbeat" });
+
+    client.close();
+    await vi.advanceTimersByTimeAsync(
+      AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS * 2,
+    );
+    expect(socket.sent).toHaveLength(2);
   });
 
   it("correlates TURN responses and errors with Presence requestIds and reuses valid credentials", async () => {
