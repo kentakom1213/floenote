@@ -9,7 +9,7 @@ import {
   type TurnCredentials,
 } from "@floe-note/coordinator-client";
 import type { NoteProject } from "@floe-note/document";
-import type { DeviceId } from "@floe-note/domain";
+import type { DeviceId, DocumentId } from "@floe-note/domain";
 import type { SecurityState } from "@floe-note/security";
 import {
   EncryptedSyncTransport,
@@ -34,6 +34,11 @@ type AuthorizedWorkspaceSyncOptions = {
   automaticReconnectEnabled: boolean;
   turnCredentialEndpoint: string | null;
   onSecurityStateChanged: () => void;
+  onDocumentVersionConfirmed?: (
+    deviceId: DeviceId,
+    documentId: DocumentId,
+    frontiers: Uint8Array,
+  ) => void;
 };
 
 export type AuthorizedWorkspaceSyncState = {
@@ -64,6 +69,7 @@ export function useAuthorizedWorkspaceSync({
   automaticReconnectEnabled,
   turnCredentialEndpoint,
   onSecurityStateChanged,
+  onDocumentVersionConfirmed,
 }: AuthorizedWorkspaceSyncOptions): AuthorizedWorkspaceSyncState {
   const [presenceState, setPresenceState] =
     useState<AuthorizedPresenceConnectionState>("idle");
@@ -454,6 +460,7 @@ export function useAuthorizedWorkspaceSync({
               )
             : Promise.resolve(undefined),
         onStatusChange: setAutomaticSyncStatus,
+        onDocumentVersionConfirmed,
       });
       automaticPeerSyncRef.current = automaticPeerSync;
 
@@ -483,6 +490,7 @@ export function useAuthorizedWorkspaceSync({
   }, [
     coordinatorBaseUrl,
     localDeviceId,
+    onDocumentVersionConfirmed,
     ownershipVersion,
     project,
     projectKeyReady,
