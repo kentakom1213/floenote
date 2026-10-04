@@ -365,3 +365,64 @@ test("shows Project settings within the mobile viewport and saves its name", asy
   await expect(page.getByRole("heading", { name: "Mobile notes" })).toBeVisible();
   await expect(page.getByLabel("Switch Project, current Mobile notes")).toBeVisible();
 });
+
+
+test("keeps mobile tag controls and selected note content within their containers", async ({ page }) => {
+  await createSecuredProject(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page
+    .getByLabel("Note title")
+    .fill(`Long mobile note title ${"x".repeat(80)}`);
+
+  for (const tag of [
+    "very-long-mobile-tag-alpha",
+    "very-long-mobile-tag-beta",
+    "very-long-mobile-tag-gamma",
+  ]) {
+    await page.getByRole("button", { name: "Add tag" }).click();
+    const input = page.getByRole("combobox", { name: "Add tag" });
+    await input.fill(tag);
+    await input.press("Enter");
+  }
+
+  const firstTag = page.locator(".note-tag-control").first();
+  const removeTag = firstTag.locator(".note-tag-remove");
+  const tagFits = await firstTag.evaluate((control) => {
+    const remove = control.querySelector(".note-tag-remove")!;
+    const controlRect = control.getBoundingClientRect();
+    const removeRect = remove.getBoundingClientRect();
+    return (
+      removeRect.top >= controlRect.top &&
+      removeRect.right <= controlRect.right &&
+      removeRect.bottom <= controlRect.bottom &&
+      removeRect.left >= controlRect.left
+    );
+  });
+  expect(tagFits).toBe(true);
+  await expect(removeTag).toBeVisible();
+
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const selectedRow = page.locator(".note-row.selected");
+  await expect(selectedRow).toBeVisible();
+
+  const selectedContentFits = await selectedRow.evaluate((row) => {
+    const item = row.querySelector(".note-item")!;
+    const title = row.querySelector(".note-item-title")!;
+    const tags = row.querySelector(".note-item-tags")!;
+    const rowRect = row.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const titleRect = title.getBoundingClientRect();
+    const tagsRect = tags.getBoundingClientRect();
+
+    return (
+      itemRect.left >= rowRect.left &&
+      itemRect.right <= rowRect.right &&
+      titleRect.left >= itemRect.left &&
+      titleRect.right <= itemRect.right &&
+      tagsRect.left >= itemRect.left &&
+      tagsRect.right <= itemRect.right
+    );
+  });
+  expect(selectedContentFits).toBe(true);
+});
