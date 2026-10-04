@@ -56,6 +56,7 @@ describe("edit history UI", () => {
       createElement(HistoricalVersionView, {
         checkpoint: checkpoint!,
         document: historical!,
+        currentDocument: note,
         onBackToCurrent: vi.fn(),
         onRestore: vi.fn(),
       }),
@@ -66,5 +67,44 @@ describe("edit history UI", () => {
     expect(markup).toContain("old");
     expect(markup).toContain("Restore this version");
     expect(markup).toContain("Your current state remains");
+  });
+
+  it("shows body changes since the selected checkpoint", () => {
+    const project = NoteProject.create();
+    const note = project.createDocumentWithInitialState({
+      title: "Diff",
+      body: "alpha\nbeta",
+      createdAt: 100,
+      updatedAt: 100,
+      tags: [],
+    });
+    const checkpoint = project.createEditHistoryCheckpoint(note.id, {
+      createdAt: 200,
+    });
+    expect(checkpoint).not.toBeNull();
+
+    note.getEditorBinding().getText(note.getEditorBinding().doc).update(
+      "alpha\ngamma",
+    );
+    note.getEditorBinding().doc.commit();
+
+    const historical = checkpoint
+      ? project.createHistoricalDocument(checkpoint.id)
+      : null;
+    expect(historical).not.toBeNull();
+
+    const markup = renderToStaticMarkup(
+      createElement(HistoricalVersionView, {
+        checkpoint: checkpoint!,
+        document: historical!,
+        currentDocument: note,
+        onBackToCurrent: vi.fn(),
+        onRestore: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain("Changes since this version");
+    expect(markup).toContain("- beta");
+    expect(markup).toContain("+ gamma");
   });
 });
