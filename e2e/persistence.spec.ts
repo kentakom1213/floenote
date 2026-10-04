@@ -127,8 +127,6 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     .getByRole("navigation", { name: "Notes" })
     .getByRole("button", { name: "Welcome to Floe Note" })
     .click();
-
-  await page.getByLabel("Note title").fill("Changed after checkpoint");
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "History" }).click();
   await expect(
@@ -143,8 +141,11 @@ test("persists an edited note across reload and Device Vault unlock", async ({
     page.locator(".edit-history-list .edit-history-item"),
   ).toHaveCount(2);
 
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Current" }).click();
+  await page.getByLabel("Note title").fill("Changed after checkpoint");
   await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
 
   const restoreButton = page.getByRole("button", {
     name: "Restore this version",
