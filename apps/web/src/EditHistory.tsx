@@ -220,9 +220,9 @@ function renderChangedLine(before: string, after: string): string {
         case "equal":
           return operation.text;
         case "removed":
-          return "<del>" + operation.text + "</del>";
+          return '<del class="historical-diff-removed">' + operation.text + "</del>";
         case "added":
-          return "<mark>" + operation.text + "</mark>";
+          return '<mark class="historical-diff-added">' + operation.text + "</mark>";
       }
     })
     .join("");
@@ -236,8 +236,8 @@ function renderWholeLineChange(
   if (!content) return line;
 
   return kind === "added"
-    ? prefix + "<mark>" + content + "</mark>"
-    : prefix + "<del>" + content + "</del>";
+    ? prefix + '<mark class="historical-diff-added">' + content + "</mark>"
+    : prefix + '<del class="historical-diff-removed">' + content + "</del>";
 }
 
 function splitMarkdownLinePrefix(line: string): {
