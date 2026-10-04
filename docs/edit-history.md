@@ -139,12 +139,14 @@ The preview shows the historical:
 - tags;
 - Markdown body.
 
-It also derives a Markdown body diff from the selected checkpoint to the
-current note. The historical text remains in the normal rendered document flow:
-removed historical text is shown in red with a strike-through, while text that
-exists only in the current note is shown in green inline. The diff is computed
-on demand from the two document states and is not persisted in checkpoint
-metadata.
+It also derives a line-level Markdown body diff from the selected checkpoint to
+the current note. Unchanged lines render normally. Historical-only lines are
+shown in red with a strike-through, while current-only lines are shown in green.
+For headings, blockquotes, and list items, the Markdown prefix remains outside
+the highlight so the rendered structure stays recognizable. v1 does not perform
+word-, token-, or character-level pairing inside a changed line. The diff is
+computed on demand from the two document states and is not persisted in
+checkpoint metadata.
 
 Document identity, Workspace membership, Trash state, and other lifecycle state
 are not part of the historical content snapshot.
