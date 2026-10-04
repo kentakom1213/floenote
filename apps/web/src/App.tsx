@@ -2514,6 +2514,7 @@ function NoteApp({
       projectControl={projectControl}
       workspaceProjectControl={workspaceProjectControl}
       selectedProjectId={selectedProjectId}
+      localDeviceId={localDeviceId}
       sidebarFooter={sidebarFooter}
       mainContent={mainContent}
       trashActive={mainView === "trash"}
