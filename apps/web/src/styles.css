@@ -5979,6 +5979,52 @@ h1 {
   font-size: 11px;
 }
 
+.historical-version-diff {
+  width: min(820px, calc(100% - 64px));
+  margin: 14px auto 28px;
+}
+
+.historical-version-diff h2 {
+  margin: 0 0 8px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.historical-version-diff pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.historical-version-diff > p {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: 11px;
+}
+
+.historical-version-diff-added,
+.historical-version-diff-removed {
+  display: block;
+}
+
+.historical-version-diff-added {
+  color: var(--color-success, var(--color-text));
+}
+
+.historical-version-diff-removed {
+  color: var(--color-danger, var(--color-text-muted));
+}
+
 .historical-version-view .editor .cm-cursor,
 .historical-version-view .editor .cm-dropCursor {
   display: none;
@@ -6041,7 +6087,8 @@ h1 {
     padding-top: 30px;
   }
 
-  .historical-version-restore-note {
+  .historical-version-restore-note,
+  .historical-version-diff {
     width: min(100% - 32px, 820px);
   }
 }
