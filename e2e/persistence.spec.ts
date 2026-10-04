@@ -142,8 +142,27 @@ test("persists an edited note across reload and Device Vault unlock", async ({
   ).toHaveCount(2);
 
   await page.getByRole("button", { name: "Current" }).click();
-  await page.getByLabel("Note title").fill("Changed after checkpoint");
+  await page.locator('.editor [contenteditable="true"]').fill(
+    "Current body differs from the recovery version.",
+  );
   await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  const historicalDiff = page.locator(".historical-inline-diff");
+  await expect(historicalDiff).toBeVisible();
+  await expect(page.locator(".historical-diff-removed")).toBeVisible();
+  await expect(page.locator(".historical-diff-added")).toBeVisible();
+
+  await page.getByRole("button", { name: "Back to current" }).click();
+  await page
+    .getByRole("group", { name: "Note view" })
+    .getByRole("button", { name: "Split" })
+    .click();
+  await page.locator(".edit-history-list .edit-history-item").nth(1).click();
+
+  await expect(historicalDiff).toBeVisible();
+  await expect(page.locator(".historical-diff-removed")).toBeVisible();
+  await expect(page.locator(".historical-diff-added")).toBeVisible();
+  await expect(page.locator(".document-current-view")).toBeHidden();
 
   await page.setViewportSize({ width: 390, height: 844 });
 
