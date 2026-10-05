@@ -3,6 +3,7 @@ import type { AuthorizedDevice } from "@floe-note/security";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "./ConfirmDialog.js";
+import type { SyncDeviceUi } from "./SyncStatus.js";
 
 type WorkspaceSettingsViewProps = {
   workspaceId: WorkspaceId;
@@ -15,6 +16,8 @@ type WorkspaceSettingsViewProps = {
     deviceId: DeviceId;
     mode: "direct" | "relay";
   }[];
+  syncDevices: readonly SyncDeviceUi[];
+  observedNoteTitle: string | null;
   securityState: "loading" | "ready" | "error";
   securityError: string | null;
   coordinationState: "checking" | "ready" | "error";
@@ -32,6 +35,37 @@ function shortDeviceId(deviceId: DeviceId): string {
   return `${deviceId.slice(0, 8)}…${deviceId.slice(-4)}`;
 }
 
+function replicationDetail(
+  device: SyncDeviceUi | undefined,
+  noteTitle: string | null,
+): string | null {
+  if (!device || !noteTitle || device.state === "this-device") return null;
+
+  const note = `“${noteTitle}”`;
+  if (device.replication === "current") {
+    return device.confirmedAt
+      ? `${note} · Current version confirmed ${formatConfirmationTime(device.confirmedAt)}`
+      : `${note} · Current version confirmed`;
+  }
+
+  if (device.replication === "stale") {
+    return device.confirmedAt
+      ? `${note} · Last confirmed ${formatConfirmationTime(device.confirmedAt)}`
+      : `${note} · Newer changes not confirmed`;
+  }
+
+  return `${note} · No sync confirmation yet`;
+}
+
+function formatConfirmationTime(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
 export function WorkspaceSettingsView({
   workspaceId,
   workspaceName,
@@ -40,6 +74,8 @@ export function WorkspaceSettingsView({
   onlineDeviceIds,
   connectedDeviceIds,
   connectionAttempts,
+  syncDevices,
+  observedNoteTitle,
   securityState,
   securityError,
   coordinationState,
@@ -56,6 +92,9 @@ export function WorkspaceSettingsView({
   const connected = new Set(connectedDeviceIds);
   const attempts = new Map(
     connectionAttempts.map((attempt) => [attempt.deviceId, attempt.mode]),
+  );
+  const syncByDevice = new Map(
+    syncDevices.map((device) => [device.deviceId, device]),
   );
   const [nameDraft, setNameDraft] = useState(workspaceName);
   const [removeWorkspaceOpen, setRemoveWorkspaceOpen] = useState(false);
@@ -163,6 +202,10 @@ export function WorkspaceSettingsView({
               const displayName =
                 getDeviceDisplayName(device.deviceId) ??
                 (isCurrent ? "This device" : "Unnamed device");
+              const syncDetail = replicationDetail(
+                syncByDevice.get(device.deviceId),
+                observedNoteTitle,
+              );
 
               return (
                 <div className="device-row" key={device.deviceId}>
@@ -202,6 +245,9 @@ export function WorkspaceSettingsView({
                       </span>
                     </div>
                     <p>{shortDeviceId(device.deviceId)}</p>
+                    {syncDetail ? (
+                      <p className="device-sync-detail">{syncDetail}</p>
+                    ) : null}
                   </div>
 
                   {!isCurrent ? (
