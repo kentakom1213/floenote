@@ -34,7 +34,10 @@ import {
   allocateInvitationForAuthorizedPresence,
   authorizePresence,
 } from "./invitation-authorization.js";
-import { findPresenceSocketsForDevice } from "./presence-routing.js";
+import {
+  findPresenceSocketsForDevice,
+  isPresenceLeaseActive,
+} from "./presence-routing.js";
 import { generateTurnCredentials, TurnCredentialError } from "./turn-credentials.js";
 
 interface Env {
@@ -61,6 +64,7 @@ type PresenceSocketAttachment = {
   challenge: string;
   securityHead: string;
   deviceId?: string;
+  lastSeenAt?: number;
 };
 
 type SocketAttachment =
@@ -1020,6 +1024,7 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
     socket.serializeAttachment({
       ...attachment,
       deviceId,
+      lastSeenAt: Date.now(),
     } satisfies PresenceSocketAttachment);
 
     this.#broadcastPresenceState();
@@ -1030,6 +1035,20 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
     attachment: PresenceSocketAttachment & { deviceId: string },
     payload: unknown,
   ): Promise<void> {
+    if (
+      typeof payload === "object" &&
+      payload !== null &&
+      "type" in payload &&
+      payload.type === "presence-heartbeat"
+    ) {
+      socket.serializeAttachment({
+        ...attachment,
+        lastSeenAt: Date.now(),
+      } satisfies PresenceSocketAttachment);
+      this.#broadcastPresenceState();
+      return;
+    }
+
     if (
       typeof payload === "object" &&
       payload !== null &&
@@ -1315,10 +1334,17 @@ export class WorkspaceCoordinator extends DurableObject<Env> {
 
   #broadcastPresenceState(exclude?: WebSocket): void {
     const sockets = this.ctx.getWebSockets(presenceTag());
+    const now = Date.now();
     const authenticated = sockets.flatMap((peer) => {
       if (peer === exclude) return [];
       const attachment = peer.deserializeAttachment() as SocketAttachment | null;
-      if (attachment?.kind !== "presence" || !attachment.deviceId) return [];
+      if (
+        attachment?.kind !== "presence" ||
+        !attachment.deviceId ||
+        !isPresenceLeaseActive(attachment.lastSeenAt, now)
+      ) {
+        return [];
+      }
       return [attachment.deviceId];
     });
     const deviceIds = [...new Set(authenticated)].sort();

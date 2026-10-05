@@ -42,6 +42,8 @@ export const AUTHORIZED_PRESENCE_RECONNECT_DELAYS_MS = [
   30_000,
 ] as const;
 
+export const AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS = 30_000;
+
 const SECURITY_STATE_CHANGED_ERROR_MESSAGE = "SecurityState changed";
 
 const SECURITY_STATE_CHANGED_CLOSE_REASONS = new Set([
@@ -76,6 +78,7 @@ export class AuthorizedPresenceClient {
   #generation = 0;
   #reconnectAttempt = 0;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  #heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   #nextRequestId = 1;
   readonly #pendingInvitationRequests = new Map<
     number,
@@ -137,6 +140,7 @@ export class AuthorizedPresenceClient {
 
     socket.addEventListener("close", (event) => {
       if (generation !== this.#generation || socket !== this.#socket) return;
+      this.#clearHeartbeatTimer();
       this.#socket = null;
       this.#rejectPendingInvitationRequests(
         new Error("Authorized presence connection closed"),
@@ -285,6 +289,7 @@ export class AuthorizedPresenceClient {
     this.#started = false;
     this.#generation += 1;
     this.#clearReconnectTimer();
+    this.#clearHeartbeatTimer();
     this.#socket?.close(1000, "Authorized presence ended");
     this.#socket = null;
     this.#reconnectAttempt = 0;
@@ -315,6 +320,7 @@ export class AuthorizedPresenceClient {
         this.#reconnectAttempt = 0;
         this.#clearReconnectTimer();
         this.#setState("open");
+        this.#startHeartbeat();
         for (const handler of this.#deviceHandlers) {
           handler(deviceIds);
         }
@@ -443,6 +449,27 @@ export class AuthorizedPresenceClient {
     }, delayMs);
   }
 
+  #startHeartbeat(): void {
+    if (this.#heartbeatTimer) return;
+
+    this.#heartbeatTimer = setInterval(() => {
+      if (
+        this.#socket?.readyState !== WebSocket.OPEN ||
+        this.#state !== "open"
+      ) {
+        return;
+      }
+
+      this.#socket.send(JSON.stringify({ type: "presence-heartbeat" }));
+    }, AUTHORIZED_PRESENCE_HEARTBEAT_INTERVAL_MS);
+  }
+
+  #clearHeartbeatTimer(): void {
+    if (!this.#heartbeatTimer) return;
+    clearInterval(this.#heartbeatTimer);
+    this.#heartbeatTimer = null;
+  }
+
   #clearReconnectTimer(): void {
     if (!this.#reconnectTimer) return;
     clearTimeout(this.#reconnectTimer);
@@ -450,6 +477,7 @@ export class AuthorizedPresenceClient {
   }
 
   #fail(error: Error): void {
+    this.#clearHeartbeatTimer();
     this.#rejectPendingInvitationRequests(error);
     this.#setState("error");
     for (const handler of this.#errorHandlers) {

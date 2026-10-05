@@ -545,6 +545,15 @@ SecurityState head, and the challenge. The coordinator verifies the signature
 against the authorized device public key in its current SecurityState before the
 device is included in the online-device set.
 
+An authenticated Presence connection sends a small application-level heartbeat
+every 30 seconds. The coordinator records the server-observed activity time and
+counts a lease-aware connection as online only while that activity is less than
+90 seconds old. Lease expiry changes logical Presence only; it does not need to
+force-close the underlying WebSocket. A suspended device can therefore disappear
+from discovery without weakening WebRTC reconnect retries, then become online
+again after it resumes and refreshes its Presence lease. A DeviceId remains
+online while at least one of its authenticated tab connections has a live lease.
+
 Presence discovery supplies the online authorized DeviceIds used by the browser
 reconnect layer. For each online device pair, the lexicographically smaller
 DeviceId acts as the initiator. It generates a random 128-bit signaling SessionId
