@@ -1414,6 +1414,8 @@ input:focus-visible {
   min-width: 0;
   min-height: 0;
   height: 100dvh;
+  container-name: main-editor;
+  container-type: inline-size;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--color-bg);
@@ -1960,6 +1962,18 @@ input:focus-visible {
 
   .document-current-view[data-editor-mode="split"] .editor-view-pane {
     height: 100%;
+  }
+}
+
+@container main-editor (max-width: 959px) {
+  .editor-view-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .editor-view-split .editor-view-source {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
   }
 }
 
