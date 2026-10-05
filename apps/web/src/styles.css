@@ -854,9 +854,10 @@ input:focus-visible {
   min-width: 0;
   min-height: 0;
   width: 100%;
-  display: grid;
-  align-content: start;
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  align-items: stretch;
   gap: 2px;
   margin-top: 10px;
   overflow-y: auto;
@@ -867,9 +868,11 @@ input:focus-visible {
 .note-row {
   position: relative;
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
   border-radius: 9px;
   color: var(--color-text-muted);
   background: transparent;
@@ -887,22 +890,20 @@ input:focus-visible {
 
 .note-item {
   min-width: 0;
-  width: 100%;
+  min-height: 44px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 5px;
   overflow: hidden;
   border: 0;
   border-radius: 9px;
-  padding: 9px 6px 9px 10px;
+  padding: 7px 6px 6px 10px;
   color: inherit;
   background: transparent;
   text-align: left;
-}
-
-.note-item.note-item-with-tags {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: stretch;
-  gap: 5px;
-  padding-block: 7px 6px;
 }
 
 .note-item-title {
@@ -914,9 +915,9 @@ input:focus-visible {
 }
 
 /*
- * Keep tags on their own row. Putting title and chips in one grid row made both
- * unreadable in a narrow/resized sidebar. The title remains the primary row;
- * compact tags may truncate independently below it.
+ * Tags are an optional second line inside the same note-item layout. The
+ * outer note-row therefore grows from its content instead of switching layout
+ * models when tags are present.
  */
 .note-item-tags {
   min-width: 0;
@@ -926,6 +927,11 @@ input:focus-visible {
   justify-content: flex-start;
   gap: 4px;
   overflow: hidden;
+}
+
+.note-item-tags > .tag-chip {
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .note-item-tag-overflow {
@@ -938,6 +944,10 @@ input:focus-visible {
 
 .note-row-menu {
   position: relative;
+  flex: 0 0 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .note-row-menu > summary {
@@ -4552,7 +4562,6 @@ h1 {
 
   .note-list {
     min-height: 0;
-    display: grid;
     flex: 1;
     margin-top: 8px;
     padding-bottom: 2px;
@@ -4561,32 +4570,8 @@ h1 {
     overscroll-behavior: contain;
   }
 
-  .note-row {
-    width: 100%;
-    max-width: 100%;
-    min-height: 44px;
-    grid-template-columns: minmax(0, 1fr) 36px;
-  }
-
-  .note-item {
-    min-width: 0;
-    width: 100%;
-    max-width: 100%;
-    min-height: 44px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-  }
-
-  .note-item-tags {
-    width: 100%;
-    min-height: 22px;
-    max-width: 100%;
-  }
-
-  .note-item-tags > .tag-chip {
-    min-width: 0;
-    flex: 0 1 auto;
+  .note-row-menu {
+    flex-basis: 36px;
   }
 
   .note-row-menu-trigger {

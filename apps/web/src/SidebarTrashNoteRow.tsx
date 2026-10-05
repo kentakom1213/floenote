@@ -140,21 +140,23 @@ export function SidebarTrashNoteRow({
         {displayTitle}
       </button>
 
-      <button
-        ref={triggerRef}
-        className="note-row-menu-trigger"
-        type="button"
-        aria-label={`Actions for ${displayTitle}`}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        title="Deleted note actions"
-        onClick={() => {
-          setMenuPosition(null);
-          setMenuOpen((open) => !open);
-        }}
-      >
-        <EllipsisIcon />
-      </button>
+      <div className="note-row-menu">
+        <button
+          ref={triggerRef}
+          className="note-row-menu-trigger"
+          type="button"
+          aria-label={`Actions for ${displayTitle}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          title="Deleted note actions"
+          onClick={() => {
+            setMenuPosition(null);
+            setMenuOpen((open) => !open);
+          }}
+        >
+          <EllipsisIcon />
+        </button>
+      </div>
 
       {menuOpen
         ? createPortal(
