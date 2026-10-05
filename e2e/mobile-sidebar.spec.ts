@@ -22,11 +22,13 @@ test("contains mixed tagged and untagged notes inside mobile sidebar rows", asyn
   await tagInput.fill("LY");
   await tagInput.press("Enter");
 
+  await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("button", { name: "New note" }).click();
   await page
     .getByRole("textbox", { name: "Note title", exact: true })
     .fill("Untagged note");
 
+  await page.getByRole("button", { name: "Open navigation" }).click();
   await page
     .getByRole("navigation", { name: "Notes" })
     .getByRole("button", { name: "Welcome to Floe Note" })
