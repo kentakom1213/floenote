@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@floe-note/domain": "workspace:*",
-    "cborg": "^6.1.2"
+    "cborg": "^6.1.3"
   }
 }
