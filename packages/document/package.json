@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@floe-note/domain": "workspace:*",
-    "loro-crdt": "^1.16.1"
+    "loro-crdt": "^1.16.4"
   }
 }
