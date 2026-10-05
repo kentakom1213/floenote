@@ -24,6 +24,36 @@ async function archiveProjectFromSettings(page: import("@playwright/test").Page)
   await page.getByRole("dialog").getByRole("button", { name: "Archive Project" }).click();
 }
 
+async function splitOrientation(
+  page: import("@playwright/test").Page,
+): Promise<"horizontal" | "vertical" | "other"> {
+  return page.locator(".editor-view-split").evaluate((view) => {
+    const source = view.querySelector(".editor-view-source");
+    const preview = view.querySelector(".editor-view-preview");
+    if (!source || !preview) return "other";
+
+    const sourceRect = source.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    const tolerance = 2;
+
+    if (
+      Math.abs(sourceRect.top - previewRect.top) <= tolerance &&
+      previewRect.left >= sourceRect.right - tolerance
+    ) {
+      return "horizontal";
+    }
+
+    if (
+      Math.abs(sourceRect.left - previewRect.left) <= tolerance &&
+      previewRect.top >= sourceRect.bottom - tolerance
+    ) {
+      return "vertical";
+    }
+
+    return "other";
+  });
+}
+
 test("scopes notes, creates in the selected Project, and reconciles URLs, history and global search", async ({ page }) => {
   const { projectId, documentId } = await createSecuredProject(page);
   const notesUrl = `/w/${projectId}/n/${documentId}`;
@@ -412,6 +442,41 @@ test("keeps long Project names inside the selector and archive list", async ({ p
   });
   expect(archiveFits).toBe(true);
   await expect(row.getByRole("button", { name: "Reopen" })).toHaveCSS("border-top-style", "solid");
+});
+
+test("adapts Split orientation to the available editor width", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await createSecuredProject(page);
+
+  await page
+    .getByLabel("Note view")
+    .getByRole("button", { name: "Split" })
+    .click();
+
+  await expect
+    .poll(() =>
+      page.locator(".main-pane").evaluate((pane) => pane.getBoundingClientRect().width),
+    )
+    .toBeLessThan(960);
+  await expect.poll(() => splitOrientation(page)).toBe("vertical");
+
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
+
+  await expect
+    .poll(() =>
+      page.locator(".main-pane").evaluate((pane) => pane.getBoundingClientRect().width),
+    )
+    .toBeGreaterThanOrEqual(960);
+  await expect.poll(() => splitOrientation(page)).toBe("horizontal");
+
+  await page.setViewportSize({ width: 900, height: 800 });
+
+  await expect
+    .poll(() =>
+      page.locator(".main-pane").evaluate((pane) => pane.getBoundingClientRect().width),
+    )
+    .toBeLessThan(960);
+  await expect.poll(() => splitOrientation(page)).toBe("vertical");
 });
 
 test("shows Project settings within the mobile viewport and saves its name", async ({ page }) => {
