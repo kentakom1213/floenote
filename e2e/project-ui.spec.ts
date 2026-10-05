@@ -516,8 +516,14 @@ test("keeps mobile tag controls and selected note content within their container
         rowRect.right <= listRect.right &&
         itemRect.left >= rowRect.left &&
         itemRect.right <= rowRect.right &&
+        itemRect.top >= rowRect.top &&
+        itemRect.bottom <= rowRect.bottom &&
         (!tagsRect ||
-          (tagsRect.left >= itemRect.left && tagsRect.right <= itemRect.right))
+          (tagsRect.left >= itemRect.left &&
+            tagsRect.right <= itemRect.right &&
+            tagsRect.top >= itemRect.top &&
+            tagsRect.bottom <= itemRect.bottom &&
+            tagsRect.bottom <= rowRect.bottom))
       );
     });
   });
