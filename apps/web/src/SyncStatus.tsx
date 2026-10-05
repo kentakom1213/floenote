@@ -58,11 +58,13 @@ const COPY: Record<
 
 function stateLabel(device: SyncDeviceUi): string {
   if (device.state === "this-device") return "This device";
-
   if (device.state === "connected") {
     return device.replication === "current" ? "Synced" : "Syncing…";
   }
+  return device.state === "online" ? "Online" : "Offline";
+}
 
+function replicationLabel(device: SyncDeviceUi): string {
   if (device.replication === "current") {
     return device.confirmedAt
       ? `Current version confirmed ${formatConfirmationTime(device.confirmedAt)}`
@@ -75,7 +77,7 @@ function stateLabel(device: SyncDeviceUi): string {
       : "Newer changes not confirmed";
   }
 
-  return device.state === "online" ? "Online · not confirmed yet" : "No sync confirmation yet";
+  return "No sync confirmation yet";
 }
 
 function formatConfirmationTime(timestamp: number): string {
@@ -147,12 +149,31 @@ export function SyncStatus({
                   aria-hidden="true"
                 />
                 <div className="sync-device-copy">
-                  <strong>{device.name}</strong>
+                  <strong title={device.name}>{device.name}</strong>
                   <span>{stateLabel(device)}</span>
                 </div>
               </div>
             ))}
           </div>
+        ) : null}
+
+        {devices.some((device) => device.state !== "this-device") ? (
+          <details className="sync-device-details">
+            <summary className="sync-device-details-summary">Sync details</summary>
+            <div className="sync-device-details-list">
+              {devices
+                .filter((device) => device.state !== "this-device")
+                .map((device) => (
+                  <div className="sync-device-detail" key={device.deviceId}>
+                    <div>
+                      <strong title={device.name}>{device.name}</strong>
+                      <span>{stateLabel(device)}</span>
+                    </div>
+                    <p>{replicationLabel(device)}</p>
+                  </div>
+                ))}
+            </div>
+          </details>
         ) : null}
 
         <button
