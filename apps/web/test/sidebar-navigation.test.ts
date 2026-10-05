@@ -153,7 +153,8 @@ describe("sidebar navigation", () => {
     );
 
     expect(SIDEBAR_TAG_LIMIT).toBe(3);
-    expect(markup).toContain("note-item note-item-with-tags");
+    expect(markup).toContain('class="note-item"');
+    expect(markup).not.toContain("note-item-with-tags");
     expect(markup).toContain("note-item-title");
     expect(markup).toContain("note-item-tags");
     expect(markup).toContain("research");
