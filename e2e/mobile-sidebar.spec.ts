@@ -36,8 +36,13 @@ test("contains mixed tagged and untagged notes inside mobile sidebar rows", asyn
 
   await page.getByRole("button", { name: "Open navigation" }).click();
 
-  const rowsFit = await page.locator(".note-list").evaluate((list) => {
+  const layoutIsStable = await page.locator(".note-list").evaluate((list) => {
     const tolerance = 1;
+    const listStyle = getComputedStyle(list);
+
+    if (listStyle.display !== "flex" || listStyle.flexDirection !== "column") {
+      return false;
+    }
 
     const contains = (outer: DOMRect, inner: DOMRect) =>
       inner.left >= outer.left - tolerance &&
@@ -55,7 +60,30 @@ test("contains mixed tagged and untagged notes inside mobile sidebar rows", asyn
       if (row.scrollHeight > row.clientHeight + tolerance) return false;
       if (item.scrollHeight > item.clientHeight + tolerance) return false;
 
+      const rowStyle = getComputedStyle(row);
+      const itemStyle = getComputedStyle(item);
+      const title = item.querySelector<HTMLElement>(".note-item-title");
+      if (!title) return false;
+
       const tags = item.querySelector<HTMLElement>(".note-item-tags");
+      const titleHeight = title.getBoundingClientRect().height;
+      const tagsHeight = tags?.getBoundingClientRect().height ?? 0;
+      const gap = tags ? Number.parseFloat(itemStyle.rowGap || itemStyle.gap) || 0 : 0;
+      const padding =
+        (Number.parseFloat(itemStyle.paddingTop) || 0) +
+        (Number.parseFloat(itemStyle.paddingBottom) || 0);
+      const menuHeight =
+        row.querySelector<HTMLElement>(".note-row-menu-trigger")
+          ?.getBoundingClientRect().height ?? 0;
+      const minHeight = Number.parseFloat(rowStyle.minHeight) || 0;
+      const naturalHeight = Math.max(
+        minHeight,
+        menuHeight,
+        titleHeight + tagsHeight + gap + padding,
+      );
+
+      if (rowRect.height > naturalHeight + tolerance) return false;
+
       if (!tags) return true;
 
       const tagsRect = tags.getBoundingClientRect();
@@ -75,7 +103,7 @@ test("contains mixed tagged and untagged notes inside mobile sidebar rows", asyn
     });
   });
 
-  expect(rowsFit).toBe(true);
+  expect(layoutIsStable).toBe(true);
 
   const selectedRow = page.locator(".note-row.selected");
   await expect(selectedRow).toBeVisible();
