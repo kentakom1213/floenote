@@ -2394,6 +2394,8 @@ input:focus-visible {
 }
 
 .sync-device-copy strong {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--color-text);
   font-size: 11px;
@@ -3256,6 +3258,16 @@ input:focus-visible {
 .device-status[data-state="connected"],
 .device-status[data-state="online"] {
   color: var(--color-active);
+}
+
+.device-sync-detail {
+  max-width: 620px;
+  margin-top: 3px !important;
+  overflow: hidden;
+  color: var(--color-text-faint) !important;
+  font-size: 11px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-copy-block {

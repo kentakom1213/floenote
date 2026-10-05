@@ -2418,6 +2418,10 @@ function NoteApp({
         onlineDeviceIds={authorizedSync.onlineDeviceIds}
         connectedDeviceIds={authorizedSync.connectedDeviceIds}
         connectionAttempts={authorizedSync.connectionAttempts}
+        syncDevices={syncDevices}
+        observedNoteTitle={
+          selectedDocument ? selectedDocument.title || "Untitled" : null
+        }
         securityState={
           localSecurityBootstrapState === "error"
             ? "error"

@@ -43,6 +43,20 @@ describe("WorkspaceSettingsView device status", () => {
             mode: "direct",
           },
         ],
+        syncDevices: [
+          {
+            deviceId: localDeviceId,
+            name: "Ubuntu",
+            state: "this-device",
+          },
+          {
+            deviceId: remoteDeviceId,
+            name: "Android",
+            state: "offline",
+            replication: "unknown",
+          },
+        ],
+        observedNoteTitle: "Notes",
         securityState: "ready",
         securityError: null,
         coordinationState: "ready",
@@ -60,5 +74,69 @@ describe("WorkspaceSettingsView device status", () => {
     expect(markup).toContain("Android");
     expect(markup).toContain(">Offline<");
     expect(markup).not.toContain("Connecting · Direct");
+  });
+
+  it("shows selected-note confirmation in the device settings row", () => {
+    const localDeviceId = parseDeviceId(
+      "00000000-0000-7000-8000-000000000001",
+    );
+    const remoteDeviceId = parseDeviceId(
+      "00000000-0000-7000-8000-000000000002",
+    );
+
+    const markup = renderToStaticMarkup(
+      createElement(WorkspaceSettingsView, {
+        workspaceId: parseWorkspaceId(
+          "00000000-0000-7000-8000-000000000010",
+        ),
+        workspaceName: "Personal",
+        localDeviceId,
+        authorizedDevices: [
+          {
+            deviceId: localDeviceId,
+            encryptionPublicKey: new Uint8Array(32),
+            signingPublicKey: new Uint8Array(32),
+            addedAtSequence: 0,
+          },
+          {
+            deviceId: remoteDeviceId,
+            encryptionPublicKey: new Uint8Array(32),
+            signingPublicKey: new Uint8Array(32),
+            addedAtSequence: 1,
+          },
+        ],
+        onlineDeviceIds: [localDeviceId, remoteDeviceId],
+        connectedDeviceIds: [remoteDeviceId],
+        connectionAttempts: [],
+        syncDevices: [
+          {
+            deviceId: localDeviceId,
+            name: "Ubuntu",
+            state: "this-device",
+          },
+          {
+            deviceId: remoteDeviceId,
+            name: "Android",
+            state: "connected",
+            replication: "current",
+          },
+        ],
+        observedNoteTitle: "Project notes",
+        securityState: "ready",
+        securityError: null,
+        coordinationState: "ready",
+        coordinationError: null,
+        getDeviceDisplayName: (deviceId) =>
+          deviceId === remoteDeviceId ? "Android" : "Ubuntu",
+        onRenameWorkspace: vi.fn(),
+        onRemoveWorkspaceFromDevice: vi.fn(async () => undefined),
+        onAddDevice: vi.fn(),
+        onRetrySecurity: vi.fn(),
+        onRemoveDevice: vi.fn(async () => undefined),
+      }),
+    );
+
+    expect(markup).toContain("Project notes");
+    expect(markup).toContain("Current version confirmed");
   });
 });

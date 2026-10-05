@@ -58,33 +58,10 @@ const COPY: Record<
 
 function stateLabel(device: SyncDeviceUi): string {
   if (device.state === "this-device") return "This device";
-
   if (device.state === "connected") {
     return device.replication === "current" ? "Synced" : "Syncing…";
   }
-
-  if (device.replication === "current") {
-    return device.confirmedAt
-      ? `Current version confirmed ${formatConfirmationTime(device.confirmedAt)}`
-      : "Current version confirmed";
-  }
-
-  if (device.replication === "stale") {
-    return device.confirmedAt
-      ? `Last confirmed ${formatConfirmationTime(device.confirmedAt)}`
-      : "Newer changes not confirmed";
-  }
-
-  return device.state === "online" ? "Online · not confirmed yet" : "No sync confirmation yet";
-}
-
-function formatConfirmationTime(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
+  return device.state === "online" ? "Online" : "Offline";
 }
 
 export function SyncStatus({
@@ -147,7 +124,7 @@ export function SyncStatus({
                   aria-hidden="true"
                 />
                 <div className="sync-device-copy">
-                  <strong>{device.name}</strong>
+                  <strong title={device.name}>{device.name}</strong>
                   <span>{stateLabel(device)}</span>
                 </div>
               </div>
