@@ -2394,6 +2394,8 @@ input:focus-visible {
 }
 
 .sync-device-copy strong {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--color-text);
   font-size: 11px;
@@ -2406,6 +2408,70 @@ input:focus-visible {
   flex: 0 0 auto;
   color: var(--color-text-faint);
   font-size: 10px;
+}
+
+.sync-device-details {
+  margin-top: 5px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 4px;
+}
+
+.sync-device-details-summary {
+  border-radius: 8px;
+  padding: 7px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sync-device-details-summary:hover,
+.sync-device-details[open] .sync-device-details-summary {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.sync-device-details-list {
+  display: grid;
+  gap: 8px;
+  padding: 4px 7px 8px 20px;
+}
+
+.sync-device-detail {
+  min-width: 0;
+}
+
+.sync-device-detail > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sync-device-detail strong {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-device-detail span {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+  font-size: 9px;
+}
+
+.sync-device-detail p {
+  margin: 3px 0 0;
+  color: var(--color-text-faint);
+  font-size: 9px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .sync-manage-devices {
