@@ -49,6 +49,8 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await page.getByLabel("Note actions").click();
   await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("button", { name: "Trash", exact: true }).click();
+  const deletedNoteActions = page.getByLabel("Actions for Welcome to Floe Note");
+  await expect(deletedNoteActions).toHaveCSS("border-top-width", "0px");
   await page
     .getByRole("button", { name: "Welcome to Floe Note" })
     .last()

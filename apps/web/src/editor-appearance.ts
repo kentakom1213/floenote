@@ -61,160 +61,6 @@ const markdownHighlightStyle = HighlightStyle.define([
   },
 ]);
 
-const compactSearchChrome = {
-    ".cm-panels-top": {
-      margin: "8px 8px 0",
-      overflow: "visible",
-    },
-    ".cm-panel.cm-search": {
-      gridTemplateColumns:
-        "20px minmax(0, 1fr) 28px 28px max-content 28px",
-      columnGap: "4px",
-      rowGap: "6px",
-      padding: "8px 38px 8px 8px",
-    },
-    ".cm-panel.cm-search .cm-search-replace-toggle": {
-      width: "20px",
-      height: "30px",
-    },
-    ".cm-panel.cm-search [name=search]": {
-      gridColumn: "2",
-    },
-    ".cm-panel.cm-search [name=prev]": {
-      gridColumn: "3",
-    },
-    ".cm-panel.cm-search [name=next]": {
-      gridColumn: "4",
-    },
-    ".cm-panel.cm-search [name=select]": {
-      gridColumn: "5",
-    },
-    ".cm-panel.cm-search .cm-search-options-toggle": {
-      gridColumn: "6",
-      gridRow: "1",
-      width: "28px",
-      height: "30px",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      boxSizing: "border-box",
-      margin: "0",
-      border: "1px solid var(--color-border)",
-      borderRadius: "7px",
-      padding: "0",
-      color: "var(--color-text-muted)",
-      backgroundColor: "var(--color-surface)",
-      fontFamily: "inherit",
-      fontSize: "16px",
-      lineHeight: "1",
-      cursor: "pointer",
-    },
-    ".cm-panel.cm-search .cm-search-options-toggle:hover": {
-      borderColor: "var(--color-border-strong)",
-      color: "var(--color-text)",
-      backgroundColor: "var(--color-surface-hover)",
-    },
-    ".cm-panel.cm-search .cm-search-options-toggle:focus-visible": {
-      outline: "2px solid var(--color-focus)",
-      outlineOffset: "2px",
-    },
-    ".cm-panel.cm-search .cm-search-options": {
-      position: "absolute",
-      zIndex: "10",
-      top: "46px",
-      right: "8px",
-      width: "min(210px, calc(100% - 16px))",
-      display: "none",
-      flexDirection: "column",
-      boxSizing: "border-box",
-      gap: "2px",
-      padding: "6px",
-      border: "1px solid var(--color-border)",
-      borderRadius: "9px",
-      color: "var(--color-text)",
-      backgroundColor: "var(--color-surface)",
-    },
-    ".cm-panel.cm-search[data-floe-search-options-open=true] .cm-search-options":
-      {
-        display: "flex",
-      },
-    ".cm-panel.cm-search[data-floe-replace-open=true] .cm-search-options": {
-      top: "84px",
-    },
-    ".cm-panel.cm-search .cm-search-options label": {
-      width: "100%",
-      height: "34px",
-      justifyContent: "flex-start",
-      gap: "8px",
-      border: "0",
-      borderRadius: "6px",
-      padding: "0 8px",
-      color: "var(--color-text)",
-      backgroundColor: "transparent",
-      fontSize: "12px",
-      fontWeight: "500",
-    },
-    ".cm-panel.cm-search .cm-search-options label:hover": {
-      backgroundColor: "var(--color-surface-hover)",
-    },
-    ".cm-panel.cm-search .cm-search-options label:has(input:checked)": {
-      color: "var(--color-accent)",
-      backgroundColor: "var(--color-accent-soft)",
-      boxShadow: "none",
-      fontWeight: "600",
-    },
-    ".cm-panel.cm-search .cm-search-options label::before": {
-      content: "\"\"",
-      width: "14px",
-      height: "14px",
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      boxSizing: "border-box",
-      flex: "0 0 auto",
-      border: "1px solid var(--color-border-strong)",
-      borderRadius: "4px",
-      color: "var(--color-accent-contrast, white)",
-      backgroundColor: "var(--color-bg)",
-      fontSize: "10px",
-      lineHeight: "1",
-    },
-    ".cm-panel.cm-search .cm-search-options label:has(input:checked)::before":
-      {
-        content: "\"✓\"",
-        borderColor: "var(--color-accent)",
-        backgroundColor: "var(--color-accent)",
-      },
-    ".cm-panel.cm-search .cm-search-options label::after": {
-      display: "none",
-    },
-    ".cm-panel.cm-search input[name=replace]": {
-      gridColumn: "2",
-      gridRow: "2",
-    },
-    ".cm-panel.cm-search button[name=replace]": {
-      gridColumn: "3 / span 2",
-      gridRow: "2",
-    },
-    ".cm-panel.cm-search [name=replaceAll]": {
-      gridColumn: "5 / span 2",
-      gridRow: "2",
-    },
-    ".cm-panel.cm-search button[name=replace], .cm-panel.cm-search [name=replaceAll]":
-      {
-        minWidth: "0",
-        paddingInline: "4px",
-        fontSize: "10px",
-      },
-    ".cm-panel.cm-search [name=close]": {
-      top: "8px",
-      right: "4px",
-      width: "30px",
-      height: "30px",
-    },
-
-};
-
 const floeEditorChrome = EditorView.theme({
   "&": {
     color: "var(--color-text)",
@@ -239,39 +85,34 @@ const floeEditorChrome = EditorView.theme({
     fontSize: "12px",
   },
   ".cm-panels-top": {
-    margin: "12px 12px 0",
+    margin: "8px 8px 0",
     border: "1px solid var(--color-border)",
     borderRadius: "12px",
-    overflow: "hidden",
+    overflow: "visible",
   },
   ".cm-panels-bottom": {
     borderTop: "1px solid var(--color-border)",
   },
   ".cm-panel.cm-search": {
     position: "relative",
+    minWidth: "0",
     display: "grid",
     gridTemplateColumns:
-      "24px minmax(0, 220px) 30px 30px max-content 30px 30px 30px minmax(0, 1fr)",
+      "20px minmax(0, 1fr) max-content max-content 28px",
     gridTemplateRows: "auto",
     alignItems: "center",
-    columnGap: "6px",
+    columnGap: "4px",
     rowGap: "6px",
-    padding: "10px 44px 10px 10px",
+    padding: "8px 38px 8px 8px",
   },
   ".cm-panel.cm-search br": {
-    display: "none",
-  },
-  ".cm-panel.cm-search .cm-search-options": {
-    display: "contents",
-  },
-  ".cm-panel.cm-search .cm-search-options-toggle": {
     display: "none",
   },
   ".cm-panel.cm-search .cm-search-replace-toggle": {
     gridColumn: "1",
     gridRow: "1",
-    width: "24px",
-    height: "32px",
+    width: "20px",
+    height: "30px",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -286,6 +127,20 @@ const floeEditorChrome = EditorView.theme({
     fontSize: "18px",
     lineHeight: "1",
     cursor: "pointer",
+  },
+  ".cm-panel.cm-search .cm-search-replace-toggle svg": {
+    width: "16px",
+    height: "16px",
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: "1.6",
+    transformOrigin: "center",
+    transition: "transform 120ms ease",
+  },
+  ".cm-panel.cm-search .cm-search-replace-toggle[aria-expanded=true] svg": {
+    transform: "rotate(90deg)",
   },
   ".cm-panel.cm-search .cm-search-replace-toggle:hover": {
     color: "var(--color-text)",
@@ -307,94 +162,164 @@ const floeEditorChrome = EditorView.theme({
     gridColumn: "4",
     gridRow: "1",
   },
-  ".cm-panel.cm-search [name=select]": {
+  ".cm-panel.cm-search .cm-search-options-toggle": {
     gridColumn: "5",
     gridRow: "1",
-    textTransform: "capitalize",
-  },
-  ".cm-panel.cm-search input[name=replace]": {
-    gridColumn: "2",
-    gridRow: "2",
-  },
-  ".cm-panel.cm-search button[name=replace]": {
-    gridColumn: "3 / span 2",
-    gridRow: "2",
-    justifySelf: "end",
-  },
-  ".cm-panel.cm-search [name=replaceAll]": {
-    gridColumn: "5 / span 3",
-    gridRow: "2",
-    justifySelf: "start",
-  },
-  ".cm-panel.cm-search label:has(input[name=case])": {
-    gridColumn: "6",
-    gridRow: "1",
-  },
-  ".cm-panel.cm-search label:has(input[name=re])": {
-    gridColumn: "7",
-    gridRow: "1",
-  },
-  ".cm-panel.cm-search label:has(input[name=word])": {
-    gridColumn: "8",
-    gridRow: "1",
-  },
-  ".cm-panel.cm-search:not([data-floe-replace-open=true]) input[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) button[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) [name=replaceAll]": {
-    display: "none",
-  },
-  ".cm-panel.cm-search label": {
-    position: "relative",
-    display: "inline-flex",
-    width: "30px",
+    width: "28px",
     height: "30px",
+    display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     boxSizing: "border-box",
     margin: "0",
     border: "1px solid var(--color-border)",
     borderRadius: "7px",
+    padding: "0",
     color: "var(--color-text-muted)",
     backgroundColor: "var(--color-surface)",
-    fontSize: "0",
-    fontWeight: "600",
+    fontFamily: "inherit",
+    fontSize: "16px",
     lineHeight: "1",
     cursor: "pointer",
-    userSelect: "none",
   },
-  ".cm-panel.cm-search label:hover": {
+  ".cm-panel.cm-search .cm-search-options-toggle:hover": {
     borderColor: "var(--color-border-strong)",
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
   },
-  ".cm-panel.cm-search label:focus-within": {
+  ".cm-panel.cm-search .cm-search-options-toggle:focus-visible": {
     outline: "2px solid var(--color-focus)",
     outlineOffset: "2px",
   },
-  ".cm-panel.cm-search label:has(input:checked)": {
-    borderColor: "var(--color-accent)",
+  ".cm-panel.cm-search .cm-search-options": {
+    position: "absolute",
+    zIndex: "10",
+    top: "46px",
+    right: "8px",
+    width: "min(210px, calc(100% - 16px))",
+    display: "none",
+    flexDirection: "column",
+    boxSizing: "border-box",
+    gap: "2px",
+    padding: "6px",
+    border: "1px solid var(--color-border)",
+    borderRadius: "9px",
+    color: "var(--color-text)",
+    backgroundColor: "var(--color-surface)",
+    boxShadow: "var(--shadow-popover)",
+  },
+  ".cm-panel.cm-search[data-floe-search-options-open=true] .cm-search-options": {
+    display: "flex",
+  },
+  ".cm-panel.cm-search[data-floe-replace-open=true] .cm-search-options": {
+    top: "84px",
+  },
+  ".cm-panel.cm-search .cm-search-options [name=select]": {
+    width: "100%",
+    minHeight: "34px",
+    justifyContent: "flex-start",
+    border: "0",
+    padding: "0 8px",
+    fontSize: "12px",
+    fontWeight: "500",
+    textAlign: "left",
+  },
+  ".cm-panel.cm-search .cm-search-options label": {
+    position: "relative",
+    width: "100%",
+    height: "34px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    boxSizing: "border-box",
+    gap: "8px",
+    margin: "0",
+    border: "0",
+    borderRadius: "6px",
+    padding: "0 8px",
+    color: "var(--color-text)",
+    backgroundColor: "transparent",
+    fontSize: "12px",
+    fontWeight: "500",
+    lineHeight: "1",
+    cursor: "pointer",
+    userSelect: "none",
+  },
+  ".cm-panel.cm-search .cm-search-options label:hover": {
+    backgroundColor: "var(--color-surface-hover)",
+  },
+  ".cm-panel.cm-search .cm-search-options label:focus-within": {
+    outline: "2px solid var(--color-focus)",
+    outlineOffset: "-2px",
+  },
+  ".cm-panel.cm-search .cm-search-options label:has(input:checked)": {
     color: "var(--color-accent)",
     backgroundColor: "var(--color-accent-soft)",
-    boxShadow: "inset 0 0 0 1px var(--color-accent)",
-    fontWeight: "700",
+    boxShadow: "none",
+    fontWeight: "600",
   },
-  ".cm-panel.cm-search label:has(input[name=case])::after": {
-    content: "\"Aa\"",
-    display: "block",
-    fontSize: "11px",
+  ".cm-panel.cm-search .cm-search-options label::before": {
+    content: "\"\"",
+    width: "14px",
+    height: "14px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+    flex: "0 0 auto",
+    border: "1px solid var(--color-border-strong)",
+    borderRadius: "4px",
+    color: "var(--color-accent-contrast, white)",
+    backgroundColor: "var(--color-bg)",
+    fontSize: "10px",
     lineHeight: "1",
   },
-  ".cm-panel.cm-search label:has(input[name=re])::after": {
-    content: "\".*\"",
-    display: "block",
-    fontSize: "12px",
-    lineHeight: "1",
+  ".cm-panel.cm-search .cm-search-options label:has(input:checked)::before": {
+    content: "\"✓\"",
+    borderColor: "var(--color-accent)",
+    backgroundColor: "var(--color-accent)",
   },
-  ".cm-panel.cm-search label:has(input[name=word])::after": {
-    content: "\"ab\"",
+  ".cm-panel.cm-search .cm-search-options label::after": {
+    display: "none",
+  },
+  ".cm-panel.cm-search input[name=replace]": {
+    gridColumn: "2",
+    gridRow: "2",
+  },
+  ".cm-panel.cm-search button[name=replace]": {
+    gridColumn: "3",
+    gridRow: "2",
+  },
+  ".cm-panel.cm-search [name=replaceAll]": {
+    gridColumn: "4",
+    gridRow: "2",
+  },
+  ".cm-panel.cm-search button[name=replace], .cm-panel.cm-search [name=replaceAll]": {
+    minWidth: "0",
+    height: "30px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    whiteSpace: "nowrap",
+    paddingInline: "5px",
+    fontSize: "0",
+  },
+  ".cm-panel.cm-search button[name=replace] svg, .cm-panel.cm-search [name=replaceAll] svg": {
     display: "block",
-    fontSize: "11px",
-    lineHeight: "1",
-    textDecoration: "underline",
-    textUnderlineOffset: "2px",
+    width: "30px",
+    height: "18px",
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: "1.8",
+    vectorEffect: "non-scaling-stroke",
+  },
+  ".cm-panel.cm-search [name=replaceAll] svg": {
+    height: "20px",
+  },
+  ".cm-panel.cm-search:not([data-floe-replace-open=true]) input[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) button[name=replace], .cm-panel.cm-search:not([data-floe-replace-open=true]) [name=replaceAll]": {
+    display: "none",
   },
   ".cm-panel.cm-search .cm-textfield": {
     minWidth: "0",
@@ -416,7 +341,8 @@ const floeEditorChrome = EditorView.theme({
   },
   ".cm-panel.cm-search .cm-textfield:focus-visible": {
     borderColor: "var(--color-focus)",
-    boxShadow: "0 0 0 2px color-mix(in srgb, var(--color-focus) 28%, transparent)",
+    boxShadow:
+      "0 0 0 2px color-mix(in srgb, var(--color-focus) 28%, transparent)",
   },
   ".cm-panel.cm-search .cm-button": {
     minHeight: "30px",
@@ -439,7 +365,7 @@ const floeEditorChrome = EditorView.theme({
     backgroundColor: "var(--color-accent-soft)",
   },
   ".cm-panel.cm-search [name=prev], .cm-panel.cm-search [name=next]": {
-    width: "30px",
+    width: "28px",
     height: "30px",
     minHeight: "30px",
     display: "inline-flex",
@@ -458,11 +384,10 @@ const floeEditorChrome = EditorView.theme({
     fontSize: "14px",
     lineHeight: "1",
   },
-  ".cm-panel.cm-search .cm-button:focus-visible, .cm-panel.cm-search [name=close]:focus-visible":
-    {
-      outline: "2px solid var(--color-focus)",
-      outlineOffset: "2px",
-    },
+  ".cm-panel.cm-search .cm-button:focus-visible, .cm-panel.cm-search [name=close]:focus-visible": {
+    outline: "2px solid var(--color-focus)",
+    outlineOffset: "2px",
+  },
   ".cm-panel.cm-search input[type=checkbox]": {
     position: "absolute",
     width: "1px",
@@ -472,10 +397,10 @@ const floeEditorChrome = EditorView.theme({
   },
   ".cm-panel.cm-search [name=close]": {
     position: "absolute",
-    top: "10px",
-    right: "8px",
-    width: "32px",
-    height: "32px",
+    top: "8px",
+    right: "4px",
+    width: "30px",
+    height: "30px",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -499,7 +424,92 @@ const floeEditorChrome = EditorView.theme({
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
   },
-  "@container editor-source (max-width: 640px)": compactSearchChrome,
+  "@container editor-source (min-width: 640px)": {
+    ".cm-panel.cm-search": {
+      gridTemplateColumns:
+        "20px minmax(0, 1fr) max-content max-content max-content 30px 30px 30px",
+    },
+    ".cm-panel.cm-search .cm-search-options-toggle": {
+      display: "none",
+    },
+    ".cm-panel.cm-search .cm-search-options, .cm-panel.cm-search[data-floe-search-options-open=true] .cm-search-options": {
+      position: "static",
+      width: "auto",
+      display: "contents",
+      padding: "0",
+      border: "0",
+      borderRadius: "0",
+      backgroundColor: "transparent",
+      boxShadow: "none",
+    },
+    ".cm-panel.cm-search .cm-search-options [name=select]": {
+      gridColumn: "5",
+      gridRow: "1",
+      width: "auto",
+      minHeight: "30px",
+      justifyContent: "center",
+      padding: "5px 6px",
+      fontSize: "11px",
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    ".cm-panel.cm-search .cm-search-options label": {
+      width: "30px",
+      height: "30px",
+      justifyContent: "center",
+      gap: "0",
+      border: "1px solid var(--color-border)",
+      borderRadius: "7px",
+      padding: "0",
+      color: "var(--color-text-muted)",
+      backgroundColor: "var(--color-surface)",
+      fontSize: "0",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=case])": {
+      gridColumn: "6",
+      gridRow: "1",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=re])": {
+      gridColumn: "7",
+      gridRow: "1",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=word])": {
+      gridColumn: "8",
+      gridRow: "1",
+    },
+    ".cm-panel.cm-search .cm-search-options label:hover": {
+      borderColor: "var(--color-border-strong)",
+    },
+    ".cm-panel.cm-search .cm-search-options label:focus-within": {
+      outlineOffset: "2px",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input:checked)": {
+      borderColor: "var(--color-accent)",
+      boxShadow: "inset 0 0 0 1px var(--color-accent)",
+      fontWeight: "700",
+    },
+    ".cm-panel.cm-search .cm-search-options label::before": {
+      display: "none",
+    },
+    ".cm-panel.cm-search .cm-search-options label::after": {
+      display: "block",
+      lineHeight: "1",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=case])::after": {
+      content: "\"Aa\"",
+      fontSize: "11px",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=re])::after": {
+      content: "\".*\"",
+      fontSize: "12px",
+    },
+    ".cm-panel.cm-search .cm-search-options label:has(input[name=word])::after": {
+      content: "\"ab\"",
+      fontSize: "11px",
+      textDecoration: "underline",
+      textUnderlineOffset: "2px",
+    },
+  },
   ".cm-tooltip": {
     border: "1px solid var(--color-border)",
     borderRadius: "9px",

@@ -54,15 +54,35 @@ describe("editor search panel", () => {
       "[data-floe-replace-toggle]",
     );
     expect(replaceToggle).not.toBeNull();
+    const chevron = replaceToggle?.querySelector("svg");
+    expect(chevron).not.toBeNull();
+    expect(replaceToggle?.textContent).toBe("");
     expect(panel.dataset.floeReplaceOpen).toBe("false");
     expect(replaceToggle?.getAttribute("aria-expanded")).toBe("false");
 
     replaceToggle?.click();
     expect(panel.dataset.floeReplaceOpen).toBe("true");
     expect(replaceToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(replaceToggle?.querySelector("svg")).toBe(chevron);
+
+    const replaceButton =
+      panel.querySelector<HTMLButtonElement>('button[name="replace"]');
+    const replaceAllButton =
+      panel.querySelector<HTMLButtonElement>('[name="replaceAll"]');
+    expect(replaceButton?.querySelector("[data-floe-replace-icon]")).not.toBeNull();
+    expect(
+      replaceAllButton?.querySelector("[data-floe-replace-all-icon]"),
+    ).not.toBeNull();
+    expect(replaceButton?.textContent).toBe("");
+    expect(replaceAllButton?.textContent).toBe("");
+    expect(replaceButton?.getAttribute("aria-label")).toBe("Replace");
+    expect(replaceAllButton?.getAttribute("aria-label")).toBe("Replace all");
+    expect(replaceButton?.title).toBe("Replace");
+    expect(replaceAllButton?.title).toBe("Replace all");
 
     replaceToggle?.click();
     expect(panel.dataset.floeReplaceOpen).toBe("false");
+    expect(replaceToggle?.querySelector("svg")).toBe(chevron);
   });
 
   it("adds presentation chrome without duplicating CodeMirror search options", async () => {
@@ -83,6 +103,10 @@ describe("editor search panel", () => {
     expect(optionsToggle?.title).toBe("Show search options");
     expect(optionsMenu?.getAttribute("role")).toBe("group");
     expect(optionsMenu?.getAttribute("aria-label")).toBe("Search options");
+    const selectAll = panel.querySelector<HTMLButtonElement>('[name="select"]');
+    expect(selectAll?.textContent).toBe("Select all");
+    expect(selectAll?.title).toBe("Select all matches");
+    expect(optionsMenu?.contains(selectAll ?? null)).toBe(true);
     expect(optionsMenu?.textContent).toContain("Match case");
     expect(optionsMenu?.textContent).toContain("Regular expression");
     expect(optionsMenu?.textContent).toContain("Whole word");
@@ -182,9 +206,9 @@ describe("editor search panel", () => {
 
     expect(search?.nextElementSibling).toBe(previous);
     expect(previous?.nextElementSibling).toBe(next);
-    expect(next?.nextElementSibling).toBe(selectAll);
-    expect(selectAll?.nextElementSibling).toBe(optionsToggle);
+    expect(next?.nextElementSibling).toBe(optionsToggle);
     expect(optionsToggle?.nextElementSibling).toBe(optionsMenu);
+    expect(optionsMenu?.contains(selectAll)).toBe(true);
     expect(optionsMenu?.nextElementSibling).toBe(close);
     expect(close?.nextElementSibling).toBe(lineBreak);
   });

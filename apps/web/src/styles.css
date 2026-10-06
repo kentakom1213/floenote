@@ -543,7 +543,8 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.workspace-project-chevron {
+.workspace-project-chevron,
+.settings-project-chevron {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
@@ -963,8 +964,12 @@ input:focus-visible {
   height: 26px;
   display: grid;
   place-items: center;
+  appearance: none;
+  border: 0;
   border-radius: 7px;
+  padding: 0;
   color: var(--color-text-faint);
+  background: transparent;
   cursor: pointer;
   opacity: 0.28;
   transition:
@@ -1117,13 +1122,6 @@ input:focus-visible {
 
 .sidebar-trash-note-item {
   padding-left: 46px;
-}
-
-.sidebar-trash-note-row > .note-row-menu-trigger {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  background: transparent;
 }
 
 .sidebar-trash-floating-menu {

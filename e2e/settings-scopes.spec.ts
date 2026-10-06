@@ -141,6 +141,8 @@ test("keeps duplicate and long Project names usable in mobile Settings navigatio
   await page.setViewportSize({ width: 390, height: 844 });
   const scopes = page.getByRole("navigation", { name: "Settings sections" });
   const summary = scopes.locator(".settings-project-selector summary");
+  await expect(summary.locator(".settings-project-chevron")).toHaveCount(1);
+  await expect(summary).not.toContainText("⌄");
   const summaryFits = await summary.evaluate((element) => element.getBoundingClientRect().right <= window.innerWidth);
   expect(summaryFits).toBe(true);
   await summary.click();
