@@ -287,6 +287,20 @@ const floeEditorChrome = EditorView.theme({
     lineHeight: "1",
     cursor: "pointer",
   },
+  ".cm-panel.cm-search .cm-search-replace-toggle svg": {
+    width: "16px",
+    height: "16px",
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: "1.6",
+    transformOrigin: "center",
+    transition: "transform 120ms ease",
+  },
+  ".cm-panel.cm-search .cm-search-replace-toggle[aria-expanded=true] svg": {
+    transform: "rotate(90deg)",
+  },
   ".cm-panel.cm-search .cm-search-replace-toggle:hover": {
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
@@ -499,7 +513,7 @@ const floeEditorChrome = EditorView.theme({
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
   },
-  "@container editor-source (max-width: 640px)": compactSearchChrome,
+  "@container editor-source (max-width: 760px)": compactSearchChrome,
   ".cm-tooltip": {
     border: "1px solid var(--color-border)",
     borderRadius: "9px",
