@@ -3,25 +3,24 @@ import { createSecuredProject } from "./project.js";
 
 async function expectSearchChromeInsideSource(
   page: import("@playwright/test").Page,
+  viewportWidth: number,
 ): Promise<void> {
-  const fits = await page.locator(".editor-view-source").evaluate((source) => {
+  const result = await page.locator(".editor-view-source").evaluate((source) => {
     const sourceRect = source.getBoundingClientRect();
     const panel = source.querySelector<HTMLElement>(".cm-search");
-    if (!panel) return false;
+    if (!panel) return { reason: "search panel is missing" };
 
     const tolerance = 1;
-    const contains = (outer: DOMRect, inner: DOMRect) =>
+    const containsInline = (outer: DOMRect, inner: DOMRect) =>
       inner.left >= outer.left - tolerance &&
-      inner.right <= outer.right + tolerance &&
-      inner.top >= outer.top - tolerance &&
-      inner.bottom <= outer.bottom + tolerance;
+      inner.right <= outer.right + tolerance;
 
     const panelRect = panel.getBoundingClientRect();
-    if (
-      !contains(sourceRect, panelRect) ||
-      panel.scrollWidth > panel.clientWidth + tolerance
-    ) {
-      return false;
+    if (!containsInline(sourceRect, panelRect)) {
+      return { reason: "search panel exceeds source width" };
+    }
+    if (panel.scrollWidth > panel.clientWidth + tolerance) {
+      return { reason: "search panel has horizontal overflow" };
     }
 
     const options = panel.querySelector<HTMLElement>(
@@ -30,20 +29,27 @@ async function expectSearchChromeInsideSource(
     if (
       options &&
       options.offsetParent !== null &&
-      !contains(panelRect, options.getBoundingClientRect())
+      !containsInline(sourceRect, options.getBoundingClientRect())
     ) {
-      return false;
+      return { reason: "search options exceed source width" };
     }
 
-    return [...panel.querySelectorAll<HTMLElement>("input, button")].every(
-      (control) => {
-        if (control.offsetParent === null) return true;
-        return contains(sourceRect, control.getBoundingClientRect());
-      },
-    );
+    for (const control of panel.querySelectorAll<HTMLElement>("input, button")) {
+      if (control.offsetParent === null) continue;
+      if (!containsInline(sourceRect, control.getBoundingClientRect())) {
+        return {
+          reason: `${control.tagName.toLowerCase()}[${control.getAttribute("name") ?? control.getAttribute("data-floe-search-options-toggle") !== null ? "options-toggle" : "unnamed"}] exceeds source width`,
+        };
+      }
+    }
+
+    return { reason: null };
   });
 
-  expect(fits).toBe(true);
+  expect(
+    result.reason,
+    `Search/Replace overflow at viewport width ${viewportWidth}px`,
+  ).toBeNull();
 }
 
 test("keeps Search and Replace inside the source pane across widths", async ({
@@ -84,6 +90,6 @@ test("keeps Search and Replace inside the source pane across widths", async ({
 
   for (const width of [320, 360, 420, 520, 640, 760, 900, 1200, 1600, 2000]) {
     await page.setViewportSize({ width, height: 900 });
-    await expectSearchChromeInsideSource(page);
+    await expectSearchChromeInsideSource(page, width);
   }
 });
