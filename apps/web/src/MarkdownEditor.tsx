@@ -57,7 +57,9 @@ function enhanceSearchPanel(view: EditorView): void {
   previousButton?.setAttribute("title", "Previous match");
   nextButton?.setAttribute("title", "Next match");
   if (selectAllButton) {
-    selectAllButton.textContent = "Select all";
+    if (selectAllButton.textContent !== "Select all") {
+      selectAllButton.textContent = "Select all";
+    }
     selectAllButton.title = "Select all matches";
   }
 
