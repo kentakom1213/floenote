@@ -54,15 +54,20 @@ describe("editor search panel", () => {
       "[data-floe-replace-toggle]",
     );
     expect(replaceToggle).not.toBeNull();
+    const chevron = replaceToggle?.querySelector("svg");
+    expect(chevron).not.toBeNull();
+    expect(replaceToggle?.textContent).toBe("");
     expect(panel.dataset.floeReplaceOpen).toBe("false");
     expect(replaceToggle?.getAttribute("aria-expanded")).toBe("false");
 
     replaceToggle?.click();
     expect(panel.dataset.floeReplaceOpen).toBe("true");
     expect(replaceToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(replaceToggle?.querySelector("svg")).toBe(chevron);
 
     replaceToggle?.click();
     expect(panel.dataset.floeReplaceOpen).toBe("false");
+    expect(replaceToggle?.querySelector("svg")).toBe(chevron);
   });
 
   it("adds presentation chrome without duplicating CodeMirror search options", async () => {
