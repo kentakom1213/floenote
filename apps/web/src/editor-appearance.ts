@@ -406,7 +406,7 @@ const floeEditorChrome = EditorView.theme({
     color: "var(--color-text)",
     backgroundColor: "var(--color-surface-hover)",
   },
-  "@container editor-source (min-width: 760px)": {
+  "@container editor-source (min-width: 640px)": {
     ".cm-panel.cm-search": {
       gridTemplateColumns:
         "20px minmax(0, 1fr) 28px 28px max-content 30px 30px 30px",
