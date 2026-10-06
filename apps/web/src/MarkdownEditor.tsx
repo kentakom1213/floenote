@@ -18,6 +18,19 @@ import {
   synchronousLoroUndoKeymap,
 } from "./loro-undo.js";
 
+function createChevronIcon(): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(namespace, "svg");
+  icon.setAttribute("viewBox", "0 0 20 20");
+  icon.setAttribute("aria-hidden", "true");
+
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute("d", "m7 5 5 5-5 5");
+  icon.append(path);
+
+  return icon;
+}
+
 function setSearchOptionsOpen(
   panel: HTMLElement,
   toggle: HTMLButtonElement,
@@ -143,6 +156,7 @@ function enhanceSearchPanel(view: EditorView): void {
   replaceToggle.type = "button";
   replaceToggle.className = "cm-search-replace-toggle";
   replaceToggle.dataset.floeReplaceToggle = "";
+  replaceToggle.append(createChevronIcon());
   panel.dataset.floeReplaceOpen = "false";
 
   const setReplaceOpen = (open: boolean) => {
@@ -151,7 +165,6 @@ function enhanceSearchPanel(view: EditorView): void {
     const label = open ? "Hide replace controls" : "Show replace controls";
     replaceToggle.setAttribute("aria-label", label);
     replaceToggle.title = label;
-    replaceToggle.textContent = open ? "⌄" : "›";
   };
 
   setReplaceOpen(false);
