@@ -37,8 +37,13 @@ async function expectSearchChromeInsideSource(
     for (const control of panel.querySelectorAll<HTMLElement>("input, button")) {
       if (control.offsetParent === null) continue;
       if (!containsInline(sourceRect, control.getBoundingClientRect())) {
+        const name =
+          control.getAttribute("name") ??
+          (control.hasAttribute("data-floe-search-options-toggle")
+            ? "options-toggle"
+            : "unnamed");
         return {
-          reason: `${control.tagName.toLowerCase()}[${control.getAttribute("name") ?? control.getAttribute("data-floe-search-options-toggle") !== null ? "options-toggle" : "unnamed"}] exceeds source width`,
+          reason: `${control.tagName.toLowerCase()}[${name}] exceeds source width`,
         };
       }
     }
