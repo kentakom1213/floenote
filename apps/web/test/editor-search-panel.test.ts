@@ -88,6 +88,10 @@ describe("editor search panel", () => {
     expect(optionsToggle?.title).toBe("Show search options");
     expect(optionsMenu?.getAttribute("role")).toBe("group");
     expect(optionsMenu?.getAttribute("aria-label")).toBe("Search options");
+    const selectAll = panel.querySelector<HTMLButtonElement>('[name="select"]');
+    expect(selectAll?.textContent).toBe("Select all");
+    expect(selectAll?.title).toBe("Select all matches");
+    expect(optionsMenu?.contains(selectAll ?? null)).toBe(true);
     expect(optionsMenu?.textContent).toContain("Match case");
     expect(optionsMenu?.textContent).toContain("Regular expression");
     expect(optionsMenu?.textContent).toContain("Whole word");
@@ -187,9 +191,9 @@ describe("editor search panel", () => {
 
     expect(search?.nextElementSibling).toBe(previous);
     expect(previous?.nextElementSibling).toBe(next);
-    expect(next?.nextElementSibling).toBe(selectAll);
-    expect(selectAll?.nextElementSibling).toBe(optionsToggle);
+    expect(next?.nextElementSibling).toBe(optionsToggle);
     expect(optionsToggle?.nextElementSibling).toBe(optionsMenu);
+    expect(optionsMenu?.contains(selectAll)).toBe(true);
     expect(optionsMenu?.nextElementSibling).toBe(close);
     expect(close?.nextElementSibling).toBe(lineBreak);
   });
