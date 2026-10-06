@@ -51,7 +51,7 @@ test("keeps Search and Replace inside a narrow Split source pane", async ({
   const sourceWidth = await source.evaluate(
     (element) => element.getBoundingClientRect().width,
   );
-  expect(sourceWidth).toBeGreaterThan(760);
+  expect(sourceWidth).toBeGreaterThan(640);
   expect(sourceWidth).toBeLessThanOrEqual(760);
 
   const editor = source.locator('[contenteditable="true"]');
@@ -75,7 +75,7 @@ test("keeps Search and Replace inside a narrow Split source pane", async ({
     .poll(() =>
       source.evaluate((element) => element.getBoundingClientRect().width),
     )
-    .toBeGreaterThan(640);
+    .toBeGreaterThan(760);
   await expect(optionsToggle).toBeHidden();
   await expectSearchChromeInsideSource(page);
 });
