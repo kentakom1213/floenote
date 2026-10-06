@@ -93,8 +93,36 @@ test("keeps Search and Replace inside the source pane across widths", async ({
     searchPanel.locator("[data-floe-search-options]"),
   ).toBeVisible();
 
+  const optionsMenu = searchPanel.locator("[data-floe-search-options]");
+  const selectAll = searchPanel.locator('[name="select"]');
+  const matchCase = searchPanel.locator('label:has(input[name="case"])');
+
   for (const width of [320, 360, 420, 520, 640, 760, 900, 1200, 1600, 2000]) {
     await page.setViewportSize({ width, height: 900 });
     await expectSearchChromeInsideSource(page, width);
+
+    const sourceWidth = await source.evaluate(
+      (element) => element.getBoundingClientRect().width,
+    );
+
+    if (sourceWidth >= 760) {
+      await expect(optionsToggle).toBeHidden();
+      await expect(optionsMenu).toHaveCSS("display", "contents");
+      await expect(selectAll).toBeVisible();
+      await expect(matchCase).toBeVisible();
+
+      const [searchTop, selectTop, caseTop] = await Promise.all([
+        searchPanel
+          .locator('input[name="search"]')
+          .evaluate((element) => element.getBoundingClientRect().top),
+        selectAll.evaluate((element) => element.getBoundingClientRect().top),
+        matchCase.evaluate((element) => element.getBoundingClientRect().top),
+      ]);
+      expect(Math.abs(selectTop - searchTop)).toBeLessThanOrEqual(2);
+      expect(Math.abs(caseTop - searchTop)).toBeLessThanOrEqual(2);
+    } else {
+      await expect(optionsToggle).toBeVisible();
+      await expect(optionsMenu).toHaveCSS("display", "flex");
+    }
   }
 });
