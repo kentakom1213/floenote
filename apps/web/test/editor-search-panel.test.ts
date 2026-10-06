@@ -65,6 +65,21 @@ describe("editor search panel", () => {
     expect(replaceToggle?.getAttribute("aria-expanded")).toBe("true");
     expect(replaceToggle?.querySelector("svg")).toBe(chevron);
 
+    const replaceButton =
+      panel.querySelector<HTMLButtonElement>('button[name="replace"]');
+    const replaceAllButton =
+      panel.querySelector<HTMLButtonElement>('[name="replaceAll"]');
+    expect(replaceButton?.querySelector("[data-floe-replace-icon]")).not.toBeNull();
+    expect(
+      replaceAllButton?.querySelector("[data-floe-replace-all-icon]"),
+    ).not.toBeNull();
+    expect(replaceButton?.textContent).toBe("");
+    expect(replaceAllButton?.textContent).toBe("");
+    expect(replaceButton?.getAttribute("aria-label")).toBe("Replace");
+    expect(replaceAllButton?.getAttribute("aria-label")).toBe("Replace all");
+    expect(replaceButton?.title).toBe("Replace");
+    expect(replaceAllButton?.title).toBe("Replace all");
+
     replaceToggle?.click();
     expect(panel.dataset.floeReplaceOpen).toBe("false");
     expect(replaceToggle?.querySelector("svg")).toBe(chevron);
