@@ -37,7 +37,7 @@ async function expectSearchChromeInsideSource(
 test("keeps Search and Replace inside a narrow Split source pane", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await createSecuredProject(page);
 
   await page
@@ -51,8 +51,8 @@ test("keeps Search and Replace inside a narrow Split source pane", async ({
   const sourceWidth = await source.evaluate(
     (element) => element.getBoundingClientRect().width,
   );
-  expect(sourceWidth).toBeGreaterThan(520);
-  expect(sourceWidth).toBeLessThanOrEqual(640);
+  expect(sourceWidth).toBeGreaterThan(760);
+  expect(sourceWidth).toBeLessThanOrEqual(760);
 
   const editor = source.locator('[contenteditable="true"]');
   await editor.press("Control+f");
