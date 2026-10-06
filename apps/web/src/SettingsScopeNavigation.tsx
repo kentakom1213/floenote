@@ -47,7 +47,7 @@ export function SettingsScopeNavigation({
         <details className="settings-project-selector" ref={menuRef}>
           <summary aria-current={scope === "project" ? "page" : undefined}>
             <span>Projects: {current?.name ?? "Choose Project"}</span>
-            <span aria-hidden="true">⌄</span>
+            <ChevronDownIcon />
           </summary>
           <div className="settings-project-menu">
             {active.map((project) => (
@@ -67,5 +67,17 @@ export function SettingsScopeNavigation({
         </details>
       ) : null}
     </nav>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      className="settings-project-chevron"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+    >
+      <path d="m6.5 8 3.5 3.5L13.5 8" />
+    </svg>
   );
 }
