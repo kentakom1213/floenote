@@ -31,6 +31,96 @@ function createChevronIcon(): SVGSVGElement {
   return icon;
 }
 
+function createReplaceIcon(): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(namespace, "svg");
+  icon.setAttribute("viewBox", "0 0 48 20");
+  icon.setAttribute("aria-hidden", "true");
+  icon.dataset.floeReplaceIcon = "";
+
+  const addToken = (x: number) => {
+    const box = document.createElementNS(namespace, "rect");
+    box.setAttribute("x", String(x));
+    box.setAttribute("y", "2");
+    box.setAttribute("width", "13");
+    box.setAttribute("height", "16");
+    box.setAttribute("rx", "3");
+
+    const line1 = document.createElementNS(namespace, "line");
+    line1.setAttribute("x1", String(x + 3.5));
+    line1.setAttribute("y1", "7");
+    line1.setAttribute("x2", String(x + 9.5));
+    line1.setAttribute("y2", "7");
+
+    const line2 = document.createElementNS(namespace, "line");
+    line2.setAttribute("x1", String(x + 3.5));
+    line2.setAttribute("y1", "12");
+    line2.setAttribute("x2", String(x + 9.5));
+    line2.setAttribute("y2", "12");
+
+    icon.append(box, line1, line2);
+  };
+
+  addToken(1.5);
+
+  const arrow = document.createElementNS(namespace, "path");
+  arrow.setAttribute("d", "M18 10h10m0 0-4-4m4 4-4 4");
+  icon.append(arrow);
+
+  addToken(33.5);
+
+  return icon;
+}
+
+function createReplaceAllIcon(): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(namespace, "svg");
+  icon.setAttribute("viewBox", "0 0 48 30");
+  icon.setAttribute("aria-hidden", "true");
+  icon.dataset.floeReplaceAllIcon = "";
+
+  const addRow = (y: number) => {
+    const addToken = (x: number) => {
+      const box = document.createElementNS(namespace, "rect");
+      box.setAttribute("x", String(x));
+      box.setAttribute("y", String(y));
+      box.setAttribute("width", "13");
+      box.setAttribute("height", "11");
+      box.setAttribute("rx", "2.5");
+
+      const line1 = document.createElementNS(namespace, "line");
+      line1.setAttribute("x1", String(x + 3.5));
+      line1.setAttribute("y1", String(y + 4));
+      line1.setAttribute("x2", String(x + 9.5));
+      line1.setAttribute("y2", String(y + 4));
+
+      const line2 = document.createElementNS(namespace, "line");
+      line2.setAttribute("x1", String(x + 3.5));
+      line2.setAttribute("y1", String(y + 7));
+      line2.setAttribute("x2", String(x + 9.5));
+      line2.setAttribute("y2", String(y + 7));
+
+      icon.append(box, line1, line2);
+    };
+
+    addToken(1.5);
+
+    const arrow = document.createElementNS(namespace, "path");
+    arrow.setAttribute(
+      "d",
+      `M18 ${y + 5.5}h10m0 0-4-4m4 4-4 4`,
+    );
+    icon.append(arrow);
+
+    addToken(33.5);
+  };
+
+  addRow(2);
+  addRow(17);
+
+  return icon;
+}
+
 function setSearchOptionsOpen(
   panel: HTMLElement,
   toggle: HTMLButtonElement,
@@ -144,6 +234,25 @@ function enhanceSearchPanel(view: EditorView): void {
 
   const replaceField =
     panel.querySelector<HTMLInputElement>('input[name="replace"]');
+  const replaceButton =
+    panel.querySelector<HTMLButtonElement>('button[name="replace"]');
+  const replaceAllButton =
+    panel.querySelector<HTMLButtonElement>('[name="replaceAll"]');
+
+  if (replaceButton && !replaceButton.querySelector("[data-floe-replace-icon]")) {
+    replaceButton.replaceChildren(createReplaceIcon());
+    replaceButton.setAttribute("aria-label", "Replace");
+    replaceButton.title = "Replace";
+  }
+  if (
+    replaceAllButton &&
+    !replaceAllButton.querySelector("[data-floe-replace-all-icon]")
+  ) {
+    replaceAllButton.replaceChildren(createReplaceAllIcon());
+    replaceAllButton.setAttribute("aria-label", "Replace all");
+    replaceAllButton.title = "Replace all";
+  }
+
   const lineBreak = panel.querySelector("br");
   const closeButton = panel.querySelector<HTMLButtonElement>('[name="close"]');
 
