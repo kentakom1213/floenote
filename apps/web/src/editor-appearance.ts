@@ -409,7 +409,7 @@ const floeEditorChrome = EditorView.theme({
   "@container editor-source (min-width: 640px)": {
     ".cm-panel.cm-search": {
       gridTemplateColumns:
-        "20px minmax(0, 1fr) 28px 28px max-content 30px 30px 30px",
+        "20px minmax(0, 1fr) max-content max-content max-content 30px 30px 30px",
     },
     ".cm-panel.cm-search .cm-search-options-toggle": {
       display: "none",
