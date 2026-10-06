@@ -111,6 +111,17 @@ test("keeps Search and Replace inside the source pane across widths", async ({
       await expect(selectAll).toBeVisible();
       await expect(matchCase).toBeVisible();
 
+      const replaceButton = searchPanel.locator('button[name="replace"]');
+      const replaceAllButton = searchPanel.locator('[name="replaceAll"]');
+      const replaceActionsDoNotOverlap = await Promise.all([
+        replaceButton.evaluate((element) => element.getBoundingClientRect()),
+        replaceAllButton.evaluate((element) => element.getBoundingClientRect()),
+      ]).then(([replaceRect, replaceAllRect]) => replaceRect.right <= replaceAllRect.left + 1);
+      expect(
+        replaceActionsDoNotOverlap,
+        `Replace actions overlap at viewport width ${width}px`,
+      ).toBe(true);
+
       const [searchTop, selectTop, caseTop] = await Promise.all([
         searchPanel
           .locator('input[name="search"]')
