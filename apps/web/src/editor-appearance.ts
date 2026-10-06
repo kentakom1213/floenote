@@ -414,7 +414,7 @@ const floeEditorChrome = EditorView.theme({
     ".cm-panel.cm-search .cm-search-options-toggle": {
       display: "none",
     },
-    ".cm-panel.cm-search .cm-search-options": {
+    ".cm-panel.cm-search .cm-search-options, .cm-panel.cm-search[data-floe-search-options-open=true] .cm-search-options": {
       position: "static",
       width: "auto",
       display: "contents",
