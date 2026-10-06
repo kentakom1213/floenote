@@ -97,7 +97,7 @@ test("keeps Search and Replace inside the source pane across widths", async ({
   const selectAll = searchPanel.locator('[name="select"]');
   const matchCase = searchPanel.locator('label:has(input[name="case"])');
 
-  for (const width of [320, 360, 420, 520, 640, 760, 900, 1200, 1600, 2000]) {
+  for (const width of [320, 360, 420, 520, 640, 760, 900, 1200, 1400, 1600, 2000]) {
     await page.setViewportSize({ width, height: 900 });
     await expectSearchChromeInsideSource(page, width);
 
@@ -105,7 +105,7 @@ test("keeps Search and Replace inside the source pane across widths", async ({
       (element) => element.getBoundingClientRect().width,
     );
 
-    if (sourceWidth >= 760) {
+    if (sourceWidth >= 640) {
       await expect(optionsToggle).toBeHidden();
       await expect(optionsMenu).toHaveCSS("display", "contents");
       await expect(selectAll).toBeVisible();
