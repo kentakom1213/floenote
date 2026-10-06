@@ -1831,11 +1831,6 @@ input:focus-visible {
   overscroll-behavior: contain;
 }
 
-.editor-view-source {
-  container-name: editor-source;
-  container-type: inline-size;
-}
-
 .editor-view-split .editor-view-source {
   border-right: 1px solid var(--color-border);
 }
