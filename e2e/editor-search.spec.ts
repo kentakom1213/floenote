@@ -113,6 +113,18 @@ test("keeps Search and Replace inside the source pane across widths", async ({
 
       const replaceButton = searchPanel.locator('button[name="replace"]');
       const replaceAllButton = searchPanel.locator('[name="replaceAll"]');
+      await expect(
+        replaceButton.locator("[data-floe-replace-icon]"),
+      ).toBeVisible();
+      await expect(
+        replaceAllButton.locator("[data-floe-replace-all-icon]"),
+      ).toBeVisible();
+      await expect(replaceButton).toHaveAttribute("aria-label", "Replace");
+      await expect(replaceAllButton).toHaveAttribute(
+        "aria-label",
+        "Replace all",
+      );
+
       const replaceActionsDoNotOverlap = await Promise.all([
         replaceButton.evaluate((element) => {
           const rect = element.getBoundingClientRect();
