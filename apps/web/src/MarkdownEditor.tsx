@@ -52,8 +52,14 @@ function enhanceSearchPanel(view: EditorView): void {
   const previousButton =
     panel.querySelector<HTMLButtonElement>('[name="prev"]');
   const nextButton = panel.querySelector<HTMLButtonElement>('[name="next"]');
+  const selectAllButton =
+    panel.querySelector<HTMLButtonElement>('[name="select"]');
   previousButton?.setAttribute("title", "Previous match");
   nextButton?.setAttribute("title", "Next match");
+  if (selectAllButton) {
+    selectAllButton.textContent = "Select all";
+    selectAllButton.title = "Select all matches";
+  }
 
   // CodeMirror emits Next before Previous in the search-panel DOM. Move the
   // existing Previous button once so visual and keyboard order can both be
@@ -101,6 +107,14 @@ function enhanceSearchPanel(view: EditorView): void {
     for (const label of optionLabels) {
       optionsMenu.append(label);
     }
+  }
+
+  if (
+    optionsMenu &&
+    selectAllButton &&
+    selectAllButton.parentElement !== optionsMenu
+  ) {
+    optionsMenu.prepend(selectAllButton);
   }
 
   if (
