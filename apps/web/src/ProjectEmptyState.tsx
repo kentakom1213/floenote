@@ -251,11 +251,15 @@ export function ProjectEmptyState({
           <p className="settings-eyebrow">Floe Note</p>
           <h1>
             Local-first notes,{" "}
-            <span className="onboarding-title-tail">across your devices</span>
+            <span className="onboarding-desktop-nowrap">
+              across your devices
+            </span>
           </h1>
           <p>
-            Write locally, sync directly between your devices, or bring in notes
-            you already have.
+            Write locally, sync directly between your devices,{" "}
+            <span className="onboarding-desktop-nowrap">
+              or bring in notes you already have.
+            </span>
           </p>
         </header>
 
