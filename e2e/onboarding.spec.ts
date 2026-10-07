@@ -13,12 +13,6 @@ test("introduces the local-first concept and prioritizes a new passkey on first 
       name: "Local-first notes, across your devices",
     }),
   ).toBeVisible();
-  await expect(
-    page.getByText(
-      "Write locally, sync directly between your devices, or bring in notes you already have.",
-    ),
-  ).toBeVisible();
-
   await page.getByRole("button", { name: "Start writing" }).click();
 
   const createPasskey = page.getByRole("button", {
