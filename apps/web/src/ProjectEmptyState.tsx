@@ -255,12 +255,6 @@ export function ProjectEmptyState({
               across your devices
             </span>
           </h1>
-          <p>
-            Write locally, sync directly between your devices,{" "}
-            <span className="onboarding-desktop-nowrap">
-              or bring in notes you already have.
-            </span>
-          </p>
         </header>
 
         {error ? <p className="dialog-error" role="alert">{error}</p> : null}
