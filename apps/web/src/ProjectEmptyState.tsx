@@ -249,11 +249,12 @@ export function ProjectEmptyState({
             ◆
           </div>
           <p className="settings-eyebrow">Floe Note</p>
-          <h1>Choose how to begin</h1>
-          <p>
-            Start writing, add this device to an existing Workspace, or import
-            existing notes.
-          </p>
+          <h1>
+            Local-first notes,{" "}
+            <span className="onboarding-desktop-nowrap">
+              across your devices
+            </span>
+          </h1>
         </header>
 
         {error ? <p className="dialog-error" role="alert">{error}</p> : null}

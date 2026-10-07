@@ -566,7 +566,7 @@ export function InvitationJoinPage({
                       >
                         {vaultState === "unlocking"
                           ? "Waiting for passkey…"
-                          : "Use existing passkey"}
+                          : "Use a synced passkey"}
                       </button>
                       <button
                         className="dialog-secondary-button"

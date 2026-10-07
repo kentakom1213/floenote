@@ -3,6 +3,30 @@ import { createPortableProjectExport } from "@floe-note/document";
 import { expect, test } from "./fixtures.js";
 import { createSecuredProject } from "./project.js";
 
+test("introduces the local-first concept and prioritizes a new passkey on first run", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Local-first notes, across your devices",
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Start writing" }).click();
+
+  const createPasskey = page.getByRole("button", {
+    name: "Create new passkey",
+  });
+  const syncedPasskey = page.getByRole("button", {
+    name: "Use a synced passkey",
+  });
+
+  await expect(createPasskey).toHaveClass("unlock-primary-action");
+  await expect(syncedPasskey).toHaveClass("unlock-secondary-action");
+  await expect(page.getByText("Shown on your other devices.")).toBeVisible();
+});
+
 test("starts writing in a default Workspace without naming it", async ({ page }) => {
   await createSecuredProject(page);
   await expect(page.locator(".brand-row")).toContainText("Personal");

@@ -355,7 +355,9 @@ test("does not interpret the pre-Workspace IndexedDB as Workspace data", async (
 
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Choose how to begin" }),
+    page.getByRole("heading", {
+      name: "Local-first notes, across your devices",
+    }),
   ).toBeVisible();
 
   const { projectId: newWorkspaceId } = await createSecuredProject(

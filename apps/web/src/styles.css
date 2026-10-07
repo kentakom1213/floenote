@@ -3633,6 +3633,14 @@ input:focus-visible {
   background: var(--color-surface);
 }
 
+.unlock-field-hint {
+  margin: 6px 0 0;
+  color: var(--color-text-faint);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+}
+
 .unlock-primary-action {
   width: 100%;
   min-height: 42px;
@@ -5245,6 +5253,12 @@ h1 {
   font-weight: 730;
   letter-spacing: -0.045em;
   line-height: 1.05;
+}
+
+@media (min-width: 761px) {
+  .onboarding-desktop-nowrap {
+    white-space: nowrap;
+  }
 }
 
 .onboarding-entry-header > p:last-child {
