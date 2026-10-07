@@ -249,7 +249,10 @@ export function ProjectEmptyState({
             ◆
           </div>
           <p className="settings-eyebrow">Floe Note</p>
-          <h1>\n            Local-first notes,{" "}\n            <span className="onboarding-title-tail">across your devices</span>\n          </h1>
+          <h1>
+            Local-first notes,{" "}
+            <span className="onboarding-title-tail">across your devices</span>
+          </h1>
           <p>
             Write locally, sync directly between your devices, or bring in notes
             you already have.
