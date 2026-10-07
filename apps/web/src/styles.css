@@ -5255,6 +5255,12 @@ h1 {
   line-height: 1.05;
 }
 
+@media (min-width: 761px) {
+  .onboarding-title-tail {
+    white-space: nowrap;
+  }
+}
+
 .onboarding-entry-header > p:last-child {
   max-width: 590px;
   margin: 0 auto;
