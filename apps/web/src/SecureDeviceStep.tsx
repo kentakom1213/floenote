@@ -44,20 +44,23 @@ export function SecureDeviceStep({
           </button>
           <h1>Secure this device</h1>
           <p className="unlock-copy">
-            Floe Note uses a passkey to protect the encryption keys stored on
-            this device.
+            Use a passkey to protect the encryption keys stored on this device.
           </p>
 
           <label className="unlock-field">
             <span>Device name</span>
             <input
               autoFocus
+              aria-describedby="secure-device-name-hint"
               maxLength={80}
               value={displayName}
               disabled={busy}
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </label>
+          <p className="unlock-field-hint" id="secure-device-name-hint">
+            Shown on your other devices.
+          </p>
 
           <div className="unlock-setup-actions">
             <button
@@ -65,20 +68,20 @@ export function SecureDeviceStep({
               type="button"
               disabled={busy || !canSubmit}
               onClick={() =>
-                void onCreateWithExistingPasskey(displayName.trim())
+                void onCreateWithNewPasskey(displayName.trim())
               }
             >
-              {busy ? "Waiting for passkey…" : "Use existing passkey"}
+              Create new passkey
             </button>
             <button
               className="unlock-secondary-action"
               type="button"
               disabled={busy || !canSubmit}
               onClick={() =>
-                void onCreateWithNewPasskey(displayName.trim())
+                void onCreateWithExistingPasskey(displayName.trim())
               }
             >
-              Create new passkey
+              Use a synced passkey
             </button>
           </div>
 

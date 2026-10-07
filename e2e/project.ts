@@ -9,7 +9,9 @@ export async function createSecuredProject(
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: "Choose how to begin" }),
+    page.getByRole("heading", {
+      name: "Local-first notes, across your devices",
+    }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Start writing" }).click();

@@ -249,10 +249,10 @@ export function ProjectEmptyState({
             ◆
           </div>
           <p className="settings-eyebrow">Floe Note</p>
-          <h1>Choose how to begin</h1>
+          <h1>Local-first notes, across your devices</h1>
           <p>
-            Start writing, add this device to an existing Workspace, or import
-            existing notes.
+            Write locally, sync directly between your devices, or bring in notes
+            you already have.
           </p>
         </header>
 
