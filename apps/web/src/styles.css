@@ -5256,7 +5256,7 @@ h1 {
 }
 
 @media (min-width: 761px) {
-  .onboarding-title-tail {
+  .onboarding-desktop-nowrap {
     white-space: nowrap;
   }
 }
