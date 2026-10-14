@@ -479,7 +479,36 @@ test("adapts Split orientation to the available editor width", async ({ page }) 
   await expect.poll(() => splitOrientation(page)).toBe("vertical");
 });
 
-test("uses Edit and Preview instead of Split on mobile", async ({ page }) => {
+test("uses Edit and Preview on narrow touch-only screens", async ({ page }) => {
+  // Emulate connecting and disconnecting a trackpad without changing the viewport.
+  await page.addInitScript(() => {
+    const originalMatchMedia = window.matchMedia.bind(window);
+    const events = new EventTarget();
+    let finePointer = false;
+    const finePointerQuery = {
+      media: "(any-pointer: fine)",
+      get matches() {
+        return finePointer;
+      },
+      addEventListener: events.addEventListener.bind(events),
+      removeEventListener: events.removeEventListener.bind(events),
+    } as unknown as MediaQueryList;
+    window.matchMedia = (query) =>
+      query === finePointerQuery.media ? finePointerQuery : originalMatchMedia(query);
+    Object.assign(window, {
+      setFinePointerForTest(connected: boolean) {
+        finePointer = connected;
+        events.dispatchEvent(new Event("change"));
+      },
+    });
+  });
+
+  const setFinePointer = (connected: boolean) =>
+    page.evaluate((value) => {
+      (window as Window & { setFinePointerForTest: (connected: boolean) => void })
+        .setFinePointerForTest(value);
+    }, connected);
+
   await page.setViewportSize({ width: 1200, height: 800 });
   await createSecuredProject(page);
 
@@ -502,9 +531,17 @@ test("uses Edit and Preview instead of Split on mobile", async ({ page }) => {
   await input.press("Enter");
   await expect(properties.getByLabel("Change mobile-tag color")).toBeVisible();
 
-  await page.setViewportSize({ width: 1200, height: 800 });
+  await setFinePointer(true);
   await expect(currentView).toHaveAttribute("data-editor-mode", "split");
   await expect(switcher.getByRole("button", { name: "Split" })).toBeVisible();
+  await expect(page.locator(".editor-view-preview")).toBeVisible();
+
+  await setFinePointer(false);
+  await expect(currentView).toHaveAttribute("data-editor-mode", "edit");
+  await expect(switcher.getByRole("button", { name: "Split" })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await expect(currentView).toHaveAttribute("data-editor-mode", "split");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await switcher.getByRole("button", { name: "Preview" }).click();
@@ -515,6 +552,46 @@ test("uses Edit and Preview instead of Split on mobile", async ({ page }) => {
   await switcher.getByRole("button", { name: "Edit" }).click();
   await expect(currentView).toHaveAttribute("data-editor-mode", "edit");
   await expect(page.locator(".editor-view-source")).toBeVisible();
+});
+
+test("keeps Split usable in narrow windows with a fine pointer", async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 900 });
+  await createSecuredProject(page);
+
+  expect(await page.evaluate(() => matchMedia("(any-pointer: fine)").matches)).toBe(true);
+
+  const switcher = page.getByLabel("Note view");
+  await expect(switcher.getByRole("button", { name: "Split" })).toBeVisible();
+  await switcher.getByRole("button", { name: "Split" }).click();
+  const currentView = page.locator(".document-current-view");
+  await expect(currentView).toHaveAttribute("data-editor-mode", "split");
+
+  const source = page.locator(".editor-view-source");
+  const preview = page.locator(".editor-view-preview");
+  await expect(source).toBeVisible();
+  await expect(preview).toBeVisible();
+
+  const layout = await currentView.evaluate((view) => {
+    const editor = view.querySelector<HTMLElement>(".editor-view-split")!;
+    const source = view.querySelector<HTMLElement>(".editor-view-source")!;
+    const preview = view.querySelector<HTMLElement>(".editor-view-preview")!;
+    const viewRect = view.getBoundingClientRect();
+    const editorRect = editor.getBoundingClientRect();
+    const sourceRect = source.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    return {
+      withinViewport: editorRect.bottom <= viewRect.bottom + 1,
+      sourceHasHeight: sourceRect.height > 100,
+      previewHasHeight: previewRect.height > 100,
+      stackedVertically: previewRect.top >= sourceRect.bottom - 1,
+    };
+  });
+  expect(layout).toEqual({
+    withinViewport: true,
+    sourceHasHeight: true,
+    previewHasHeight: true,
+    stackedVertically: true,
+  });
 });
 
 test("shows Project settings within the mobile viewport and saves its name", async ({ page }) => {
