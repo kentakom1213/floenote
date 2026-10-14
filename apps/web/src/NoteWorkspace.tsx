@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import type { NoteDocument, NoteProject } from "@floe-note/document";
 import type {
@@ -50,6 +50,28 @@ const EDITOR_MODE_OPTIONS = [
   { mode: "split", label: "Split" },
   { mode: "preview", label: "Preview" },
 ] satisfies readonly { mode: EditorMode; label: string }[];
+
+const NARROW_EDITOR_MEDIA_QUERY = "(max-width: 760px)";
+const FINE_POINTER_MEDIA_QUERY = "(any-pointer: fine)";
+
+function subscribeToMobileEditorLayout(onChange: () => void): () => void {
+  const media = [
+    window.matchMedia?.(NARROW_EDITOR_MEDIA_QUERY),
+    window.matchMedia?.(FINE_POINTER_MEDIA_QUERY),
+  ].filter((query) => query !== undefined);
+
+  for (const query of media) query.addEventListener("change", onChange);
+  return () => {
+    for (const query of media) query.removeEventListener("change", onChange);
+  };
+}
+
+function isMobileEditorLayout(): boolean {
+  return (
+    (window.matchMedia?.(NARROW_EDITOR_MEDIA_QUERY).matches ?? false) &&
+    !(window.matchMedia?.(FINE_POINTER_MEDIA_QUERY).matches ?? false)
+  );
+}
 
 type NoteWorkspaceProps = {
   project: NoteProject;
@@ -610,6 +632,12 @@ function DocumentPane({
   const noteMenuRef = useRef<HTMLDetailsElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<EditorMode>(readEditorModePreference);
+  const mobileEditorLayout = useSyncExternalStore(
+    subscribeToMobileEditorLayout,
+    isMobileEditorLayout,
+    () => false,
+  );
+  const effectiveMode = resolveEditorMode(mode, mobileEditorLayout);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedCheckpointId, setSelectedCheckpointId] =
     useState<CheckpointId | null>(null);
@@ -633,22 +661,22 @@ function DocumentPane({
 
   useEffect(() => {
     const input = titleRef.current;
-    if (!input || mode === "split" || selectedCheckpointId !== null) return;
+    if (!input || effectiveMode === "split" || selectedCheckpointId !== null) return;
 
     // The current editor is hidden while a historical version is selected.
     // Measuring a hidden textarea collapses its scrollHeight to zero, so defer
     // title sizing until the current version is visible again.
     resizeTitleInput(input);
-  }, [document.id, document.title, mode, selectedCheckpointId]);
+  }, [document.id, document.title, effectiveMode, selectedCheckpointId]);
 
   useEffect(() => {
     const input = titleRef.current;
-    if (!input || mode === "split") return;
+    if (!input || effectiveMode === "split") return;
 
     const resize = () => resizeTitleInput(input);
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
-  }, [document.id, mode]);
+  }, [document.id, effectiveMode]);
 
   useEffect(() => {
     if (!focusTitle) return;
@@ -714,7 +742,7 @@ function DocumentPane({
               ? "document-current-view document-current-view-hidden"
               : "document-current-view"
           }
-          data-editor-mode={mode}
+          data-editor-mode={effectiveMode}
           aria-hidden={historicalDocument ? "true" : undefined}
         >
           <header className="document-header">
@@ -774,7 +802,7 @@ function DocumentPane({
 
           <NoteProperties
             document={document}
-            compact={mode === "split"}
+            compact={effectiveMode === "split"}
             availableTags={availableTags}
             getTagColor={(tag) =>
               project.resolveTagColor(project.getDocumentProjectId(document.id)!, tag)
@@ -787,7 +815,8 @@ function DocumentPane({
             }
             trailingControl={
               <EditorModeSwitcher
-                mode={mode}
+                mode={effectiveMode}
+                mobile={mobileEditorLayout}
                 onModeChange={(nextMode) => {
                   setMode(nextMode);
                   writeEditorModePreference(nextMode);
@@ -798,7 +827,7 @@ function DocumentPane({
 
           <EditorModeView
             document={document}
-            mode={mode}
+            mode={effectiveMode}
             focusEditor={focusEditor}
             onEditorFocusHandled={onEditorFocusHandled}
           />
@@ -847,18 +876,24 @@ function DocumentPane({
 }
 
 
+export function resolveEditorMode(mode: EditorMode, mobile: boolean): EditorMode {
+  return mobile && mode === "split" ? "edit" : mode;
+}
+
 type EditorModeSwitcherProps = {
   mode: EditorMode;
+  mobile?: boolean;
   onModeChange: (mode: EditorMode) => void;
 };
 
 export function EditorModeSwitcher({
   mode,
+  mobile = false,
   onModeChange,
 }: EditorModeSwitcherProps) {
   return (
     <div className="editor-mode-switch" aria-label="Note view">
-      {EDITOR_MODE_OPTIONS.map((option) => (
+      {EDITOR_MODE_OPTIONS.filter((option) => !mobile || option.mode !== "split").map((option) => (
         <button
           className={mode === option.mode ? "active" : undefined}
           key={option.mode}
