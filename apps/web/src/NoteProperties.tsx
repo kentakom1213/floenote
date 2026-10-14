@@ -269,7 +269,7 @@ export function NoteProperties({
               <span aria-hidden="true">＋</span>
               {compact ? null : <span>Add tag</span>}
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
