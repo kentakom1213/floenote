@@ -135,6 +135,28 @@ describe("NoteProperties", () => {
     );
   });
 
+  it("keeps tag assignment and editing available in compact Split mode", () => {
+    const document = NoteDocument.create(createDocumentId(), "Split tags", 100);
+    document.addTag("research");
+
+    const markup = renderToStaticMarkup(
+      createElement(NoteProperties, {
+        document,
+        compact: true,
+        availableTags: ["research", "work"],
+        onTagRename: vi.fn(),
+      }),
+    );
+
+    expect(markup).toContain("note-tag-control-compact");
+    expect(markup).toContain('aria-label="Change research color"');
+    expect(markup).toContain('aria-label="Rename research"');
+    expect(markup).toContain('class="tag-color-remove-action"');
+    expect(markup).toContain('aria-label="Add tag"');
+    expect(markup).not.toContain('aria-label="Remove tag research"');
+    expect(markup).not.toContain("Created");
+  });
+
   it("calls the color-change handler when a palette color is selected", () => {
     const onChange = vi.fn();
     const palette = TagColorPalette({

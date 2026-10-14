@@ -144,46 +144,38 @@ export function NoteProperties({
       <div className="note-tags-row">
         {compact ? null : <span className="note-properties-label">Tags</span>}
         <div className="note-tag-list">
-          {compact
-            ? document.tags.map((tag) => (
-                <TagChip
-                  key={tag}
+          {document.tags.map((tag) => {
+            const color = getTagColor(tag);
+            return (
+              <span
+                className={compact ? "note-tag-control note-tag-control-compact" : "note-tag-control"}
+                data-tag-color={color}
+                key={tag}
+              >
+                <NoteTagColorControl
                   tag={tag}
-                  color={getTagColor(tag)}
-                  compact
+                  color={color}
+                  compact={compact}
+                  onColorChange={(nextColor) => onTagColorChange(tag, nextColor)}
+                  availableTags={availableTags}
+                  onRename={onTagRename}
+                  onRemove={() => removeTagFromProperties(document, tag)}
                 />
-              ))
-            : document.tags.map((tag) => {
-                const color = getTagColor(tag);
-                return (
-                  <span
-                    className="note-tag-control"
-                    data-tag-color={color}
-                    key={tag}
+                {!compact ? (
+                  <button
+                    className="note-tag-remove"
+                    type="button"
+                    aria-label={`Remove tag ${tag}`}
+                    onClick={() => removeTagFromProperties(document, tag)}
                   >
-                    <NoteTagColorControl
-                      tag={tag}
-                      color={color}
-                      onColorChange={(nextColor) =>
-                        onTagColorChange(tag, nextColor)
-                      }
-                      availableTags={availableTags}
-                      onRename={onTagRename}
-                      onRemove={() => removeTagFromProperties(document, tag)}
-                    />
-                    <button
-                      className="note-tag-remove"
-                      type="button"
-                      aria-label={`Remove tag ${tag}`}
-                      onClick={() => removeTagFromProperties(document, tag)}
-                    >
-                      <RemoveTagIcon />
-                    </button>
-                  </span>
-                );
-              })}
+                    <RemoveTagIcon />
+                  </button>
+                ) : null}
+              </span>
+            );
+          })}
 
-          {!compact && addingTag ? (
+          {addingTag ? (
             <form
               ref={tagFormRef}
               className="note-tag-form"
@@ -263,7 +255,7 @@ export function NoteProperties({
                 </div>
               ) : null}
             </form>
-          ) : !compact ? (
+          ) : (
             <button
               ref={addTagButtonRef}
               className="note-tag-add"
@@ -275,9 +267,9 @@ export function NoteProperties({
               }}
             >
               <span aria-hidden="true">＋</span>
-              <span>Add tag</span>
+              {compact ? null : <span>Add tag</span>}
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -313,6 +305,7 @@ function RemoveTagIcon() {
 function NoteTagColorControl({
   tag,
   color,
+  compact = false,
   onColorChange,
   availableTags,
   onRename,
@@ -320,6 +313,7 @@ function NoteTagColorControl({
 }: {
   tag: string;
   color: TagColor;
+  compact?: boolean;
   onColorChange: (color: TagColor) => void;
   availableTags: readonly string[];
   onRename: ((oldTag: string, newTag: string) => void) | undefined;
@@ -351,7 +345,7 @@ function NoteTagColorControl({
         aria-label={`Change ${tag} color`}
         title={`Change ${tag} color`}
       >
-        <TagChip tag={tag} color={color} />
+        <TagChip tag={tag} color={color} compact={compact} />
       </summary>
       <div className="tag-color-popover">
         {onRename ? (
