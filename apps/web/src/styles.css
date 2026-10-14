@@ -1606,6 +1606,10 @@ input:focus-visible {
   min-height: 28px;
 }
 
+.note-properties-compact .note-tags-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .note-properties-label {
   min-height: 26px;
   display: flex;
@@ -1637,6 +1641,26 @@ input:focus-visible {
   border-radius: 999px;
   color: color-mix(in srgb, var(--tag-chip-color) 76%, var(--color-text));
   background: color-mix(in srgb, var(--tag-chip-color) 13%, transparent);
+}
+
+/* Editable compact tags use the existing picker but keep the Split toolbar short. */
+.note-tag-control-compact {
+  min-width: 0;
+  max-width: 110px;
+  height: 24px;
+  flex: 0 1 auto;
+}
+
+.note-tag-control-compact .note-tag-color-picker,
+.note-tag-control-compact .note-tag-color-summary {
+  min-width: 0;
+  max-width: 100%;
+  height: 22px;
+}
+
+.note-tag-control-compact .note-tag-color-summary .tag-chip {
+  height: 22px;
+  padding: 0 6px;
 }
 
 /*
@@ -1944,7 +1968,11 @@ input:focus-visible {
   .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tag-list {
     min-height: 0;
     flex-wrap: nowrap;
-    overflow: hidden;
+    overflow: visible;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tag-add {
+    flex: 0 0 auto;
   }
 
   .document-current-view[data-editor-mode="split"] .note-properties-compact .tag-chip {
@@ -6282,26 +6310,41 @@ h1 {
 
 .tag-color-remove-action {
   display: none;
+  width: 100%;
+  margin-top: 8px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 6px 6px;
+  padding: 10px 8px 4px;
+  color: var(--color-danger);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+}
+
+.note-properties-compact .tag-color-remove-action {
+  display: block;
+}
+
+.tag-color-remove-action:hover {
+  background: var(--color-surface-hover);
 }
 
 @media (max-width: 760px) {
   .tag-color-remove-action {
-    width: 100%;
     display: block;
-    margin-top: 8px;
-    border: 0;
-    border-top: 1px solid var(--color-border);
-    border-radius: 0 0 6px 6px;
-    padding: 10px 8px 4px;
-    color: var(--color-danger);
-    background: transparent;
-    font-size: 11px;
-    text-align: left;
   }
+}
 
-  .tag-color-remove-action:hover {
-    background: var(--color-surface-hover);
-  }
+.note-properties-compact .tag-color-popover,
+.note-properties-compact .note-tag-suggestions {
+  left: auto;
+  right: 0;
+}
+
+.note-properties-compact .note-tag-suggestions {
+  width: 220px;
+  max-width: calc(100vw - 30px);
 }
 
 .tag-rename-control {
