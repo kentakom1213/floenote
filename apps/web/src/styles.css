@@ -5042,6 +5042,44 @@ h1 {
 }
 
 
+/* Narrow desktop windows and tablets with a fine pointer keep a usable Split view. */
+@media (max-width: 760px) and (any-pointer: fine) {
+  .document-current-view[data-editor-mode="split"] {
+    height: calc(100dvh - 52px - env(safe-area-inset-top));
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .document-current-view[data-editor-mode="split"] .document-header {
+    padding-top: 12px;
+    padding-bottom: 8px;
+  }
+
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tags-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .document-current-view[data-editor-mode="split"] > .editor-view-split {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .document-current-view[data-editor-mode="split"] .editor-view-pane,
+  .document-current-view[data-editor-mode="split"] .editor,
+  .document-current-view[data-editor-mode="split"] .editor .cm-editor {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .document-current-view[data-editor-mode="split"] .editor .cm-scroller {
+    height: 100%;
+    overflow-y: auto;
+  }
+}
+
+
 .pwa-update-banner {
   position: fixed;
   z-index: 100;
