@@ -471,6 +471,77 @@ test("edits tags from the compact Split header", async ({ page }) => {
   await expect(properties.getByRole("button", { name: "Add tag" })).toBeVisible();
 });
 
+test("keeps multiple long Split tags inside the header without overlap", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await createSecuredProject(page);
+  await page.getByLabel("Note view").getByRole("button", { name: "Split" }).click();
+
+  const properties = page.getByLabel("Note properties");
+  const tags = [
+    "very-long-research-tag",
+    "very-long-graph-algorithms-tag",
+    "very-long-distributed-systems-tag",
+    "very-long-implementation-tag",
+    "very-long-documentation-tag",
+  ];
+  for (const tag of tags) {
+    await properties.getByRole("button", { name: "Add tag" }).click();
+    const input = properties.getByRole("combobox", { name: "Add tag" });
+    await input.fill(tag);
+    await input.press("Enter");
+  }
+
+  await expect(properties.locator(".note-tag-control-compact")).toHaveCount(tags.length);
+
+  const geometry = await page.locator('.document-current-view[data-editor-mode="split"]').evaluate((view) => {
+    const header = view.querySelector<HTMLElement>(".document-header")!;
+    const properties = view.querySelector<HTMLElement>(".note-properties-compact")!;
+    const list = properties.querySelector<HTMLElement>(".note-tag-list")!;
+    const addButton = properties.querySelector<HTMLElement>(".note-tag-add")!;
+    const switcher = properties.querySelector<HTMLElement>(".editor-mode-switch")!;
+    const controls = [...list.querySelectorAll<HTMLElement>(".note-tag-control-compact")];
+    const tolerance = 1;
+    const fitsHorizontally = (child: Element, parent: Element) => {
+      const childRect = child.getBoundingClientRect();
+      const parentRect = parent.getBoundingClientRect();
+      return childRect.left >= parentRect.left - tolerance &&
+        childRect.right <= parentRect.right + tolerance;
+    };
+
+    return {
+      titleDoesNotOverlapTags:
+        header.getBoundingClientRect().right <= properties.getBoundingClientRect().left + tolerance,
+      controlsFitInList: controls.every((control) => fitsHorizontally(control, list)),
+      chipsFitInControls: controls.every((control) => {
+        const chip = control.querySelector(".tag-chip");
+        return chip !== null && fitsHorizontally(chip, control);
+      }),
+      tagsDoNotOverlap: controls.every((control, index) =>
+        index === 0 ||
+        controls[index - 1]!.getBoundingClientRect().right <=
+          control.getBoundingClientRect().left + tolerance,
+      ),
+      addButtonFits: fitsHorizontally(addButton, list),
+      tagsDoNotOverlapSwitcher:
+        list.getBoundingClientRect().right <= switcher.getBoundingClientRect().left + tolerance,
+      aTagIsTruncated: controls.some((control) => {
+        const label = control.querySelector<HTMLElement>(".tag-chip-label")!;
+        return label.scrollWidth > label.clientWidth + tolerance;
+      }),
+    };
+  });
+
+  expect(geometry).toEqual({
+    titleDoesNotOverlapTags: true,
+    controlsFitInList: true,
+    chipsFitInControls: true,
+    tagsDoNotOverlap: true,
+    addButtonFits: true,
+    tagsDoNotOverlapSwitcher: true,
+    aTagIsTruncated: true,
+  });
+});
+
 test("adapts Split orientation to the available editor width", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 800 });
   await createSecuredProject(page);
