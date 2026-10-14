@@ -444,6 +444,33 @@ test("keeps long Project names inside the selector and archive list", async ({ p
   await expect(row.getByRole("button", { name: "Reopen" })).toHaveCSS("border-top-style", "solid");
 });
 
+test("edits tags from the compact Split header", async ({ page }) => {
+  await createSecuredProject(page);
+  await page.getByLabel("Note view").getByRole("button", { name: "Split" }).click();
+
+  const properties = page.getByLabel("Note properties");
+  await properties.getByRole("button", { name: "Add tag" }).click();
+  const input = properties.getByRole("combobox", { name: "Add tag" });
+  await input.fill("research");
+  await input.press("Enter");
+
+  await expect(properties.getByLabel("Change research color")).toBeVisible();
+  await properties.getByLabel("Change research color").click();
+  await expect(properties.getByRole("button", { name: "Remove tag" })).toBeVisible();
+  await properties.getByRole("button", { name: "Set research color to blue" }).click();
+  await expect(properties.locator(".note-tag-control")).toHaveAttribute("data-tag-color", "blue");
+
+  await properties.getByLabel("Change research color").click();
+  await properties.getByRole("textbox", { name: "Rename research" }).fill("work");
+  await properties.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(properties.getByLabel("Change work color")).toBeVisible();
+
+  await properties.getByLabel("Change work color").click();
+  await properties.getByRole("button", { name: "Remove tag" }).click();
+  await expect(properties.getByLabel("Change work color")).toHaveCount(0);
+  await expect(properties.getByRole("button", { name: "Add tag" })).toBeVisible();
+});
+
 test("adapts Split orientation to the available editor width", async ({ page }) => {
   await page.setViewportSize({ width: 1200, height: 800 });
   await createSecuredProject(page);
