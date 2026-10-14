@@ -479,6 +479,44 @@ test("adapts Split orientation to the available editor width", async ({ page }) 
   await expect.poll(() => splitOrientation(page)).toBe("vertical");
 });
 
+test("uses Edit and Preview instead of Split on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await createSecuredProject(page);
+
+  const switcher = page.getByLabel("Note view");
+  const currentView = page.locator(".document-current-view");
+  await switcher.getByRole("button", { name: "Split" }).click();
+  await expect(currentView).toHaveAttribute("data-editor-mode", "split");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(currentView).toHaveAttribute("data-editor-mode", "edit");
+  await expect(switcher.getByRole("button", { name: "Split" })).toHaveCount(0);
+  await expect(page.getByLabel("Note title")).toBeVisible();
+  await expect(page.locator(".editor-view-source")).toBeVisible();
+  await expect(page.locator(".editor-view-preview")).toHaveCount(0);
+
+  const properties = page.getByLabel("Note properties");
+  await properties.getByRole("button", { name: "Add tag" }).click();
+  const input = properties.getByRole("combobox", { name: "Add tag" });
+  await input.fill("mobile-tag");
+  await input.press("Enter");
+  await expect(properties.getByLabel("Change mobile-tag color")).toBeVisible();
+
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await expect(currentView).toHaveAttribute("data-editor-mode", "split");
+  await expect(switcher.getByRole("button", { name: "Split" })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await switcher.getByRole("button", { name: "Preview" }).click();
+  await expect(currentView).toHaveAttribute("data-editor-mode", "preview");
+  await expect(page.locator(".editor-view-source")).toHaveCount(0);
+  await expect(page.locator(".editor-view-preview")).toBeVisible();
+
+  await switcher.getByRole("button", { name: "Edit" }).click();
+  await expect(currentView).toHaveAttribute("data-editor-mode", "edit");
+  await expect(page.locator(".editor-view-source")).toBeVisible();
+});
+
 test("shows Project settings within the mobile viewport and saves its name", async ({ page }) => {
   await createSecuredProject(page);
   await page.setViewportSize({ width: 390, height: 844 });
