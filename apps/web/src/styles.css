@@ -1975,8 +1975,10 @@ input:focus-visible {
     flex: 0 0 auto;
   }
 
-  .document-current-view[data-editor-mode="split"] .note-properties-compact .tag-chip {
-    flex: 0 0 auto;
+  .document-current-view[data-editor-mode="split"] .note-properties-compact .note-tag-control-compact .tag-chip {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
   }
 
   .document-current-view[data-editor-mode="split"] .note-properties-compact .note-properties-footer {
