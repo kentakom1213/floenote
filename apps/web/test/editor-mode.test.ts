@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { EditorModeView } from "../src/EditorModeView.js";
+import { EditorModeSwitcher, resolveEditorMode } from "../src/NoteWorkspace.js";
 import { getEditorModeLayout } from "../src/editor-mode-layout.js";
 import {
   normalizeEditorMode,
@@ -47,6 +48,32 @@ describe("editor modes", () => {
       showPreview: true,
       split: true,
     });
+  });
+
+  it("offers only Edit and Preview on mobile and falls back from saved Split", () => {
+    expect(resolveEditorMode("split", false)).toBe("split");
+    expect(resolveEditorMode("split", true)).toBe("edit");
+    expect(resolveEditorMode("preview", true)).toBe("preview");
+
+    const mobile = renderToStaticMarkup(
+      createElement(EditorModeSwitcher, {
+        mode: resolveEditorMode("split", true),
+        mobile: true,
+        onModeChange: vi.fn(),
+      }),
+    );
+    expect(mobile).toContain(">Edit</button>");
+    expect(mobile).toContain(">Preview</button>");
+    expect(mobile).not.toContain(">Split</button>");
+    expect(mobile).toContain('aria-pressed="true"');
+
+    const desktop = renderToStaticMarkup(
+      createElement(EditorModeSwitcher, {
+        mode: "split",
+        onModeChange: vi.fn(),
+      }),
+    );
+    expect(desktop).toContain(">Split</button>");
   });
 
   it("notifies the preview subscription for local editor commits", async () => {
