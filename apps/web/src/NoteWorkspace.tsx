@@ -54,13 +54,14 @@ const EDITOR_MODE_OPTIONS = [
 const MOBILE_EDITOR_MEDIA_QUERY = "(max-width: 760px)";
 
 function subscribeToMobileEditorLayout(onChange: () => void): () => void {
-  const media = window.matchMedia(MOBILE_EDITOR_MEDIA_QUERY);
+  const media = window.matchMedia?.(MOBILE_EDITOR_MEDIA_QUERY);
+  if (!media) return () => {};
   media.addEventListener("change", onChange);
   return () => media.removeEventListener("change", onChange);
 }
 
 function isMobileEditorLayout(): boolean {
-  return window.matchMedia(MOBILE_EDITOR_MEDIA_QUERY).matches;
+  return window.matchMedia?.(MOBILE_EDITOR_MEDIA_QUERY).matches ?? false;
 }
 
 type NoteWorkspaceProps = {
