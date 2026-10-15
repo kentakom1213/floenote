@@ -23,6 +23,14 @@ describe("selectE2e", () => {
     });
   });
 
+  test("includes project UI checks when sidebar navigation toolbar changes", () => {
+    expect(selectE2e([[change("apps/web/src/SidebarNavigationToolbar.tsx")]])).toEqual({
+      verifyRequired: true,
+      mode: "selected",
+      specs: [smoke, "e2e/navigation.spec.ts", "e2e/mobile-sidebar.spec.ts", "e2e/project-ui.spec.ts"],
+    });
+  });
+
   test("combines mapped groups across multiple API pages without duplicates", () => {
     expect(selectE2e([
       [change("apps/web/src/ProjectSettingsView.tsx")],
