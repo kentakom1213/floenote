@@ -6,9 +6,15 @@ const COORDINATOR_URL = "http://127.0.0.1:8787";
 export default defineConfig({
   testDir: "./e2e",
   workers: 1,
+  retries: process.env.CI ? 1 : 0,
+  reporter: [
+    ["list"],
+    ["json", { outputFile: "playwright-report/results.json" }],
+  ],
   use: {
     baseURL: WEB_URL,
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
