@@ -8,6 +8,7 @@ const sourceSpecs = {
   "apps/web/src/SidebarNavigationToolbar.tsx": [
     "e2e/navigation.spec.ts",
     "e2e/mobile-sidebar.spec.ts",
+    "e2e/project-ui.spec.ts",
   ],
   "apps/web/src/ProjectSettingsView.tsx": [
     "e2e/project-ui.spec.ts",
