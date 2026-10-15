@@ -705,6 +705,7 @@ test("shows Project settings within the mobile viewport and saves its name", asy
   await page.getByLabel("Project name").fill("Mobile notes");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Mobile notes" })).toBeVisible();
+  await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(page.getByLabel("Switch Project, current Mobile notes")).toBeVisible();
 });
 
