@@ -27,7 +27,7 @@ The following are outside the core architecture:
 - roles and permissions between different users;
 - server-side document synchronization or document storage;
 - a custom rich-text document format;
-- folders, backlinks, full-text search, and other higher-level organization features;
+- folders, backlinks, and other higher-level organization features not yet implemented;
 - background synchronization when no application runtime is active.
 
 If multi-user collaboration becomes a requirement, it should be treated as a separate project rather than an incremental extension of this security model.
@@ -76,7 +76,7 @@ authorization, key, or cryptographic boundary.
 
 Workspace data:
   encrypted Loro updates / snapshots
-  encrypted attachments
+  encrypted attachments (planned)
 
 Normal data path:
   device <-> device
@@ -132,8 +132,7 @@ Timestamps are used for display and sorting only. They must not be used to resol
 
 ## 6. Workspace-scoped content model
 
-> Project v1 is the accepted target model. Implementation is tracked by
-> #177–#180 and is not yet complete.
+Projects and Workspace-scoped Project membership are implemented (#177–#180).
 
 The Workspace owns Projects, Documents, Project-scoped tag-color metadata,
 and edit-history metadata. Project is intentionally lighter than Workspace: it
@@ -156,7 +155,7 @@ Workspace
 ├── Documents
 │   ├── DocumentId -> LoroDoc
 │   └── ...
-└── Attachments
+└── Attachments (planned)
     ├── AttachmentId -> encrypted blob
     └── ...
 ```
@@ -250,13 +249,15 @@ Permanent Project deletion is not part of v1.
 Project selection is local UI state, remembered per Workspace and not
 synchronized. The ordinary sidebar Note list, sidebar search, and tag namespace
 are scoped to the selected Project. Tag-color overrides are Project-scoped
-metadata in the Workspace manifest. Workspace-wide surfaces such as Trash,
-backlinks, and global search can still traverse Notes from multiple Projects.
+metadata in the Workspace manifest. Workspace-wide surfaces such as Trash and
+global search can traverse Notes from multiple Projects. Global search covers
+active Notes across the Workspace, including their Project context, using a
+disposable in-memory cache; see [global-search.md](./global-search.md).
 
 Opening an active Note from a Workspace-wide surface or canonical Note URL
 updates the local selected Project to that Note's current Project membership.
-This includes direct URL navigation, browser Back/Forward, global search, and
-backlinks. Thus, if Project B is selected and a Note belonging to Project A is
+This includes direct URL navigation, browser Back/Forward, and global search.
+Thus, if Project B is selected and a Note belonging to Project A is
 opened, Project A becomes the selected Project while the canonical Note URL
 remains unchanged.
 
@@ -349,7 +350,7 @@ Some **Markdown** text.
 
 This keeps the persistent document format independent of the editor implementation.
 
-The intended editor direction is CodeMirror 6. A different Markdown editor can be substituted later without migrating document contents.
+The web editor uses CodeMirror 6. A different Markdown editor can be substituted without migrating Markdown document contents.
 
 ### 7.2 Metadata CRDT choices
 
@@ -409,36 +410,48 @@ Security authorization is explicitly excluded from this rule and is handled sepa
 
 ## 9. Synchronization model
 
-Synchronization operates at three object classes:
+Synchronization currently operates on two Workspace content object classes:
 
 ```text
 Workspace Manifest
   └── includes edit-history checkpoint metadata
 Document
-Attachment
 ```
+
+Attachment synchronization is a future design and is not implemented in v0.
 
 Edit history does not add a fourth synchronization object or a separate
 protocol. Checkpoint metadata converges through the existing Workspace manifest
 Loro synchronization, while the referenced historical content remains in each
 Document's Loro history.
 
-A typical synchronization flow is:
+The current synchronization flow is:
 
 ```text
-1. synchronize Workspace manifest
-2. discover differences in the document set
-3. synchronize required Document Loro states
-4. synchronize required attachments
+1. send the Workspace manifest Loro state
+2. send the full Loro state of each Document
+3. relay subsequent Loro updates in both directions
+4. exchange Document acknowledgements when both peers support them
 ```
 
-Documents are independent synchronization units. Opening a Workspace does not require loading every document into memory.
+Documents are independent synchronization units, but the current browser client
+loads all locally stored Documents when opening a Workspace. It does not yet
+lazy-load Documents from IndexedDB.
 
 ### 9.1 Loro synchronization
 
-Loro version/update mechanisms are used for CRDT synchronization.
+`WorkspaceSyncEngine` uses serialized Loro updates rather than editor-specific
+state. On connection and on a peer's initial hello, it transmits the full
+manifest and every Document, even for peers that have almost identical state.
+Incremental catch-up using Loro version differences is tracked by #211; the
+current implementation must not be described as differential reconnection.
 
-The sync layer should operate in terms of document identity and serialized Loro data rather than exposing editor-specific state.
+During an active session, local Document/manifest updates are transmitted as
+they occur. A peer supporting `document-ack` confirms the Loro frontiers it
+has received for each Document. These acknowledgements feed device-local,
+encrypted replication observations (current/stale/unknown) and the selected
+Note's sync status. They are not a durable server-side backup or a guarantee
+that every device has the latest state.
 
 ### 9.2 Transport abstraction
 
@@ -453,11 +466,12 @@ interface Transport {
 }
 ```
 
-Possible transports include:
+Current transports include:
 
-- WebRTC DataChannel;
-- BroadcastChannel for same-browser testing;
-- other transports added later.
+- WebRTC DataChannel for authorized cross-device synchronization;
+- BroadcastChannel for encrypted synchronization among tabs in the same browser.
+
+Other transports can be added later.
 
 The SyncEngine should depend on the abstraction, not on `RTCPeerConnection` directly.
 
@@ -621,7 +635,7 @@ Additional device pairs can establish direct WebRTC connections as needed. The a
 Cloudflare Workers and Durable Objects provide the coordination plane.
 
 The official production client uses the Floe Note coordinator deployment
-(`https://floe-coordinate.pwll.dev`). v1 does not expose per-Workspace
+(`https://floe-coordinator.pwll.dev`). v1 does not expose per-Workspace
 coordinator selection or coordinator migration as user-facing features.
 Development builds may use an environment-specific endpoint.
 
@@ -1490,7 +1504,10 @@ authoritative decrypted document state.
 
 Storage schema version and network protocol version are separate concepts.
 
-## 22. Attachments
+## 22. Attachments (future design)
+
+Attachment storage and synchronization have not been implemented in v0.
+The following describes the intended boundary, not a shipped feature.
 
 Attachments are not stored directly inside Loro containers.
 
@@ -1623,12 +1640,13 @@ visible rather than being implied away by the use of modern primitives.
   does not reveal WorkspaceKey, note contents, or device private keys. Hiding the
   online-device graph from the coordination service is not a goal of the
   current reconnect design.
-- **Automatic reconnect is currently best-effort while presence is stable.**
-  Presence changes cause stale peer connections to be closed and new online
-  device pairs to rendezvous automatically. A WebRTC connection that enters a
-  terminal failed/closed state is cleaned up, but repeated ICE retry/backoff
-  while both presence sockets remain continuously online is not yet a separate
-  recovery protocol.
+- **Automatic reconnect is best-effort, not guaranteed connectivity.**
+  Presence changes trigger reconciliation of online peer connections. Failed or
+  closed DataChannels/PeerConnections are restarted; a prolonged disconnected
+  state or connection timeout also triggers a restart. The initiating device
+  retries with bounded backoff while both devices are reported online, first
+  attempting direct WebRTC and using TURN relay fallback when enabled. Network
+  conditions or unavailable coordination can still prevent reconnection.
 - **Encrypted local persistence still exposes storage metadata.** WorkspaceId,
   DocumentId, local-slot metadata, record counts, ciphertext sizes, and the
   storage envelope keyEpoch remain observable in IndexedDB. Note titles,
@@ -1672,22 +1690,25 @@ The application should depend on interfaces around storage, transport, cryptogra
 
 ## 26. Suggested module boundaries
 
-A future repository structure may look like:
+The current repository structure is:
 
 ```text
 apps/
 ├── web/
-└── worker/
+├── coordinator/
+└── turn/           # legacy development compatibility Worker
 
 packages/
-├── domain/
-├── document/
-├── editor/
-├── storage/
+├── coordinator-client/
 ├── crypto/
+├── document/
+├── domain/
+├── pairing/
 ├── security/
+├── storage/
 ├── sync/
-└── transport/
+├── transport/
+└── vault/
 ```
 
 The important dependency direction is:
@@ -1726,7 +1747,7 @@ Workspace, Document, synchronization, and security boundaries:
 6. Background synchronization strategy.
 7. General synchronization protocol-version negotiation beyond the narrow
    `document-ack` support bit carried by `full-state-end`.
-9. Optional replay protection / per-peer encrypted-sync sequencing if later required.
+8. Optional replay protection / per-peer encrypted-sync sequencing if later required.
 
 These details should be introduced only when required by an implementation or product requirement.
 
@@ -1763,7 +1784,7 @@ selection for note browsing is local UI state. The Project settings URL identifi
 only the settings target and does not change that selection.
 
 When an active Note is opened through its canonical URL, browser Back/Forward,
-global search, backlinks, or another Workspace-wide active-Note surface, the
+global search, or another Workspace-wide active-Note surface, the
 local selected Project follows that Note's current Project membership so the
 Project selector, sidebar, and editor remain consistent. For example, opening a
 Project A Note while Project B is selected switches the local Project context to

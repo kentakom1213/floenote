@@ -1,6 +1,6 @@
 # Coordinator boundary and Workspace survivability
 
-Status: proposed v1 design.
+Status: v1 coordinator boundary as implemented; future recovery features remain separate.
 
 This document defines the v1 boundary between the Floe Note client and the
 coordinator. The portable data format is specified in
@@ -241,31 +241,36 @@ This keeps local application state free from provisional authorization states.
 Floe Note protects user ownership through portable I/O rather than through an
 offline membership bypass.
 
-An existing Workspace can be exported without contacting the coordinator:
+Each Project in an already-local, unlocked Workspace can be exported without
+contacting the coordinator:
 
 ~~~text
 Workspace W
-   |
-   | local export
-   v
-W.floe.zip
-├── manifest.json
-└── notes/*.md
+└── Project "Research"
+       |
+       | local export
+       v
+   Research.floe.zip
+   ├── manifest.json
+   └── notes/*.md
 ~~~
 
 The Markdown files and JSON metadata are user-readable, application-independent
-data.
+data. This is Project-level content portability, not a full Workspace or
+cryptographic backup; to preserve content from multiple Projects, export each
+Project separately.
 
-The export deliberately excludes Workspace identity, SecurityState, WorkspaceKeys,
-and device identity. Importing it later creates a new Workspace rather than
-resuming the old synchronization identity.
+The export excludes Workspace/Project security identity, SecurityState,
+WorkspaceKeys, and device authorization. Importing into an existing Workspace
+creates a new Project within that Workspace's existing security boundary;
+first-run import instead creates a fresh Workspace with its own security state
+and requires the coordinator.
 
-This means a permanent coordinator/service failure does not trap the note
-contents inside Floe Note. The export can still be opened directly with ordinary
-Markdown tools even if creating a new Floe Workspace is temporarily impossible.
-
-Raw Markdown directories are likewise accepted as a Workspace creation source
-when the Floe Note coordination service is available.
+Thus a permanent coordinator failure does not make already-local Project
+content inaccessible: the unlocked client can still export readable Markdown
+and JSON. Raw Markdown directories can likewise be imported into an existing
+Workspace as a new Project; creating a new Workspace from an import remains a
+coordinator-backed operation. See [project-import-export.md](./project-import-export.md).
 
 ## 9. Fixed production coordinator
 
@@ -275,7 +280,7 @@ The official production application uses the Floe Note coordinator deployment,
 currently configured as:
 
 ~~~text
-https://floe-coordinate.pwll.dev
+https://floe-coordinator.pwll.dev
 ~~~
 
 Development builds may use an environment-specific endpoint.
