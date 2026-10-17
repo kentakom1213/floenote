@@ -30,127 +30,107 @@ release always bumps the component being deployed.
 
 ## Production release with GitHub Actions
 
-The primary release path is:
+Production releases are prepared through a pull request; preparing a release
+never commits directly to `main` or deploys a new version.
 
-1. Open the repository on GitHub.
-2. Go to **Actions → Release → Run workflow**.
-3. Select the `main` branch.
-4. Select the component:
-   - `web`
-   - `coordinator`
-5. Select the version bump:
-   - `patch`
-   - `minor`
-   - `major`
-6. Run the workflow.
+1. Open **Actions → Prepare Release → Run workflow**.
+2. Select the `main` branch, the component (`web` or `coordinator`), and
+   the version bump (`patch`, `minor`, or `major`).
+3. The workflow verifies the release and creates a PR from
+   `release/<component>-v<version>` into `main`.
+4. Review and merge the release PR once its normal checks pass.
+5. Merging that PR triggers **Deploy Release**, which verifies the merged
+   release commit, publishes the corresponding Git tag, and deploys that
+   exact commit to production.
 
-The workflow refuses to release from any ref other than `main`.
+Both workflows reject unsupported release refs and unexpected changes.
 
-### What the Release workflow does
+### Prepare Release
 
-The `prepare-release` job:
+`.github/workflows/prepare-release.yml` requires dispatch from `main` and
+pins the current `main` SHA. It:
 
-1. verifies that the dispatch ref is `main`
-2. checks out the latest `origin/main`
-3. installs dependencies with `pnpm install --frozen-lockfile`
-4. reuses the existing version helper:
-   - Web: `pnpm version:web <bump>`
-   - Coordinator: `pnpm version:coordinator <bump>`
-5. runs `pnpm test`
-6. runs `pnpm typecheck`
-7. runs `pnpm build`
-8. verifies that only the selected component's `package.json` changed
-9. fetches `origin/main` again and fails if main advanced during preparation
-10. verifies that the release tag does not already exist
-11. creates a release commit with the GitHub Actions bot identity
-12. creates the component-specific release tag
-13. pushes the main commit and tag together with an atomic Git push
+1. installs dependencies with `pnpm install --frozen-lockfile`;
+2. uses `pnpm version:web <bump>` or `pnpm version:coordinator <bump>`;
+3. runs `pnpm test`, `pnpm typecheck`, and `pnpm build`;
+4. ensures that the only changed file is the selected component's
+   `package.json` and that `main` has not advanced;
+5. rejects an already-existing release tag;
+6. creates (or reuses a matching) `release/<component>-v<version>` branch
+   and opens the release PR.
 
-The release commit format is:
+The release commit changes only the selected component's version. It uses
+the message `release web v<version>` or
+`release coordinator v<version>`.
 
-- `release web v<version>`
-- `release coordinator v<version>`
+### Deploy Release
 
-Tags are:
+`.github/workflows/deploy-release.yml` starts on a merged PR into `main`
+whose source branch matches `release/<component>-v<version>` and belongs
+to this repository. It:
 
-- Web: `web-v<version>`
-- Coordinator: `coordinator-v<version>`
+1. verifies that the release PR changed exactly the selected component's
+   `package.json`, and that the merged version is an allowed next SemVer
+   bump from the first parent;
+2. checks out the merged commit SHA and runs install, tests, typecheck, and
+   build;
+3. creates and pushes the matching release tag pointing at that merged SHA;
+4. checks out and verifies that same SHA and tag before deploying the selected
+   component under the `production` Environment.
 
-Existing tags are never overwritten or force-updated.
+Tags are `web-v<version>` and `coordinator-v<version>`. Existing tags
+are not overwritten or force-updated.
 
-The `deploy` job starts only after `prepare-release` succeeds. It checks out
-the exact release commit SHA produced by `prepare-release`, verifies that the
-remote tag points to that SHA, installs dependencies, and deploys only the
-selected component:
+Deployment is component-specific:
 
 - Web: `pnpm deploy:web`
 - Coordinator: `pnpm deploy:coordinator`
 
-This keeps the package version, embedded build SHA, release tag, and deployed
-source tied to the same release commit.
+This ties the package version, tag, and production deployment to the same
+merged release commit.
 
 ## Safety and failure behavior
 
-Release operations are serialized with one `production-release` concurrency
-group across both Web and Coordinator. A running release is not cancelled when
-another release is requested.
+Preparing a release does not change `main`, create a tag, or deploy. If
+`main` advances during preparation, the workflow refuses to create an
+out-of-date release PR; rerun it from the latest `main`. A release PR must
+pass normal review and CI checks before it can be merged.
 
-Before the release commit/tag push, any failure leaves `main` unchanged, does
-not create a remote release tag, and does not deploy.
+Deploy Release uses a shared `production-release` concurrency group without
+cancelling a running release. A merged release PR remains on `main` even if
+subsequent verification or deployment fails. If tag publication succeeds but
+deployment fails, retry the failed deployment job from the same run so the
+original release SHA is deployed; do not bump the version just for a retry.
+If verification fails before tag publication, no release tag or deployment
+is produced.
 
-If `main` advances while verification is running, the release fails instead
-of merging, rebasing, or force-pushing. Run the workflow again from the latest
-`main`.
-
-The commit and tag are pushed atomically. If either ref cannot be updated, the
-push fails rather than intentionally leaving a release commit without its tag
-or a tag without its release commit.
-
-If the release commit/tag push succeeds but production deployment fails, the
-release commit and tag remain valid. Do not bump the version again just to
-retry deployment. Retry the failed `deploy` job from the same workflow run so
-it deploys the same release SHA.
-
-The Release workflow performs its own install, test, typecheck, and build before
-pushing the release. Correctness does not depend on the release commit push
-starting `ci.yml`; pushes made with the built-in `GITHUB_TOKEN` should not be
-treated as a mechanism for recursively triggering the verification workflow.
+The deploy workflow verifies the merged commit independently rather than
+relying on a second CI run triggered by GitHub Actions' built-in
+`GITHUB_TOKEN`.
 
 ## GitHub Environment and Cloudflare credentials
 
 The production deploy job uses the GitHub Environment named `production`.
+Configure **Settings → Environments → production** with:
 
-Before the first release, configure the repository:
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 
-1. Go to **Settings → Environments**.
-2. Create or open **production**.
-3. Add these Environment secrets:
-   - `CLOUDFLARE_API_TOKEN`
-   - `CLOUDFLARE_ACCOUNT_ID`
+They are Wrangler deployment credentials. Never put their values in source,
+workflow YAML, logs, or artifacts.
 
-The values are Cloudflare deployment credentials used by Wrangler. Do not put
-their values in the repository, workflow YAML, logs, or artifacts.
+Production TURN settings `TURN_ENABLED`, `TURN_KEY_ID`, and
+`TURN_KEY_API_TOKEN` are independent coordinator Worker runtime secrets,
+not GitHub release secrets or web-build settings; see [turn.md](./turn.md).
+`TURN_ACCESS_TOKEN` belongs only to the legacy `apps/turn` development
+Worker.
 
-The Cloudflare deployment credentials are unrelated to the coordinator's TURN
-runtime secrets `TURN_ENABLED`, `TURN_KEY_ID`, and `TURN_KEY_API_TOKEN`. Configure
-these on the production coordinator Worker, independently of any staging key.
-They are not passed through the Release workflow or web build. See
-`docs/turn.md`. `TURN_ACCESS_TOKEN` belongs only to the legacy `apps/turn`
-development Worker.
-
-The `prepare-release` job uses the built-in `GITHUB_TOKEN` with only
-`contents: write` so it can update `main` and create the tag. The deploy job
-has only `contents: read`; Cloudflare secrets are referenced only by its
-deployment steps.
-
-If repository branch protection or a ruleset prevents the built-in
-`GITHUB_TOKEN` from updating `main`, adjust the repository policy so the
-intended Release workflow can perform this release commit. Do not add a
-Personal Access Token merely to bypass that policy.
-
-Environment reviewer approval, if desired, is configured in the
-`production` Environment settings. The workflow itself does not add a second
-confirmation prompt.
+The preparation workflow requests `contents: write` and
+`pull-requests: write` only for the release PR creation job; it does not
+require pushing commits directly to `main`. Deploy Release requests
+`contents: write` only to publish the tag; deployment reads
+Cloudflare credentials from the `production` Environment. Configure
+Environment reviewer approval in GitHub if desired.
 
 ## Verification after deployment
 
@@ -191,7 +171,7 @@ The Release workflow intentionally does not:
 - generate release notes or a changelog
 - publish packages to npm
 - version internal workspace packages
-- create release PRs
+- commit a release directly to `main` during preparation
 - automatically release or deploy the TURN Worker
 - bump, tag, or version TURN
 
