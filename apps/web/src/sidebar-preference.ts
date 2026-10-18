@@ -1,5 +1,5 @@
 export const DEFAULT_SIDEBAR_WIDTH = 276;
-export const MIN_SIDEBAR_WIDTH = 220;
+export const MIN_SIDEBAR_WIDTH = 248;
 export const MAX_SIDEBAR_WIDTH = 420;
 
 const STORAGE_KEY = "floe-note-sidebar";
