@@ -27,13 +27,13 @@
     "@floe-note/transport": "workspace:*",
     "@floe-note/vault": "workspace:*",
     "codemirror": "^6.0.2",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "loro-codemirror": "^0.3.3",
     "loro-crdt": "^1.16.4",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "katex": "^0.19.0",
-    "marked": "^18.1.0",
+    "marked": "^18.1.1",
     "qrcode.react": "^4.2.0"
   },
   "devDependencies": {
