@@ -459,6 +459,7 @@ input:focus-visible {
 .project-switcher-action {
   grid-template-columns: 16px minmax(0, 1fr);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .project-switcher-item:hover,
@@ -595,6 +596,7 @@ input:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  white-space: nowrap;
 }
 
 .workspace-project-action svg {

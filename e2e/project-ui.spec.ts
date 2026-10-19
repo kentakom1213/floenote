@@ -385,6 +385,118 @@ test("imports a Markdown directory as one Project in the existing Workspace", as
   }
 });
 
+test("keeps Workspace and Project switcher menus clean at the minimum desktop sidebar width", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 800 });
+
+  const longWorkspaceName = `Workspace-${"w".repeat(80)}`;
+  await createSecuredProject(page, longWorkspaceName);
+  const longProjectName = `Project-${"p".repeat(100)}`;
+  await createProject(page, longProjectName);
+
+  const sidebar = page.locator(".sidebar");
+  await expect(sidebar).toHaveCSS("width", "276px");
+
+  const resizer = page.getByRole("separator", { name: "Resize sidebar" });
+  await resizer.focus();
+  await resizer.press("Home");
+  await expect(sidebar).toHaveCSS("width", "248px");
+
+  await page.getByLabel(/Switch workspace, current/).click();
+  const workspaceMenu = page.locator(".project-switcher-menu");
+  await expect(workspaceMenu).toBeVisible();
+
+  const workspaceGeometry = await workspaceMenu.evaluate((menu) => {
+    const sidebar = menu.closest<HTMLElement>(".sidebar")!;
+    const currentName = menu.querySelector<HTMLElement>(
+      '.project-switcher-item[aria-current="page"] .project-switcher-item-name',
+    )!;
+    const actionLabels = [
+      ...menu.querySelectorAll<HTMLElement>(
+        ".project-switcher-action > span:last-child",
+      ),
+    ];
+    const tolerance = 1;
+    const isSingleLine = (element: HTMLElement) => {
+      const textNode = [...element.childNodes].find(
+        (node) =>
+          node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+      );
+      if (!textNode) return false;
+
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      return range.getClientRects().length === 1;
+    };
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const nameStyle = getComputedStyle(currentName);
+
+    return {
+      menuContained:
+        menuRect.left >= sidebarRect.left - tolerance &&
+        menuRect.right <= sidebarRect.right + tolerance,
+      actionsSingleLine: actionLabels.every(isSingleLine),
+      nameTruncated:
+        currentName.scrollWidth > currentName.clientWidth + tolerance &&
+        nameStyle.whiteSpace === "nowrap" &&
+        nameStyle.textOverflow === "ellipsis",
+    };
+  });
+
+  expect(workspaceGeometry).toEqual({
+    menuContained: true,
+    actionsSingleLine: true,
+    nameTruncated: true,
+  });
+
+  await page.getByLabel(/Switch workspace, current/).click();
+  await page.getByLabel(/Switch Project, current/).click();
+  const projectMenu = page.locator(".workspace-project-menu");
+  await expect(projectMenu).toBeVisible();
+
+  const projectGeometry = await projectMenu.evaluate((menu) => {
+    const sidebar = menu.closest<HTMLElement>(".sidebar")!;
+    const currentName = menu.querySelector<HTMLElement>(
+      '.workspace-project-menu-item[aria-current="true"] > span:first-child',
+    )!;
+    const actions = [
+      ...menu.querySelectorAll<HTMLElement>(".workspace-project-action"),
+    ];
+    const tolerance = 1;
+    const isSingleLine = (element: HTMLElement) => {
+      const textNode = [...element.childNodes].find(
+        (node) =>
+          node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+      );
+      if (!textNode) return false;
+
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      return range.getClientRects().length === 1;
+    };
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const nameStyle = getComputedStyle(currentName);
+
+    return {
+      menuContained:
+        menuRect.left >= sidebarRect.left - tolerance &&
+        menuRect.right <= sidebarRect.right + tolerance,
+      actionsSingleLine: actions.every(isSingleLine),
+      nameTruncated:
+        currentName.scrollWidth > currentName.clientWidth + tolerance &&
+        nameStyle.whiteSpace === "nowrap" &&
+        nameStyle.textOverflow === "ellipsis",
+    };
+  });
+
+  expect(projectGeometry).toEqual({
+    menuContained: true,
+    actionsSingleLine: true,
+    nameTruncated: true,
+  });
+});
+
 test("keeps long Project names inside the selector and archive list", async ({ page }) => {
   await createSecuredProject(page);
   const heights = await page.evaluate(() => {
