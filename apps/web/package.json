@@ -29,7 +29,7 @@
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.17",
     "loro-codemirror": "^0.3.3",
-    "loro-crdt": "^1.16.4",
+    "loro-crdt": "^1.17.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "katex": "^0.19.0",
@@ -40,7 +40,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vite-plugin-pwa": "2.0.0",
     "workbox-window": "7.4.1"
   }
