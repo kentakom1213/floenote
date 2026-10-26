@@ -11,6 +11,6 @@
     "@floe-note/crypto": "workspace:*",
     "@floe-note/domain": "workspace:*",
     "@floe-note/security": "workspace:*",
-    "dexie": "^4.4.6"
+    "dexie": "^4.4.7"
   }
 }
