@@ -2026,7 +2026,8 @@ function NoteApp({
         );
       }
 
-      setWorkspaceKeyDeliveryState("delivered");
+      // The key acknowledgement is not the end of device setup.
+      // Wait for the joining device to persist the initial Workspace.
     } catch (error: unknown) {
       setWorkspaceKeyDeliveryState("error");
       setCoordinationError(
@@ -2079,6 +2080,10 @@ function NoteApp({
       encryptedTransport,
       {
         debugLogger: createConsoleDebugLogger("invite-host-encrypted-sync"),
+        onBootstrapComplete: () => {
+          syncEngine.sendBootstrapConfirmed();
+          setWorkspaceKeyDeliveryState("delivered");
+        },
         onRemoteDocumentVersionConfirmed: (documentId, frontiers) => {
           handleDocumentVersionConfirmed(
             joiningDeviceId,
