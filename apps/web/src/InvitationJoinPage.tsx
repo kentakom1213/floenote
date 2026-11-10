@@ -146,6 +146,7 @@ export function InvitationJoinPage({
     let stopJoinedPersistence: (() => void) | null = null;
     let bootstrapCompletionStarted = false;
     let initialSyncFailed = false;
+    let bootstrapConfirmationTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const failInitialSync = (message: string): void => {
       if (bootstrapCompletionStarted || initialSyncFailed) return;
@@ -205,6 +206,10 @@ export function InvitationJoinPage({
           if (cleanedUp) return;
           cleanedUp = true;
           abortPairing.abort();
+          if (bootstrapConfirmationTimeout !== null) {
+            clearTimeout(bootstrapConfirmationTimeout);
+            bootstrapConfirmationTimeout = null;
+          }
           stopSignalingState();
           signaling.stop();
 
@@ -255,12 +260,6 @@ export function InvitationJoinPage({
               securityState.keyEpoch,
             );
 
-            stopJoinedPersistence = storage.watchWorkspace(
-              joinedProject,
-              session,
-              securityState.keyEpoch,
-            );
-
             const encryptedTransport = new EncryptedSyncTransport(
               transport,
               {
@@ -306,25 +305,26 @@ export function InvitationJoinPage({
 
                   void (async () => {
                     try {
-                      await encryptedTransport.flushPendingSends();
+                      // Initial imports stay in memory until the complete state
+                      // has arrived. Persist one snapshot instead of one per note.
+                      stopJoinedPersistence = storage.watchWorkspace(
+                        joinedProject,
+                        session,
+                        securityState.keyEpoch,
+                      );
                       await storage.flushPendingWrites();
                       await storage.completeJoinedWorkspaceBootstrap(
                         securityState.workspaceId,
                       );
-                      if (disposed) return;
+                      if (disposed || initialSyncFailed) return;
 
-                      setInitialSyncState("ready");
-                      handoffDeviceVaultSession(
-                        vaultSessionRef,
-                        (handoffSession) =>
-                          onSessionHandoff(
-                            handoffSession,
-                            securityState.workspaceId,
-                          ),
-                      );
-
-                      cleanup?.();
-                      cleanup = null;
+                      joinedSyncEngine?.sendBootstrapComplete();
+                      await encryptedTransport.flushPendingSends();
+                      bootstrapConfirmationTimeout = setTimeout(() => {
+                        if (disposed) return;
+                        setInitialSyncState("error");
+                        setError("The existing device did not confirm Workspace setup. Your local data has been saved.");
+                      }, 30_000);
                     } catch (syncError: unknown) {
                       bootstrapCompletionStarted = false;
                       if (disposed) return;
@@ -336,6 +336,26 @@ export function InvitationJoinPage({
                       );
                     }
                   })();
+                },
+                onBootstrapConfirmed: () => {
+                  if (disposed || initialSyncState === "ready") return;
+                  if (bootstrapConfirmationTimeout !== null) {
+                    clearTimeout(bootstrapConfirmationTimeout);
+                    bootstrapConfirmationTimeout = null;
+                  }
+                  setInitialSyncState("ready");
+                  try {
+                    handoffDeviceVaultSession(
+                      vaultSessionRef,
+                      (handoffSession) =>
+                        onSessionHandoff(handoffSession, securityState.workspaceId),
+                    );
+                    cleanup?.();
+                    cleanup = null;
+                  } catch (syncError: unknown) {
+                    setInitialSyncState("error");
+                    setError(syncError instanceof Error ? syncError.message : "Failed to open Workspace");
+                  }
                 },
                 onInitialSyncError: (syncError) => {
                   failInitialSync(
