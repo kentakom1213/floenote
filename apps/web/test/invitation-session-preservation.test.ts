@@ -144,4 +144,28 @@ describe("invitation session preservation", () => {
     expect(joinSource).not.toContain("sessionStorage");
     expect(appSource).not.toContain("sessionStorage");
   });
+
+  it("does not queue full Workspace snapshots for every imported note", () => {
+    const syncStart = joinSource.indexOf("joinedSyncEngine = new WorkspaceSyncEngine(");
+    const syncEnd = joinSource.indexOf("joinedSyncEngine.start()", syncStart);
+    const persistenceStart = joinSource.indexOf("stopJoinedPersistence = storage.watchWorkspace(", syncStart);
+    const completion = joinSource.indexOf("onInitialRemoteStateReceived: () =>", syncStart);
+    expect(persistenceStart).toBeGreaterThan(completion);
+    expect(persistenceStart).toBeLessThan(syncEnd);
+  });
+
+  it("reports host success only after the joining device persisted its Workspace", () => {
+    const hostSync = appSource.indexOf("function startInvitationEncryptedSync(");
+    const completion = appSource.indexOf("onBootstrapComplete:", hostSync);
+    const success = appSource.indexOf('setWorkspaceKeyDeliveryState("delivered")', hostSync);
+    expect(completion).toBeGreaterThan(hostSync);
+    expect(success).toBeGreaterThan(completion);
+    const keyDelivery = appSource.slice(
+      appSource.indexOf("async function deliverWorkspaceKey("),
+      hostSync,
+    );
+    expect(keyDelivery).not.toContain('setWorkspaceKeyDeliveryState("delivered")');
+    expect(joinSource).toContain("sendBootstrapComplete()");
+    expect(joinSource).toContain("onBootstrapConfirmed:");
+  });
 });
