@@ -124,11 +124,17 @@ describe("invitation session preservation", () => {
     expect(storageSource).toContain("if (failure) throw failure");
 
     const start = joinSource.indexOf("onInitialRemoteStateReceived: () =>");
-    const handoff = joinSource.indexOf("handoffDeviceVaultSession(", start);
-    const failure = joinSource.indexOf("} catch (syncError: unknown) {", handoff);
+    const complete = joinSource.indexOf(
+      "await storage.completeJoinedWorkspaceBootstrap(",
+      start,
+    );
+    const failure = joinSource.indexOf("} catch (syncError: unknown) {", complete);
+    const confirmation = joinSource.indexOf("onBootstrapConfirmed:", complete);
 
-    expect(failure).toBeGreaterThan(handoff);
-    expect(joinSource.slice(failure, failure + 700)).toContain(
+    expect(complete).toBeGreaterThan(start);
+    expect(failure).toBeGreaterThan(complete);
+    expect(failure).toBeLessThan(confirmation);
+    expect(joinSource.slice(failure, confirmation)).toContain(
       "Failed to persist initial Workspace sync",
     );
   });
