@@ -665,6 +665,14 @@ export function InvitationJoinPage({
               <dd>{webRtcStatus.connectionState}</dd>
             </div>
             <div>
+              <dt>ICE</dt>
+              <dd>{webRtcStatus.iceConnectionState}</dd>
+            </div>
+            <div>
+              <dt>ICE candidates</dt>
+              <dd>{webRtcStatus.gatheredCandidateCount}</dd>
+            </div>
+            <div>
               <dt>Data channel</dt>
               <dd>{webRtcStatus.dataChannelState}</dd>
             </div>
