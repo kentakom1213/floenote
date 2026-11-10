@@ -625,4 +625,36 @@ describe("WorkspaceSyncEngine", () => {
     joinedEngine.stop();
   });
 
+
+  it("confirms invitation bootstrap only after the joining peer reports persistence", () => {
+    const host = NoteProject.create();
+    const joiner = NoteProject.empty(host.id);
+    const [hostTransport, joinTransport] = createTransportPair();
+    let hostCompleted = 0;
+    let joinConfirmed = 0;
+
+    const hostEngine = new WorkspaceSyncEngine(host, hostTransport, {
+      onBootstrapComplete: () => {
+        hostCompleted += 1;
+        hostEngine.sendBootstrapConfirmed();
+      },
+    });
+    const joinEngine = new WorkspaceSyncEngine(joiner, joinTransport, {
+      onBootstrapConfirmed: () => {
+        joinConfirmed += 1;
+      },
+    });
+
+    hostEngine.start();
+    joinEngine.start();
+    expect(hostCompleted).toBe(0);
+    expect(joinConfirmed).toBe(0);
+
+    joinEngine.sendBootstrapComplete();
+    expect(hostCompleted).toBe(1);
+    expect(joinConfirmed).toBe(1);
+
+    hostEngine.stop();
+    joinEngine.stop();
+  });
 });
