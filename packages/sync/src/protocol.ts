@@ -10,10 +10,14 @@ const enum MessageType {
   DocumentUpdate = 3,
   FullStateEnd = 4,
   DocumentAck = 5,
+  BootstrapComplete = 6,
+  BootstrapConfirmed = 7,
 }
 
 export type SyncMessage =
   | { type: "hello" }
+  | { type: "bootstrap-complete" }
+  | { type: "bootstrap-confirmed" }
   | { type: "full-state-end"; supportsDocumentAck?: boolean }
   | { type: "manifest-update"; update: Uint8Array }
   | {
@@ -56,6 +60,12 @@ export function encodeSyncMessage(message: SyncMessage): Uint8Array {
   switch (message.type) {
     case "hello":
       return Uint8Array.of(PROTOCOL_VERSION, MessageType.Hello);
+
+    case "bootstrap-complete":
+      return Uint8Array.of(PROTOCOL_VERSION, MessageType.BootstrapComplete);
+
+    case "bootstrap-confirmed":
+      return Uint8Array.of(PROTOCOL_VERSION, MessageType.BootstrapConfirmed);
 
     case "full-state-end":
       return message.supportsDocumentAck
@@ -102,6 +112,12 @@ export function decodeSyncMessage(data: Uint8Array): SyncMessage {
   switch (data[1]) {
     case MessageType.Hello:
       return { type: "hello" };
+
+    case MessageType.BootstrapComplete:
+      return { type: "bootstrap-complete" };
+
+    case MessageType.BootstrapConfirmed:
+      return { type: "bootstrap-confirmed" };
 
     case MessageType.FullStateEnd:
       return {
