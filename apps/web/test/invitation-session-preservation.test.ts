@@ -124,11 +124,17 @@ describe("invitation session preservation", () => {
     expect(storageSource).toContain("if (failure) throw failure");
 
     const start = joinSource.indexOf("onInitialRemoteStateReceived: () =>");
-    const handoff = joinSource.indexOf("handoffDeviceVaultSession(", start);
-    const failure = joinSource.indexOf("} catch (syncError: unknown) {", handoff);
+    const complete = joinSource.indexOf(
+      "await storage.completeJoinedWorkspaceBootstrap(",
+      start,
+    );
+    const failure = joinSource.indexOf("} catch (syncError: unknown) {", complete);
+    const confirmation = joinSource.indexOf("onBootstrapConfirmed:", complete);
 
-    expect(failure).toBeGreaterThan(handoff);
-    expect(joinSource.slice(failure, failure + 700)).toContain(
+    expect(complete).toBeGreaterThan(start);
+    expect(failure).toBeGreaterThan(complete);
+    expect(failure).toBeLessThan(confirmation);
+    expect(joinSource.slice(failure, confirmation)).toContain(
       "Failed to persist initial Workspace sync",
     );
   });
@@ -143,5 +149,29 @@ describe("invitation session preservation", () => {
     expect(joinSource).not.toContain("localStorage");
     expect(joinSource).not.toContain("sessionStorage");
     expect(appSource).not.toContain("sessionStorage");
+  });
+
+  it("does not queue full Workspace snapshots for every imported note", () => {
+    const syncStart = joinSource.indexOf("joinedSyncEngine = new WorkspaceSyncEngine(");
+    const syncEnd = joinSource.indexOf("joinedSyncEngine.start()", syncStart);
+    const persistenceStart = joinSource.indexOf("stopJoinedPersistence = storage.watchWorkspace(", syncStart);
+    const completion = joinSource.indexOf("onInitialRemoteStateReceived: () =>", syncStart);
+    expect(persistenceStart).toBeGreaterThan(completion);
+    expect(persistenceStart).toBeLessThan(syncEnd);
+  });
+
+  it("reports host success only after the joining device persisted its Workspace", () => {
+    const hostSync = appSource.indexOf("function startInvitationEncryptedSync(");
+    const completion = appSource.indexOf("onBootstrapComplete:", hostSync);
+    const success = appSource.indexOf('setWorkspaceKeyDeliveryState("delivered")', hostSync);
+    expect(completion).toBeGreaterThan(hostSync);
+    expect(success).toBeGreaterThan(completion);
+    const keyDelivery = appSource.slice(
+      appSource.indexOf("async function deliverWorkspaceKey("),
+      hostSync,
+    );
+    expect(keyDelivery).not.toContain('setWorkspaceKeyDeliveryState("delivered")');
+    expect(joinSource).toContain("sendBootstrapComplete()");
+    expect(joinSource).toContain("onBootstrapConfirmed:");
   });
 });

@@ -16,6 +16,8 @@ export type WorkspaceSyncEngineOptions = {
   debugLogger?: SyncDebugLogger;
   onInitialRemoteStateReceived?: () => void;
   onInitialSyncError?: (error: Error) => void;
+  onBootstrapComplete?: () => void;
+  onBootstrapConfirmed?: () => void;
   onRemoteDocumentVersionConfirmed?: (
     documentId: DocumentId,
     frontiers: Uint8Array,
@@ -33,6 +35,8 @@ export class WorkspaceSyncEngine {
   readonly #debugLogger: SyncDebugLogger | null;
   readonly #onInitialRemoteStateReceived: (() => void) | null;
   readonly #onInitialSyncError: ((error: Error) => void) | null;
+  readonly #onBootstrapComplete: (() => void) | null;
+  readonly #onBootstrapConfirmed: (() => void) | null;
   readonly #onRemoteDocumentVersionConfirmed:
     | ((documentId: DocumentId, frontiers: Uint8Array) => void)
     | null;
@@ -57,6 +61,8 @@ export class WorkspaceSyncEngine {
     this.#onInitialRemoteStateReceived =
       options.onInitialRemoteStateReceived ?? null;
     this.#onInitialSyncError = options.onInitialSyncError ?? null;
+    this.#onBootstrapComplete = options.onBootstrapComplete ?? null;
+    this.#onBootstrapConfirmed = options.onBootstrapConfirmed ?? null;
     this.#onRemoteDocumentVersionConfirmed =
       options.onRemoteDocumentVersionConfirmed ?? null;
     this.#relayScope = options.relayScope ?? null;
@@ -110,6 +116,14 @@ export class WorkspaceSyncEngine {
     this.#debug("hello.send");
     this.#transport.send(encodeSyncMessage({ type: "hello" }));
     this.#sendFullState();
+  }
+
+  sendBootstrapComplete(): void {
+    this.#transport.send(encodeSyncMessage({ type: "bootstrap-complete" }));
+  }
+
+  sendBootstrapConfirmed(): void {
+    this.#transport.send(encodeSyncMessage({ type: "bootstrap-confirmed" }));
   }
 
   stop(): void {
@@ -249,6 +263,13 @@ export class WorkspaceSyncEngine {
       const message = decodeSyncMessage(data);
 
       switch (message.type) {
+        case "bootstrap-complete":
+          this.#onBootstrapComplete?.();
+          return;
+
+        case "bootstrap-confirmed":
+          this.#onBootstrapConfirmed?.();
+          return;
         case "hello":
           this.#debug("hello.receive");
           this.#sendFullState();
