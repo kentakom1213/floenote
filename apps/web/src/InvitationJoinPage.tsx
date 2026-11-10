@@ -318,13 +318,13 @@ export function InvitationJoinPage({
                       );
                       if (disposed || initialSyncFailed) return;
 
-                      joinedSyncEngine?.sendBootstrapComplete();
-                      await encryptedTransport.flushPendingSends();
                       bootstrapConfirmationTimeout = setTimeout(() => {
                         if (disposed) return;
                         setInitialSyncState("error");
                         setError("The existing device did not confirm Workspace setup. Your local data has been saved.");
                       }, 30_000);
+                      joinedSyncEngine?.sendBootstrapComplete();
+                      await encryptedTransport.flushPendingSends();
                     } catch (syncError: unknown) {
                       bootstrapCompletionStarted = false;
                       if (disposed) return;
@@ -338,7 +338,7 @@ export function InvitationJoinPage({
                   })();
                 },
                 onBootstrapConfirmed: () => {
-                  if (disposed || initialSyncState === "ready") return;
+                  if (disposed || !bootstrapCompletionStarted) return;
                   if (bootstrapConfirmationTimeout !== null) {
                     clearTimeout(bootstrapConfirmationTimeout);
                     bootstrapConfirmationTimeout = null;
