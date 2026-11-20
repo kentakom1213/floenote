@@ -77,13 +77,18 @@ export class WebRtcSignalingSession {
     });
 
     if (this.#role === "host" && this.#iceRestartRetryDelaysMs.length > 0) {
-      this.#stopConnectionState = this.#transport.onConnectionStateChange(
-        (state) => {
-          if (state === "connected" || state === "closed") {
-            this.#clearIceRestartTimer();
-          }
-        },
-      );
+      this.#stopConnectionState = this.#transport.onStatusChange((status) => {
+        if (
+          status.connectionState === "connected" ||
+          status.connectionState === "closed"
+        ) {
+          this.#clearIceRestartTimer();
+        } else if (status.iceConnectionState === "failed") {
+          // Checking may take longer than the retry delay, particularly on
+          // mobile. Do not interrupt an ICE attempt that is still in progress.
+          this.#scheduleIceRestart();
+        }
+      });
     }
 
     this.#stopMessage = this.#client.onMessage((message) => {
@@ -135,7 +140,6 @@ export class WebRtcSignalingSession {
         await this.#sendHostOffer(true);
       }
 
-      this.#scheduleIceRestart();
       return;
     }
 
@@ -190,7 +194,7 @@ export class WebRtcSignalingSession {
   }
 
   #scheduleIceRestart(): void {
-    this.#clearIceRestartTimer();
+    if (this.#iceRestartTimer) return;
 
     if (
       !this.#started ||
@@ -265,7 +269,6 @@ export class WebRtcSignalingSession {
     this.#debug("ice-restart.start", { attempt });
     await this.#sendHostOffer(true);
     this.#debug("ice-restart.offer-sent", { attempt });
-    this.#scheduleIceRestart();
   }
 
   async #withBufferedOutgoingCandidates(

@@ -341,6 +341,10 @@ export function InvitationHostPanel({
             <dd>{status.iceConnectionState}</dd>
           </div>
           <div>
+            <dt>ICE candidates</dt>
+            <dd>{status.gatheredCandidateCount}</dd>
+          </div>
+          <div>
             <dt>Data channel</dt>
             <dd>{status.dataChannelState}</dd>
           </div>
