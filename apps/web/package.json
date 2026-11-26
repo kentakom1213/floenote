@@ -27,20 +27,20 @@
     "@floe-note/transport": "workspace:*",
     "@floe-note/vault": "workspace:*",
     "codemirror": "^6.0.2",
-    "dompurify": "^3.4.17",
+    "dompurify": "^3.5.0",
     "loro-codemirror": "^0.3.3",
-    "loro-crdt": "^1.17.1",
+    "loro-crdt": "^1.18.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "katex": "^0.19.1",
-    "marked": "^18.1.3",
+    "marked": "^18.2.1",
     "qrcode.react": "^4.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.2.1",
-    "vite": "^8.3.6",
+    "@vitejs/plugin-react": "^6.3.0",
+    "vite": "^8.3.8",
     "vite-plugin-pwa": "2.0.0",
     "workbox-window": "7.4.1"
   }
