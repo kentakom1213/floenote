@@ -2,6 +2,9 @@ import {
   NoteDocument,
   NoteProject,
   createPortableProjectExport,
+  createPortableWorkspaceExport,
+  createPortableWorkspaceSnapshot,
+  parsePortableWorkspaceImport,
   createPortableProjectSnapshot,
 } from "@floe-note/document";
 import {
@@ -31,6 +34,8 @@ import type {
   ProjectGenesisSession,
   ProjectGenesisStorage,
 } from "../src/project-genesis.js";
+
+import { createWorkspaceFromPortableWorkspace, preparePortableWorkspace, readWorkspaceDirectory } from "../src/portable-workspace-import-integration.js";
 
 const ZERO_HASH = new Uint8Array(32);
 const runtime: ProjectGenesisRuntime = {
@@ -470,3 +475,42 @@ function snapshot(project: NoteProject): StoredSnapshot {
     })),
   };
 }
+
+describe("Workspace archive import", () => {
+  it("restores content with fresh identities and leaves existing Workspaces intact", async () => {
+    const source = sourceProject();
+    source.renameProject("Original");
+    source.createProject("Empty");
+    const snapshot = createPortableWorkspaceSnapshot(source);
+    const imported = parsePortableWorkspaceImport(createPortableWorkspaceExport(snapshot).archive);
+    const storage = new FakeStorage();
+    storage.storeExisting(source);
+    const coordinator = new FakeCoordinator();
+    const session = new FakeSession();
+    const result = await createWorkspaceFromPortableWorkspace(imported, { session, coordinator, storage, runtime });
+    expect(result.project.id).not.toBe(source.id);
+    expect(storage.projects.has(source.id)).toBe(true);
+    expect(storage.projects.size).toBe(2);
+    expect(createPortableWorkspaceSnapshot(result.project)).toEqual(snapshot);
+    expect(result.project.listProjects().every(({ id }) => !source.getProject(id))).toBe(true);
+    expect(result.project.getAllDocuments().every(({ id }) => !source.getDocument(id))).toBe(true);
+    expect(session.createdKeys).toEqual([{ workspaceId: result.project.id, keyEpoch: 1 }]);
+    expect(coordinator.transitions).toHaveLength(1);
+  });
+
+  it("does not insert a default Project into an empty Workspace", () => {
+    const workspace = preparePortableWorkspace({ name: "Empty", exportedAt: 100, projects: [] });
+    expect(workspace.name).toBe("Empty");
+    expect(workspace.listProjects()).toEqual([]);
+  });
+
+  it("reads an extracted directory relative to the selected root", async () => {
+    const manifest = { format: "floe-workspace", formatVersion: 1, exportedAt: "2026-11-27T00:00:00.000Z", workspace: { name: "Empty" }, projects: [] };
+    const data = new TextEncoder().encode(JSON.stringify(manifest));
+    const imported = await readWorkspaceDirectory([{
+      webkitRelativePath: "backup/manifest.json",
+      async arrayBuffer() { return data.buffer as ArrayBuffer; },
+    }]);
+    expect(imported).toEqual({ name: "Empty", exportedAt: Date.UTC(2026, 10, 27), projects: [] });
+  });
+});
