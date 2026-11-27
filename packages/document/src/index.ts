@@ -59,3 +59,12 @@ export type {
   PortableWorkspaceExport,
   FloeWorkspaceExportManifestV1,
 } from "./portable-workspace-export.js";
+
+export {
+  parsePortableWorkspaceImport,
+  parsePortableWorkspaceFiles,
+} from "./portable-workspace-import.js";
+export type {
+  ImportedPortableWorkspace,
+  PortableWorkspaceSourceFile,
+} from "./portable-workspace-import.js";
