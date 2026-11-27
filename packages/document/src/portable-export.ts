@@ -57,7 +57,23 @@ export function createPortableProjectExport(
   project: PortableProject,
   options: PortableProjectExportOptions = {},
 ): PortableProjectExport {
-  const exportedAt = options.exportedAt ?? Date.now();
+  const { manifest, manifestJson, entries } = createPortableProjectEntries(
+    project,
+    options.exportedAt ?? Date.now(),
+  );
+
+  return {
+    fileName: `${sanitizeFileStem(project.name)}.floe.zip`,
+    manifest,
+    manifestJson,
+    archive: encodeStoredZip(entries),
+  };
+}
+
+export function createPortableProjectEntries(
+  project: PortableProject,
+  exportedAt: number,
+): { manifest: FloeExportManifestV1; manifestJson: string; entries: ZipEntry[] } {
   const preparedDocuments = prepareDocuments(project.documents);
   const manifest = createManifest(project, preparedDocuments, exportedAt);
   const manifestJson = serializePortableProjectManifest(manifest);
@@ -73,12 +89,7 @@ export function createPortableProjectExport(
     })),
   ];
 
-  return {
-    fileName: `${sanitizeFileStem(project.name)}.floe.zip`,
-    manifest,
-    manifestJson,
-    archive: encodeStoredZip(entries),
-  };
+  return { manifest, manifestJson, entries };
 }
 
 export function createPortableProjectManifest(

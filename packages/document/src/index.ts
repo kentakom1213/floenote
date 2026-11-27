@@ -47,3 +47,15 @@ export type {
 } from "./portable-import.js";
 
 export type { MarkdownDirectorySourceFile } from "./markdown-directory-import.js";
+
+export {
+  FLOE_WORKSPACE_EXPORT_FORMAT,
+  FLOE_WORKSPACE_EXPORT_FORMAT_VERSION,
+  createPortableWorkspaceExport,
+} from "./portable-workspace-export.js";
+export { createPortableWorkspaceSnapshot } from "./portable-workspace-adapter.js";
+export type {
+  PortableWorkspace,
+  PortableWorkspaceExport,
+  FloeWorkspaceExportManifestV1,
+} from "./portable-workspace-export.js";
