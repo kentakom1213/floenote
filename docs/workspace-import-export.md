@@ -44,7 +44,8 @@ there are no nested ZIPs. Paths are relative to the Workspace archive root;
 inner Project document paths are relative to that Project directory.
 Project names are stored in their own manifests, not inferred from paths.
 Sanitize directory stems as for Project export, resolving collisions with
-numbered suffixes. Use a stable entry order and the same UTC export instant
+numbered suffixes, including case-insensitive and Unicode-normalized name
+collisions. Use a stable entry order and the same UTC export instant
 for all manifests. ZIP entry timestamps are fixed by the existing encoder.
 An empty projects array is valid. Empty active Projects are included.
 

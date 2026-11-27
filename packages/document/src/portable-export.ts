@@ -137,17 +137,24 @@ function prepareDocuments(
 }
 
 function allocateFileName(stem: string, usedFileNames: Set<string>): string {
-  const first = `${stem}.md`;
-  if (!usedFileNames.has(first)) {
-    usedFileNames.add(first);
-    return first;
-  }
+  return allocatePortableName(stem, ".md", usedFileNames);
+}
 
-  for (let suffix = 2; ; suffix += 1) {
-    const candidate = `${stem} (${suffix}).md`;
-    if (!usedFileNames.has(candidate)) {
-      usedFileNames.add(candidate);
-      return candidate;
+// Use a conservative collision key so extracted archives also work on
+// case-insensitive and Unicode-normalizing filesystems.
+export function allocatePortableName(
+  stem: string,
+  extension: string,
+  usedNames: Set<string>,
+): string {
+  for (let suffix = 1; ; suffix += 1) {
+    const name = suffix === 1
+      ? `${stem}${extension}`
+      : `${stem} (${suffix})${extension}`;
+    const key = name.normalize("NFC").toLowerCase();
+    if (!usedNames.has(key)) {
+      usedNames.add(key);
+      return name;
     }
   }
 }

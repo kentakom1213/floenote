@@ -58,6 +58,16 @@ describe("portable Workspace export", () => {
     expect(createPortableWorkspaceExport(workspace, { exportedAt }).archive).toEqual(result.archive);
   });
 
+  it("avoids case and Unicode normalization collisions in extracted Project paths", () => {
+    const result = createPortableWorkspaceExport({
+      name: "Personal",
+      projects: ["Research", "research", "Café", "Cafe\u0301"].map((name) => ({ name, documents: [] })),
+    }, { exportedAt });
+    expect(result.manifest.projects.map(({ path }) => path)).toEqual([
+      "projects/Research", "projects/research (2)", "projects/Café", "projects/Cafe\u0301 (2)",
+    ]);
+  });
+
   it("supports a Workspace without active Projects", () => {
     const workspace = NoteProject.create();
     workspace.archiveProject(workspace.listProjects()[0]!.id);

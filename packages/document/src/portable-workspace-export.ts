@@ -1,4 +1,5 @@
 import {
+  allocatePortableName,
   createPortableProjectEntries,
   sanitizeFileStem,
   type PortableProject,
@@ -46,11 +47,7 @@ export function createPortableWorkspaceExport(
   const entries: ZipEntry[] = [];
   for (const project of workspace.projects) {
     const stem = sanitizeFileStem(project.name);
-    let directory = stem;
-    for (let suffix = 2; usedDirectories.has(directory); suffix += 1) {
-      directory = `${stem} (${suffix})`;
-    }
-    usedDirectories.add(directory);
+    const directory = allocatePortableName(stem, "", usedDirectories);
     const path = `projects/${directory}`;
     manifest.projects.push({ path });
     const portable = createPortableProjectEntries(project, exportedAt);

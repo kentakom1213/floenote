@@ -92,6 +92,16 @@ describe("portable Project export", () => {
     );
   });
 
+  it("avoids case and Unicode normalization collisions in extracted Note paths", () => {
+    const manifest = createPortableProjectManifest({
+      name: "Project",
+      documents: ["Ideas", "ideas", "Café", "Cafe\u0301"].map(document),
+    }, EXPORTED_AT);
+    expect(manifest.documents.map(({ path }) => path)).toEqual([
+      "notes/Ideas.md", "notes/ideas (2).md", "notes/Café.md", "notes/Cafe\u0301 (2).md",
+    ]);
+  });
+
   it("omits deleted documents", () => {
     const result = createPortableProjectExport(
       {
