@@ -417,6 +417,8 @@ input:focus-visible {
   top: calc(100% + 7px);
   left: 0;
   width: max(220px, 100%);
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: 13px;
@@ -459,7 +461,12 @@ input:focus-visible {
 .project-switcher-action {
   grid-template-columns: 16px minmax(0, 1fr);
   color: var(--color-text-muted);
-  white-space: nowrap;
+}
+
+.project-switcher-action > span:last-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .project-switcher-item:hover,

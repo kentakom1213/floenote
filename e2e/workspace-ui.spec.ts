@@ -14,6 +14,10 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
   await page.getByLabel("Switch workspace").click();
   await expect(page.getByRole("button", { name: "Workspace settings…" })).toBeVisible();
   await expect(page.getByRole("button", { name: /New \/ Import Workspace/ })).toBeVisible();
+  const actionLabels = page.locator(".project-switcher-action > span:last-child");
+  for (const label of await actionLabels.all()) {
+    expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
   await expect(page.locator(".project-switcher-action")).toHaveText([
     "＋New / Import Workspace…",
     "⚙Workspace settings…",
