@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   exportProjectToBrowser,
+  exportWorkspaceToBrowser,
   type BrowserDownloadEnvironment,
 } from "../src/portable-export-download.js";
 
@@ -71,5 +72,36 @@ describe("exportProjectToBrowser", () => {
       "download failed",
     );
     expect(revoked).toEqual(["blob:floe-export"]);
+  });
+});
+
+describe("exportWorkspaceToBrowser", () => {
+  it("downloads a Workspace archive using the fixed sanitized filename", () => {
+    const workspace = NoteProject.create();
+    workspace.renameProject("Personal / notes");
+    workspace.createDocument("One");
+    workspace.createProject("Research");
+    const environment: BrowserDownloadEnvironment = {
+      createObjectUrl: vi.fn(() => "blob:workspace"),
+      clickDownload: vi.fn(),
+      revokeObjectUrl: vi.fn(),
+    };
+
+    expect(exportWorkspaceToBrowser(workspace, environment)).toBe("Personal _ notes.floe-workspace.zip");
+    expect(environment.clickDownload).toHaveBeenCalledWith("blob:workspace", "Personal _ notes.floe-workspace.zip");
+    expect(environment.revokeObjectUrl).toHaveBeenCalledWith("blob:workspace");
+  });
+
+  it("does not initiate a download when an active Note is missing", () => {
+    const source = NoteProject.create();
+    source.createDocument("Missing");
+    const workspace = NoteProject.fromSnapshot(source.id, source.exportManifestSnapshot(), []);
+    const environment: BrowserDownloadEnvironment = {
+      createObjectUrl: vi.fn(() => "blob:workspace"),
+      clickDownload: vi.fn(),
+      revokeObjectUrl: vi.fn(),
+    };
+    expect(() => exportWorkspaceToBrowser(workspace, environment)).toThrow("not available locally");
+    expect(environment.createObjectUrl).not.toHaveBeenCalled();
   });
 });

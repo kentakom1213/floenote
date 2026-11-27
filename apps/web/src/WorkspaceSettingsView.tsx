@@ -24,6 +24,7 @@ type WorkspaceSettingsViewProps = {
   coordinationError: string | null;
   getDeviceDisplayName: (deviceId: DeviceId) => string | null;
   onRenameWorkspace: (name: string) => void;
+  onExport: () => void;
   onRemoveWorkspaceFromDevice: () => Promise<void>;
   onAddDevice: () => void;
   onRetrySecurity: () => void;
@@ -82,6 +83,7 @@ export function WorkspaceSettingsView({
   coordinationError,
   getDeviceDisplayName,
   onRenameWorkspace,
+  onExport,
   onRemoveWorkspaceFromDevice,
   onAddDevice,
   onRetrySecurity,
@@ -97,6 +99,8 @@ export function WorkspaceSettingsView({
     syncDevices.map((device) => [device.deviceId, device]),
   );
   const [nameDraft, setNameDraft] = useState(workspaceName);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exported, setExported] = useState(false);
   const [removeWorkspaceOpen, setRemoveWorkspaceOpen] = useState(false);
   const [removeDeviceId, setRemoveDeviceId] = useState<DeviceId | null>(null);
   const normalizedName = nameDraft.trim();
@@ -106,6 +110,22 @@ export function WorkspaceSettingsView({
   useEffect(() => {
     setNameDraft(workspaceName);
   }, [workspaceName]);
+
+  useEffect(() => {
+    setExportError(null);
+    setExported(false);
+  }, [workspaceId]);
+
+  function exportWorkspace(): void {
+    setExported(false);
+    setExportError(null);
+    try {
+      onExport();
+      setExported(true);
+    } catch (caught) {
+      setExportError(caught instanceof Error ? caught.message : "Could not export Workspace");
+    }
+  }
 
   const removeDeviceName = removeDeviceId
     ? getDeviceDisplayName(removeDeviceId) ?? "this device"
@@ -306,6 +326,27 @@ export function WorkspaceSettingsView({
             </div>
           </dl>
         </details>
+      </div>
+
+      <div className="settings-section">
+        <h2>Export Workspace</h2>
+        <p className="settings-field-hint">
+          Download all active Projects and Notes as readable Markdown.
+          This export is not encrypted. Archived Projects, deleted Notes,
+          and edit history are not included. Only locally available changes
+          are included.
+        </p>
+        <button
+          className="settings-primary-action project-settings-action"
+          type="button"
+          onClick={exportWorkspace}
+        >
+          Export Workspace
+        </button>
+        {exported ? <p role="status">Workspace exported.</p> : null}
+        {exportError ? (
+          <p className="dialog-error" role="alert">{exportError}</p>
+        ) : null}
       </div>
 
       <div className="settings-section danger-zone">

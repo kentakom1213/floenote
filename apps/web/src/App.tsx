@@ -105,7 +105,7 @@ import {
 import { clearAllNoteRecency } from "./note-recency.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { deriveEntrySurface } from "./onboarding-state.js";
-import { exportProjectToBrowser } from "./portable-export-download.js";
+import { exportProjectToBrowser, exportWorkspaceToBrowser } from "./portable-export-download.js";
 import {
   createWorkspaceFromPortableProjectArchive,
   importPortableProjectIntoWorkspace,
@@ -2418,6 +2418,7 @@ function NoteApp({
       <WorkspaceSettingsView
         workspaceId={activeProject.id}
         workspaceName={activeProject.name}
+        onExport={() => exportWorkspaceToBrowser(activeProject)}
         localDeviceId={localDeviceId}
         authorizedDevices={localSecurityState?.devices ?? null}
         onlineDeviceIds={authorizedSync.onlineDeviceIds}
