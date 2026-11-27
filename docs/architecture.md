@@ -151,13 +151,14 @@ See [edit-history.md](./edit-history.md).
 disposable and must not be a second plaintext persistence authority.
 See [global-search.md](./global-search.md).
 
-**Portable export** is Project-scoped, unencrypted Markdown/JSON content
+**Portable export** is Project- or Workspace-scoped, unencrypted Markdown/JSON content
 portability, not an encrypted Workspace backup or authorization-state restore.
 Import into an existing Workspace creates new Project/Document identities
 without changing its security boundary; onboarding from an import creates a
 fresh Workspace security identity. Project contents can be exported locally
 without a coordinator. See
-[project-import-export.md](./project-import-export.md).
+[project-import-export.md](./project-import-export.md) and
+[workspace-import-export.md](./workspace-import-export.md).
 
 ## 5. Security and trust model
 
