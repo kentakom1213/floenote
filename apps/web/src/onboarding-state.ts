@@ -2,6 +2,7 @@ import type { DeviceVaultUiState } from "./DeviceVaultPanel.js";
 
 export type OnboardingAction =
   | "create"
+  | "import-workspace"
   | "import-floe"
   | "import-markdown";
 

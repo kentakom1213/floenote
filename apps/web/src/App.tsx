@@ -106,6 +106,8 @@ import { clearAllNoteRecency } from "./note-recency.js";
 import { ProjectEmptyState } from "./ProjectEmptyState.js";
 import { deriveEntrySurface } from "./onboarding-state.js";
 import { exportProjectToBrowser, exportWorkspaceToBrowser } from "./portable-export-download.js";
+import type { ImportedPortableWorkspace } from "@floe-note/document";
+import { createWorkspaceFromPortableWorkspace } from "./portable-workspace-import-integration.js";
 import {
   createWorkspaceFromPortableProjectArchive,
   importPortableProjectIntoWorkspace,
@@ -1234,6 +1236,7 @@ function NoteApp({
         onEraseDevice={eraseFloeFromThisDevice}
         onCreateProject={createProject}
         onImportFloeExport={importFloeExport}
+        onImportWorkspace={importWorkspace}
         onImportMarkdownDirectory={importMarkdownDirectoryFiles}
       />
     );
@@ -1491,7 +1494,7 @@ function NoteApp({
     session: DeviceVaultSession,
   ): Promise<void> {
     const summaries = await workspaceStorage.listWorkspaces(session);
-    const importedProjectId = result.project.listProjects()[0]!.id;
+    const importedProjectId = result.project.listProjects()[0]?.id ?? null;
     const firstId = firstNoteInProject(result.project, importedProjectId);
     resetProjectSecurityUiState();
     setSelectedId(firstId);
@@ -1506,6 +1509,26 @@ function NoteApp({
     setOpenedProject(result);
     setProjectSummaries(withActiveProjectSummary(summaries, result.project));
     setProjectCatalogReady(true);
+  }
+
+  async function importWorkspace(imported: ImportedPortableWorkspace): Promise<void> {
+    if (projectSwitching) throw new Error("Another Workspace operation is already in progress");
+    const session = deviceVaultSessionRef.current;
+    if (!session) throw new Error("Device Vault must be unlocked before importing a Workspace");
+
+    setProjectSwitching(true);
+    try {
+      // Finish pending writes before switching away from the current Workspace.
+      await workspaceStorage.flushPendingWrites();
+      const result = await createWorkspaceFromPortableWorkspace(imported, {
+        session,
+        coordinator: securityCoordinator,
+        storage: workspaceStorage,
+      });
+      await openImportedWorkspace(result, session);
+    } finally {
+      setProjectSwitching(false);
+    }
   }
 
   async function importFloeExport(archive: Uint8Array): Promise<void> {
@@ -2274,6 +2297,7 @@ function NoteApp({
         pushRoute(buildWorkspaceSettingsUrl(activeProject.id));
       }}
       onCreateProject={createProject}
+      onImportWorkspace={importWorkspace}
     />
   );
 

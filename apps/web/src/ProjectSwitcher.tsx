@@ -1,6 +1,9 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import type { ImportedPortableWorkspace } from "@floe-note/document";
+import { WorkspaceImportDialog } from "./WorkspaceImportDialog.js";
+
 import type { WorkspaceId } from "@floe-note/domain";
 
 import { parseInvitationUrl } from "./invitation-url.js";
@@ -21,6 +24,7 @@ type ProjectSwitcherProps = {
   onSelectProject: (projectId: WorkspaceId) => Promise<void>;
   onOpenSettings: () => void;
   onCreateProject: (name: string) => Promise<void>;
+  onImportWorkspace: (workspace: ImportedPortableWorkspace) => Promise<void>;
 };
 
 export function ProjectSwitcher({
@@ -29,12 +33,14 @@ export function ProjectSwitcher({
   onSelectProject,
   onOpenSettings,
   onCreateProject,
+  onImportWorkspace,
 }: ProjectSwitcherProps) {
   const current = projects.find((project) => project.isCurrent) ?? projects[0];
   const switcherRef = useRef<HTMLDetailsElement>(null);
   useDismissibleDetails(switcherRef);
 
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [newProjectSource, setNewProjectSource] =
     useState<NewProjectSource | null>(null);
   const [newProjectName, setNewProjectName] = useState("");
@@ -177,7 +183,7 @@ export function ProjectSwitcher({
             }}
           >
             <span aria-hidden="true">＋</span>
-            <span>New workspace</span>
+            <span>New / Import Workspace…</span>
           </button>
 
           <button
@@ -200,13 +206,17 @@ export function ProjectSwitcher({
         </div>
       </details>
 
+      {importOpen && typeof document !== "undefined" ? createPortal(
+        <WorkspaceImportDialog onImport={onImportWorkspace} onClose={() => setImportOpen(false)} />,
+        document.body,
+      ) : null}
       {newProjectOpen && typeof document !== "undefined" ? createPortal(
         <Modal
           labelledBy="new-project-title"
           disabled={busy}
           onClose={closeNewProject}
         >
-          <h2 id="new-project-title">New workspace</h2>
+          <h2 id="new-project-title">New / Import Workspace</h2>
 
           {newProjectSource === null ? (
             <>
@@ -241,6 +251,22 @@ export function ProjectSwitcher({
                       Add an existing Workspace to this device using an invitation
                       from another authorized device.
                     </span>
+                  </span>
+                </button>
+                <button
+                  className="new-project-source-option project-source-option"
+                  type="button"
+                  onClick={() => {
+                    setNewProjectOpen(false);
+                    setImportOpen(true);
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 2.5v10m-3-3 3 3 3-3M3.5 13.5v3h13v-3" />
+                  </svg>
+                  <span className="project-source-copy">
+                    <strong>Import Workspace</strong>
+                    <span>Create a new Workspace from an export.</span>
                   </span>
                 </button>
               </div>

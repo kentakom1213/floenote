@@ -1,3 +1,5 @@
+import type { ImportedPortableWorkspace } from "@floe-note/document";
+import { WorkspaceImportDialog } from "./WorkspaceImportDialog.js";
 import type { DeviceId } from "@floe-note/domain";
 import { useState } from "react";
 
@@ -28,6 +30,7 @@ type ProjectEmptyStateProps = {
   onEraseDevice: () => Promise<void>;
   onCreateProject: (name: string) => Promise<void>;
   onImportFloeExport: (archive: Uint8Array) => Promise<void>;
+  onImportWorkspace: (workspace: ImportedPortableWorkspace) => Promise<void>;
   onImportMarkdownDirectory: (files: readonly File[]) => Promise<void>;
 };
 
@@ -50,6 +53,7 @@ export function ProjectEmptyState({
   onEraseDevice,
   onCreateProject,
   onImportFloeExport,
+  onImportWorkspace,
   onImportMarkdownDirectory,
 }: ProjectEmptyStateProps) {
   const [view, setView] = useState<OnboardingView>("entry");
@@ -58,6 +62,7 @@ export function ProjectEmptyState({
   );
   const [joinOpen, setJoinOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [workspaceImportOpen, setWorkspaceImportOpen] = useState(false);
   const [markdownImportOpen, setMarkdownImportOpen] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,6 +71,7 @@ export function ProjectEmptyState({
   function openAction(action: OnboardingAction): void {
     if (action === "create") void createDefaultWorkspace();
     if (action === "import-floe") setImportOpen(true);
+    if (action === "import-workspace") setWorkspaceImportOpen(true);
     if (action === "import-markdown") setMarkdownImportOpen(true);
   }
 
@@ -312,6 +318,21 @@ export function ProjectEmptyState({
           <button
             className="onboarding-action-card onboarding-action-compact"
             type="button"
+            disabled={busy}
+            onClick={() => chooseAction("import-workspace")}
+          >
+            <span className="onboarding-action-icon onboarding-action-icon-compact" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 4v11m-4-4 4 4 4-4M5 15v5h14v-5" /></svg>
+            </span>
+            <span className="onboarding-action-copy">
+              <strong>Import Workspace</strong>
+              <small>Create a Workspace from a Workspace export</small>
+            </span>
+            <span className="onboarding-action-arrow" aria-hidden="true">→</span>
+          </button>
+          <button
+            className="onboarding-action-card onboarding-action-compact"
+            type="button"
             onClick={() => chooseAction("import-floe")}
           >
             <span className="onboarding-action-icon onboarding-action-icon-compact" aria-hidden="true">
@@ -350,6 +371,10 @@ export function ProjectEmptyState({
           </button>
         </div>
       </section>
+
+      {workspaceImportOpen ? (
+        <WorkspaceImportDialog onImport={onImportWorkspace} onClose={() => setWorkspaceImportOpen(false)} />
+      ) : null}
 
       {joinOpen ? (
         <Modal
