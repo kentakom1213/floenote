@@ -19,7 +19,7 @@ export type ProjectImportDependencies = {
 export async function commitValidatedImportedProject(
   project: NoteProject,
   dependencies: ProjectImportDependencies,
-  sourceLabel: "Floe export" | "Markdown directory",
+  sourceLabel: "Floe export" | "Markdown directory" | "Workspace export",
 ): Promise<OpenWorkspaceResult> {
   try {
     return await commitNewProjectGenesis(

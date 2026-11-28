@@ -216,8 +216,9 @@ portability is the primary goal and extracted Markdown should remain directly
 readable. The UI must make clear that the resulting archive contains readable
 Note contents.
 
-Encrypted backup is a separate future feature and must not replace the portable
-Project export.
+Workspace-wide portable export is defined in
+[workspace-import-export.md](./workspace-import-export.md) and reuses this
+Project format. Encrypted backup remains a separate future feature.
 
 ## 8. Importing a Floe Project
 
@@ -346,7 +347,7 @@ security domain when it is added to an existing Workspace.
 
 Project v1 does not implement:
 
-- Workspace-wide portable export or cryptographic backup;
+- cryptographic backup (Workspace-wide portable export is specified separately);
 - restore with the original WorkspaceId or ProjectId;
 - importing/merging into an existing Project;
 - round-tripping Loro or edit history;

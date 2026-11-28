@@ -1,6 +1,8 @@
 import {
   createPortableProjectExport,
   createPortableProjectSnapshot,
+  createPortableWorkspaceExport,
+  createPortableWorkspaceSnapshot,
   type NoteProject,
 } from "@floe-note/document";
 import type { ProjectId } from "@floe-note/domain";
@@ -18,6 +20,23 @@ export function exportProjectToBrowser(
 ): string {
   const snapshot = createPortableProjectSnapshot(workspace, projectId);
   const exported = createPortableProjectExport(snapshot);
+  return downloadArchive(exported, environment);
+}
+
+export function exportWorkspaceToBrowser(
+  workspace: NoteProject,
+  environment: BrowserDownloadEnvironment = browserDownloadEnvironment,
+): string {
+  return downloadArchive(
+    createPortableWorkspaceExport(createPortableWorkspaceSnapshot(workspace)),
+    environment,
+  );
+}
+
+function downloadArchive(
+  exported: { archive: Uint8Array; fileName: string },
+  environment: BrowserDownloadEnvironment,
+): string {
   const bytes = exported.archive.slice();
   const blob = new Blob([bytes.buffer], { type: "application/zip" });
   const objectUrl = environment.createObjectUrl(blob);

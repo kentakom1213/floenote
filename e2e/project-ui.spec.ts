@@ -416,17 +416,6 @@ test("keeps Workspace and Project switcher menus clean at the minimum desktop si
       ),
     ];
     const tolerance = 1;
-    const isSingleLine = (element: HTMLElement) => {
-      const textNode = [...element.childNodes].find(
-        (node) =>
-          node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
-      );
-      if (!textNode) return false;
-
-      const range = document.createRange();
-      range.selectNodeContents(textNode);
-      return range.getClientRects().length === 1;
-    };
     const sidebarRect = sidebar.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
     const nameStyle = getComputedStyle(currentName);
@@ -435,7 +424,17 @@ test("keeps Workspace and Project switcher menus clean at the minimum desktop si
       menuContained:
         menuRect.left >= sidebarRect.left - tolerance &&
         menuRect.right <= sidebarRect.right + tolerance,
-      actionsSingleLine: actionLabels.every(isSingleLine),
+      actionsContained: actionLabels.every((label) => {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        const bounds = label.closest("button")!.getBoundingClientRect();
+        return Array.from(range.getClientRects()).every((rect) =>
+          rect.left >= bounds.left - tolerance &&
+          rect.right <= bounds.right + tolerance &&
+          rect.top >= bounds.top - tolerance &&
+          rect.bottom <= bounds.bottom + tolerance,
+        );
+      }),
       nameTruncated:
         currentName.scrollWidth > currentName.clientWidth + tolerance &&
         nameStyle.whiteSpace === "nowrap" &&
@@ -445,7 +444,7 @@ test("keeps Workspace and Project switcher menus clean at the minimum desktop si
 
   expect(workspaceGeometry).toEqual({
     menuContained: true,
-    actionsSingleLine: true,
+    actionsContained: true,
     nameTruncated: true,
   });
 

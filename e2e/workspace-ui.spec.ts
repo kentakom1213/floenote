@@ -1,3 +1,4 @@
+import { createPortableWorkspaceExport } from "@floe-note/document";
 import { expect, test } from "./fixtures.js";
 import { createSecuredProject } from "./project.js";
 
@@ -12,19 +13,24 @@ test("keeps Workspace switching and creation in the compact sidebar context", as
 
   await page.getByLabel("Switch workspace").click();
   await expect(page.getByRole("button", { name: "Workspace settings…" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "New workspace" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /New \/ Import Workspace/ })).toBeVisible();
+  const actionLabels = page.locator(".project-switcher-action > span:last-child");
+  for (const label of await actionLabels.all()) {
+    expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
   await expect(page.locator(".project-switcher-action")).toHaveText([
-    "＋New workspace",
+    "＋New / Import Workspace…",
     "⚙Workspace settings…",
   ]);
-  await page.getByRole("button", { name: "New workspace" }).click();
-  const newWorkspaceDialog = page.getByRole("dialog", { name: "New workspace" });
+  await page.getByRole("button", { name: /New \/ Import Workspace/ }).click();
+  const newWorkspaceDialog = page.getByRole("dialog", { name: /New \/ Import Workspace/ });
   const createWorkspace = newWorkspaceDialog.getByRole("button", {
     name: /Create new workspace/,
   });
   const joinWorkspace = newWorkspaceDialog.getByRole("button", {
     name: /Join with invitation link/,
   });
+  await expect(newWorkspaceDialog.getByRole("button", { name: /Import Workspace/ })).toBeVisible();
   await expect(createWorkspace).toBeVisible();
   await expect(createWorkspace.locator("svg")).toHaveCount(1);
   await expect(joinWorkspace).toBeVisible();
@@ -83,10 +89,10 @@ test("keeps the mobile sidebar open behind the New workspace dialog", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByLabel("Switch workspace").click();
-  await page.getByRole("button", { name: "New workspace" }).click();
+  await page.getByRole("button", { name: /New \/ Import Workspace/ }).click();
 
   await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
-  await expect(page.getByRole("dialog", { name: "New workspace" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /New \/ Import Workspace/ })).toBeVisible();
   expect(await page.locator(".dialog-backdrop").evaluate(
     (backdrop) => backdrop.parentElement === document.body,
   )).toBe(true);
@@ -95,7 +101,7 @@ test("keeps the mobile sidebar open behind the New workspace dialog", async ({
   await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Mobile workspace");
   await page.getByRole("button", { name: "Create workspace" }).click();
-  await expect(page.getByRole("dialog", { name: "New workspace" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /New \/ Import Workspace/ })).toHaveCount(0);
   await expect(page.locator(".brand-row")).toContainText("Mobile workspace");
   await expect(page.locator(".sidebar")).toHaveAttribute("data-mobile-open", "true");
 });
@@ -175,7 +181,7 @@ test("removes only the selected Workspace from this device", async ({
 }) => {
   const { projectId, documentId } = await createSecuredProject(page);
   await page.getByLabel("Switch workspace").click();
-  await page.getByRole("button", { name: "New workspace" }).click();
+  await page.getByRole("button", { name: /New \/ Import Workspace/ }).click();
   await page.getByRole("button", { name: /Create new workspace/ }).click();
   await page.getByRole("textbox", { name: "Name" }).fill("Temporary");
   await page.getByRole("button", { name: "Create workspace" }).click();
@@ -204,4 +210,35 @@ test("removes only the selected Workspace from this device", async ({
     .filter({ has: page.getByRole("heading", { name: "This device" }) })
     .locator("dd").first().textContent();
   expect(deviceIdAfter).toBe(deviceIdBefore);
+});
+
+test("imports an exported Workspace without changing the current Workspace", async ({ page }) => {
+  const { projectId, documentId } = await createSecuredProject(page);
+  const archive = createPortableWorkspaceExport({
+    name: "Restored",
+    projects: [
+      { name: "Research", documents: [{ title: "Imported note", body: "# Restored", createdAt: 100, updatedAt: 200, tags: ["test"] }] },
+      { name: "Empty", documents: [] },
+    ],
+  }).archive;
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: /New \/ Import Workspace/ }).click();
+  await page.getByRole("button", { name: /Import Workspace/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Import Workspace" });
+  await dialog.getByLabel("Workspace ZIP").setInputFiles({
+    name: "Restored.floe-workspace.zip",
+    mimeType: "application/zip",
+    buffer: Buffer.from(archive),
+  });
+  await expect(dialog).toContainText("Restored");
+  await dialog.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.locator(".brand-row")).toContainText("Restored");
+  await page.getByLabel("Switch Project").click();
+  await expect(page.getByRole("button", { name: "Research", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Empty", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Research", exact: true }).click();
+  await expect(page.getByLabel("Note title")).toHaveValue("Imported note");
+  await page.getByLabel("Switch workspace").click();
+  await page.getByRole("button", { name: "Personal" }).click();
+  await expect(page).toHaveURL(`/w/${projectId}/n/${documentId}`);
 });

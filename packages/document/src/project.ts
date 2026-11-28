@@ -335,6 +335,17 @@ export class NoteProject {
     return this.#manifest.subscribeLocalUpdates(listener);
   }
 
+  listActiveDocumentIds(): DocumentId[] {
+    return this.#manifest
+      .getMap("documents")
+      .entries()
+      .filter(
+        ([id, status]) =>
+          status === "active" && !this.isDocumentPurged(id as DocumentId),
+      )
+      .map(([id]) => id as DocumentId);
+  }
+
   listDocuments(): DocumentSummary[] {
     return this.#listDocumentsByStatus("active");
   }

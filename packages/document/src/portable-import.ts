@@ -38,6 +38,12 @@ export function parsePortableProjectImport(
     }
   }
 
+  return parsePortableProjectFiles(files);
+}
+
+export function parsePortableProjectFiles(
+  files: ReadonlyMap<string, Uint8Array>,
+): ImportedPortableProject {
   const manifestBytes = files.get("manifest.json");
   if (!manifestBytes) {
     throw new Error("Floe export is missing manifest.json");
@@ -176,7 +182,7 @@ function validateDocumentPath(path: string): void {
   }
 }
 
-function requireRecord(
+export function requireRecord(
   value: unknown,
   label: string,
 ): Record<string, unknown> {
@@ -186,7 +192,7 @@ function requireRecord(
   return value as Record<string, unknown>;
 }
 
-function requireString(value: unknown, label: string): string {
+export function requireString(value: unknown, label: string): string {
   if (typeof value !== "string") {
     throw new Error(`${label} must be a string`);
   }
@@ -200,7 +206,7 @@ function requireStringArray(value: unknown, label: string): string[] {
   return [...value];
 }
 
-function requireTimestamp(value: unknown, label: string): number {
+export function requireTimestamp(value: unknown, label: string): number {
   if (typeof value !== "string") {
     throw new Error(`${label} must be an RFC 3339 UTC timestamp`);
   }

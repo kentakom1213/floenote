@@ -112,9 +112,9 @@ test("opens Workspace settings from its selector and exits Settings when switchi
   await expect(page.getByLabel("Workspace name")).toHaveValue("Personal");
 
   await page.getByLabel("Switch workspace").click();
-  await page.getByRole("button", { name: "New workspace" }).click();
+  await page.getByRole("button", { name: /New \/ Import Workspace/ }).click();
   await page.getByRole("button", { name: /Create new workspace/ }).click();
-  await page.getByRole("dialog", { name: "New workspace" }).getByRole("textbox", { name: "Name", exact: true }).fill("Other workspace");
+  await page.getByRole("dialog", { name: /New \/ Import Workspace/ }).getByRole("textbox", { name: "Name", exact: true }).fill("Other workspace");
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page.locator(".brand-row")).toContainText("Other workspace");
   const secondWorkspaceId = new URL(page.url()).pathname.split("/")[2];
